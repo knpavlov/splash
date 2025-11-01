@@ -1,0 +1,239 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  z-index: 1000;
+}
+
+.modal {
+  width: min(1320px, 95vw);
+  max-height: 100%;
+  overflow: auto;
+  background: #f8fafc;
+  border-radius: 28px;
+  box-shadow: 0 32px 80px rgba(15, 23, 42, 0.28);
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28px 32px 16px 32px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 24px;
+  color: #0f172a;
+}
+
+.closeButton {
+  border: none;
+  background: transparent;
+  font-size: 26px;
+  cursor: pointer;
+  line-height: 1;
+  color: #64748b;
+}
+
+.content {
+  padding: 24px 32px 36px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.summaryHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.summaryDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summaryDetails h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #0f172a;
+}
+
+.summaryDetails p {
+  margin: 0;
+  color: #475569;
+}
+
+.summaryMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+  flex: 1;
+}
+
+.metricCard {
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metricLabel {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.metricValue {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.sectionSubtitle {
+  margin: 4px 0 0;
+  color: #64748b;
+}
+
+.summaryTableSection {
+  margin-top: 20px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.summaryTableWrapper {
+  overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.summaryTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 920px;
+  table-layout: fixed;
+  --criteria-column-width: 260px;
+}
+
+.summaryTableCriteriaColumn {
+  width: var(--criteria-column-width);
+}
+
+.summaryTable thead th {
+  background: rgba(226, 232, 240, 0.5);
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.summaryTable th,
+.summaryTable td {
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.4);
+  vertical-align: top;
+}
+
+.summaryTableColumn {
+  min-width: 220px;
+  width: var(--interviewer-column-width, auto);
+}
+
+.summaryTableGroupRow td {
+  font-weight: 600;
+  color: #334155;
+  background: rgba(241, 245, 249, 0.7);
+}
+
+.summaryTableCell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.summaryTablePrimary {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.summaryTablePrimaryNote {
+  font-weight: 500;
+  color: #1e293b;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.summaryTablePrimaryMuted {
+  color: #94a3b8;
+}
+
+.summaryTableSecondary {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.summaryTableDetails {
+  display: grid;
+  gap: 6px;
+}
+
+.summaryTableDetail {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.summaryTableDetail strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.statusBadgeSuccess,
+.statusBadgePending {
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.statusBadgeSuccess {
+  background: rgba(134, 239, 172, 0.25);
+  color: #166534;
+}
+
+.statusBadgePending {
+  background: rgba(253, 230, 138, 0.25);
+  color: #92400e;
+}
+
+.emptyState {
+  margin: 12px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}

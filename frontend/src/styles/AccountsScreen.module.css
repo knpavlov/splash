@@ -1,0 +1,269 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.subtitle {
+  margin: 8px 0 0 0;
+  color: #475569;
+  max-width: 480px;
+}
+
+.invitePanel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 28px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.invitePanelHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.invitePanelHeader h2 {
+  margin: 0;
+  font-size: 22px;
+  color: #0f172a;
+}
+
+.invitePanelHeader p {
+  margin: 0;
+  color: #475569;
+}
+
+.inviteForm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+.inviteForm .primaryButton {
+  justify-self: stretch;
+  width: 100%;
+}
+
+.firstNameInput,
+.lastNameInput,
+.emailInput {
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  font-size: 15px;
+  background: #ffffff;
+}
+
+.roleSelect {
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: #ffffff;
+  color: #0f172a;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  font-size: 15px;
+}
+
+.roleInlineSelect {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+  min-width: 120px;
+}
+
+.roleInlineSelect:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.primaryButton {
+  padding: 14px 24px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #22d3ee, #6366f1);
+  color: white;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  font-size: 15px;
+  min-height: 52px;
+}
+
+.primaryButton:hover {
+  transform: translateY(-1px);
+}
+
+.tableWrapper {
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(16px);
+  padding: 24px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 16px;
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sortButtonActive {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.sortIcon {
+  font-size: 12px;
+}
+
+.statusBadgePending,
+.statusBadgeActive {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.statusBadgePending {
+  background: rgba(248, 113, 113, 0.2);
+  color: #b91c1c;
+}
+
+.statusBadgeActive {
+  background: rgba(134, 239, 172, 0.25);
+  color: #166534;
+}
+
+.dangerButton {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(248, 113, 113, 0.2);
+  color: #b91c1c;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.dangerButton:disabled {
+  background: rgba(248, 113, 113, 0.12);
+  color: rgba(185, 28, 28, 0.6);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.secondaryButton {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(148, 163, 184, 0.2);
+  color: #0f172a;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.secondaryButton:disabled {
+  background: rgba(148, 163, 184, 0.12);
+  color: rgba(15, 23, 42, 0.5);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.actionsCell {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tokenCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tokenValue {
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.tokenInfo {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.infoBanner,
+.errorBanner {
+  padding: 16px 20px;
+  border-radius: 16px;
+  font-weight: 500;
+}
+
+.infoBanner {
+  background: rgba(134, 239, 172, 0.2);
+  color: #166534;
+}
+
+.errorBanner {
+  background: rgba(254, 202, 202, 0.3);
+  color: #b91c1c;
+}
+
+.restricted {
+  padding: 64px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  text-align: center;
+  color: #475569;
+}
+
+@media (max-width: 960px) {
+  .inviteForm {
+    grid-template-columns: 1fr;
+  }
+}

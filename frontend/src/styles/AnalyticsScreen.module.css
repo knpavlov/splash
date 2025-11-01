@@ -1,0 +1,572 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 24px;
+}
+
+.sectionCard {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(18px);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  position: relative;
+  z-index: 0;
+}
+
+.sectionCardRaised {
+  z-index: 300;
+}
+
+.sectionHeader {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #22d3ee);
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.actionButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(59, 130, 246, 0.25);
+}
+
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(255, 255, 255, 0.6);
+  color: #0f172a;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.secondaryButton:hover {
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.errorBanner {
+  padding: 16px 20px;
+  border-radius: 18px;
+  background: rgba(254, 202, 202, 0.3);
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+.loadingLabel {
+  color: #475569;
+  font-weight: 500;
+}
+
+.controlsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.dateConfirmButton {
+  margin-top: 24px;
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(226, 232, 240, 0.6);
+  color: #0f172a;
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.dateConfirmButton:hover:not(:disabled) {
+  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(224, 231, 255, 0.9);
+  transform: translateY(-1px);
+}
+
+.dateConfirmButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+}
+
+.toggleGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.55);
+}
+
+.toggleButton {
+  border: none;
+  background: transparent;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.toggleButtonActive {
+  background: white;
+  color: #1f2937;
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.18);
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 160px;
+}
+
+.inputLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.select,
+.dateInput {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+}
+
+.checkboxGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.checkboxOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(226, 232, 240, 0.4);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.checkboxOption input {
+  cursor: pointer;
+}
+
+.checkboxOptionActive {
+  border-color: rgba(99, 102, 241, 0.6);
+  background: rgba(129, 140, 248, 0.15);
+}
+
+.cardsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.metricCard {
+  padding: 20px;
+  border-radius: 20px;
+  background: rgba(224, 231, 255, 0.9);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.metricTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.metricValue {
+  font-size: 34px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.metricDetails {
+  font-size: 14px;
+  color: #334155;
+}
+
+.timelineWrapper {
+  min-height: 360px;
+}
+
+.timelineEmpty {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.interviewerFilters {
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.dropdownWrapper {
+  position: relative;
+  display: inline-block;
+  z-index: 1;
+}
+
+.dropdownWrapperOpen {
+  z-index: 120;
+}
+
+.dropdownMenu {
+  position: absolute;
+  top: 48px;
+  left: 0;
+  width: 320px;
+  max-height: 280px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.18);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 140;
+}
+
+.dropdownActions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dropdownActions button {
+  background: none;
+  border: none;
+  color: #4f46e5;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dropdownActions button:hover {
+  text-decoration: underline;
+}
+
+.dropdownList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.dropdownOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.dropdownOption input {
+  width: 16px;
+  height: 16px;
+}
+
+.dropdownLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.roleBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(129, 140, 248, 0.2);
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.roleToggleGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.roleToggle {
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(241, 245, 249, 0.8);
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.roleToggleActive {
+  border-color: rgba(79, 70, 229, 0.8);
+  background: rgba(79, 70, 229, 0.12);
+  color: #312e81;
+}
+
+.roleToggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.roleReset {
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.roleReset:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
+.interviewerMatrix {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.interviewerMatrixHeader {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.2fr) repeat(4, minmax(160px, 1fr));
+  gap: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  padding: 0 6px;
+}
+
+.interviewerMatrixRow {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.2fr) repeat(4, minmax(160px, 1fr));
+  gap: 18px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.interviewerMatrixRow:last-child {
+  border-bottom: none;
+}
+
+.matrixLabelCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.matrixName {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrixCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.matrixValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  min-width: 52px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.matrixCell .barTrack,
+.matrixCell .miniBarTrack,
+.matrixCell .miniStackedBar {
+  flex: 1;
+}
+
+.miniStackedBar {
+  width: 100%;
+  height: 10px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: rgba(226, 232, 240, 0.8);
+  display: flex;
+}
+
+.miniStackedHire {
+  background: rgba(34, 197, 94, 0.8);
+}
+
+.miniStackedReject {
+  background: rgba(239, 68, 68, 0.8);
+}
+
+.miniBarTrack {
+  width: 100%;
+  height: 10px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: rgba(226, 232, 240, 0.8);
+}
+
+.miniCaseBar {
+  height: 100%;
+  background: rgba(99, 102, 241, 0.85);
+}
+
+.miniFitBar {
+  height: 100%;
+  background: rgba(14, 165, 233, 0.85);
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.table th {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.table td {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.08);
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.multiSelectList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.multiSelectOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.barTrack {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.25);
+  overflow: hidden;
+}
+
+.barValue {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #34d399, #22d3ee);
+}

@@ -1,0 +1,191 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.headerActions {
+  display: flex;
+  gap: 12px;
+}
+
+.titleColumn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.titleDisplay {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.titleText {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlePlaceholder {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.titleEditor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.titleInput {
+  flex: 1 1 220px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 12px;
+  font-size: 14px;
+  background: white;
+  font-family: inherit;
+}
+
+.titleEditorActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iconButton,
+.iconButtonPositive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(255, 255, 255, 0.9);
+  color: #1f2937;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  padding: 0;
+}
+
+.iconButtonPositive {
+  border-color: rgba(34, 197, 94, 0.5);
+  background: rgba(34, 197, 94, 0.12);
+  color: #047857;
+}
+
+.iconButton:disabled,
+.iconButtonPositive:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.iconButton:not(:disabled):hover,
+.iconButtonPositive:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.18);
+}
+
+.ratingsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ratingBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(248, 250, 252, 0.9);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.ratingLabel {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.ratingBlock textarea {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 12px;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 120px;
+  background: #ffffff;
+  font-family: inherit;
+}
+
+.footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.primaryButton {
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #34d399, #22d3ee);
+  color: white;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.primaryButton:not(:disabled):hover,
+.secondaryButton:hover,
+.dangerButton:hover {
+  transform: translateY(-1px);
+}
+
+.secondaryButton {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(148, 163, 184, 0.25);
+  color: #0f172a;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.dangerButton {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(248, 113, 113, 0.2);
+  color: #b91c1c;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}

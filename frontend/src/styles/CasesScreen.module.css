@@ -1,0 +1,364 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.subtitle {
+  margin: 8px 0 0 0;
+  color: #475569;
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #38bdf8, #818cf8);
+  color: white;
+}
+
+.primaryButton:hover {
+  transform: translateY(-1px);
+}
+
+.secondaryButton {
+  background: rgba(148, 163, 184, 0.16);
+  color: #1e293b;
+}
+
+.secondaryButton:hover {
+  transform: translateY(-1px);
+}
+
+.dangerButton {
+  background: rgba(248, 113, 113, 0.18);
+  color: #b91c1c;
+}
+
+.dangerButton:hover {
+  transform: translateY(-1px);
+}
+
+.createBlock {
+  display: flex;
+  gap: 16px;
+}
+
+.createBlock input {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 12px 16px;
+  min-width: 240px;
+  font-size: 16px;
+}
+
+.infoBanner,
+.errorBanner {
+  padding: 16px 20px;
+  border-radius: 16px;
+  font-weight: 500;
+}
+
+.infoBanner {
+  background: rgba(134, 239, 172, 0.2);
+  color: #166534;
+}
+
+.errorBanner {
+  background: rgba(254, 202, 202, 0.3);
+  color: #b91c1c;
+}
+
+.foldersArea {
+  min-height: 420px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  padding: 32px 40px;
+  display: grid;
+}
+
+.foldersGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 24px;
+}
+
+.emptyState {
+  align-self: center;
+  justify-self: center;
+  text-align: center;
+  color: #64748b;
+}
+
+.emptyState h2 {
+  margin-bottom: 8px;
+  color: #0f172a;
+}
+
+.folderCard {
+  background: rgba(15, 23, 42, 0.04);
+  border-radius: 24px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.folderHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.folderHeader h3 {
+  margin: 0;
+}
+
+.folderTitleContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.folderTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folderTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.folderTitlePlaceholder {
+  color: #64748b;
+  font-style: italic;
+}
+
+.folderTitleInput {
+  flex: 1 1 220px;
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.titleEditorCompact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.titleEditorActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iconButton,
+.iconButtonPositive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(255, 255, 255, 0.95);
+  color: #1f2937;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  padding: 0;
+}
+
+.iconButtonPositive {
+  border-color: rgba(34, 197, 94, 0.5);
+  background: rgba(34, 197, 94, 0.12);
+  color: #047857;
+}
+
+.iconButton:disabled,
+.iconButtonPositive:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.iconButton:not(:disabled):hover,
+.iconButtonPositive:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
+}
+
+.folderHeaderActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.dropZone {
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #334155;
+  background: rgba(148, 163, 184, 0.08);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dropZoneActive {
+  border-color: rgba(59, 130, 246, 0.85);
+  background: rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.08);
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.uploadStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  text-align: left;
+}
+
+.uploadStatusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.uploadStatusLabel {
+  font-weight: 600;
+}
+
+.uploadStatusValue {
+  font-variant-numeric: tabular-nums;
+}
+
+.uploadProgressTrack {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.35);
+  overflow: hidden;
+}
+
+.uploadProgressValue {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  transition: width 0.2s ease;
+}
+
+.emptyFiles {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.12);
+  color: #475569;
+  text-align: center;
+}
+
+.filesList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fileRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.fileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fileName {
+  margin: 0;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileMeta {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.fileActionsInline {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.folderMetaRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: #64748b;
+  flex-wrap: wrap;
+}
+
+.error {
+  color: #b91c1c;
+  font-size: 14px;
+  margin: 0;
+}

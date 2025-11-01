@@ -1,0 +1,229 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(15, 23, 42, 0.65);
+  z-index: 1000;
+}
+
+.modal {
+  width: min(880px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  background: #f8fafc;
+  border-radius: 24px;
+  box-shadow: 0 32px 80px rgba(15, 23, 42, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 32px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.header h2 {
+  margin: 0;
+}
+
+.closeButton {
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.feedbackInfo,
+.feedbackError {
+  margin: 16px 32px 0 32px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.feedbackInfo {
+  background: rgba(134, 239, 172, 0.2);
+  color: #14532d;
+}
+
+.feedbackError {
+  background: rgba(254, 202, 202, 0.35);
+  color: #b91c1c;
+}
+
+.content {
+  padding: 24px 32px 0 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  color: #475569;
+}
+
+.fieldGroup input,
+.fieldGroup textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 12px;
+  font-size: 14px;
+  background: white;
+}
+
+.fieldGroup textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.criteriaHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.criteriaHeader h3 {
+  margin: 0;
+}
+
+.secondaryButton {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(148, 163, 184, 0.25);
+  color: #0f172a;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.secondaryButton:hover,
+.primaryButton:hover,
+.dangerButton:hover,
+.removeCriterionButton:hover {
+  transform: translateY(-1px);
+}
+
+.placeholder {
+  margin: 0;
+  padding: 20px;
+  border-radius: 16px;
+  background: rgba(226, 232, 240, 0.4);
+  color: #475569;
+}
+
+.criterionBlock {
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.criterionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.criterionHeader h4 {
+  margin: 0;
+}
+
+.removeCriterionButton {
+  border: none;
+  background: rgba(248, 113, 113, 0.2);
+  color: #b91c1c;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.ratingsTable {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ratingRow {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.ratingLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  padding: 12px 0;
+}
+
+.ratingTextarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 12px;
+  font-size: 14px;
+  background: white;
+  resize: vertical;
+  min-height: 84px;
+}
+
+.footer {
+  padding: 24px 32px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.linkButton {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+
+.dangerButton {
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(248, 113, 113, 0.2);
+  color: #b91c1c;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.dangerButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.primaryButton {
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}

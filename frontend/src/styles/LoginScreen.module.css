@@ -1,0 +1,214 @@
+.wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 48px 24px;
+  background: radial-gradient(120% 120% at 50% 0%, #1f2845 0%, #0f172a 45%, #020617 100%);
+}
+
+.card {
+  width: 100%;
+  max-width: 440px;
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.68));
+  border-radius: 28px;
+  padding: 44px;
+  box-shadow: 0 48px 120px rgba(8, 11, 24, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  backdrop-filter: blur(22px);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.brandMark {
+  width: 60px;
+  height: 60px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #38bdf8 0%, #6366f1 100%);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 22px;
+  color: #f8fafc;
+  box-shadow: 0 18px 38px rgba(79, 70, 229, 0.35);
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  font-size: 15px;
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.description {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: rgba(226, 232, 240, 0.76);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  color: rgba(226, 232, 240, 0.86);
+}
+
+/* Подчеркиваем отделение визуального слоя от логики стилями полей ввода */
+.input {
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 14px 16px;
+  font-size: 15px;
+  background: rgba(15, 23, 42, 0.65);
+  color: #f8fafc;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.input::placeholder {
+  color: rgba(148, 163, 184, 0.6);
+}
+
+.input:focus {
+  outline: none;
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28);
+  background: rgba(15, 23, 42, 0.82);
+}
+
+.input:disabled {
+  background: rgba(15, 23, 42, 0.4);
+  cursor: not-allowed;
+  color: rgba(148, 163, 184, 0.6);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.checkboxLabel input {
+  width: 18px;
+  height: 18px;
+  accent-color: #6366f1;
+}
+
+.primaryButton {
+  border: none;
+  border-radius: 16px;
+  padding: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #f8fafc;
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  box-shadow: 0 18px 38px rgba(79, 70, 229, 0.4);
+}
+
+.primaryButton:disabled {
+  opacity: 0.72;
+  cursor: wait;
+  box-shadow: none;
+  transform: none;
+  filter: saturate(0.7);
+}
+
+.primaryButton:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 26px 52px rgba(79, 70, 229, 0.45);
+}
+
+.infoBanner,
+.errorBanner {
+  border-radius: 16px;
+  padding: 16px 18px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.infoBanner {
+  background: rgba(59, 130, 246, 0.18);
+  color: rgba(191, 219, 254, 0.95);
+}
+
+.errorBanner {
+  background: rgba(248, 113, 113, 0.18);
+  color: rgba(254, 202, 202, 0.95);
+}
+
+.actionsRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 14px;
+  color: rgba(226, 232, 240, 0.76);
+}
+
+.linkButton {
+  border: none;
+  background: transparent;
+  color: #93c5fd;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.linkButton:hover {
+  color: #bfdbfe;
+}
+
+.linkButton:disabled {
+  color: rgba(147, 197, 253, 0.6);
+  cursor: wait;
+}
+
+.helper {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(148, 163, 184, 0.9);
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 32px 26px;
+    border-radius: 24px;
+    gap: 20px;
+  }
+
+  .brandMark {
+    width: 54px;
+    height: 54px;
+    border-radius: 18px;
+  }
+
+  .title {
+    font-size: 24px;
+  }
+}

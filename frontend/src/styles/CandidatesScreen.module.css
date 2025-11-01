@@ -1,0 +1,197 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.subtitle {
+  margin: 8px 0 0 0;
+  color: #475569;
+}
+
+.primaryButton {
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #34d399, #22d3ee);
+  color: white;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.primaryButton:hover {
+  transform: translateY(-1px);
+}
+
+.sortControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #475569;
+}
+
+.sortControl span {
+  font-weight: 500;
+}
+
+.sortControl select {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: white;
+  font-size: 14px;
+}
+
+.infoBanner,
+.errorBanner {
+  padding: 16px 20px;
+  border-radius: 16px;
+  font-weight: 500;
+}
+
+.infoBanner {
+  background: rgba(134, 239, 172, 0.2);
+  color: #166534;
+}
+
+.errorBanner {
+  background: rgba(254, 202, 202, 0.3);
+  color: #b91c1c;
+}
+
+.tableWrapper {
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(16px);
+  padding: 20px 18px;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  vertical-align: top;
+  line-height: 1.4;
+}
+
+.table td {
+  word-break: break-word;
+}
+
+.table th {
+  white-space: nowrap;
+}
+
+.table td:nth-child(10) {
+  word-break: break-all;
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sortButtonActive {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.sortIcon {
+  font-size: 12px;
+}
+
+.resumeHeader {
+  width: 110px;
+}
+
+.resumeCell {
+  white-space: nowrap;
+}
+
+.actionsHeader {
+  width: 130px;
+}
+
+.actionsCell {
+  display: flex;
+  gap: 8px;
+}
+
+.tableSecondaryButton {
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(148, 163, 184, 0.2);
+  color: #0f172a;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.resumePlaceholder {
+  color: #64748b;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .table {
+    font-size: 12px;
+  }
+
+  .table th,
+  .table td {
+    padding: 8px 6px;
+  }
+
+  .actionsHeader {
+    width: 120px;
+  }
+}
+
+.emptyState {
+  padding: 48px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  color: #64748b;
+}
+
+.emptyState h2 {
+  margin-bottom: 8px;
+  color: #0f172a;
+}

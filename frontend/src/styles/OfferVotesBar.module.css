@@ -1,0 +1,68 @@
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+}
+
+.bar {
+  display: flex;
+  align-items: stretch;
+  width: 140px;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.25);
+}
+
+.segment {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 6px;
+  transition: flex-grow 0.3s ease;
+}
+
+.segmentLabel {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.95);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6);
+  padding: 0 4px;
+}
+
+.segmentYesPriority .segmentLabel,
+.segmentNoOffer .segmentLabel {
+  color: #f8fafc;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
+}
+
+.segmentYesPriority {
+  background: linear-gradient(135deg, #047857, #16a34a);
+}
+
+.segmentYesStrong {
+  background: linear-gradient(135deg, #6ee7b7, #34d399);
+}
+
+.segmentYesKeepWarm {
+  background: linear-gradient(135deg, #fca5a5, #f87171);
+}
+
+.segmentNoOffer {
+  background: linear-gradient(135deg, #b91c1c, #7f1d1d);
+}
+
+.segmentFallback {
+  flex: 1;
+  background: rgba(148, 163, 184, 0.35);
+}
+
+.emptyValue {
+  color: #94a3b8;
+}
+
+@media (max-width: 1280px) {
+  .bar {
+    width: 120px;
+  }
+}
