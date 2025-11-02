@@ -1,28 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import styles from '../../../styles/EvaluationModal.module.css';
+import styles from '../../../styles/EvaluationEditor.module.css';
 import {
   EvaluationConfig,
   InterviewSlot,
   InterviewStatusRecord,
   InvitationSlotStatus
 } from '../../../shared/types/evaluation';
-import { CandidateProfile } from '../../../shared/types/candidate';
 import { CaseFolder } from '../../../shared/types/caseLibrary';
 import { FitQuestion } from '../../../shared/types/fitQuestion';
 import { AccountRecord } from '../../../shared/types/account';
 import { buildAccountDescriptor } from '../../../shared/utils/accountName';
-import { composeFullName } from '../../../shared/utils/personName';
 import { generateId } from '../../../shared/ui/generateId';
 
-interface EvaluationModalProps {
+interface EvaluationEditorProps {
   initialConfig: EvaluationConfig | null;
   onSave: (
     config: EvaluationConfig,
     options: { closeAfterSave: boolean; expectedVersion: number | null }
   ) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
-  onClose: () => void;
-  candidates: CandidateProfile[];
+  onCancel: () => void;
   folders: CaseFolder[];
   fitQuestions: FitQuestion[];
   accounts: AccountRecord[];
@@ -41,11 +38,11 @@ const createStatusRecord = (slot: InterviewSlot): InterviewStatusRecord => ({
 });
 
 const STATUS_LABELS: Record<InvitationSlotStatus, string> = {
-  pending: 'Not sent',
-  delivered: 'Delivered',
-  stale: 'Needs resend',
-  failed: 'Delivery failed',
-  unassigned: 'Incomplete'
+  pending: 'Не отправлено',
+  delivered: 'Доставлено',
+  stale: 'Нужно обновить',
+  failed: 'Ошибка доставки',
+  unassigned: 'Требует данных'
 };
 
 const createDefaultConfig = (): EvaluationConfig => {
@@ -53,6 +50,7 @@ const createDefaultConfig = (): EvaluationConfig => {
   return {
     id: generateId(),
     candidateId: undefined,
+    initiativeName: '',
     roundNumber: 1,
     interviewCount: 1,
     interviews,
@@ -101,21 +99,21 @@ const buildUniqueAssignments = <T,>(source: T[], count: number): (T | undefined)
   return result;
 };
 
-export const EvaluationModal = ({
+export const EvaluationEditor = ({
   initialConfig,
   onSave,
   onDelete,
-  onClose,
-  candidates,
+  onCancel,
   folders,
   fitQuestions,
   accounts
-}: EvaluationModalProps) => {
+}: EvaluationEditorProps) => {
   const [config, setConfig] = useState<EvaluationConfig>(createDefaultConfig());
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialConfig) {
-      setConfig(initialConfig);
+      setConfig({ ...initialConfig, initiativeName: initialConfig.initiativeName ?? '' });
     } else {
       setConfig(createDefaultConfig());
     }
@@ -165,9 +163,7 @@ export const EvaluationModal = ({
   };
 
   const updateInterview = (slotId: string, patch: Partial<InterviewSlot>) => {
-    updateInterviews((current) =>
-      current.map((slot) => (slot.id === slotId ? { ...slot, ...patch } : slot))
-    );
+    updateInterviews((current) => current.map((slot) => (slot.id === slotId ? { ...slot, ...patch } : slot)));
   };
 
   const handleAddInterview = () => {
@@ -198,54 +194,24 @@ export const EvaluationModal = ({
       );
       return current.map((slot, index) => ({
         ...slot,
-        caseFolderId: caseAssignments[index] ?? slot.caseFolderId,
-        fitQuestionId: fitAssignments[index] ?? slot.fitQuestionId
+        caseFolderId: caseAssignments[index],
+        fitQuestionId: fitAssignments[index]
       }));
     });
   };
 
-  const handleDelete = () => {
-    if (!initialConfig) {
-      onClose();
-      return;
-    }
-    void onDelete(initialConfig.id);
-  };
-
-  const submit = (closeAfterSave: boolean) => {
-    void onSave(config, { closeAfterSave, expectedVersion });
-  };
-
-  const candidateOptions = useMemo(
-    () =>
-      candidates.map((candidate) => ({
-        id: candidate.id,
-        label: composeFullName(candidate.firstName, candidate.lastName) || 'No name'
-      })),
-    [candidates]
-  );
-
-  const fitQuestionOptions = useMemo(
-    () =>
-      fitQuestions.map((question) => ({
-        id: question.id,
-        label: question.shortTitle.trim() || question.content.trim() || question.id
-      })),
-    [fitQuestions]
-  );
-
   const accountMaps = useMemo(() => {
     const byId = new Map<string, AccountRecord>();
     const byEmail = new Map<string, AccountRecord>();
-    const descriptors = new Map<string, { name: string; label: string }>();
+    const descriptors = new Map<string, ReturnType<typeof buildAccountDescriptor>>();
 
     accounts.forEach((account) => {
       byId.set(account.id, account);
-      const normalizedEmail = account.email.trim().toLowerCase();
-      if (normalizedEmail) {
-        byEmail.set(normalizedEmail, account);
+      const descriptor = buildAccountDescriptor(account);
+      descriptors.set(account.id, descriptor);
+      if (account.email) {
+        byEmail.set(account.email.trim().toLowerCase(), account);
       }
-      descriptors.set(account.id, buildAccountDescriptor(account));
     });
 
     const options = accounts
@@ -277,116 +243,160 @@ export const EvaluationModal = ({
     updateInterview(slotId, { interviewerName: resolvedName, interviewerEmail: account.email });
   };
 
+  const submit = async (closeAfterSave: boolean) => {
+    const trimmedInitiative = config.initiativeName?.trim() ?? '';
+    if (!trimmedInitiative) {
+      setValidationError('Укажите название инициативы.');
+      return;
+    }
+    setValidationError(null);
+
+    const nextConfig: EvaluationConfig = {
+      ...config,
+      initiativeName: trimmedInitiative,
+      interviews: config.interviews.map((slot) => ({
+        ...slot,
+        interviewerName: slot.interviewerName.trim(),
+        interviewerEmail: slot.interviewerEmail.trim()
+      })),
+      forms: config.forms.map((form) => ({
+        ...form,
+        interviewerName: form.interviewerName.trim()
+      }))
+    };
+
+    try {
+      await onSave(nextConfig, { closeAfterSave, expectedVersion });
+    } catch {
+      // Ошибка будет обработана наверху через баннер
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!initialConfig) {
+      return;
+    }
+    const confirmed = window.confirm('Удалить эту настройку оценки и все интервью?');
+    if (!confirmed) {
+      return;
+    }
+    await onDelete(initialConfig.id);
+  };
+
   return (
-    <div className={styles.overlay}>
-      <div className={styles.modal}>
-        <header className={styles.header}>
-          <h2>{initialConfig ? 'Edit evaluation' : 'New evaluation'}</h2>
-          <button className={styles.closeButton} onClick={onClose}>
-            ×
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <div>
+          <h1>{initialConfig ? 'Редактирование оценки' : 'Новая оценка'}</h1>
+          <p className={styles.subtitle}>
+            Настройте интервью, чтобы автоматизировать рассылку материалов и форму обратной связи.
+          </p>
+        </div>
+        <div className={styles.headerActions}>
+          <button className={styles.secondaryButton} onClick={onCancel}>
+            Вернуться к списку
           </button>
-        </header>
+          <button className={styles.primaryButton} onClick={() => submit(true)}>
+            Сохранить и вернуться
+          </button>
+        </div>
+      </header>
 
-        <div className={styles.content}>
+      <div className={styles.content}>
+        <div className={styles.fullWidth}>
           <label className={styles.fullWidth}>
-            <span>Candidate</span>
-            <select
-              value={config.candidateId || ''}
-              onChange={(e) => setConfig((prev) => ({ ...prev, candidateId: e.target.value || undefined }))}
-            >
-              <option value="">Not selected</option>
-              {candidateOptions.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Round number</span>
+            <span>Initiative Name</span>
             <input
-              type="number"
-              min={1}
-              value={config.roundNumber ?? 1}
-              onChange={(e) =>
-                setConfig((prev) => ({ ...prev, roundNumber: Number(e.target.value) || undefined }))
-              }
+              value={config.initiativeName ?? ''}
+              onChange={(event) => setConfig((prev) => ({ ...prev, initiativeName: event.target.value }))}
+              placeholder="Например, Digital Transformation Sprint"
             />
           </label>
+          {validationError && <p className={styles.validationError}>{validationError}</p>}
+        </div>
 
-          <div className={`${styles.fullWidth} ${styles.toolbar}`}>
-            <h3 className={styles.toolbarTitle}>Interviews</h3>
-            <div className={styles.toolbarActions}>
-              <button type="button" className={styles.toolbarPrimaryButton} onClick={handleAssignRandomly}>
-                Assign randomly
-              </button>
-              <button type="button" className={styles.toolbarSecondaryButton} onClick={handleAddInterview}>
-                Add interview
-              </button>
-            </div>
+        <label>
+          <span>Номер раунда</span>
+          <input
+            type="number"
+            min={1}
+            value={config.roundNumber ?? 1}
+            onChange={(event) =>
+              setConfig((prev) => ({ ...prev, roundNumber: Number(event.target.value) || undefined }))
+            }
+          />
+        </label>
+
+        <div className={`${styles.fullWidth} ${styles.toolbar}`}>
+          <h2 className={styles.toolbarTitle}>Интервью</h2>
+          <div className={styles.toolbarActions}>
+            <button type="button" className={styles.toolbarPrimaryButton} onClick={handleAssignRandomly}>
+              Заполнить автоматически
+            </button>
+            <button type="button" className={styles.toolbarSecondaryButton} onClick={handleAddInterview}>
+              Добавить интервью
+            </button>
           </div>
+        </div>
 
-          <div className={styles.interviewsList}>
-            {config.interviews.map((slot, index) => {
-              const invitationSlot = slotStatusMap.get(slot.id);
-              const statusKey: InvitationSlotStatus = invitationSlot?.status ?? 'pending';
-              const badgeClass =
-                statusKey === 'delivered'
-                  ? styles.statusDelivered
-                  : statusKey === 'stale'
-                    ? styles.statusStale
-                    : statusKey === 'failed'
-                      ? styles.statusFailed
-                      : statusKey === 'unassigned'
-                        ? styles.statusUnassigned
-                        : styles.statusPending;
-              let note: string | null = null;
-              if (statusKey === 'delivered') {
-                note = invitationSlot?.invitationSentAt
-                  ? `Delivered on ${formatDateTime(invitationSlot.invitationSentAt)}`
-                  : 'Invitation delivered.';
-              } else if (statusKey === 'stale') {
-                note = invitationSlot?.invitationSentAt
-                  ? `Assignment changed after the invite sent on ${formatDateTime(invitationSlot.invitationSentAt)}.`
-                  : 'Assignment updated. Resend the invitation when ready.';
-              } else if (statusKey === 'failed') {
-                note = invitationSlot?.lastDeliveryAttemptAt
-                  ? `Last delivery attempt on ${formatDateTime(invitationSlot.lastDeliveryAttemptAt)}.`
-                  : 'Delivery attempt failed. Check the address and resend.';
-              } else if (statusKey === 'unassigned') {
-                note = 'Provide interviewer email, case, and fit question before sending an invite.';
-              } else {
-                note = 'Invitation has not been sent yet.';
-              }
-              const errorText = invitationSlot?.lastDeliveryError?.trim() || null;
+        <div className={styles.interviewsList}>
+          {config.interviews.map((slot, index) => {
+            const invitationSlot = slotStatusMap.get(slot.id);
+            const statusKey: InvitationSlotStatus = invitationSlot?.status ?? 'pending';
+            const badgeClass =
+              statusKey === 'delivered'
+                ? styles.statusDelivered
+                : statusKey === 'stale'
+                  ? styles.statusStale
+                  : statusKey === 'failed'
+                    ? styles.statusFailed
+                    : statusKey === 'unassigned'
+                      ? styles.statusUnassigned
+                      : styles.statusPending;
+            let note: string | null = null;
+            if (statusKey === 'delivered') {
+              note = invitationSlot?.invitationSentAt
+                ? `Отправлено ${formatDateTime(invitationSlot.invitationSentAt)}`
+                : 'Приглашение доставлено';
+            } else if (statusKey === 'stale') {
+              note = invitationSlot?.invitationSentAt
+                ? `Назначение обновлено после отправки ${formatDateTime(invitationSlot.invitationSentAt)}.`
+                : 'Назначение обновлено. Отправьте приглашение повторно.';
+            } else if (statusKey === 'failed') {
+              note = invitationSlot?.lastDeliveryAttemptAt
+                ? `Неудачная попытка ${formatDateTime(invitationSlot.lastDeliveryAttemptAt)}.`
+                : 'Доставка не удалась. Проверьте адрес и попробуйте снова.';
+            } else if (statusKey === 'unassigned') {
+              note = 'Добавьте интервьюера, кейс и fit-вопрос перед отправкой.';
+            } else {
+              note = 'Приглашение ещё не отправлялось.';
+            }
+            const errorText = invitationSlot?.lastDeliveryError?.trim() || null;
 
-              return (
-                <div key={slot.id} className={styles.interviewBlock}>
-                  <div className={styles.interviewHeader}>
-                    <h3>Interview {index + 1}</h3>
-                    <button
-                      type="button"
-                      className={styles.removeInterviewButton}
+            return (
+              <div key={slot.id} className={styles.interviewBlock}>
+                <div className={styles.interviewHeader}>
+                  <h3>Интервью {index + 1}</h3>
+                  <button
+                    type="button"
+                    className={styles.removeInterviewButton}
                     onClick={() => handleRemoveInterview(slot.id)}
                     disabled={config.interviews.length <= 1}
                   >
-                    Delete
+                    Удалить
                   </button>
                 </div>
                 <label>
-                  <span>Interviewer</span>
+                  <span>Интервьюер</span>
                   <select
                     value={(() => {
                       const normalizedEmail = slot.interviewerEmail.trim().toLowerCase();
-                      const selected = normalizedEmail
-                        ? accountMaps.byEmail.get(normalizedEmail)
-                        : undefined;
+                      const selected = normalizedEmail ? accountMaps.byEmail.get(normalizedEmail) : undefined;
                       return selected?.id ?? '';
                     })()}
                     onChange={(event) => applyAccountSelection(slot.id, event.target.value || null)}
                   >
-                    <option value="">Not selected</option>
+                    <option value="">Не выбрано</option>
                     {accountMaps.options.map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.label}
@@ -395,16 +405,16 @@ export const EvaluationModal = ({
                   </select>
                 </label>
                 <label>
-                  <span>Interviewer email</span>
+                  <span>Email интервьюера</span>
                   <input value={slot.interviewerEmail} readOnly />
                 </label>
                 <label>
-                  <span>Case</span>
+                  <span>Кейс</span>
                   <select
                     value={slot.caseFolderId || ''}
-                    onChange={(e) => updateInterview(slot.id, { caseFolderId: e.target.value || undefined })}
+                    onChange={(event) => updateInterview(slot.id, { caseFolderId: event.target.value || undefined })}
                   >
-                    <option value="">Not selected</option>
+                    <option value="">Не выбрано</option>
                     {folders.map((folder) => (
                       <option key={folder.id} value={folder.id}>
                         {folder.name}
@@ -413,15 +423,15 @@ export const EvaluationModal = ({
                   </select>
                 </label>
                 <label>
-                  <span>Fit question</span>
+                  <span>Fit-вопрос</span>
                   <select
                     value={slot.fitQuestionId || ''}
-                    onChange={(e) => updateInterview(slot.id, { fitQuestionId: e.target.value || undefined })}
+                    onChange={(event) => updateInterview(slot.id, { fitQuestionId: event.target.value || undefined })}
                   >
-                    <option value="">Not selected</option>
-                    {fitQuestionOptions.map((question) => (
+                    <option value="">Не выбрано</option>
+                    {fitQuestions.map((question) => (
                       <option key={question.id} value={question.id}>
-                        {question.label}
+                        {question.shortTitle}
                       </option>
                     ))}
                   </select>
@@ -432,28 +442,29 @@ export const EvaluationModal = ({
                   {errorText && <span className={styles.statusError}>{errorText}</span>}
                 </div>
               </div>
-              );
-            })}
-          </div>
+            );
+          })}
         </div>
-
-        <footer className={styles.footer}>
-          <button className={styles.dangerButton} onClick={handleDelete} disabled={!initialConfig}>
-            Delete evaluation
-          </button>
-          <div className={styles.footerActions}>
-            <button className={styles.secondaryButton} onClick={onClose}>
-              Cancel
-            </button>
-            <button className={styles.secondaryButton} onClick={() => submit(false)}>
-              Save
-            </button>
-            <button className={styles.primaryButton} onClick={() => submit(true)}>
-              Save and close
-            </button>
-          </div>
-        </footer>
       </div>
+
+      <footer className={styles.footer}>
+        <div className={styles.footerLeft}>
+          <button className={styles.dangerButton} onClick={handleDelete} disabled={!initialConfig}>
+            Удалить оценку
+          </button>
+        </div>
+        <div className={styles.footerActions}>
+          <button className={styles.secondaryButton} onClick={onCancel}>
+            Отменить изменения
+          </button>
+          <button className={styles.secondaryButton} onClick={() => submit(false)}>
+            Сохранить
+          </button>
+          <button className={styles.primaryButton} onClick={() => submit(true)}>
+            Сохранить и вернуться
+          </button>
+        </div>
+      </footer>
     </div>
   );
 };

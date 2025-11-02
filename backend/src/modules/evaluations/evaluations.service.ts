@@ -10,6 +10,17 @@ const readOptionalString = (value: unknown): string | undefined => {
   return trimmed ? trimmed : undefined;
 };
 
+const readRequiredString = (value: unknown): string => {
+  if (typeof value !== 'string') {
+    throw new Error('INVALID_INPUT');
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error('INVALID_INPUT');
+  }
+  return trimmed;
+};
+
 const readOptionalPositiveInteger = (value: unknown): number | undefined => {
   if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
     return value;
@@ -263,6 +274,7 @@ const buildWriteModel = (payload: unknown): EvaluationWriteModel => {
   return {
     id,
     candidateId: readOptionalString(source.candidateId),
+    initiativeName: readRequiredString(source.initiativeName),
     roundNumber: readOptionalPositiveInteger(source.roundNumber),
     interviewCount: interviews.length,
     interviews,

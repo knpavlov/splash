@@ -1996,6 +1996,15 @@ export const seedDemoData = async (
         ]
       );
 
+      const initiativeLabel = `Initiative — ${candidate.firstName} ${candidate.lastName}`.trim();
+      await client.query(
+        `INSERT INTO initiatives (evaluation_id, name, created_at, updated_at)
+           VALUES ($1, $2, NOW(), NOW())
+         ON CONFLICT (evaluation_id)
+           DO UPDATE SET name = EXCLUDED.name, updated_at = NOW();`,
+        [evaluationId, initiativeLabel]
+      );
+
       await client.query(`DELETE FROM evaluation_assignments WHERE evaluation_id = $1;`, [evaluationId]);
 
       for (const round of candidate.evaluation.rounds) {
