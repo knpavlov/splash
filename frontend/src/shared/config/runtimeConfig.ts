@@ -119,6 +119,33 @@ const deriveBackendHost = (hostname: string): string | undefined => {
     attempts.push(strippedSegments.join('.'));
   }
 
+  if (segments.length > 1) {
+    const [serviceSegment, ...rest] = segments;
+    const domain = rest.join('.');
+    const normalizedService = stripVersionSuffix(serviceSegment) || serviceSegment;
+
+    const serviceCandidates = new Set<string>();
+
+    // Для доменов вроде "splash.nboard.au" пробуем распространённые вариации
+    // имен сервисов (api/backend/server), чтобы автоматически подобрать URL бэкенда
+    // без ручной настройки VITE_API_URL.
+    serviceCandidates.add(`${normalizedService}-backend`);
+    serviceCandidates.add(`${normalizedService}-api`);
+    serviceCandidates.add(`${normalizedService}-service`);
+    serviceCandidates.add(`${normalizedService}-server`);
+    serviceCandidates.add(`backend-${normalizedService}`);
+    serviceCandidates.add(`api-${normalizedService}`);
+
+    for (const candidate of serviceCandidates) {
+      if (!candidate) {
+        continue;
+      }
+
+      const composite = `${candidate}.${domain}`;
+      attempts.push(composite);
+    }
+  }
+
   const seen = new Set<string>();
 
   for (const candidate of attempts) {

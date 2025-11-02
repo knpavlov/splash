@@ -137,9 +137,9 @@ export const LoginScreen = () => {
     <section className={styles.wrapper}>
       <div className={styles.card}>
         <div className={styles.cardHeader}>
-          <div className={styles.brandMark}>R2</div>
+          <div className={styles.brandMark}>SP</div>
           <div>
-            <h1 className={styles.title}>Recruitment 2.0</h1>
+            <h1 className={styles.title}>Splash</h1>
             <p className={styles.subtitle}>Secure sign in for invited accounts.</p>
           </div>
         </div>

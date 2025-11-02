@@ -15,7 +15,8 @@ export default defineConfig(({ mode }) => {
   const defaultAllowedHosts = [
     'localhost',
     '127.0.0.1',
-    'recruitment20-frontend-production.up.railway.app'
+    'recruitment20-frontend-production.up.railway.app',
+    'splash.nboard.au'
   ];
 
   const previewAllowedHosts = Array.from(
