@@ -15,7 +15,10 @@ export default defineConfig(({ mode }) => {
   const defaultAllowedHosts = [
     'localhost',
     '127.0.0.1',
-    'recruitment20-frontend-production.up.railway.app'
+    // Исторический домен Railway для старого проекта
+    'recruitment20-frontend-production.up.railway.app',
+    // Новый фронтенд Splash, чтобы предпросмотр работал без ручных правок
+    'splash.nboard.au'
   ];
 
   const previewAllowedHosts = Array.from(

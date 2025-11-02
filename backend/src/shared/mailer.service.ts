@@ -296,16 +296,27 @@ export class MailerService {
           }
           if (error instanceof ResendError) {
             const normalizedCode = error.code?.toLowerCase();
-            const reason: MailerDeliveryReason =
-              normalizedCode === 'domain_not_verified' || normalizedCode === 'missing_domain_verification'
-                ? 'domain-not-verified'
-                : error.status === 403 && error.message.toLowerCase().includes('domain')
-                  ? 'domain-not-verified'
-                  : 'provider-error';
+            const normalizedMessage = error.message.toLowerCase();
+
+            // Resend может отвечать как кодами, так и человекочитаемыми сообщениями.
+            // Для доменных ошибок встречаются разные варианты (400, 403 и пр.), поэтому
+            // нормализуем все случаи, где текст упоминает домен, чтобы фронтенд показывал
+            // конкретную подсказку, а не общий сбой.
+            const isDomainIssue =
+              normalizedCode === 'domain_not_verified' ||
+              normalizedCode === 'missing_domain_verification' ||
+              normalizedMessage.includes('domain');
+
+            const reason: MailerDeliveryReason = isDomainIssue ? 'domain-not-verified' : 'provider-error';
 
             throw new MailerDeliveryError(reason, error.message);
           }
-          throw error;
+          if (error instanceof Error) {
+            console.error('Не удалось отправить письмо через Resend из-за сетевой ошибки:', error);
+            throw new MailerDeliveryError('provider-error', error.message);
+          }
+          console.error('Получена неизвестная ошибка при обращении к Resend:', error);
+          throw new MailerDeliveryError('provider-error');
         }
       }
 

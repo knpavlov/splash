@@ -135,6 +135,62 @@ const deriveBackendHost = (hostname: string): string | undefined => {
   return undefined;
 };
 
+// На собственных доменах Railway теряется подсказка "frontend" в имени хоста.
+// Этот помощник пытается выделить базовый сегмент (например, `splash` из
+// `splash.nboard.au`), чтобы затем сгенерировать кандидатов вида
+// `splash-backend-production.up.railway.app`.
+const pickPrimaryLabel = (segments: string[]): string | undefined => {
+  for (const segment of segments) {
+    if (!segment || segment === 'www') {
+      continue;
+    }
+
+    const normalized = stripVersionSuffix(segment.toLowerCase());
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return undefined;
+};
+
+// Пытаемся восстановить домен бэкенда Railway для собственных доменов.
+// Работает по эвристике: берём ключевой сегмент и добавляем популярные суффиксы.
+const deriveRailwayBackendHostFromCustomDomain = (hostname: string): string | undefined => {
+  const segments = hostname.split('.').filter(Boolean);
+
+  if (segments.length < 2) {
+    return undefined;
+  }
+
+  const label = pickPrimaryLabel(segments);
+  if (!label) {
+    return undefined;
+  }
+
+  const candidates = [
+    `${label}-backend-production.up.railway.app`,
+    `${label}-backend.up.railway.app`,
+    `${label}-api-production.up.railway.app`,
+    `${label}-api.up.railway.app`,
+    `backend-${label}-production.up.railway.app`,
+    `backend-${label}.up.railway.app`
+  ];
+
+  const seen = new Set<string>();
+
+  for (const candidate of candidates) {
+    if (!candidate || candidate === hostname || seen.has(candidate)) {
+      continue;
+    }
+
+    seen.add(candidate);
+    return candidate;
+  }
+
+  return undefined;
+};
+
 const isLocalHostname = (hostname: string) => {
   const normalized = hostname.toLowerCase();
   return (
@@ -207,6 +263,11 @@ const resolveApiBaseUrl = (): string => {
     const derivedOrigin = deriveBackendOriginFromLocation();
     if (derivedOrigin) {
       return trimTrailingSlash(derivedOrigin);
+    }
+
+    const railwayHost = deriveRailwayBackendHostFromCustomDomain(window.location.hostname);
+    if (railwayHost) {
+      return trimTrailingSlash(`https://${railwayHost}`);
     }
   }
 
