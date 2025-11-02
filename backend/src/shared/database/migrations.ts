@@ -271,6 +271,51 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_name = 'evaluation_assignments'
+           AND column_name = 'evaluationid'
+      ) THEN
+        EXECUTE 'ALTER TABLE evaluation_assignments RENAME COLUMN evaluationid TO evaluation_id';
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_name = 'evaluation_assignments'
+           AND column_name = 'evaluationId'
+      ) THEN
+        EXECUTE 'ALTER TABLE evaluation_assignments RENAME COLUMN "evaluationId" TO evaluation_id';
+      END IF;
+    END
+    $$;
+  `);
+
+  await postgresPool.query(`
+    ALTER TABLE evaluation_assignments
+      ADD COLUMN IF NOT EXISTS evaluation_id UUID;
+  `);
+
+  await postgresPool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_name = 'evaluation_assignments'
+           AND column_name = 'evaluation_id'
+           AND data_type <> 'uuid'
+      ) THEN
+        EXECUTE 'ALTER TABLE evaluation_assignments ALTER COLUMN evaluation_id TYPE UUID USING evaluation_id::uuid';
+      END IF;
+    END
+    $$;
+  `);
+
+  await postgresPool.query(`
     ALTER TABLE evaluation_assignments
       ADD COLUMN IF NOT EXISTS case_folder_id UUID,
       ADD COLUMN IF NOT EXISTS fit_question_id UUID;
