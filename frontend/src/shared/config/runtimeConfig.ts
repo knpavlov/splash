@@ -23,7 +23,18 @@ const readMetaContent = (name: string): string | undefined => {
   }
 
   const element = document.querySelector(`meta[name="${name}"]`);
-  return element?.getAttribute('content')?.trim() || undefined;
+  const content = element?.getAttribute('content')?.trim();
+
+  if (!content) {
+    return undefined;
+  }
+
+  const looksLikePlaceholder = /^%.*%$/.test(content) && content.includes('VITE_API_URL');
+  if (looksLikePlaceholder) {
+    return undefined;
+  }
+
+  return content;
 };
 
 type RuntimeConfigWindow = Window & {
@@ -38,7 +49,15 @@ const readGlobalConfig = (): string | undefined => {
   }
 
   const globalConfig = (window as RuntimeConfigWindow).__RECRUITMENT_CONFIG__;
-  return globalConfig?.apiBaseUrl?.trim() || undefined;
+  const content = globalConfig?.apiBaseUrl?.trim();
+  if (!content) {
+    return undefined;
+  }
+  const looksLikePlaceholder = /^%.*%$/.test(content) && content.includes('VITE_API_URL');
+  if (looksLikePlaceholder) {
+    return undefined;
+  }
+  return content;
 };
 
 // Attempt to derive the backend domain based on the frontend domain.
@@ -173,6 +192,18 @@ const deriveBackendOriginFromLocation = (): string | undefined => {
   }
 };
 
+const warnMissingApiConfig = (fallback: string) => {
+  if (typeof console === 'undefined') {
+    return;
+  }
+
+  console.warn(
+    'API base URL не настроен. Используем значение по умолчанию: %s. ' +
+      'Убедитесь, что переменная окружения VITE_API_URL указывает на домен бэкенда.',
+    fallback
+  );
+};
+
 const resolveApiBaseUrl = (): string => {
   const browser = isBrowserEnvironment();
   const fallbackOrigin = browser ? window.location.origin : 'http://localhost:4000';
@@ -212,6 +243,10 @@ const resolveApiBaseUrl = (): string => {
 
   if (browser && isLocalHostname(window.location.hostname)) {
     return 'http://localhost:4000';
+  }
+
+  if (import.meta.env.PROD && browser) {
+    warnMissingApiConfig('http://localhost:4000');
   }
 
   return 'http://localhost:4000';
