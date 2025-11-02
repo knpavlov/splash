@@ -78,7 +78,7 @@ You can use either Resend (recommended for Railway) or a custom SMTP server. The
    *`RESEND_FROM` must be a verified sender/domain inside Resend.*
 3. Trigger any invitation or access-code flow — letters will be delivered through the Resend API.
 
-> 📬 Если вы меняете домен отправителя (например, после переноса фронтенда на `recruitment2.0.nboard.au`), обновите
+> 📬 Если вы меняете домен отправителя (например, после переноса фронтенда на `splash.nboard.au`), обновите
 > переменную `RESEND_FROM` и подтвердите домен в Resend заново. Пока домен не верифицирован, API вернёт HTTP 424 с
 > сообщением о необходимости проверить DNS-записи.
 
