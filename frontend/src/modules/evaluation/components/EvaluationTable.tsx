@@ -1,4 +1,4 @@
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, KeyboardEvent, MouseEvent, useState } from 'react';
 import styles from '../../../styles/EvaluationScreen.module.css';
 import { OfferVotesBar, type OfferVotesBreakdown } from './OfferVotesBar';
 import { EditIcon } from '../../../components/icons/EditIcon';
@@ -13,6 +13,8 @@ type SortableColumnKey = 'name' | 'position' | 'created' | 'round' | 'avgFit' | 
 
 export interface EvaluationTableRow {
   id: string;
+  initiativeName: string;
+  initiativeSortKey: string;
   candidateName: string;
   candidateSortKey: string;
   candidatePosition: string;
@@ -58,8 +60,8 @@ export interface EvaluationTableProps {
 }
 
 const SORTABLE_COLUMNS: Array<{ key: SortableColumnKey; title: string }> = [
-  { key: 'name', title: 'Candidate' },
-  { key: 'position', title: 'Position' },
+  { key: 'name', title: 'Initiative' },
+  { key: 'position', title: 'Candidate' },
   { key: 'created', title: 'Created on' },
   { key: 'round', title: 'Round' },
   { key: 'avgFit', title: 'Avg fit score' },
@@ -168,6 +170,7 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
             }`;
 
             const handleRoundChange = (event: ChangeEvent<HTMLSelectElement>) => {
+              event.stopPropagation();
               closeMenus();
               row.onRoundChange(Number(event.target.value));
             };
@@ -203,7 +206,8 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
               }));
             };
 
-            const handleInvitesClick = () => {
+            const handleInvitesClick = (event: MouseEvent<HTMLButtonElement>) => {
+              event.stopPropagation();
               if (row.invitesDisabled) {
                 return;
               }
@@ -225,13 +229,15 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
               setOpenInvitesId(row.id);
             };
 
-            const handleSendSelection = () => {
+            const handleSendSelection = (event: MouseEvent<HTMLButtonElement>) => {
+              event.stopPropagation();
               const unique = Array.from(new Set(inviteSelections[row.id] ?? row.invitees.map((item) => item.slotId)));
               closeMenus();
               row.onSendInvites(unique);
             };
 
-            const handleDecisionToggle = () => {
+            const handleDecisionToggle = (event: MouseEvent<HTMLButtonElement>) => {
+              event.stopPropagation();
               if (row.decisionDisabled) {
                 return;
               }
@@ -240,19 +246,41 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
               setOpenDecisionId((current) => (current === row.id ? null : row.id));
             };
 
-            const handleDecisionSelect = (option: DecisionOption) => {
+            const handleDecisionSelect = (event: MouseEvent<HTMLButtonElement>, option: DecisionOption) => {
+              event.stopPropagation();
               closeMenus();
               row.onDecisionSelect(option);
             };
 
+            const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                row.onEdit();
+              }
+            };
+
             return (
-              <tr key={row.id}>
-                <td>{row.candidateName}</td>
-                <td>{row.candidatePosition}</td>
+              <tr
+                key={row.id}
+                className={styles.clickableRow}
+                onClick={() => row.onEdit()}
+                tabIndex={0}
+                onKeyDown={handleRowKeyDown}
+              >
+                <td>{row.initiativeName}</td>
+                <td>
+                  <div className={styles.cellPrimary}>{row.candidateName}</div>
+                  <div className={styles.cellSecondary}>{row.candidatePosition}</div>
+                </td>
                 <td>{row.createdOn}</td>
                 <td>
                   {row.roundOptions.length > 1 ? (
-                    <select value={row.selectedRound} onChange={handleRoundChange} className={styles.roundSelect}>
+                    <select
+                      value={row.selectedRound}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={handleRoundChange}
+                      className={styles.roundSelect}
+                    >
                       {row.roundOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
@@ -279,7 +307,8 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
                     <button
                       type="button"
                       className={`${styles.actionButton} ${styles.iconButton} ${styles.neutralButton}`}
-                      onClick={() => {
+                      onClick={(event) => {
+                        event.stopPropagation();
                         closeMenus();
                         row.onEdit();
                       }}
@@ -308,11 +337,15 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
                         )}
                       </button>
                       {row.hasInvitations && isInvitesMenuOpen && (
-                        <div className={styles.dropdownMenu}>
-                          <label className={styles.inviteOption}>
+                        <div className={styles.dropdownMenu} onClick={(event) => event.stopPropagation()}>
+                          <label
+                            className={styles.inviteOption}
+                            onClick={(event) => event.stopPropagation()}
+                          >
                             <input
                               type="checkbox"
                               checked={allSelected}
+                              onClick={(event) => event.stopPropagation()}
                               onChange={(event) => toggleSelectAll(event.target.checked)}
                             />
                             <span>Select all</span>
@@ -321,10 +354,15 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
                             {row.invitees.map((invitee) => {
                               const checked = selectionSet.has(invitee.slotId);
                               return (
-                                <label key={invitee.slotId} className={styles.inviteOption}>
+                                <label
+                                  key={invitee.slotId}
+                                  className={styles.inviteOption}
+                                  onClick={(event) => event.stopPropagation()}
+                                >
                                   <input
                                     type="checkbox"
                                     checked={checked}
+                                    onClick={(event) => event.stopPropagation()}
                                     onChange={() => toggleInvitee(invitee.slotId)}
                                   />
                                   <span>{invitee.label}</span>
@@ -346,7 +384,8 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
                     <button
                       type="button"
                       className={`${styles.actionButton} ${styles.iconButton} ${styles.neutralButton}`}
-                      onClick={() => {
+                      onClick={(event) => {
+                        event.stopPropagation();
                         closeMenus();
                         row.onOpenStatus();
                       }}
@@ -369,13 +408,13 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
                       {row.decisionLabel}
                     </button>
                     {isDecisionMenuOpen && (
-                      <div className={styles.dropdownMenu}>
+                      <div className={styles.dropdownMenu} onClick={(event) => event.stopPropagation()}>
                         {DECISION_OPTIONS.map((item) => (
                           <button
                             key={item.option}
                             type="button"
                             className={styles.dropdownItem}
-                            onClick={() => handleDecisionSelect(item.option)}
+                            onClick={(event) => handleDecisionSelect(event, item.option)}
                           >
                             {item.label}
                           </button>
@@ -392,7 +431,8 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
                     <button
                       type="button"
                       className={`${styles.actionButton} ${styles.statusButton}`}
-                      onClick={() => {
+                      onClick={(event) => {
+                        event.stopPropagation();
                         if (row.statusDisabled || row.isStatusPending) {
                           return;
                         }
@@ -408,7 +448,7 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
                       {row.statusLabel}
                     </button>
                     {openStatusId === row.id && !row.statusDisabled && (
-                      <div className={styles.dropdownMenu}>
+                      <div className={styles.dropdownMenu} onClick={(event) => event.stopPropagation()}>
                         {STATUS_OPTIONS.map((option) => (
                           <button
                             key={option.value}
@@ -416,7 +456,8 @@ export const EvaluationTable = ({ rows, sortDirection, sortKey, onSortChange }: 
                             className={`${styles.dropdownItem} ${
                               option.value === row.statusState ? styles.dropdownItemActive : ''
                             }`}
-                            onClick={() => {
+                            onClick={(event) => {
+                              event.stopPropagation();
                               closeMenus();
                               row.onStatusSelect(option.value);
                             }}

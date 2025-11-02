@@ -49,6 +49,8 @@ export type OfferDecisionStatus =
 export interface EvaluationConfig {
   id: string;
   candidateId?: string;
+  initiativeId?: string;
+  initiativeName: string;
   roundNumber?: number;
   interviewCount: number;
   interviews: InterviewSlot[];

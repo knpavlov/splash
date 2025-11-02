@@ -14,6 +14,8 @@ import {
 interface EvaluationRow extends Record<string, unknown> {
   id: string;
   candidate_id: string | null;
+  initiative_id: string | null;
+  initiative_name: string | null;
   round_number: number | null;
   interview_count: number | null;
   interviews: unknown;
@@ -277,9 +279,16 @@ const mapRowToRecord = (row: EvaluationRow): EvaluationRecord => {
     decisionStatus = null;
   }
 
+  const initiativeName =
+    typeof row.initiative_name === 'string' && row.initiative_name.trim()
+      ? row.initiative_name.trim()
+      : 'Unnamed initiative';
+
   return {
     id: row.id,
     candidateId: row.candidate_id ?? undefined,
+    initiativeId: row.initiative_id ?? undefined,
+    initiativeName,
     roundNumber: row.round_number ?? undefined,
     interviewCount,
     interviews,
@@ -346,49 +355,74 @@ const mapRowToAssignment = (row: AssignmentRow): InterviewAssignmentRecord => ({
   createdAt: row.created_at.toISOString()
 });
 
+const connectClient = async () =>
+  (postgresPool as unknown as { connect: () => Promise<any> }).connect();
+
 export class EvaluationsRepository {
+  private async upsertInitiative(
+    client: Awaited<ReturnType<typeof connectClient>>,
+    id: string,
+    name: string
+  ): Promise<void> {
+    const trimmedName = name.trim();
+    await client.query(
+      `INSERT INTO initiatives (id, name, created_at, updated_at)
+       VALUES ($1, $2, NOW(), NOW())
+       ON CONFLICT (id) DO UPDATE
+         SET name = EXCLUDED.name,
+             updated_at = NOW();`,
+      [id, trimmedName]
+    );
+  }
+
   async listEvaluations(): Promise<EvaluationRecord[]> {
     const result = await postgresPool.query<EvaluationRow>(
-      `SELECT id,
-              candidate_id,
-              round_number,
-              interview_count,
-              interviews,
-              fit_question_id,
-              version,
-              created_at,
-              updated_at,
-              forms,
-              process_status,
-              process_started_at,
-              round_history,
-              decision,
-              decision_status
-         FROM evaluations
-        ORDER BY updated_at DESC, created_at DESC;`
+      `SELECT e.id,
+              e.candidate_id,
+              e.initiative_id,
+              COALESCE(i.name, '') AS initiative_name,
+              e.round_number,
+              e.interview_count,
+              e.interviews,
+              e.fit_question_id,
+              e.version,
+              e.created_at,
+              e.updated_at,
+              e.forms,
+              e.process_status,
+              e.process_started_at,
+              e.round_history,
+              e.decision,
+              e.decision_status
+         FROM evaluations e
+         LEFT JOIN initiatives i ON i.id = e.initiative_id
+        ORDER BY e.updated_at DESC, e.created_at DESC;`
     );
     return result.rows.map((row) => mapRowToRecord(row));
   }
 
   async findEvaluation(id: string): Promise<EvaluationRecord | null> {
     const result = await postgresPool.query<EvaluationRow>(
-      `SELECT id,
-              candidate_id,
-              round_number,
-              interview_count,
-              interviews,
-              fit_question_id,
-              version,
-              created_at,
-              updated_at,
-              forms,
-              process_status,
-              process_started_at,
-              round_history,
-              decision,
-              decision_status
-         FROM evaluations
-        WHERE id = $1
+      `SELECT e.id,
+              e.candidate_id,
+              e.initiative_id,
+              COALESCE(i.name, '') AS initiative_name,
+              e.round_number,
+              e.interview_count,
+              e.interviews,
+              e.fit_question_id,
+              e.version,
+              e.created_at,
+              e.updated_at,
+              e.forms,
+              e.process_status,
+              e.process_started_at,
+              e.round_history,
+              e.decision,
+              e.decision_status
+         FROM evaluations e
+         LEFT JOIN initiatives i ON i.id = e.initiative_id
+        WHERE e.id = $1
         LIMIT 1;`,
       [id]
     );
@@ -403,41 +437,97 @@ export class EvaluationsRepository {
     const formsJson = JSON.stringify(model.forms);
     const historyJson = JSON.stringify(model.roundHistory ?? []);
 
-    const result = await postgresPool.query<EvaluationRow>(
-      `INSERT INTO evaluations (id, candidate_id, round_number, interview_count, interviews, fit_question_id, version, created_at, updated_at, forms, round_history, process_status, process_started_at, decision, decision_status)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, 1, NOW(), NOW(), $7::jsonb, $8::jsonb, $9, $10, $11, $12)
-      RETURNING id,
-                candidate_id,
-                round_number,
-                interview_count,
-                interviews,
-                fit_question_id,
-                version,
-                created_at,
-                updated_at,
-                forms,
-                process_status,
-                process_started_at,
-                round_history,
-                decision,
-                decision_status;`,
-      [
-        model.id,
-        model.candidateId ?? null,
-        model.roundNumber ?? null,
-        model.interviewCount,
-        interviewsJson,
-        model.fitQuestionId ?? null,
-        formsJson,
-        historyJson,
-        model.processStatus ?? 'draft',
-        model.processStartedAt ?? null,
-        model.decision ?? null,
-        model.offerDecisionStatus ?? 'pending'
-      ]
-    );
+    const client = await connectClient();
+    try {
+      await client.query('BEGIN');
+      await this.upsertInitiative(client, model.initiativeId, model.initiativeName);
 
-    return mapRowToRecord(result.rows[0]);
+      const result = await client.query(
+        `WITH inserted AS (
+           INSERT INTO evaluations (
+             id,
+             candidate_id,
+             initiative_id,
+             round_number,
+             interview_count,
+             interviews,
+             fit_question_id,
+             version,
+             created_at,
+             updated_at,
+             forms,
+             round_history,
+             process_status,
+             process_started_at,
+             decision,
+             decision_status
+           )
+           VALUES (
+             $1,
+             $2,
+             $3,
+             $4,
+             $5,
+             $6::jsonb,
+             $7,
+             1,
+             NOW(),
+             NOW(),
+             $8::jsonb,
+             $9::jsonb,
+             $10,
+             $11,
+             $12,
+             $13
+           )
+           RETURNING
+             id,
+             candidate_id,
+             initiative_id,
+             round_number,
+             interview_count,
+             interviews,
+             fit_question_id,
+             version,
+             created_at,
+             updated_at,
+             forms,
+             process_status,
+             process_started_at,
+             round_history,
+             decision,
+             decision_status
+        )
+        SELECT inserted.*, COALESCE(i.name, '') AS initiative_name
+          FROM inserted
+          LEFT JOIN initiatives i ON i.id = inserted.initiative_id;`,
+        [
+          model.id,
+          model.candidateId ?? null,
+          model.initiativeId,
+          model.roundNumber ?? null,
+          model.interviewCount,
+          interviewsJson,
+          model.fitQuestionId ?? null,
+          formsJson,
+          historyJson,
+          model.processStatus ?? 'draft',
+          model.processStartedAt ?? null,
+          model.decision ?? null,
+          model.offerDecisionStatus ?? 'pending'
+        ]
+      );
+
+      const rows = (result.rows ?? []) as EvaluationRow[];
+
+      await client.query('COMMIT');
+      return mapRowToRecord(rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async updateEvaluation(
@@ -448,68 +538,119 @@ export class EvaluationsRepository {
     const formsJson = JSON.stringify(model.forms);
     const historyJson = JSON.stringify(model.roundHistory ?? []);
 
-    const result = await postgresPool.query<EvaluationRow>(
-      `UPDATE evaluations
-          SET candidate_id = $1,
-              round_number = $2,
-              interview_count = $3,
-              interviews = $4::jsonb,
-              fit_question_id = $5,
-              forms = $6::jsonb,
-              round_history = $7::jsonb,
-              process_status = $8,
-              process_started_at = $9,
-              decision = $10,
-              decision_status = $11,
-              version = version + 1,
-              updated_at = NOW()
-        WHERE id = $12 AND version = $13
-      RETURNING id,
-                candidate_id,
-                round_number,
-                interview_count,
-                interviews,
-                fit_question_id,
-                version,
-                created_at,
-                updated_at,
-                forms,
-                process_status,
-                process_started_at,
-                round_history,
-                decision,
-                decision_status;`,
-      [
-        model.candidateId ?? null,
-        model.roundNumber ?? null,
-        model.interviewCount,
-        interviewsJson,
-        model.fitQuestionId ?? null,
-        formsJson,
-        historyJson,
-        model.processStatus ?? 'draft',
-        model.processStartedAt ?? null,
-        model.decision ?? null,
-        model.offerDecisionStatus ?? 'pending',
-        model.id,
-        expectedVersion
-      ]
-    );
+    const client = await connectClient();
+    try {
+      await client.query('BEGIN');
+      await this.upsertInitiative(client, model.initiativeId, model.initiativeName);
 
-    if (result.rows.length === 0) {
-      const exists = await postgresPool.query('SELECT id FROM evaluations WHERE id = $1 LIMIT 1;', [model.id]);
-      if (exists.rows.length === 0) {
-        return null;
+      const result = await client.query(
+        `WITH updated AS (
+           UPDATE evaluations
+              SET candidate_id = $1,
+                  initiative_id = $2,
+                  round_number = $3,
+                  interview_count = $4,
+                  interviews = $5::jsonb,
+                  fit_question_id = $6,
+                  forms = $7::jsonb,
+                  round_history = $8::jsonb,
+                  process_status = $9,
+                  process_started_at = $10,
+                  decision = $11,
+                  decision_status = $12,
+                  version = version + 1,
+                  updated_at = NOW()
+            WHERE id = $13 AND version = $14
+          RETURNING
+            id,
+            candidate_id,
+            initiative_id,
+            round_number,
+            interview_count,
+            interviews,
+            fit_question_id,
+            version,
+            created_at,
+            updated_at,
+            forms,
+            process_status,
+            process_started_at,
+            round_history,
+            decision,
+            decision_status
+        )
+        SELECT updated.*, COALESCE(i.name, '') AS initiative_name
+          FROM updated
+          LEFT JOIN initiatives i ON i.id = updated.initiative_id;`,
+        [
+          model.candidateId ?? null,
+          model.initiativeId,
+          model.roundNumber ?? null,
+          model.interviewCount,
+          interviewsJson,
+          model.fitQuestionId ?? null,
+          formsJson,
+          historyJson,
+          model.processStatus ?? 'draft',
+          model.processStartedAt ?? null,
+          model.decision ?? null,
+          model.offerDecisionStatus ?? 'pending',
+          model.id,
+          expectedVersion
+        ]
+      );
+
+      const rows = (result.rows ?? []) as EvaluationRow[];
+
+      if (rows.length === 0) {
+        await client.query('ROLLBACK');
+        const exists = await postgresPool.query('SELECT id FROM evaluations WHERE id = $1 LIMIT 1;', [model.id]);
+        if (exists.rows.length === 0) {
+          return null;
+        }
+        return 'version-conflict';
       }
-      return 'version-conflict';
-    }
 
-    return mapRowToRecord(result.rows[0]);
+      await client.query('COMMIT');
+      return mapRowToRecord(rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async deleteEvaluation(id: string): Promise<boolean> {
-    const result = await postgresPool.query('DELETE FROM evaluations WHERE id = $1 RETURNING id;', [id]);
-    return result.rows.length > 0;
+    const client = await connectClient();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        'DELETE FROM evaluations WHERE id = $1 RETURNING id, initiative_id;',
+        [id]
+      );
+      const rows = (result.rows ?? []) as Array<{ id: string; initiative_id: string | null }>;
+      if (rows.length === 0) {
+        await client.query('ROLLBACK');
+        return false;
+      }
+
+      const initiativeId = rows[0].initiative_id;
+      if (initiativeId) {
+        const usage = await client.query('SELECT 1 FROM evaluations WHERE initiative_id = $1 LIMIT 1;', [initiativeId]);
+        if (usage.rows.length === 0) {
+          await client.query('DELETE FROM initiatives WHERE id = $1;', [initiativeId]);
+        }
+      }
+
+      await client.query('COMMIT');
+      return true;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async storeAssignments(

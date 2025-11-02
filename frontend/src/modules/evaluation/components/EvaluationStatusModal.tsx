@@ -9,6 +9,7 @@ import { formatDate } from '../../../shared/utils/date';
 
 interface EvaluationStatusModalProps {
   evaluation: EvaluationConfig;
+  initiativeName: string;
   candidateName: string;
   candidatePosition: string;
   roundLabel: string;
@@ -271,6 +272,7 @@ const buildCriteriaRows = (
 
 export const EvaluationStatusModal = ({
   evaluation,
+  initiativeName,
   candidateName,
   candidatePosition,
   roundLabel,
@@ -337,8 +339,9 @@ export const EvaluationStatusModal = ({
         </header>
         <div className={styles.content}>
           <div className={styles.summaryHeader}>
-            <div className={styles.summaryDetails}>
-              <h3>{candidateName}</h3>
+          <div className={styles.summaryDetails}>
+              <h3>{initiativeName}</h3>
+              <p>{candidateName}</p>
               <p>{candidatePosition}</p>
               <p>{roundLabel}</p>
             </div>

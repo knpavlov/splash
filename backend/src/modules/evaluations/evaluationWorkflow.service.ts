@@ -116,6 +116,8 @@ const buildPeerForms = (
 const buildWriteModelFromRecord = (record: EvaluationRecord): EvaluationWriteModel => ({
   id: record.id,
   candidateId: record.candidateId,
+  initiativeId: record.initiativeId ?? record.id,
+  initiativeName: record.initiativeName,
   roundNumber: record.roundNumber,
   interviewCount: record.interviewCount,
   interviews: record.interviews,

@@ -553,16 +553,18 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     evaluations: {
       list: evaluations,
       saveEvaluation: async (config, expectedVersion) => {
-        if (!config.candidateId) {
+        const trimmedInitiative = config.initiativeName.trim();
+        if (!config.initiativeId || !trimmedInitiative) {
           return { ok: false, error: 'invalid-input' };
         }
+        const normalizedConfig = { ...config, initiativeName: trimmedInitiative };
         try {
           if (expectedVersion === null) {
-            const created = await evaluationsApi.create(config);
+            const created = await evaluationsApi.create(normalizedConfig);
             setEvaluations((prev) => [...prev, created]);
             return { ok: true, data: created };
           }
-          const updated = await evaluationsApi.update(config.id, config, expectedVersion);
+          const updated = await evaluationsApi.update(config.id, normalizedConfig, expectedVersion);
           setEvaluations((prev) => prev.map((item) => (item.id === config.id ? updated : item)));
           return { ok: true, data: updated };
         } catch (error) {

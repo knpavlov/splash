@@ -248,6 +248,12 @@ const buildWriteModel = (payload: unknown): EvaluationWriteModel => {
     throw new Error('INVALID_INPUT');
   }
 
+  const initiativeId = readOptionalString(source.initiativeId);
+  const initiativeName = readOptionalString(source.initiativeName);
+  if (!initiativeId || !initiativeName) {
+    throw new Error('INVALID_INPUT');
+  }
+
   const interviews = sanitizeSlots(source.interviews);
   if (interviews.length === 0) {
     throw new Error('INVALID_INPUT');
@@ -263,6 +269,8 @@ const buildWriteModel = (payload: unknown): EvaluationWriteModel => {
   return {
     id,
     candidateId: readOptionalString(source.candidateId),
+    initiativeId,
+    initiativeName,
     roundNumber: readOptionalPositiveInteger(source.roundNumber),
     interviewCount: interviews.length,
     interviews,

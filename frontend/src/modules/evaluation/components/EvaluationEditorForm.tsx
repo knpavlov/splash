@@ -1,28 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import styles from '../../../styles/EvaluationModal.module.css';
+import styles from '../../../styles/EvaluationEditorForm.module.css';
 import {
   EvaluationConfig,
   InterviewSlot,
   InterviewStatusRecord,
   InvitationSlotStatus
 } from '../../../shared/types/evaluation';
-import { CandidateProfile } from '../../../shared/types/candidate';
 import { CaseFolder } from '../../../shared/types/caseLibrary';
 import { FitQuestion } from '../../../shared/types/fitQuestion';
 import { AccountRecord } from '../../../shared/types/account';
 import { buildAccountDescriptor } from '../../../shared/utils/accountName';
-import { composeFullName } from '../../../shared/utils/personName';
 import { generateId } from '../../../shared/ui/generateId';
 
-interface EvaluationModalProps {
+interface EvaluationEditorFormProps {
   initialConfig: EvaluationConfig | null;
   onSave: (
     config: EvaluationConfig,
     options: { closeAfterSave: boolean; expectedVersion: number | null }
   ) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-  onClose: () => void;
-  candidates: CandidateProfile[];
+  onDelete?: (id: string) => Promise<void>;
+  onCancel: () => void;
   folders: CaseFolder[];
   fitQuestions: FitQuestion[];
   accounts: AccountRecord[];
@@ -53,6 +50,8 @@ const createDefaultConfig = (): EvaluationConfig => {
   return {
     id: generateId(),
     candidateId: undefined,
+    initiativeId: generateId(),
+    initiativeName: '',
     roundNumber: 1,
     interviewCount: 1,
     interviews,
@@ -101,21 +100,21 @@ const buildUniqueAssignments = <T,>(source: T[], count: number): (T | undefined)
   return result;
 };
 
-export const EvaluationModal = ({
+export const EvaluationEditorForm = ({
   initialConfig,
   onSave,
   onDelete,
-  onClose,
-  candidates,
+  onCancel,
   folders,
   fitQuestions,
   accounts
-}: EvaluationModalProps) => {
+}: EvaluationEditorFormProps) => {
   const [config, setConfig] = useState<EvaluationConfig>(createDefaultConfig());
 
   useEffect(() => {
     if (initialConfig) {
-      setConfig(initialConfig);
+      const initiativeId = initialConfig.initiativeId ?? generateId();
+      setConfig({ ...initialConfig, initiativeId });
     } else {
       setConfig(createDefaultConfig());
     }
@@ -165,9 +164,7 @@ export const EvaluationModal = ({
   };
 
   const updateInterview = (slotId: string, patch: Partial<InterviewSlot>) => {
-    updateInterviews((current) =>
-      current.map((slot) => (slot.id === slotId ? { ...slot, ...patch } : slot))
-    );
+    updateInterviews((current) => current.map((slot) => (slot.id === slotId ? { ...slot, ...patch } : slot)));
   };
 
   const handleAddInterview = () => {
@@ -205,25 +202,19 @@ export const EvaluationModal = ({
   };
 
   const handleDelete = () => {
-    if (!initialConfig) {
-      onClose();
+    if (!initialConfig || !onDelete) {
+      onCancel();
       return;
     }
     void onDelete(initialConfig.id);
   };
 
   const submit = (closeAfterSave: boolean) => {
-    void onSave(config, { closeAfterSave, expectedVersion });
+    void onSave(
+      { ...config, initiativeName: config.initiativeName.trim() },
+      { closeAfterSave, expectedVersion }
+    );
   };
-
-  const candidateOptions = useMemo(
-    () =>
-      candidates.map((candidate) => ({
-        id: candidate.id,
-        label: composeFullName(candidate.firstName, candidate.lastName) || 'No name'
-      })),
-    [candidates]
-  );
 
   const fitQuestionOptions = useMemo(
     () =>
@@ -278,96 +269,118 @@ export const EvaluationModal = ({
   };
 
   return (
-    <div className={styles.overlay}>
-      <div className={styles.modal}>
-        <header className={styles.header}>
-          <h2>{initialConfig ? 'Edit evaluation' : 'New evaluation'}</h2>
-          <button className={styles.closeButton} onClick={onClose}>
-            ×
+    <div className={styles.pageContainer}>
+      <header className={styles.pageHeader}>
+        <div>
+          <h1>{initialConfig ? 'Edit evaluation' : 'New evaluation'}</h1>
+          <p className={styles.pageSubtitle}>
+            Configure interviews, assignments, and invitations before notifying interviewers.
+          </p>
+        </div>
+        <div className={styles.headerActions}>
+          <button type="button" className={styles.cancelButton} onClick={onCancel}>
+            Cancel
           </button>
-        </header>
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={() => submit(true)}
+            disabled={!config.initiativeName.trim()}
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            className={styles.saveContinueButton}
+            onClick={() => submit(false)}
+            disabled={!config.initiativeName.trim()}
+          >
+            Save and stay
+          </button>
+        </div>
+      </header>
 
-        <div className={styles.content}>
-          <label className={styles.fullWidth}>
-            <span>Candidate</span>
-            <select
-              value={config.candidateId || ''}
-              onChange={(e) => setConfig((prev) => ({ ...prev, candidateId: e.target.value || undefined }))}
-            >
-              <option value="">Not selected</option>
-              {candidateOptions.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.label}
-                </option>
-              ))}
-            </select>
+      <section className={styles.formSection}>
+        <div className={styles.fieldGroup}>
+          <label>
+            <span>Initiative name</span>
+            <input
+              value={config.initiativeName}
+              onChange={(event) =>
+                setConfig((prev) => ({ ...prev, initiativeName: event.target.value }))
+              }
+              placeholder="Enter initiative name"
+            />
           </label>
+        </div>
 
+        <div className={styles.metaGrid}>
           <label>
             <span>Round number</span>
             <input
               type="number"
               min={1}
               value={config.roundNumber ?? 1}
-              onChange={(e) =>
-                setConfig((prev) => ({ ...prev, roundNumber: Number(e.target.value) || undefined }))
+              onChange={(event) =>
+                setConfig((prev) => ({ ...prev, roundNumber: Number(event.target.value) || undefined }))
               }
             />
           </label>
+        </div>
 
-          <div className={`${styles.fullWidth} ${styles.toolbar}`}>
-            <h3 className={styles.toolbarTitle}>Interviews</h3>
-            <div className={styles.toolbarActions}>
-              <button type="button" className={styles.toolbarPrimaryButton} onClick={handleAssignRandomly}>
-                Assign randomly
-              </button>
-              <button type="button" className={styles.toolbarSecondaryButton} onClick={handleAddInterview}>
-                Add interview
-              </button>
-            </div>
+        <div className={styles.toolbar}>
+          <h2 className={styles.toolbarTitle}>Interviews</h2>
+          <div className={styles.toolbarActions}>
+            <button type="button" className={styles.toolbarPrimaryButton} onClick={handleAssignRandomly}>
+              Assign randomly
+            </button>
+            <button type="button" className={styles.toolbarSecondaryButton} onClick={handleAddInterview}>
+              Add interview
+            </button>
           </div>
+        </div>
 
-          <div className={styles.interviewsList}>
-            {config.interviews.map((slot, index) => {
-              const invitationSlot = slotStatusMap.get(slot.id);
-              const statusKey: InvitationSlotStatus = invitationSlot?.status ?? 'pending';
-              const badgeClass =
-                statusKey === 'delivered'
-                  ? styles.statusDelivered
-                  : statusKey === 'stale'
-                    ? styles.statusStale
-                    : statusKey === 'failed'
-                      ? styles.statusFailed
-                      : statusKey === 'unassigned'
-                        ? styles.statusUnassigned
-                        : styles.statusPending;
-              let note: string | null = null;
-              if (statusKey === 'delivered') {
-                note = invitationSlot?.invitationSentAt
-                  ? `Delivered on ${formatDateTime(invitationSlot.invitationSentAt)}`
-                  : 'Invitation delivered.';
-              } else if (statusKey === 'stale') {
-                note = invitationSlot?.invitationSentAt
-                  ? `Assignment changed after the invite sent on ${formatDateTime(invitationSlot.invitationSentAt)}.`
-                  : 'Assignment updated. Resend the invitation when ready.';
-              } else if (statusKey === 'failed') {
-                note = invitationSlot?.lastDeliveryAttemptAt
-                  ? `Last delivery attempt on ${formatDateTime(invitationSlot.lastDeliveryAttemptAt)}.`
-                  : 'Delivery attempt failed. Check the address and resend.';
-              } else if (statusKey === 'unassigned') {
-                note = 'Provide interviewer email, case, and fit question before sending an invite.';
-              } else {
-                note = 'Invitation has not been sent yet.';
-              }
-              const errorText = invitationSlot?.lastDeliveryError?.trim() || null;
+        <div className={styles.interviewsList}>
+          {config.interviews.map((slot, index) => {
+            const invitationSlot = slotStatusMap.get(slot.id);
+            const statusKey: InvitationSlotStatus = invitationSlot?.status ?? 'pending';
+            const badgeClass =
+              statusKey === 'delivered'
+                ? styles.statusDelivered
+                : statusKey === 'stale'
+                  ? styles.statusStale
+                  : statusKey === 'failed'
+                    ? styles.statusFailed
+                    : statusKey === 'unassigned'
+                      ? styles.statusUnassigned
+                      : styles.statusPending;
+            let note: string | null = null;
+            if (statusKey === 'delivered') {
+              note = invitationSlot?.invitationSentAt
+                ? `Delivered on ${formatDateTime(invitationSlot.invitationSentAt)}`
+                : 'Invitation delivered.';
+            } else if (statusKey === 'stale') {
+              note = invitationSlot?.invitationSentAt
+                ? `Assignment changed after the invite sent on ${formatDateTime(invitationSlot.invitationSentAt)}.`
+                : 'Assignment updated. Resend the invitation when ready.';
+            } else if (statusKey === 'failed') {
+              note = invitationSlot?.lastDeliveryAttemptAt
+                ? `Last delivery attempt on ${formatDateTime(invitationSlot.lastDeliveryAttemptAt)}.`
+                : 'Delivery attempt failed. Check the address and resend.';
+            } else if (statusKey === 'unassigned') {
+              note = 'Provide interviewer email, case, and fit question before sending an invite.';
+            } else {
+              note = 'Invitation has not been sent yet.';
+            }
+            const errorText = invitationSlot?.lastDeliveryError?.trim() || null;
 
-              return (
-                <div key={slot.id} className={styles.interviewBlock}>
-                  <div className={styles.interviewHeader}>
-                    <h3>Interview {index + 1}</h3>
-                    <button
-                      type="button"
-                      className={styles.removeInterviewButton}
+            return (
+              <div key={slot.id} className={styles.interviewBlock}>
+                <div className={styles.interviewHeader}>
+                  <h3>Interview {index + 1}</h3>
+                  <button
+                    type="button"
+                    className={styles.removeInterviewButton}
                     onClick={() => handleRemoveInterview(slot.id)}
                     disabled={config.interviews.length <= 1}
                   >
@@ -399,10 +412,12 @@ export const EvaluationModal = ({
                   <input value={slot.interviewerEmail} readOnly />
                 </label>
                 <label>
-                  <span>Case</span>
+                  <span>Case folder</span>
                   <select
-                    value={slot.caseFolderId || ''}
-                    onChange={(e) => updateInterview(slot.id, { caseFolderId: e.target.value || undefined })}
+                    value={slot.caseFolderId ?? ''}
+                    onChange={(event) =>
+                      updateInterview(slot.id, { caseFolderId: event.target.value || undefined })
+                    }
                   >
                     <option value="">Not selected</option>
                     {folders.map((folder) => (
@@ -415,8 +430,10 @@ export const EvaluationModal = ({
                 <label>
                   <span>Fit question</span>
                   <select
-                    value={slot.fitQuestionId || ''}
-                    onChange={(e) => updateInterview(slot.id, { fitQuestionId: e.target.value || undefined })}
+                    value={slot.fitQuestionId ?? ''}
+                    onChange={(event) =>
+                      updateInterview(slot.id, { fitQuestionId: event.target.value || undefined })
+                    }
                   >
                     <option value="">Not selected</option>
                     {fitQuestionOptions.map((question) => (
@@ -427,33 +444,48 @@ export const EvaluationModal = ({
                   </select>
                 </label>
                 <div className={styles.statusSection}>
-                  <span className={`${styles.statusBadge} ${badgeClass}`}>{STATUS_LABELS[statusKey]}</span>
-                  {note && <span className={styles.statusNote}>{note}</span>}
-                  {errorText && <span className={styles.statusError}>{errorText}</span>}
+                  <span className={`${styles.statusBadge} ${badgeClass}`}>
+                    {STATUS_LABELS[statusKey]}
+                  </span>
+                  {note && <p className={styles.statusNote}>{note}</p>}
+                  {errorText && <p className={styles.statusError}>{errorText}</p>}
                 </div>
               </div>
-              );
-            })}
-          </div>
+            );
+          })}
         </div>
+      </section>
 
-        <footer className={styles.footer}>
-          <button className={styles.dangerButton} onClick={handleDelete} disabled={!initialConfig}>
+      <footer className={styles.pageFooter}>
+        {onDelete && initialConfig ? (
+          <button type="button" className={styles.deleteButton} onClick={handleDelete}>
             Delete evaluation
           </button>
-          <div className={styles.footerActions}>
-            <button className={styles.secondaryButton} onClick={onClose}>
-              Cancel
-            </button>
-            <button className={styles.secondaryButton} onClick={() => submit(false)}>
-              Save
-            </button>
-            <button className={styles.primaryButton} onClick={() => submit(true)}>
-              Save and close
-            </button>
-          </div>
-        </footer>
-      </div>
+        ) : (
+          <span />
+        )}
+        <div className={styles.footerActions}>
+          <button type="button" className={styles.cancelButton} onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={styles.saveButton}
+            onClick={() => submit(true)}
+            disabled={!config.initiativeName.trim()}
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            className={styles.saveContinueButton}
+            onClick={() => submit(false)}
+            disabled={!config.initiativeName.trim()}
+          >
+            Save and stay
+          </button>
+        </div>
+      </footer>
     </div>
   );
 };

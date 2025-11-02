@@ -205,9 +205,24 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS initiatives (
+      id UUID PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS initiatives_name_idx
+      ON initiatives(LOWER(name));
+  `);
+
+  await postgresPool.query(`
     CREATE TABLE IF NOT EXISTS evaluations (
       id UUID PRIMARY KEY,
       candidate_id UUID REFERENCES candidates(id) ON DELETE SET NULL,
+      initiative_id UUID REFERENCES initiatives(id) ON DELETE SET NULL,
       round_number INTEGER,
       interview_count INTEGER NOT NULL DEFAULT 0,
       interviews JSONB NOT NULL DEFAULT '[]'::JSONB,
@@ -236,7 +251,8 @@ const createTables = async () => {
       ADD COLUMN IF NOT EXISTS process_started_at TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS round_history JSONB NOT NULL DEFAULT '[]'::JSONB,
       ADD COLUMN IF NOT EXISTS decision TEXT,
-      ADD COLUMN IF NOT EXISTS decision_status TEXT;
+      ADD COLUMN IF NOT EXISTS decision_status TEXT,
+      ADD COLUMN IF NOT EXISTS initiative_id UUID REFERENCES initiatives(id) ON DELETE SET NULL;
   `);
 
   await postgresPool.query(`
