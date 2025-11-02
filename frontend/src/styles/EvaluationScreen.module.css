@@ -66,6 +66,24 @@
   line-height: 1.45;
 }
 
+.clickableRow {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.clickableRow:hover {
+  background-color: rgba(59, 130, 246, 0.08);
+}
+
+.editorPlaceholder {
+  padding: 40px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.85);
+  text-align: center;
+  color: #475569;
+  font-size: 16px;
+}
+
 .table th,
 .table td {
   padding: 10px 6px;

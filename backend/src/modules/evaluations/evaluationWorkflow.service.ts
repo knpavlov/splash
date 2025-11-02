@@ -116,6 +116,7 @@ const buildPeerForms = (
 const buildWriteModelFromRecord = (record: EvaluationRecord): EvaluationWriteModel => ({
   id: record.id,
   candidateId: record.candidateId,
+  initiativeName: record.initiativeName?.trim() || 'Без названия',
   roundNumber: record.roundNumber,
   interviewCount: record.interviewCount,
   interviews: record.interviews,

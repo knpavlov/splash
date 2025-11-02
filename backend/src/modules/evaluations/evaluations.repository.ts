@@ -14,6 +14,7 @@ import {
 interface EvaluationRow extends Record<string, unknown> {
   id: string;
   candidate_id: string | null;
+  initiative_name: string | null;
   round_number: number | null;
   interview_count: number | null;
   interviews: unknown;
@@ -280,6 +281,7 @@ const mapRowToRecord = (row: EvaluationRow): EvaluationRecord => {
   return {
     id: row.id,
     candidateId: row.candidate_id ?? undefined,
+    initiativeName: typeof row.initiative_name === 'string' ? row.initiative_name : undefined,
     roundNumber: row.round_number ?? undefined,
     interviewCount,
     interviews,
@@ -349,46 +351,50 @@ const mapRowToAssignment = (row: AssignmentRow): InterviewAssignmentRecord => ({
 export class EvaluationsRepository {
   async listEvaluations(): Promise<EvaluationRecord[]> {
     const result = await postgresPool.query<EvaluationRow>(
-      `SELECT id,
-              candidate_id,
-              round_number,
-              interview_count,
-              interviews,
-              fit_question_id,
-              version,
-              created_at,
-              updated_at,
-              forms,
-              process_status,
-              process_started_at,
-              round_history,
-              decision,
-              decision_status
-         FROM evaluations
-        ORDER BY updated_at DESC, created_at DESC;`
+      `SELECT e.id,
+              e.candidate_id,
+              i.name AS initiative_name,
+              e.round_number,
+              e.interview_count,
+              e.interviews,
+              e.fit_question_id,
+              e.version,
+              e.created_at,
+              e.updated_at,
+              e.forms,
+              e.process_status,
+              e.process_started_at,
+              e.round_history,
+              e.decision,
+              e.decision_status
+         FROM evaluations e
+         LEFT JOIN initiatives i ON i.evaluation_id = e.id
+        ORDER BY e.updated_at DESC, e.created_at DESC;`
     );
     return result.rows.map((row) => mapRowToRecord(row));
   }
 
   async findEvaluation(id: string): Promise<EvaluationRecord | null> {
     const result = await postgresPool.query<EvaluationRow>(
-      `SELECT id,
-              candidate_id,
-              round_number,
-              interview_count,
-              interviews,
-              fit_question_id,
-              version,
-              created_at,
-              updated_at,
-              forms,
-              process_status,
-              process_started_at,
-              round_history,
-              decision,
-              decision_status
-         FROM evaluations
-        WHERE id = $1
+      `SELECT e.id,
+              e.candidate_id,
+              i.name AS initiative_name,
+              e.round_number,
+              e.interview_count,
+              e.interviews,
+              e.fit_question_id,
+              e.version,
+              e.created_at,
+              e.updated_at,
+              e.forms,
+              e.process_status,
+              e.process_started_at,
+              e.round_history,
+              e.decision,
+              e.decision_status
+         FROM evaluations e
+         LEFT JOIN initiatives i ON i.evaluation_id = e.id
+        WHERE e.id = $1
         LIMIT 1;`,
       [id]
     );
@@ -402,42 +408,49 @@ export class EvaluationsRepository {
     const interviewsJson = JSON.stringify(model.interviews);
     const formsJson = JSON.stringify(model.forms);
     const historyJson = JSON.stringify(model.roundHistory ?? []);
+    const client = await (postgresPool as unknown as { connect: () => Promise<any> }).connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO evaluations (id, candidate_id, round_number, interview_count, interviews, fit_question_id, version, created_at, updated_at, forms, round_history, process_status, process_started_at, decision, decision_status)
+           VALUES ($1, $2, $3, $4, $5::jsonb, $6, 1, NOW(), NOW(), $7::jsonb, $8::jsonb, $9, $10, $11, $12)`,
+        [
+          model.id,
+          model.candidateId ?? null,
+          model.roundNumber ?? null,
+          model.interviewCount,
+          interviewsJson,
+          model.fitQuestionId ?? null,
+          formsJson,
+          historyJson,
+          model.processStatus ?? 'draft',
+          model.processStartedAt ?? null,
+          model.decision ?? null,
+          model.offerDecisionStatus ?? 'pending'
+        ]
+      );
 
-    const result = await postgresPool.query<EvaluationRow>(
-      `INSERT INTO evaluations (id, candidate_id, round_number, interview_count, interviews, fit_question_id, version, created_at, updated_at, forms, round_history, process_status, process_started_at, decision, decision_status)
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, 1, NOW(), NOW(), $7::jsonb, $8::jsonb, $9, $10, $11, $12)
-      RETURNING id,
-                candidate_id,
-                round_number,
-                interview_count,
-                interviews,
-                fit_question_id,
-                version,
-                created_at,
-                updated_at,
-                forms,
-                process_status,
-                process_started_at,
-                round_history,
-                decision,
-                decision_status;`,
-      [
-        model.id,
-        model.candidateId ?? null,
-        model.roundNumber ?? null,
-        model.interviewCount,
-        interviewsJson,
-        model.fitQuestionId ?? null,
-        formsJson,
-        historyJson,
-        model.processStatus ?? 'draft',
-        model.processStartedAt ?? null,
-        model.decision ?? null,
-        model.offerDecisionStatus ?? 'pending'
-      ]
-    );
+      await client.query(
+        `INSERT INTO initiatives (evaluation_id, name, created_at, updated_at)
+           VALUES ($1, $2, NOW(), NOW())
+        ON CONFLICT (evaluation_id)
+          DO UPDATE SET name = EXCLUDED.name, updated_at = NOW();`,
+        [model.id, model.initiativeName]
+      );
 
-    return mapRowToRecord(result.rows[0]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    const record = await this.findEvaluation(model.id);
+    if (!record) {
+      throw new Error('EVALUATION_NOT_FOUND');
+    }
+    return record;
   }
 
   async updateEvaluation(
@@ -447,64 +460,86 @@ export class EvaluationsRepository {
     const interviewsJson = JSON.stringify(model.interviews);
     const formsJson = JSON.stringify(model.forms);
     const historyJson = JSON.stringify(model.roundHistory ?? []);
+    const client = await (postgresPool as unknown as { connect: () => Promise<any> }).connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `UPDATE evaluations
+            SET candidate_id = $1,
+                round_number = $2,
+                interview_count = $3,
+                interviews = $4::jsonb,
+                fit_question_id = $5,
+                forms = $6::jsonb,
+                round_history = $7::jsonb,
+                process_status = $8,
+                process_started_at = $9,
+                decision = $10,
+                decision_status = $11,
+                version = version + 1,
+                updated_at = NOW()
+          WHERE id = $12 AND version = $13
+        RETURNING id,
+                  candidate_id,
+                  round_number,
+                  interview_count,
+                  interviews,
+                  fit_question_id,
+                  version,
+                  created_at,
+                  updated_at,
+                  forms,
+                  process_status,
+                  process_started_at,
+                  round_history,
+                  decision,
+                  decision_status;`,
+        [
+          model.candidateId ?? null,
+          model.roundNumber ?? null,
+          model.interviewCount,
+          interviewsJson,
+          model.fitQuestionId ?? null,
+          formsJson,
+          historyJson,
+          model.processStatus ?? 'draft',
+          model.processStartedAt ?? null,
+          model.decision ?? null,
+          model.offerDecisionStatus ?? 'pending',
+          model.id,
+          expectedVersion
+        ]
+      );
 
-    const result = await postgresPool.query<EvaluationRow>(
-      `UPDATE evaluations
-          SET candidate_id = $1,
-              round_number = $2,
-              interview_count = $3,
-              interviews = $4::jsonb,
-              fit_question_id = $5,
-              forms = $6::jsonb,
-              round_history = $7::jsonb,
-              process_status = $8,
-              process_started_at = $9,
-              decision = $10,
-              decision_status = $11,
-              version = version + 1,
-              updated_at = NOW()
-        WHERE id = $12 AND version = $13
-      RETURNING id,
-                candidate_id,
-                round_number,
-                interview_count,
-                interviews,
-                fit_question_id,
-                version,
-                created_at,
-                updated_at,
-                forms,
-                process_status,
-                process_started_at,
-                round_history,
-                decision,
-                decision_status;`,
-      [
-        model.candidateId ?? null,
-        model.roundNumber ?? null,
-        model.interviewCount,
-        interviewsJson,
-        model.fitQuestionId ?? null,
-        formsJson,
-        historyJson,
-        model.processStatus ?? 'draft',
-        model.processStartedAt ?? null,
-        model.decision ?? null,
-        model.offerDecisionStatus ?? 'pending',
-        model.id,
-        expectedVersion
-      ]
-    );
+      const rows = (result.rows ?? []) as EvaluationRow[];
 
-    if (result.rows.length === 0) {
-      const exists = await postgresPool.query('SELECT id FROM evaluations WHERE id = $1 LIMIT 1;', [model.id]);
-      if (exists.rows.length === 0) {
-        return null;
+      if (rows.length === 0) {
+        const exists = await client.query('SELECT id FROM evaluations WHERE id = $1 LIMIT 1;', [model.id]);
+        await client.query('ROLLBACK');
+        if (exists.rows.length === 0) {
+          return null;
+        }
+        return 'version-conflict';
       }
-      return 'version-conflict';
+
+      await client.query(
+        `INSERT INTO initiatives (evaluation_id, name, created_at, updated_at)
+           VALUES ($1, $2, NOW(), NOW())
+        ON CONFLICT (evaluation_id)
+          DO UPDATE SET name = EXCLUDED.name, updated_at = NOW();`,
+        [model.id, model.initiativeName]
+      );
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
 
-    return mapRowToRecord(result.rows[0]);
+    const record = await this.findEvaluation(model.id);
+    return record;
   }
 
   async deleteEvaluation(id: string): Promise<boolean> {

@@ -225,6 +225,15 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS initiatives (
+      evaluation_id UUID PRIMARY KEY REFERENCES evaluations(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`
     ALTER TABLE evaluations
       ADD COLUMN IF NOT EXISTS interview_count INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS interviews JSONB NOT NULL DEFAULT '[]'::JSONB,

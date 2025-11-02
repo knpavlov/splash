@@ -301,6 +301,7 @@ const normalizeEvaluation = (value: unknown): EvaluationConfig | null => {
   const payload = value as Partial<EvaluationConfig> & {
     id?: unknown;
     candidateId?: unknown;
+    initiativeName?: unknown;
     roundNumber?: unknown;
     interviewCount?: unknown;
     interviews?: unknown;
@@ -339,6 +340,7 @@ const normalizeEvaluation = (value: unknown): EvaluationConfig | null => {
   return {
     id,
     candidateId: normalizeString(payload.candidateId)?.trim() || undefined,
+    initiativeName: normalizeString(payload.initiativeName)?.trim() || undefined,
     roundNumber: normalizeNumber(payload.roundNumber),
     interviewCount: normalizeNumber(payload.interviewCount) ?? interviews.length,
     interviews,
@@ -467,6 +469,7 @@ const serializeRoundHistory = (history: EvaluationRoundSnapshot[]) =>
 const serializeEvaluation = (config: EvaluationConfig) => ({
   id: config.id,
   candidateId: config.candidateId ?? null,
+  initiativeName: (config.initiativeName ?? '').trim(),
   roundNumber: config.roundNumber ?? null,
   interviewCount: config.interviewCount,
   interviews: config.interviews.map((slot) => ({

@@ -1,0 +1,247 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: #f8fafc;
+  border-radius: 24px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.15);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 32px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  color: #f8fafc;
+  border-radius: 24px 24px 0 0;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 8px 0 0 0;
+  font-size: 16px;
+  color: rgba(248, 250, 252, 0.85);
+}
+
+.headerActions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.content {
+  padding: 32px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.content label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.content input,
+.content select {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  padding: 12px;
+  font-size: 14px;
+  background: #ffffff;
+}
+
+.validationError {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #ef4444;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.toolbarTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.toolbarActions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbarPrimaryButton,
+.toolbarSecondaryButton,
+.primaryButton,
+.secondaryButton,
+.dangerButton {
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  padding: 12px 20px;
+  font-size: 14px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.toolbarPrimaryButton,
+.primaryButton {
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  color: #ffffff;
+}
+
+.toolbarSecondaryButton,
+.secondaryButton {
+  background: rgba(148, 163, 184, 0.15);
+  color: #0f172a;
+}
+
+.dangerButton {
+  background: rgba(248, 113, 113, 0.15);
+  color: #b91c1c;
+}
+
+.toolbarPrimaryButton:hover,
+.toolbarSecondaryButton:hover,
+.primaryButton:hover,
+.secondaryButton:hover,
+.dangerButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+}
+
+.interviewsList {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 20px;
+}
+
+.interviewBlock {
+  padding: 20px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.interviewHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  grid-column: 1 / -1;
+}
+
+.interviewHeader h3 {
+  margin: 0;
+}
+
+.removeInterviewButton {
+  border: none;
+  background: rgba(248, 113, 113, 0.15);
+  color: #b91c1c;
+  border-radius: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.removeInterviewButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.statusSection {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.statusPending {
+  background: rgba(148, 163, 184, 0.2);
+  color: #475569;
+}
+
+.statusDelivered {
+  background: rgba(74, 222, 128, 0.2);
+  color: #166534;
+}
+
+.statusStale {
+  background: rgba(251, 191, 36, 0.2);
+  color: #92400e;
+}
+
+.statusFailed {
+  background: rgba(248, 113, 113, 0.25);
+  color: #b91c1c;
+}
+
+.statusUnassigned {
+  background: rgba(96, 165, 250, 0.25);
+  color: #1d4ed8;
+}
+
+.statusNote {
+  font-size: 12px;
+  color: #475569;
+}
+
+.statusError {
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+.footer {
+  margin-top: auto;
+  padding: 24px 32px 32px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.02);
+  border-radius: 0 0 24px 24px;
+}
+
+.footerLeft {
+  display: flex;
+}
+
+.footerActions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
