@@ -124,6 +124,8 @@ export interface InterviewAssignmentRecord extends InterviewAssignmentModel {
 export interface EvaluationRecord {
   id: string;
   candidateId?: string;
+  initiativeId?: string;
+  initiativeName: string;
   roundNumber?: number;
   interviewCount: number;
   interviews: InterviewSlotModel[];
@@ -143,6 +145,8 @@ export interface EvaluationRecord {
 export interface EvaluationWriteModel {
   id: string;
   candidateId?: string;
+  initiativeId: string;
+  initiativeName: string;
   roundNumber?: number;
   interviewCount: number;
   interviews: InterviewSlotModel[];

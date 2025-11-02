@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
+import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { AppLayout } from './app/AppLayout';
-import { NavigationKey, navigationItems } from './app/navigation';
+import { NavigationKey, navigationItems, navigationPaths, resolveNavigationKey } from './app/navigation';
 import { CasesScreen } from './modules/cases/CasesScreen';
 import { CandidatesScreen } from './modules/candidates/CandidatesScreen';
 import { EvaluationScreen } from './modules/evaluation/EvaluationScreen';
@@ -14,17 +15,13 @@ import { CaseCriteriaScreen } from './modules/caseCriteria/CaseCriteriaScreen';
 import { InterviewerScreen } from './modules/evaluation/InterviewerScreen';
 import { useHasInterviewerAssignments } from './app/hooks/useHasInterviewerAssignments';
 import { AnalyticsScreen } from './modules/analytics/AnalyticsScreen';
+import { EvaluationEditorPage } from './modules/evaluation/EvaluationEditorPage';
 
-const AppContent = () => {
+const AuthenticatedApp = () => {
   const { session } = useAuth();
-  const [activePage, setActivePage] = useState<NavigationKey>('cases');
+  const location = useLocation();
+  const navigate = useNavigate();
   const hasInterviewerAssignments = useHasInterviewerAssignments(session?.email);
-
-  useEffect(() => {
-    if (!session) {
-      setActivePage('cases');
-    }
-  }, [session]);
 
   const accessibleItems = useMemo(() => {
     if (!session) {
@@ -40,8 +37,6 @@ const AppContent = () => {
         if (session.role === 'user') {
           return hasInterviewerAssignments;
         }
-
-        // Для админов не требуем назначений интервью, чтобы все админские разделы оставались доступными
         return true;
       }
 
@@ -54,56 +49,75 @@ const AppContent = () => {
       return;
     }
     if (!accessibleItems.length) {
-      setActivePage('evaluation');
+      if (location.pathname !== navigationPaths.evaluation) {
+        navigate(navigationPaths.evaluation, { replace: true });
+      }
       return;
     }
-    if (!accessibleItems.find((item) => item.key === activePage)) {
-      setActivePage(accessibleItems[0].key);
+    const currentKey = resolveNavigationKey(location.pathname);
+    if (!accessibleItems.some((item) => item.key === currentKey)) {
+      navigate(navigationPaths[accessibleItems[0].key], { replace: true });
     }
-  }, [session, accessibleItems, activePage]);
+  }, [session, accessibleItems, location.pathname, navigate]);
 
   if (!session) {
-    return <LoginScreen />;
+    return null;
   }
 
-  const renderContent = () => {
-    switch (activePage) {
-      case 'cases':
-        return <CasesScreen />;
-      case 'case-criteria':
-        return <CaseCriteriaScreen />;
-      case 'questions':
-        return <FitQuestionsScreen />;
-      case 'candidates':
-        return <CandidatesScreen />;
-      case 'evaluation':
-        return <EvaluationScreen />;
-      case 'interviews':
-        return <InterviewerScreen />;
-      case 'stats':
-        return <AnalyticsScreen />;
-      case 'accounts':
-        return <AccountsScreen />;
-      default:
-        return null;
-    }
+  const activeKey = resolveNavigationKey(location.pathname);
+
+  const handleNavigate = (key: NavigationKey) => {
+    navigate(navigationPaths[key]);
   };
 
   return (
     <AppLayout
       navigationItems={accessibleItems}
-      activeItem={activePage}
-      onNavigate={setActivePage}
+      activeItem={activeKey}
+      onNavigate={handleNavigate}
     >
-      {renderContent()}
+      <Routes>
+        <Route path="/" element={<Navigate to={navigationPaths.cases} replace />} />
+        <Route path={navigationPaths.cases} element={<CasesScreen />} />
+        <Route path={navigationPaths['case-criteria']} element={<CaseCriteriaScreen />} />
+        <Route path={navigationPaths.questions} element={<FitQuestionsScreen />} />
+        <Route path={navigationPaths.candidates} element={<CandidatesScreen />} />
+        <Route path={navigationPaths.evaluation} element={<EvaluationScreen />} />
+        <Route path="/evaluations/new" element={<EvaluationEditorPage />} />
+        <Route path="/evaluations/:id" element={<EvaluationEditorPage />} />
+        <Route path={navigationPaths.interviews} element={<InterviewerScreen />} />
+        <Route path={navigationPaths.stats} element={<AnalyticsScreen />} />
+        <Route path={navigationPaths.accounts} element={<AccountsScreen />} />
+        <Route
+          path="*"
+          element={
+            <PlaceholderScreen
+              title="Page not found"
+              description="The page you are looking for does not exist."
+            />
+          }
+        />
+      </Routes>
     </AppLayout>
   );
+};
+
+const AppContent = () => {
+  const { session } = useAuth();
+
+  if (!session) {
+    return <LoginScreen />;
+  }
+
+  return <AuthenticatedApp />;
 };
 
 export const App = () => (
   <AuthProvider>
     <AppStateProvider>
-      <AppContent />
+      <HashRouter>
+        <AppContent />
+      </HashRouter>
     </AppStateProvider>
   </AuthProvider>
 );

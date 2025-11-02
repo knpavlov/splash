@@ -1,14 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from '../../styles/EvaluationScreen.module.css';
-import { EvaluationModal } from './components/EvaluationModal';
 import { EvaluationStatusModal } from './components/EvaluationStatusModal';
 import {
   useEvaluationsState,
   useCandidatesState,
   useCasesState,
   useFitQuestionsState,
-  useCaseCriteriaState,
-  useAccountsState
+  useCaseCriteriaState
 } from '../../app/state/AppStateContext';
 import { EvaluationConfig, OfferDecisionStatus } from '../../shared/types/evaluation';
 import { EvaluationTable, EvaluationTableRow } from './components/EvaluationTable';
@@ -21,6 +20,7 @@ type SortKey = 'name' | 'position' | 'created' | 'round' | 'avgFit' | 'avgCase';
 
 type StatusContext = {
   evaluation: EvaluationConfig;
+  initiativeName: string;
   candidateName: string;
   candidatePosition: string;
   roundLabel: string;
@@ -43,16 +43,13 @@ const OFFER_STATUS_LABELS: Record<OfferDecisionStatus, string> = {
 };
 
 export const EvaluationScreen = () => {
-  const { list, saveEvaluation, removeEvaluation, sendInvitations, advanceRound, setDecision, setOfferStatus } =
-    useEvaluationsState();
+  const navigate = useNavigate();
+  const { list, sendInvitations, advanceRound, setDecision, setOfferStatus } = useEvaluationsState();
   const { list: candidates } = useCandidatesState();
   const { folders } = useCasesState();
   const { list: fitQuestions } = useFitQuestionsState();
   const { list: caseCriteria } = useCaseCriteriaState();
-  const { list: accounts } = useAccountsState();
   const [banner, setBanner] = useState<Banner>(null);
-  const [modalEvaluation, setModalEvaluation] = useState<EvaluationConfig | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [statusContext, setStatusContext] = useState<StatusContext | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -216,6 +213,8 @@ export const EvaluationScreen = () => {
   const tableRows = useMemo<EvaluationTableRow[]>(() => {
     return list.map((evaluation) => {
       const metadata = evaluation.candidateId ? candidateIndex.get(evaluation.candidateId) : undefined;
+      const initiativeName = evaluation.initiativeName?.trim() || 'Untitled initiative';
+      const initiativeSortKey = initiativeName.toLowerCase();
       const candidateName = metadata?.name ?? 'Not selected';
       const candidateSortKey = metadata?.sortKey ?? candidateName;
       const candidatePosition = metadata?.position ?? '—';
@@ -484,6 +483,8 @@ export const EvaluationScreen = () => {
 
       return {
         id: evaluation.id,
+        initiativeName,
+        initiativeSortKey,
         candidateName,
         candidateSortKey,
         candidatePosition,
@@ -507,12 +508,12 @@ export const EvaluationScreen = () => {
         invitees,
         onSendInvites: sendInvites,
         onEdit: () => {
-          setModalEvaluation(evaluation);
-          setIsModalOpen(true);
+          navigate(`/evaluations/${evaluation.id}`);
         },
         onOpenStatus: () =>
           setStatusContext({
             evaluation: evaluationForModal,
+            initiativeName: evaluation.initiativeName,
             candidateName,
             candidatePosition,
             roundLabel
@@ -540,7 +541,8 @@ export const EvaluationScreen = () => {
     handleAdvanceRound,
     setDecision,
     setOfferStatus,
-    setBanner
+    setBanner,
+    navigate
   ]);
 
   const sortedRows = useMemo(() => {
@@ -556,9 +558,9 @@ export const EvaluationScreen = () => {
     copy.sort((a, b) => {
       let result = 0;
       if (sortKey === 'name') {
-        result = compareStrings(a.candidateSortKey, b.candidateSortKey);
+        result = compareStrings(a.initiativeSortKey, b.initiativeSortKey);
       } else if (sortKey === 'position') {
-        result = compareStrings(a.candidatePosition, b.candidatePosition);
+        result = compareStrings(a.candidateSortKey, b.candidateSortKey);
       } else if (sortKey === 'created') {
         const timeA = a.createdAt ? new Date(a.createdAt).getTime() : Number.NEGATIVE_INFINITY;
         const timeB = b.createdAt ? new Date(b.createdAt).getTime() : Number.NEGATIVE_INFINITY;
@@ -572,7 +574,7 @@ export const EvaluationScreen = () => {
       }
 
       if (result === 0) {
-        result = compareStrings(a.candidateName, b.candidateName);
+        result = compareStrings(a.initiativeSortKey, b.initiativeSortKey);
       }
 
       return sortDirection === 'asc' ? result : -result;
@@ -582,8 +584,7 @@ export const EvaluationScreen = () => {
   }, [sortDirection, sortKey, tableRows]);
 
   const handleCreate = () => {
-    setModalEvaluation(null);
-    setIsModalOpen(true);
+    navigate('/evaluations/new');
   };
 
   const handleSortChange = (key: SortKey) => {
@@ -595,55 +596,6 @@ export const EvaluationScreen = () => {
       setSortDirection('asc');
       return key;
     });
-  };
-
-  const handleSave = async (
-    evaluation: EvaluationConfig,
-    options: { closeAfterSave: boolean; expectedVersion: number | null }
-  ) => {
-    const result = await saveEvaluation(evaluation, options.expectedVersion);
-    if (!result.ok) {
-      if (result.error === 'version-conflict') {
-        setBanner({
-          type: 'error',
-          text: 'Version conflict. Refresh the page to view the latest data.'
-        });
-      } else if (result.error === 'not-found') {
-        setBanner({
-          type: 'error',
-          text: 'Evaluation no longer exists. Refresh the list to continue.'
-        });
-      } else {
-        setBanner({
-          type: 'error',
-          text: 'Select a candidate and make sure all fields are filled.'
-        });
-      }
-      return;
-    }
-
-    setBanner({ type: 'info', text: 'Evaluation settings saved.' });
-    if (options.closeAfterSave) {
-      setModalEvaluation(null);
-      setIsModalOpen(false);
-    } else {
-      setModalEvaluation(result.data);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    const confirmed = window.confirm('Delete the evaluation setup and all related interviews?');
-    if (!confirmed) {
-      return;
-    }
-    const result = await removeEvaluation(id);
-    if (!result.ok) {
-      setBanner({ type: 'error', text: 'Failed to delete the evaluation.' });
-      return;
-    }
-    setBanner({ type: 'info', text: 'Evaluation removed.' });
-    setModalEvaluation(null);
-    setIsModalOpen(false);
   };
 
 
@@ -670,25 +622,10 @@ export const EvaluationScreen = () => {
         onSortChange={handleSortChange}
       />
 
-      {isModalOpen && (
-        <EvaluationModal
-          initialConfig={modalEvaluation}
-          onClose={() => {
-            setIsModalOpen(false);
-            setModalEvaluation(null);
-          }}
-          onSave={handleSave}
-          onDelete={handleDelete}
-          candidates={candidates}
-          folders={folders}
-          fitQuestions={fitQuestions}
-          accounts={accounts}
-        />
-      )}
-
       {statusContext && (
         <EvaluationStatusModal
           evaluation={statusContext.evaluation}
+          initiativeName={statusContext.initiativeName}
           candidateName={statusContext.candidateName}
           candidatePosition={statusContext.candidatePosition}
           roundLabel={statusContext.roundLabel}
