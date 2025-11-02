@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'crypto';
-import { postgresPool } from './postgres.client.js';
+import { ensurePostgresConnection, postgresPool } from './postgres.client.js';
 
 const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL ?? 'knpavlov@gmail.com';
 
@@ -574,6 +574,7 @@ const syncSuperAdmin = async () => {
 };
 
 export const runMigrations = async () => {
+  await ensurePostgresConnection({ logger: console.log });
   // In this lightweight version we run migrations sequentially during server startup
   await createTables();
   await syncSuperAdmin();
