@@ -1,6 +1,14 @@
 import 'dotenv/config';
 import { Pool, PoolConfig } from 'pg';
 
+type EnsureConnectionOptions = {
+  attempts?: number;
+  baseDelayMs?: number;
+  logger?: (message: string) => void;
+};
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const buildPoolConfig = (): PoolConfig => {
   const connectionString = process.env.DATABASE_URL;
   if (connectionString) {
@@ -32,3 +40,46 @@ pool.on('error', (error: Error) => {
 });
 
 export const postgresPool = pool;
+
+// Многократно пытаемся подключиться к базе, чтобы пережить старт инфраструктуры на Railway
+export const ensurePostgresConnection = async (options: EnsureConnectionOptions = {}) => {
+  const {
+    attempts = Number(process.env.DB_CONNECT_MAX_ATTEMPTS ?? 10),
+    baseDelayMs = Number(process.env.DB_CONNECT_RETRY_DELAY_MS ?? 500),
+    logger = console.warn
+  } = options;
+
+  const maxDelayMs = Number(process.env.DB_CONNECT_MAX_DELAY_MS ?? 5000);
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      await pool.query('SELECT 1;');
+
+      if (attempt > 1) {
+        logger?.(`Соединение с PostgreSQL восстановлено после ${attempt} попыток.`);
+      }
+
+      return;
+    } catch (error) {
+      lastError = error;
+
+      if (attempt >= attempts) {
+        break;
+      }
+
+      const delay = Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs);
+      logger?.(
+        `Не удалось подключиться к PostgreSQL (попытка ${attempt} из ${attempts}). ` +
+          `Повторим через ${delay} мс.`
+      );
+      await wait(delay);
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error('Неизвестная ошибка подключения к PostgreSQL');
+};
