@@ -234,6 +234,81 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_name = 'initiatives'
+           AND column_name = 'evaluationid'
+      ) THEN
+        EXECUTE 'ALTER TABLE initiatives RENAME COLUMN evaluationid TO evaluation_id';
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_name = 'initiatives'
+           AND column_name = 'evaluationId'
+      ) THEN
+        EXECUTE 'ALTER TABLE initiatives RENAME COLUMN "evaluationId" TO evaluation_id';
+      END IF;
+    END
+    $$;
+  `);
+
+  await postgresPool.query(`
+    ALTER TABLE initiatives
+      ADD COLUMN IF NOT EXISTS evaluation_id UUID;
+  `);
+
+  await postgresPool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+          FROM information_schema.columns
+         WHERE table_name = 'initiatives'
+           AND column_name = 'evaluation_id'
+           AND data_type <> 'uuid'
+      ) THEN
+        EXECUTE 'ALTER TABLE initiatives ALTER COLUMN evaluation_id TYPE UUID USING evaluation_id::uuid';
+      END IF;
+    END
+    $$;
+  `);
+
+  await postgresPool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+          FROM information_schema.table_constraints
+         WHERE table_name = 'initiatives'
+           AND constraint_type = 'PRIMARY KEY'
+      ) THEN
+        EXECUTE 'ALTER TABLE initiatives ADD CONSTRAINT initiatives_pkey PRIMARY KEY (evaluation_id)';
+      END IF;
+    END
+    $$;
+  `);
+
+  await postgresPool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+          FROM information_schema.table_constraints
+         WHERE table_name = 'initiatives'
+           AND constraint_name = 'initiatives_evaluation_id_fkey'
+      ) THEN
+        EXECUTE 'ALTER TABLE initiatives ADD CONSTRAINT initiatives_evaluation_id_fkey FOREIGN KEY (evaluation_id) REFERENCES evaluations(id) ON DELETE CASCADE';
+      END IF;
+    END
+    $$;
+  `);
+
+  await postgresPool.query(`
     ALTER TABLE evaluations
       ADD COLUMN IF NOT EXISTS interview_count INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS interviews JSONB NOT NULL DEFAULT '[]'::JSONB,
