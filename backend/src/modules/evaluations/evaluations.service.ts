@@ -1,6 +1,9 @@
+import { randomUUID } from 'crypto';
 import { EvaluationsRepository } from './evaluations.repository.js';
 import { EvaluationRecord, EvaluationRoundSnapshot, EvaluationWriteModel } from './evaluations.types.js';
 import { computeInvitationState } from './evaluationAssignments.utils.js';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const readOptionalString = (value: unknown): string | undefined => {
   if (typeof value !== 'string') {
@@ -248,16 +251,31 @@ const ensurePositiveInteger = (value: unknown): number | null => {
   return value;
 };
 
+const ensureEvaluationId = (value: unknown): string => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (UUID_PATTERN.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  return randomUUID();
+};
+
+const isDuplicateKeyError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const { code } = error as { code?: unknown };
+  return code === '23505';
+};
+
 const buildWriteModel = (payload: unknown): EvaluationWriteModel => {
   if (!payload || typeof payload !== 'object') {
     throw new Error('INVALID_INPUT');
   }
 
   const source = payload as Record<string, unknown>;
-  const id = readOptionalString(source.id);
-  if (!id) {
-    throw new Error('INVALID_INPUT');
-  }
+  const id = ensureEvaluationId(source.id);
 
   const interviews = sanitizeSlots(source.interviews);
   if (interviews.length === 0) {
@@ -305,8 +323,23 @@ export class EvaluationsService {
 
   async createEvaluation(payload: unknown): Promise<EvaluationRecord> {
     const model = buildWriteModel(payload);
-    const record = await this.repository.createEvaluation(model);
-    return this.attachInvitationState(record);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (attempt > 0) {
+        model.id = randomUUID();
+      }
+
+      try {
+        const record = await this.repository.createEvaluation(model);
+        return this.attachInvitationState(record);
+      } catch (error) {
+        if (!isDuplicateKeyError(error) || attempt > 0) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error('UNKNOWN');
   }
 
   async updateEvaluation(
@@ -316,6 +349,9 @@ export class EvaluationsService {
   ): Promise<EvaluationRecord> {
     const trimmed = id.trim();
     if (!trimmed) {
+      throw new Error('INVALID_INPUT');
+    }
+    if (!UUID_PATTERN.test(trimmed)) {
       throw new Error('INVALID_INPUT');
     }
 
