@@ -553,9 +553,6 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     evaluations: {
       list: evaluations,
       saveEvaluation: async (config, expectedVersion) => {
-        if (!config.candidateId) {
-          return { ok: false, error: 'invalid-input' };
-        }
         try {
           if (expectedVersion === null) {
             const created = await evaluationsApi.create(config);
