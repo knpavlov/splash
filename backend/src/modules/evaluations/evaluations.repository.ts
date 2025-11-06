@@ -467,8 +467,14 @@ export class EvaluationsRepository {
       await client.query(
         `INSERT INTO initiatives (evaluation_id, name, created_at, updated_at)
            VALUES ($1, $2, NOW(), NOW())
-        ON CONFLICT (evaluation_id)
-          DO UPDATE SET name = EXCLUDED.name, updated_at = NOW();`,
+         ON CONFLICT DO NOTHING;`,
+        [model.id, model.initiativeName]
+      );
+      await client.query(
+        `UPDATE initiatives
+            SET name = $2,
+                updated_at = NOW()
+          WHERE evaluation_id = $1;`,
         [model.id, model.initiativeName]
       );
 
@@ -559,8 +565,14 @@ export class EvaluationsRepository {
       await client.query(
         `INSERT INTO initiatives (evaluation_id, name, created_at, updated_at)
            VALUES ($1, $2, NOW(), NOW())
-        ON CONFLICT (evaluation_id)
-          DO UPDATE SET name = EXCLUDED.name, updated_at = NOW();`,
+         ON CONFLICT DO NOTHING;`,
+        [model.id, model.initiativeName]
+      );
+      await client.query(
+        `UPDATE initiatives
+            SET name = $2,
+                updated_at = NOW()
+          WHERE evaluation_id = $1;`,
         [model.id, model.initiativeName]
       );
 
