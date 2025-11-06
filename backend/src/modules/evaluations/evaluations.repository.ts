@@ -147,6 +147,107 @@ const nullableTimestamp = (value: unknown): string | null => {
   return parseTimestamp(value) ?? null;
 };
 
+const isPgError = (error: unknown): error is { code?: string; message?: string } => {
+  return Boolean(error) && typeof error === 'object';
+};
+
+const isUndefinedColumnError = (error: unknown, columnName?: string): boolean => {
+  if (!isPgError(error) || error.code !== '42703') {
+    return false;
+  }
+  if (!columnName || typeof error.message !== 'string') {
+    return true;
+  }
+  return error.message.includes(`"${columnName}"`) || error.message.includes(` ${columnName} `);
+};
+
+const isUniqueViolationError = (error: unknown): boolean => {
+  return isPgError(error) && error.code === '23505';
+};
+
+type QueryExecutor = {
+  query: <T = unknown>(
+    sql: string,
+    params?: unknown[]
+  ) => Promise<{ rows: T[]; rowCount?: number }>;
+};
+
+const ensureInitiativeRecord = async (
+  client: QueryExecutor,
+  evaluationId: string,
+  name: string
+) => {
+  const updateByColumn = async (column: 'evaluation_id' | '"evaluationId"' | 'id'): Promise<number> => {
+    try {
+      const result = await client.query(
+        `UPDATE initiatives
+            SET name = $2,
+                updated_at = NOW()
+          WHERE ${column} = $1;`,
+        [evaluationId, name]
+      );
+      return result.rowCount ?? 0;
+    } catch (error) {
+      if (isUndefinedColumnError(error)) {
+        return 0;
+      }
+      throw error;
+    }
+  };
+
+  if ((await updateByColumn('evaluation_id')) > 0) {
+    return;
+  }
+  if ((await updateByColumn('"evaluationId"')) > 0) {
+    return;
+  }
+  if ((await updateByColumn('id')) > 0) {
+    return;
+  }
+
+  const insertWithId = async () => {
+    await client.query(
+      `INSERT INTO initiatives (id, evaluation_id, name, created_at, updated_at)
+         VALUES ($1, $2, $3, NOW(), NOW());`,
+      [randomUUID(), evaluationId, name]
+    );
+  };
+
+  try {
+    await insertWithId();
+    return;
+  } catch (error) {
+    if (isUndefinedColumnError(error, 'id')) {
+      try {
+        await client.query(
+          `INSERT INTO initiatives (evaluation_id, name, created_at, updated_at)
+             VALUES ($1, $2, NOW(), NOW());`,
+          [evaluationId, name]
+        );
+        return;
+      } catch (inner) {
+        if (isUniqueViolationError(inner)) {
+          await updateByColumn('evaluation_id');
+          return;
+        }
+        throw inner;
+      }
+    }
+    if (isUniqueViolationError(error)) {
+      if ((await updateByColumn('evaluation_id')) > 0) {
+        return;
+      }
+      if ((await updateByColumn('"evaluationId"')) > 0) {
+        return;
+      }
+      if ((await updateByColumn('id')) > 0) {
+        return;
+      }
+    }
+    throw error;
+  }
+};
+
 const mapForms = (value: unknown): InterviewStatusModel[] => {
   if (!Array.isArray(value)) {
     return [];
@@ -464,19 +565,7 @@ export class EvaluationsRepository {
         ]
       );
 
-      await client.query(
-        `INSERT INTO initiatives (evaluation_id, name, created_at, updated_at)
-           VALUES ($1, $2, NOW(), NOW())
-         ON CONFLICT DO NOTHING;`,
-        [model.id, model.initiativeName]
-      );
-      await client.query(
-        `UPDATE initiatives
-            SET name = $2,
-                updated_at = NOW()
-          WHERE evaluation_id = $1;`,
-        [model.id, model.initiativeName]
-      );
+      await ensureInitiativeRecord(client, model.id, model.initiativeName);
 
       await client.query('COMMIT');
     } catch (error) {
@@ -562,19 +651,7 @@ export class EvaluationsRepository {
         return 'version-conflict';
       }
 
-      await client.query(
-        `INSERT INTO initiatives (evaluation_id, name, created_at, updated_at)
-           VALUES ($1, $2, NOW(), NOW())
-         ON CONFLICT DO NOTHING;`,
-        [model.id, model.initiativeName]
-      );
-      await client.query(
-        `UPDATE initiatives
-            SET name = $2,
-                updated_at = NOW()
-          WHERE evaluation_id = $1;`,
-        [model.id, model.initiativeName]
-      );
+      await ensureInitiativeRecord(client, model.id, model.initiativeName);
 
       await client.query('COMMIT');
     } catch (error) {
