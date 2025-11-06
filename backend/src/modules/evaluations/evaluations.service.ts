@@ -1,6 +1,9 @@
+import { randomUUID } from 'crypto';
 import { EvaluationsRepository } from './evaluations.repository.js';
 import { EvaluationRecord, EvaluationRoundSnapshot, EvaluationWriteModel } from './evaluations.types.js';
 import { computeInvitationState } from './evaluationAssignments.utils.js';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const readOptionalString = (value: unknown): string | undefined => {
   if (typeof value !== 'string') {
@@ -8,6 +11,17 @@ const readOptionalString = (value: unknown): string | undefined => {
   }
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+};
+
+const readOptionalUuid = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return UUID_PATTERN.test(trimmed) ? trimmed : undefined;
 };
 
 const readRequiredString = (value: unknown): string => {
@@ -108,8 +122,8 @@ const sanitizeSlots = (value: unknown): EvaluationWriteModel['interviews'] => {
     }
     const interviewerName = readOptionalString(payload.interviewerName) ?? 'Interviewer';
     const interviewerEmail = readOptionalString(payload.interviewerEmail) ?? '';
-    const caseFolderId = readOptionalString(payload.caseFolderId);
-    const fitQuestionId = readOptionalString(payload.fitQuestionId);
+    const caseFolderId = readOptionalUuid(payload.caseFolderId);
+    const fitQuestionId = readOptionalUuid(payload.fitQuestionId);
 
     return {
       id,
@@ -221,7 +235,7 @@ const sanitizeRoundHistory = (value: unknown): EvaluationRoundSnapshot[] => {
       interviewCount: interviews.length,
       interviews,
       forms,
-      fitQuestionId: readOptionalString(payload.fitQuestionId),
+      fitQuestionId: readOptionalUuid(payload.fitQuestionId),
       processStatus: readProcessStatus(payload.processStatus),
       processStartedAt: readOptionalIsoDate(payload.processStartedAt),
       completedAt: readOptionalIsoDate(payload.completedAt),
@@ -248,16 +262,52 @@ const ensurePositiveInteger = (value: unknown): number | null => {
   return value;
 };
 
+const ensureEvaluationId = (value: unknown): string => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (UUID_PATTERN.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  return randomUUID();
+};
+
+const isDuplicateKeyError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const { code } = error as { code?: unknown };
+  return code === '23505';
+};
+
+const isForeignKeyViolation = (error: unknown, keyword: string): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const withCode = error as { code?: unknown; constraint?: unknown; detail?: unknown };
+  if (withCode.code !== '23503') {
+    return false;
+  }
+  const normalizedKeyword = keyword.toLowerCase();
+  const constraintName = typeof withCode.constraint === 'string' ? withCode.constraint.toLowerCase() : '';
+  if (constraintName.includes(normalizedKeyword)) {
+    return true;
+  }
+  const detail = typeof withCode.detail === 'string' ? withCode.detail.toLowerCase() : '';
+  return detail.includes(normalizedKeyword);
+};
+
+const isCandidateReferenceError = (error: unknown): boolean => {
+  return isForeignKeyViolation(error, 'candidate');
+};
+
 const buildWriteModel = (payload: unknown): EvaluationWriteModel => {
   if (!payload || typeof payload !== 'object') {
     throw new Error('INVALID_INPUT');
   }
 
   const source = payload as Record<string, unknown>;
-  const id = readOptionalString(source.id);
-  if (!id) {
-    throw new Error('INVALID_INPUT');
-  }
+  const id = ensureEvaluationId(source.id);
 
   const interviews = sanitizeSlots(source.interviews);
   if (interviews.length === 0) {
@@ -273,12 +323,12 @@ const buildWriteModel = (payload: unknown): EvaluationWriteModel => {
 
   return {
     id,
-    candidateId: readOptionalString(source.candidateId),
+    candidateId: readOptionalUuid(source.candidateId),
     initiativeName: readRequiredString(source.initiativeName),
     roundNumber: readOptionalPositiveInteger(source.roundNumber),
     interviewCount: interviews.length,
     interviews,
-    fitQuestionId: readOptionalString(source.fitQuestionId),
+    fitQuestionId: readOptionalUuid(source.fitQuestionId),
     forms,
     processStatus: readProcessStatus(source.processStatus),
     processStartedAt,
@@ -305,8 +355,30 @@ export class EvaluationsService {
 
   async createEvaluation(payload: unknown): Promise<EvaluationRecord> {
     const model = buildWriteModel(payload);
-    const record = await this.repository.createEvaluation(model);
-    return this.attachInvitationState(record);
+    let duplicateHandled = false;
+    let candidateCleared = false;
+
+    // Перезапрашиваем сохранение, если требуется сменить идентификатор или убрать несуществующего кандидата
+    // (Foreign key ошибка базы).
+    // После обработки известных сценариев пробрасываем ошибку наружу.
+    for (;;) {
+      try {
+        const record = await this.repository.createEvaluation(model);
+        return this.attachInvitationState(record);
+      } catch (error) {
+        if (!duplicateHandled && isDuplicateKeyError(error)) {
+          duplicateHandled = true;
+          model.id = randomUUID();
+          continue;
+        }
+        if (!candidateCleared && isCandidateReferenceError(error)) {
+          candidateCleared = true;
+          model.candidateId = undefined;
+          continue;
+        }
+        throw error;
+      }
+    }
   }
 
   async updateEvaluation(
@@ -318,6 +390,9 @@ export class EvaluationsService {
     if (!trimmed) {
       throw new Error('INVALID_INPUT');
     }
+    if (!UUID_PATTERN.test(trimmed)) {
+      throw new Error('INVALID_INPUT');
+    }
 
     const version = ensurePositiveInteger(expectedVersion);
     if (version === null) {
@@ -327,14 +402,27 @@ export class EvaluationsService {
     const model = buildWriteModel(payload);
     model.id = trimmed;
 
-    const result = await this.repository.updateEvaluation(model, version);
-    if (result === 'version-conflict') {
-      throw new Error('VERSION_CONFLICT');
+    let candidateCleared = false;
+
+    for (;;) {
+      try {
+        const result = await this.repository.updateEvaluation(model, version);
+        if (result === 'version-conflict') {
+          throw new Error('VERSION_CONFLICT');
+        }
+        if (!result) {
+          throw new Error('NOT_FOUND');
+        }
+        return this.attachInvitationState(result);
+      } catch (error) {
+        if (!candidateCleared && isCandidateReferenceError(error)) {
+          candidateCleared = true;
+          model.candidateId = undefined;
+          continue;
+        }
+        throw error;
+      }
     }
-    if (!result) {
-      throw new Error('NOT_FOUND');
-    }
-    return this.attachInvitationState(result);
   }
 
   async deleteEvaluation(id: string): Promise<string> {
