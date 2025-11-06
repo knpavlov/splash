@@ -20,11 +20,11 @@ interface EvaluationRow extends Record<string, unknown> {
   interviews: unknown;
   fit_question_id: string | null;
   version: number;
-  created_at: Date;
-  updated_at: Date;
+  created_at: Date | string;
+  updated_at: Date | string;
   forms: unknown;
   process_status: string | null;
-  process_started_at: Date | null;
+  process_started_at: Date | string | null;
   round_history: unknown;
   decision: string | null;
   decision_status: string | null;
@@ -111,6 +111,40 @@ const readOfferRecommendation = (value: unknown): InterviewStatusModel['offerRec
     return value;
   }
   return undefined;
+};
+
+const parseTimestamp = (value: unknown): string | undefined => {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
+    return undefined;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+  }
+  return undefined;
+};
+
+const ensureTimestamp = (value: unknown): string => {
+  return parseTimestamp(value) ?? new Date().toISOString();
+};
+
+const optionalTimestamp = (value: unknown): string | undefined => {
+  return parseTimestamp(value);
+};
+
+const nullableTimestamp = (value: unknown): string | null => {
+  return parseTimestamp(value) ?? null;
 };
 
 const mapForms = (value: unknown): InterviewStatusModel[] => {
@@ -287,11 +321,11 @@ const mapRowToRecord = (row: EvaluationRow): EvaluationRecord => {
     interviews,
     fitQuestionId: row.fit_question_id ?? undefined,
     version: Number(row.version ?? 1),
-    createdAt: row.created_at.toISOString(),
-    updatedAt: row.updated_at.toISOString(),
+    createdAt: ensureTimestamp(row.created_at),
+    updatedAt: ensureTimestamp(row.updated_at),
     forms,
     processStatus: (row.process_status as EvaluationRecord['processStatus']) ?? 'draft',
-    processStartedAt: row.process_started_at ? row.process_started_at.toISOString() : undefined,
+    processStartedAt: optionalTimestamp(row.process_started_at),
     roundHistory: mapRoundHistory(row.round_history),
     invitationState: { hasInvitations: false, hasPendingChanges: false, slots: [] },
     decision,
@@ -308,26 +342,26 @@ interface AssignmentRow extends Record<string, unknown> {
   case_folder_id: string;
   fit_question_id: string;
   round_number: number;
-  invitation_sent_at: Date | null;
+  invitation_sent_at: Date | string | null;
   details_checksum: string | null;
   last_sent_checksum: string | null;
   last_delivery_error_code: string | null;
   last_delivery_error: string | null;
-  last_delivery_attempt_at: Date | null;
-  created_at: Date;
+  last_delivery_attempt_at: Date | string | null;
+  created_at: Date | string;
 }
 
 interface ExistingAssignmentRow extends Record<string, unknown> {
   id: string;
   slot_id: string;
   round_number: number | null;
-  invitation_sent_at: Date | null;
+  invitation_sent_at: Date | string | null;
   details_checksum: string | null;
   last_sent_checksum: string | null;
   last_delivery_error_code: string | null;
   last_delivery_error: string | null;
-  last_delivery_attempt_at: Date | null;
-  created_at: Date;
+  last_delivery_attempt_at: Date | string | null;
+  created_at: Date | string;
 }
 
 const mapRowToAssignment = (row: AssignmentRow): InterviewAssignmentRecord => ({
@@ -339,13 +373,13 @@ const mapRowToAssignment = (row: AssignmentRow): InterviewAssignmentRecord => ({
   caseFolderId: row.case_folder_id,
   fitQuestionId: row.fit_question_id,
   roundNumber: Number(row.round_number ?? 1) || 1,
-  invitationSentAt: row.invitation_sent_at ? row.invitation_sent_at.toISOString() : null,
+  invitationSentAt: nullableTimestamp(row.invitation_sent_at),
   detailsChecksum: row.details_checksum ?? '',
   lastSentChecksum: row.last_sent_checksum,
   lastDeliveryErrorCode: row.last_delivery_error_code,
   lastDeliveryError: row.last_delivery_error,
-  lastDeliveryAttemptAt: row.last_delivery_attempt_at ? row.last_delivery_attempt_at.toISOString() : null,
-  createdAt: row.created_at.toISOString()
+  lastDeliveryAttemptAt: nullableTimestamp(row.last_delivery_attempt_at),
+  createdAt: ensureTimestamp(row.created_at)
 });
 
 export class EvaluationsRepository {
