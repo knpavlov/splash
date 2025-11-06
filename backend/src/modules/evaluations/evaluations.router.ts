@@ -74,6 +74,7 @@ const handleError = (error: unknown, res: Response) => {
         .json({ code: 'forms-pending', message: 'Collect all interview feedback before progressing.' });
       return;
     default:
+      console.error('Unhandled evaluation error:', error);
       res.status(500).json({ code: 'unknown', message: 'Failed to process the request.' });
   }
 };
