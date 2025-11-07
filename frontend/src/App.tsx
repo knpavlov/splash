@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from './modules/auth/AuthContext';
 import { AppStateProvider } from './app/state/AppStateContext';
 import { LoginScreen } from './modules/auth/LoginScreen';
 import { FitQuestionsScreen } from './modules/questions/FitQuestionsScreen';
+import { WorkstreamsScreen } from './modules/workstreams/WorkstreamsScreen';
 import { CaseCriteriaScreen } from './modules/caseCriteria/CaseCriteriaScreen';
 import { InterviewerScreen } from './modules/evaluation/InterviewerScreen';
 import { useHasInterviewerAssignments } from './app/hooks/useHasInterviewerAssignments';
@@ -189,6 +190,8 @@ const AppContent = () => {
         return <CaseCriteriaScreen />;
       case 'questions':
         return <FitQuestionsScreen />;
+      case 'workstreams':
+        return <WorkstreamsScreen />;
       case 'candidates':
         return <CandidatesScreen />;
       case 'evaluation':
