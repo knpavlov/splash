@@ -205,6 +205,30 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS workstreams (
+      id UUID PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      gates JSONB NOT NULL DEFAULT '{}'::jsonb,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS workstream_role_assignments (
+      id UUID PRIMARY KEY,
+      account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      workstream_id UUID NOT NULL REFERENCES workstreams(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (account_id, workstream_id)
+    );
+  `);
+
+  await postgresPool.query(`
     CREATE TABLE IF NOT EXISTS evaluations (
       id UUID PRIMARY KEY,
       candidate_id UUID REFERENCES candidates(id) ON DELETE SET NULL,

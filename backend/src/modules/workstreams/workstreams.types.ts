@@ -1,12 +1,12 @@
 export const workstreamGateKeys = ['l1', 'l2', 'l3', 'l4', 'l5'] as const;
 export type WorkstreamGateKey = (typeof workstreamGateKeys)[number];
 
-export type ApprovalRule = 'any' | 'all' | 'majority';
+export type WorkstreamApprovalRule = 'any' | 'all' | 'majority';
 
 export interface WorkstreamApproverRequirement {
   id: string;
   role: string;
-  rule: ApprovalRule;
+  rule: WorkstreamApprovalRule;
 }
 
 export interface WorkstreamApprovalRound {
@@ -16,7 +16,7 @@ export interface WorkstreamApprovalRound {
 
 export type WorkstreamGates = Record<WorkstreamGateKey, WorkstreamApprovalRound[]>;
 
-export interface Workstream {
+export interface WorkstreamRecord {
   id: string;
   name: string;
   description: string;
@@ -26,21 +26,14 @@ export interface Workstream {
   gates: WorkstreamGates;
 }
 
-export const gateLabels: Record<WorkstreamGateKey, string> = {
-  l1: 'L1 Gate',
-  l2: 'L2 Gate',
-  l3: 'L3 Gate',
-  l4: 'L4 Gate',
-  l5: 'L5 Gate'
-};
+export interface WorkstreamWriteModel {
+  id: string;
+  name: string;
+  description: string;
+  gates: WorkstreamGates;
+}
 
-export const approvalRuleOptions: { label: string; value: ApprovalRule }[] = [
-  { label: 'Any', value: 'any' },
-  { label: 'All', value: 'all' },
-  { label: 'Majority', value: 'majority' }
-];
-
-export const defaultWorkstreamRoleOptions = [
+export const workstreamRoleOptions = [
   { value: 'initiative-owner', label: 'Initiative Owner' },
   { value: 'milestone-owner', label: 'Milestone Owner' },
   { value: 'workstream-lead', label: 'Workstream Lead' },
@@ -54,23 +47,13 @@ export const defaultWorkstreamRoleOptions = [
   { value: 'manager-limited-viewing-rights', label: 'Manager (Limited Viewing Rights)' }
 ] as const;
 
-export type WorkstreamRole = (typeof defaultWorkstreamRoleOptions)[number]['value'];
+export type WorkstreamRole = (typeof workstreamRoleOptions)[number]['value'];
 
-export interface WorkstreamRoleOption {
-  value: WorkstreamRole;
-  label: string;
-}
-
-export interface WorkstreamRoleAssignment {
+export interface WorkstreamRoleAssignmentRecord {
   id: string;
   accountId: string;
   workstreamId: string;
   role: WorkstreamRole;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface WorkstreamRoleSelection {
-  workstreamId: string;
-  role: WorkstreamRole | null;
 }

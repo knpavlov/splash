@@ -6,12 +6,20 @@ import { AccountRecord, AccountRole, InterviewerSeniority } from '../../shared/t
 import { FitQuestion } from '../../shared/types/fitQuestion';
 import { CaseCriterion } from '../../shared/types/caseCriteria';
 import { DomainResult } from '../../shared/types/results';
+import {
+  defaultWorkstreamRoleOptions,
+  Workstream,
+  WorkstreamRoleAssignment,
+  WorkstreamRoleOption,
+  WorkstreamRoleSelection
+} from '../../shared/types/workstream';
 import { casesApi } from '../../modules/cases/services/casesApi';
 import { candidatesApi } from '../../modules/candidates/services/candidatesApi';
 import { accountsApi } from '../../modules/accounts/services/accountsApi';
 import { fitQuestionsApi } from '../../modules/questions/services/fitQuestionsApi';
 import { caseCriteriaApi } from '../../modules/caseCriteria/services/caseCriteriaApi';
 import { evaluationsApi } from '../../modules/evaluation/services/evaluationsApi';
+import { workstreamsApi } from '../../modules/workstreams/services/workstreamsApi';
 import { ApiError } from '../../shared/api/httpClient';
 import { useAuth } from '../../modules/auth/AuthContext';
 
@@ -47,6 +55,20 @@ interface AppStateContextValue {
       expectedVersion: number | null
     ) => Promise<DomainResult<FitQuestion>>;
     removeQuestion: (id: string) => Promise<DomainResult<string>>;
+  };
+  workstreams: {
+    list: Workstream[];
+    roleOptions: WorkstreamRoleOption[];
+    saveWorkstream: (
+      workstream: Workstream,
+      expectedVersion: number | null
+    ) => Promise<DomainResult<Workstream>>;
+    removeWorkstream: (id: string) => Promise<DomainResult<string>>;
+    listAssignments: (accountId: string) => Promise<DomainResult<WorkstreamRoleAssignment[]>>;
+    saveAssignments: (
+      accountId: string,
+      roles: WorkstreamRoleSelection[]
+    ) => Promise<DomainResult<WorkstreamRoleAssignment[]>>;
   };
   candidates: {
     list: CandidateProfile[];
@@ -100,6 +122,10 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [folders, setFolders] = useState<CaseFolder[]>([]);
   const [candidates, setCandidates] = useState<CandidateProfile[]>([]);
   const [fitQuestions, setFitQuestions] = useState<FitQuestion[]>([]);
+  const [workstreams, setWorkstreams] = useState<Workstream[]>([]);
+  const [workstreamRoleOptions, setWorkstreamRoleOptions] = useState<WorkstreamRoleOption[]>([
+    ...defaultWorkstreamRoleOptions
+  ]);
   const [evaluations, setEvaluations] = useState<EvaluationConfig[]>([]);
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [caseCriteria, setCaseCriteria] = useState<CaseCriterion[]>([]);
@@ -146,6 +172,8 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
       setFitQuestions([]);
       setEvaluations([]);
       setCaseCriteria([]);
+      setWorkstreams([]);
+      setWorkstreamRoleOptions([...defaultWorkstreamRoleOptions]);
     }
   }, [session]);
 
@@ -181,6 +209,39 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!session) {
+      setWorkstreams([]);
+      return;
+    }
+    const loadWorkstreams = async () => {
+      try {
+        const remote = await workstreamsApi.list();
+        setWorkstreams(remote);
+      } catch (error) {
+        console.error('Failed to load workstreams:', error);
+      }
+    };
+    void loadWorkstreams();
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
+      setWorkstreamRoleOptions([...defaultWorkstreamRoleOptions]);
+      return;
+    }
+    const loadRoleOptions = async () => {
+      try {
+        const remote = await workstreamsApi.roleOptions();
+        setWorkstreamRoleOptions(remote);
+      } catch (error) {
+        console.error('Failed to load workstream role options:', error);
+        setWorkstreamRoleOptions([...defaultWorkstreamRoleOptions]);
+      }
+    };
+    void loadRoleOptions();
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
       return;
     }
     const loadQuestions = async () => {
@@ -210,6 +271,9 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   }, [session]);
 
   const sortQuestionsByUpdated = (items: FitQuestion[]) =>
+    [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  const sortWorkstreamsByUpdated = (items: Workstream[]) =>
     [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const value = useMemo<AppStateContextValue>(() => ({
@@ -481,6 +545,110 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
             return { ok: false, error: 'not-found' };
           }
           console.error('Failed to delete fit question:', error);
+          return { ok: false, error: 'unknown' };
+        }
+      }
+    },
+    workstreams: {
+      list: workstreams,
+      roleOptions: workstreamRoleOptions,
+      saveWorkstream: async (workstream, expectedVersion) => {
+        const trimmedId = workstream.id.trim();
+        if (!trimmedId) {
+          return { ok: false, error: 'invalid-input' };
+        }
+
+        const sanitized: Workstream = {
+          ...workstream,
+          id: trimmedId,
+          name: workstream.name.trim(),
+          description: workstream.description.trim()
+        };
+
+        const exists = workstreams.some((item) => item.id === trimmedId);
+
+        try {
+          if (exists) {
+            if (expectedVersion === null || expectedVersion === undefined) {
+              return { ok: false, error: 'invalid-input' };
+            }
+            const updated = await workstreamsApi.update(trimmedId, sanitized, expectedVersion);
+            setWorkstreams((prev) =>
+              sortWorkstreamsByUpdated([...prev.filter((item) => item.id !== trimmedId), updated])
+            );
+            return { ok: true, data: updated };
+          }
+
+          const created = await workstreamsApi.create(sanitized);
+          setWorkstreams((prev) => sortWorkstreamsByUpdated([...prev, created]));
+          return { ok: true, data: created };
+        } catch (error) {
+          if (error instanceof ApiError) {
+            if (error.code === 'version-conflict') {
+              return { ok: false, error: 'version-conflict' };
+            }
+            if (error.code === 'invalid-input') {
+              return { ok: false, error: 'invalid-input' };
+            }
+            if (error.code === 'not-found' || error.status === 404) {
+              return { ok: false, error: 'not-found' };
+            }
+          }
+          console.error('Failed to save workstream:', error);
+          return { ok: false, error: 'unknown' };
+        }
+      },
+      removeWorkstream: async (id) => {
+        const trimmed = id.trim();
+        if (!trimmed) {
+          return { ok: false, error: 'invalid-input' };
+        }
+        try {
+          await workstreamsApi.remove(trimmed);
+          setWorkstreams((prev) => prev.filter((item) => item.id !== trimmed));
+          return { ok: true, data: trimmed };
+        } catch (error) {
+          if (error instanceof ApiError && (error.code === 'not-found' || error.status === 404)) {
+            return { ok: false, error: 'not-found' };
+          }
+          console.error('Failed to delete workstream:', error);
+          return { ok: false, error: 'unknown' };
+        }
+      },
+      listAssignments: async (accountId) => {
+        const trimmed = accountId.trim();
+        if (!trimmed) {
+          return { ok: false, error: 'invalid-input' };
+        }
+        try {
+          const assignments = await workstreamsApi.listAssignments(trimmed);
+          return { ok: true, data: assignments };
+        } catch (error) {
+          if (error instanceof ApiError && (error.code === 'not-found' || error.status === 404)) {
+            return { ok: false, error: 'not-found' };
+          }
+          console.error('Failed to load workstream roles:', error);
+          return { ok: false, error: 'unknown' };
+        }
+      },
+      saveAssignments: async (accountId, roles) => {
+        const trimmed = accountId.trim();
+        if (!trimmed) {
+          return { ok: false, error: 'invalid-input' };
+        }
+        try {
+          const saved = await workstreamsApi.saveAssignments(trimmed, roles);
+          return { ok: true, data: saved };
+        } catch (error) {
+          if (error instanceof ApiError) {
+            if (error.code === 'not-found' || error.status === 404) {
+              return { ok: false, error: 'not-found' };
+            }
+            if (error.code === 'invalid-input') {
+              return { ok: false, error: 'invalid-input' };
+            }
+          }
+          console.error('Failed to save workstream roles:', error);
           return { ok: false, error: 'unknown' };
         }
       }
@@ -816,7 +984,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     }
-  }), [folders, caseCriteria, fitQuestions, candidates, evaluations, accounts, syncFolders]);
+  }), [folders, caseCriteria, fitQuestions, workstreams, workstreamRoleOptions, candidates, evaluations, accounts, syncFolders]);
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 };
@@ -832,6 +1000,7 @@ export const useAppState = () => {
 export const useCasesState = () => useAppState().cases;
 export const useCaseCriteriaState = () => useAppState().caseCriteria;
 export const useFitQuestionsState = () => useAppState().fitQuestions;
+export const useWorkstreamsState = () => useAppState().workstreams;
 export const useCandidatesState = () => useAppState().candidates;
 export const useEvaluationsState = () => useAppState().evaluations;
 export const useAccountsState = () => useAppState().accounts;

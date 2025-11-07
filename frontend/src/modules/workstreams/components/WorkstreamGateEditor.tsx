@@ -2,15 +2,15 @@ import {
   approvalRuleOptions,
   gateLabels,
   WorkstreamApprovalRound,
-  WorkstreamGateKey
+  WorkstreamGateKey,
+  WorkstreamRoleOption
 } from '../../../shared/types/workstream';
 import styles from '../../../styles/WorkstreamModal.module.css';
-
-const placeholderRoles = ['Manager', 'Sponsor', 'Transformation Director', 'Finance Partner', 'HR Lead'];
 
 interface WorkstreamGateEditorProps {
   gateKey: WorkstreamGateKey;
   rounds: WorkstreamApprovalRound[];
+  roleOptions: WorkstreamRoleOption[];
   onAddRound: () => void;
   onRemoveRound: (roundId: string) => void;
   onAddApprover: (roundId: string) => void;
@@ -26,6 +26,7 @@ interface WorkstreamGateEditorProps {
 export const WorkstreamGateEditor = ({
   gateKey,
   rounds,
+  roleOptions,
   onAddRound,
   onRemoveRound,
   onAddApprover,
@@ -64,12 +65,16 @@ export const WorkstreamGateEditor = ({
                 onApproverChange(round.id, approver.id, 'role', event.target.value)
               }
             >
-              <option value="">Select role (coming soon)</option>
-              {placeholderRoles.map((role) => (
-                <option key={role} value={role}>
-                  {role}
+              <option value="">Select role</option>
+              {roleOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
+              {approver.role &&
+                !roleOptions.some((option) => option.value === approver.role) && (
+                  <option value={approver.role}>{approver.role}</option>
+                )}
             </select>
 
             <select

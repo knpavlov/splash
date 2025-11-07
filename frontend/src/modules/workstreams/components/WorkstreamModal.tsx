@@ -4,7 +4,8 @@ import {
   WorkstreamGates,
   WorkstreamGateKey,
   WorkstreamApprovalRound,
-  WorkstreamApproverRequirement
+  WorkstreamApproverRequirement,
+  WorkstreamRoleOption
 } from '../../../shared/types/workstream';
 import styles from '../../../styles/WorkstreamModal.module.css';
 import { WorkstreamGateEditor } from './WorkstreamGateEditor';
@@ -22,6 +23,7 @@ interface WorkstreamModalProps {
   onClose: () => void;
   feedback: ModalFeedback;
   onFeedbackClear: () => void;
+  roleOptions: WorkstreamRoleOption[];
 }
 
 const gateKeys: WorkstreamGateKey[] = ['l1', 'l2', 'l3', 'l4', 'l5'];
@@ -73,7 +75,8 @@ export const WorkstreamModal = ({
   onDelete,
   onClose,
   feedback,
-  onFeedbackClear
+  onFeedbackClear,
+  roleOptions
 }: WorkstreamModalProps) => {
   const [workstream, setWorkstream] = useState<Workstream>(createEmptyWorkstream());
 
@@ -251,6 +254,7 @@ export const WorkstreamModal = ({
               key={gateKey}
               gateKey={gateKey}
               rounds={workstream.gates[gateKey] ?? []}
+              roleOptions={roleOptions}
               onAddRound={() => handleAddRound(gateKey)}
               onRemoveRound={(roundId) => handleRemoveRound(gateKey, roundId)}
               onAddApprover={(roundId) => handleAddApprover(gateKey, roundId)}

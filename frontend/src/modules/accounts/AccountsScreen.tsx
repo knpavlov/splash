@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import styles from '../../styles/AccountsScreen.module.css';
-import { useAccountsState } from '../../app/state/AppStateContext';
+import { useAccountsState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { useAuth } from '../auth/AuthContext';
 import { resolveAccountName } from '../../shared/utils/accountName';
-import type { InterviewerSeniority } from '../../shared/types/account';
+import type { AccountRecord, InterviewerSeniority } from '../../shared/types/account';
+import { WorkstreamRolesModal } from './components/WorkstreamRolesModal';
 
 type Banner = { type: 'info' | 'error'; text: string } | null;
 
@@ -15,6 +16,7 @@ export const AccountsScreen = () => {
   const { session } = useAuth();
   const role = session?.role ?? 'user';
   const { list, inviteAccount, activateAccount, removeAccount, updateRole } = useAccountsState();
+  const { list: workstreams, roleOptions, listAssignments, saveAssignments } = useWorkstreamsState();
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -24,6 +26,7 @@ export const AccountsScreen = () => {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
+  const [rolesModalAccount, setRolesModalAccount] = useState<AccountRecord | null>(null);
 
   const sortedAccounts = useMemo(() => {
     const copy = [...list];
@@ -316,6 +319,7 @@ export const AccountsScreen = () => {
                 </button>
               </th>
               <th>A&amp;M role</th>
+              <th>Workstream roles</th>
               <th>
                 <button
                   type="button"
@@ -365,6 +369,15 @@ export const AccountsScreen = () => {
                 </td>
                 <td>{account.interviewerRole ?? '—'}</td>
                 <td>
+                  <button
+                    className={styles.secondaryButton}
+                    type="button"
+                    onClick={() => setRolesModalAccount(account)}
+                  >
+                    Assign roles
+                  </button>
+                </td>
+                <td>
                   {account.status === 'pending' ? (
                     <div className={styles.tokenCell}>
                       <code className={styles.tokenValue}>{account.invitationToken}</code>
@@ -404,6 +417,17 @@ export const AccountsScreen = () => {
           </tbody>
         </table>
       </div>
+
+      {rolesModalAccount && (
+        <WorkstreamRolesModal
+          account={rolesModalAccount}
+          workstreams={workstreams}
+          roleOptions={roleOptions}
+          onClose={() => setRolesModalAccount(null)}
+          loadAssignments={listAssignments}
+          saveAssignments={saveAssignments}
+        />
+      )}
     </section>
   );
 };

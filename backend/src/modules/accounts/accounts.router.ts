@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { accountsService } from './accounts.module.js';
+import { workstreamsService } from '../workstreams/workstreams.module.js';
+import type { WorkstreamRole } from '../workstreams/workstreams.types.js';
 import type { InterviewerSeniority } from './accounts.types.js';
 
 const router = Router();
@@ -103,6 +105,55 @@ router.post('/:id/role', async (req, res) => {
       }
     }
     res.status(400).json({ code: 'invalid-input', message: 'Failed to update the account role.' });
+  }
+});
+
+router.get('/:id/workstream-roles', async (req, res) => {
+  try {
+    const assignments = await workstreamsService.listAssignments(req.params.id);
+    res.json(assignments);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'ACCOUNT_NOT_FOUND') {
+      res.status(404).json({ code: 'not-found', message: 'Account not found.' });
+      return;
+    }
+    res.status(500).json({ code: 'unknown', message: 'Failed to load workstream roles.' });
+  }
+});
+
+router.put('/:id/workstream-roles', async (req, res) => {
+  const { roles } = req.body as { roles?: unknown };
+  const assignments: Array<{ workstreamId: string; role: WorkstreamRole | null }> = Array.isArray(roles)
+    ? roles.map((item) => {
+        if (!item || typeof item !== 'object') {
+          return { workstreamId: '', role: null };
+        }
+        const payload = item as { workstreamId?: unknown; role?: unknown };
+        const workstreamId = typeof payload.workstreamId === 'string' ? payload.workstreamId.trim() : '';
+        const roleValue = typeof payload.role === 'string' ? payload.role.trim() : null;
+        return { workstreamId, role: (roleValue || null) as WorkstreamRole | null };
+      })
+    : [];
+
+  try {
+    const saved = await workstreamsService.saveAssignments(req.params.id, assignments);
+    res.json(saved);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'ACCOUNT_NOT_FOUND') {
+        res.status(404).json({ code: 'not-found', message: 'Account not found.' });
+        return;
+      }
+      if (error.message === 'WORKSTREAM_NOT_FOUND') {
+        res.status(404).json({ code: 'not-found', message: 'Workstream not found.' });
+        return;
+      }
+      if (error.message === 'INVALID_INPUT') {
+        res.status(400).json({ code: 'invalid-input', message: 'Invalid role assignments.' });
+        return;
+      }
+    }
+    res.status(500).json({ code: 'unknown', message: 'Failed to save workstream roles.' });
   }
 });
 
