@@ -136,19 +136,19 @@ const mapRowToRecord = (row: InitiativeRow): InitiativeRecord => ({
 
 export class InitiativesRepository {
   async listInitiatives(): Promise<InitiativeRecord[]> {
-    const result = await postgresPool.query<InitiativeRow>('SELECT * FROM initiatives ORDER BY updated_at DESC;');
+    const result = await postgresPool.query<InitiativeRow>('SELECT * FROM workstream_initiatives ORDER BY updated_at DESC;');
     return (result.rows ?? []).map((row) => mapRowToRecord(row));
   }
 
   async findInitiative(id: string): Promise<InitiativeRecord | null> {
-    const result = await postgresPool.query<InitiativeRow>('SELECT * FROM initiatives WHERE id = $1 LIMIT 1;', [id]);
+    const result = await postgresPool.query<InitiativeRow>('SELECT * FROM workstream_initiatives WHERE id = $1 LIMIT 1;', [id]);
     const row = result.rows?.[0];
     return row ? mapRowToRecord(row) : null;
   }
 
   async createInitiative(model: InitiativeWriteModel): Promise<InitiativeRecord> {
     const result = await postgresPool.query<InitiativeRow>(
-      `INSERT INTO initiatives (id, workstream_id, name, description, owner_account_id, owner_name, current_status, active_stage, l4_date, stage_payload, version, created_at, updated_at)
+      `INSERT INTO workstream_initiatives (id, workstream_id, name, description, owner_account_id, owner_name, current_status, active_stage, l4_date, stage_payload, version, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, 1, NOW(), NOW())
        RETURNING *;`,
       [
@@ -172,7 +172,7 @@ export class InitiativesRepository {
     expectedVersion: number
   ): Promise<'not-found' | 'version-conflict' | InitiativeRecord> {
     const result = await postgresPool.query<InitiativeRow>(
-      `UPDATE initiatives
+      `UPDATE workstream_initiatives
           SET workstream_id = $2,
               name = $3,
               description = $4,
@@ -201,7 +201,7 @@ export class InitiativesRepository {
       ]
     );
     if (!result.rows?.length) {
-      const exists = await postgresPool.query('SELECT 1 FROM initiatives WHERE id = $1 LIMIT 1;', [model.id]);
+      const exists = await postgresPool.query('SELECT 1 FROM workstream_initiatives WHERE id = $1 LIMIT 1;', [model.id]);
       const count = (exists as { rowCount?: number }).rowCount ?? 0;
       if (count === 0) {
         return 'not-found';
@@ -212,7 +212,7 @@ export class InitiativesRepository {
   }
 
   async deleteInitiative(id: string): Promise<boolean> {
-    const result = await postgresPool.query('DELETE FROM initiatives WHERE id = $1;', [id]);
+    const result = await postgresPool.query('DELETE FROM workstream_initiatives WHERE id = $1;', [id]);
     const affected = (result as { rowCount?: number }).rowCount ?? 0;
     return affected > 0;
   }

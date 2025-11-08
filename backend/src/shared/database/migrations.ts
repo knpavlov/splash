@@ -229,7 +229,7 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
-    CREATE TABLE IF NOT EXISTS initiatives (
+    CREATE TABLE IF NOT EXISTS workstream_initiatives (
       id UUID PRIMARY KEY,
       workstream_id UUID NOT NULL REFERENCES workstreams(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
@@ -247,8 +247,8 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
-    CREATE INDEX IF NOT EXISTS initiatives_workstream_id_idx
-      ON initiatives(workstream_id);
+    CREATE INDEX IF NOT EXISTS workstream_initiatives_workstream_id_idx
+      ON workstream_initiatives(workstream_id);
   `);
 
   await postgresPool.query(`
