@@ -275,8 +275,11 @@ const isRequirementSatisfied = (
   total: number
 ): boolean => approved >= resolveApprovalThreshold(rule, total);
 
-const createDefaultStageStateEntry = (stageKey: InitiativeStageKey): InitiativeStageState => ({
-  status: stageKey === 'l0' ? 'approved' : 'draft',
+const isMissingRelationError = (error: unknown): boolean =>
+  Boolean(error && typeof error === 'object' && 'code' in (error as Record<string, unknown>) && (error as { code?: unknown }).code === '42P01');
+
+const createDefaultStageStateEntry = (_stageKey: InitiativeStageKey): InitiativeStageState => ({
+  status: 'draft',
   roundIndex: 0,
   comment: null
 });
@@ -490,8 +493,18 @@ export class InitiativesService {
     status?: InitiativeApprovalRecord['status'];
     accountId?: string | null;
   } = {}): Promise<InitiativeApprovalTask[]> {
-    const rows = await this.repository.listApprovalTaskRows(filter);
-    return rows.map((row) => this.mapApprovalTask(row));
+    try {
+      const rows = await this.repository.listApprovalTaskRows(filter);
+      return rows.map((row) => this.mapApprovalTask(row));
+    } catch (error) {
+      if (isMissingRelationError(error)) {
+        console.warn(
+          'Approvals table not found while listing approval tasks. Run migrations to enable approvals.'
+        );
+        return [];
+      }
+      throw error;
+    }
   }
 
   async decideApproval(

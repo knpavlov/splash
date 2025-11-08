@@ -94,7 +94,7 @@ const calculateTotals = (stages: Initiative['stages']) => {
 const createDefaultStageState = () =>
   initiativeStageKeys.reduce(
     (acc, key) => {
-      acc[key] = { status: key === 'l0' ? 'approved' : 'draft', roundIndex: 0, comment: null };
+      acc[key] = { status: 'draft', roundIndex: 0, comment: null };
       return acc;
     },
     {} as Initiative['stageState']
@@ -183,7 +183,7 @@ export const InitiativeProfile = ({
   const hasWorkstreams = workstreams.length > 0;
   const currentStageState: InitiativeStageState =
     draft.stageState[selectedStage] ??
-    { status: selectedStage === 'l0' ? 'approved' : 'draft', roundIndex: 0, comment: null };
+    { status: 'draft', roundIndex: 0, comment: null };
   const selectedWorkstream = workstreams.find((ws) => ws.id === draft.workstreamId) ?? null;
   const stageRounds =
     selectedWorkstream && isGateStage(selectedStage) ? selectedWorkstream.gates[selectedStage]?.length ?? 0 : 0;
