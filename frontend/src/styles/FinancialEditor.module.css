@@ -53,50 +53,43 @@
   gap: 12px;
 }
 
-.entryHeader {
+.entryRow {
+  margin-top: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 18px;
+  padding: 12px;
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 16px;
 }
 
-.entryHeader select {
-  min-width: 220px;
-}
-
-.entryHeader select,
-.entryHeader input {
-  flex: 1 1 220px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 12px;
-  padding: 8px 12px;
-}
-
-.removeButton {
-  border: none;
-  border-radius: 10px;
-  background: rgba(248, 113, 113, 0.12);
-  color: #b91c1c;
-  padding: 8px 12px;
-  cursor: pointer;
-}
-
-.quickFillRow {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+.controlsColumn {
+  flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
-.quickInputs {
+.controlsColumn label,
+.quickRow {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #475569;
 }
 
+.controlsColumn select,
 .quickInputs input,
 .quickInputs select {
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 10px;
   padding: 6px 10px;
+}
+
+.quickInputs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .quickInputs button {
@@ -108,13 +101,26 @@
   cursor: pointer;
 }
 
-.monthGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-  gap: 8px;
+.removeButton {
+  border: none;
+  border-radius: 10px;
+  background: rgba(248, 113, 113, 0.18);
+  color: #b91c1c;
+  padding: 8px 10px;
+  cursor: pointer;
+  align-self: flex-start;
 }
 
-.monthGrid label {
+.monthScroll {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.monthCell {
+  flex: 0 0 92px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -122,21 +128,22 @@
   color: #475569;
 }
 
-.monthGrid input {
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 10px;
-  padding: 6px;
-}
-
 .monthInputWrapper {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+}
+
+.monthInputWrapper input {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
+  padding: 6px;
+  width: 100%;
 }
 
 .fillRightButton {
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 4px 6px;
   background: rgba(59, 130, 246, 0.18);
   color: #1d4ed8;

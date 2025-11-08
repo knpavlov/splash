@@ -29,25 +29,68 @@ const SECTION_HELP: Record<InitiativeFinancialKind, string> = {
   'oneoff-costs': 'Single-time expenses (e.g. implementation fees).'
 };
 
-const getMonths = (year: number | null, endMonth: number | null) => {
-  const baseYear = year && Number.isFinite(year) ? year : new Date().getFullYear();
-  const limit = endMonth && endMonth >= 1 && endMonth <= 12 ? endMonth : 12;
-  return Array.from({ length: limit }).map((_, index) => {
-    const date = new Date(baseYear, index, 1);
-    const key = `${baseYear}-${String(index + 1).padStart(2, '0')}`;
-    return { key, label: date.toLocaleString('en-US', { month: 'short' }) };
-  });
+const parseMonthKey = (key: string) => {
+  const [year, month] = key.split('-').map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return null;
+  }
+  return new Date(year, month - 1, 1);
 };
 
-interface EntryCardProps {
+const buildMonthRange = (stage: InitiativeStageData) => {
+  const now = new Date();
+  now.setDate(1);
+
+  const defaultEnd = new Date(now);
+  defaultEnd.setMonth(defaultEnd.getMonth() + 11);
+
+  const endYear = stage.periodYear ?? defaultEnd.getFullYear();
+  const endMonth = stage.periodMonth ?? defaultEnd.getMonth() + 1;
+  const endCandidate = new Date(endYear, endMonth - 1, 1);
+  const end = endCandidate.getTime() < now.getTime() ? defaultEnd : endCandidate;
+
+  let earliest: Date | null = null;
+  for (const kind of initiativeFinancialKinds) {
+    stage.financials[kind].forEach((entry) => {
+      Object.keys(entry.distribution).forEach((key) => {
+        const parsed = parseMonthKey(key);
+        if (!parsed) {
+          return;
+        }
+        if (!earliest || parsed.getTime() < earliest.getTime()) {
+          earliest = parsed;
+        }
+      });
+    });
+  }
+
+  const earliestDate = earliest as Date | null;
+  let start = now;
+  if (earliestDate && earliestDate.getTime() < now.getTime()) {
+    start = earliestDate;
+  }
+  const months: { key: string; label: string; year: number }[] = [];
+  const cursor = new Date(start);
+  while (cursor.getTime() <= end.getTime() && months.length < 360) {
+    months.push({
+      key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`,
+      label: cursor.toLocaleString('en-US', { month: 'short' }),
+      year: cursor.getFullYear()
+    });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return months;
+};
+
+interface EntryRowProps {
   entry: InitiativeFinancialEntry;
   disabled: boolean;
-  months: { key: string; label: string }[];
+  months: { key: string; label: string; year: number }[];
   onChange: (entry: InitiativeFinancialEntry) => void;
   onRemove: () => void;
 }
 
-const FinancialEntryCard = ({ entry, disabled, months, onChange, onRemove }: EntryCardProps) => {
+const EntryRow = ({ entry, disabled, months, onChange, onRemove }: EntryRowProps) => {
   const [monthlyValue, setMonthlyValue] = useState('');
   const [totalValue, setTotalValue] = useState('');
   const [duration, setDuration] = useState(months.length || 1);
@@ -58,7 +101,7 @@ const FinancialEntryCard = ({ entry, disabled, months, onChange, onRemove }: Ent
     setDuration((current) => Math.min(current, months.length || 1));
   }, [months]);
 
-  const handleMonthlyFill = () => {
+  const fillAllMonths = () => {
     const amount = Number(monthlyValue);
     if (!Number.isFinite(amount)) {
       return;
@@ -70,7 +113,7 @@ const FinancialEntryCard = ({ entry, disabled, months, onChange, onRemove }: Ent
     onChange({ ...entry, distribution });
   };
 
-  const handleDistributeTotal = () => {
+  const distributeTotal = () => {
     const amount = Number(totalValue);
     const startIndex = months.findIndex((month) => month.key === startMonth);
     if (!Number.isFinite(amount) || startIndex === -1 || duration <= 0) {
@@ -88,7 +131,7 @@ const FinancialEntryCard = ({ entry, disabled, months, onChange, onRemove }: Ent
     onChange({ ...entry, distribution });
   };
 
-  const handleMonthValueChange = (key: string, value: string) => {
+  const updateMonthValue = (key: string, value: string) => {
     const numeric = Number(value);
     const distribution = { ...entry.distribution };
     if (value === '') {
@@ -99,7 +142,7 @@ const FinancialEntryCard = ({ entry, disabled, months, onChange, onRemove }: Ent
     onChange({ ...entry, distribution });
   };
 
-  const handleFillRight = (key: string) => {
+  const fillRight = (key: string) => {
     const value = entry.distribution[key];
     if (value === undefined) {
       return;
@@ -116,97 +159,81 @@ const FinancialEntryCard = ({ entry, disabled, months, onChange, onRemove }: Ent
   };
 
   return (
-    <div className={styles.entryCard}>
-      <div className={styles.entryHeader}>
-        <select
-          value={entry.category}
-          onChange={(event) => {
-            const nextCategory = event.target.value;
-            onChange({ ...entry, category: nextCategory, label: nextCategory || entry.label });
-          }}
-          disabled={disabled}
-        >
-          <option value="">Select P&L category</option>
-          {pnlCategories.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-        <button className={styles.removeButton} onClick={onRemove} disabled={disabled} type="button">
-          Remove
-        </button>
-      </div>
-
-      <div className={styles.quickFillRow}>
-        <div>
-          <label>Fill all months</label>
+    <div className={styles.entryRow}>
+      <div className={styles.controlsColumn}>
+        <label>
+          <span>P&L category</span>
+          <select
+            value={entry.category}
+            onChange={(event) => {
+              const nextCategory = event.target.value;
+              onChange({ ...entry, category: nextCategory, label: nextCategory || entry.label });
+            }}
+            disabled={disabled}
+          >
+            <option value="">Select P&L category</option>
+            {pnlCategories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className={styles.quickRow}>
+          <span>Fill all months</span>
           <div className={styles.quickInputs}>
-            <input
-              type="number"
-              value={monthlyValue}
-              onChange={(event) => setMonthlyValue(event.target.value)}
-              disabled={disabled}
-            />
-            <button type="button" onClick={handleMonthlyFill} disabled={disabled}>
+            <input type="number" value={monthlyValue} onChange={(event) => setMonthlyValue(event.target.value)} disabled={disabled} />
+            <button type="button" onClick={fillAllMonths} disabled={disabled}>
               Apply
             </button>
           </div>
         </div>
-        <div>
-          <label>Distribute total</label>
+        <div className={styles.quickRow}>
+          <span>Distribute total</span>
           <div className={styles.quickInputs}>
-            <input
-              type="number"
-              value={totalValue}
-              onChange={(event) => setTotalValue(event.target.value)}
-              disabled={disabled}
-            />
-            <select
-              value={startMonth}
-              onChange={(event) => setStartMonth(event.target.value)}
-              disabled={disabled}
-            >
+            <input type="number" value={totalValue} onChange={(event) => setTotalValue(event.target.value)} disabled={disabled} />
+            <select value={startMonth} onChange={(event) => setStartMonth(event.target.value)} disabled={disabled}>
               {months.map((month) => (
                 <option key={month.key} value={month.key}>
-                  {month.label}
+                  {month.label} {month.year}
                 </option>
               ))}
             </select>
-            <select
-              value={duration}
-              onChange={(event) => setDuration(Number(event.target.value))}
-              disabled={disabled}
-            >
+            <select value={duration} onChange={(event) => setDuration(Number(event.target.value))} disabled={disabled}>
               {Array.from({ length: months.length }).map((_, index) => (
                 <option key={index + 1} value={index + 1}>
                   {index + 1} m
                 </option>
               ))}
             </select>
-            <button type="button" onClick={handleDistributeTotal} disabled={disabled}>
+            <button type="button" onClick={distributeTotal} disabled={disabled}>
               Distribute
             </button>
           </div>
         </div>
+        <button className={styles.removeButton} onClick={onRemove} disabled={disabled} type="button">
+          Remove line
+        </button>
       </div>
-
-      <div className={styles.monthGrid}>
+      <div className={styles.monthScroll}>
         {months.map((month) => (
-          <label key={month.key}>
-            <span>{month.label}</span>
+          <label key={month.key} className={styles.monthCell}>
+            <span>
+              {month.label} {month.year}
+            </span>
             <div className={styles.monthInputWrapper}>
               <input
                 type="number"
                 value={entry.distribution[month.key] ?? ''}
-                onChange={(event) => handleMonthValueChange(month.key, event.target.value)}
+                onChange={(event) => updateMonthValue(month.key, event.target.value)}
                 disabled={disabled}
               />
               <button
                 type="button"
                 className={styles.fillRightButton}
-                onClick={() => handleFillRight(month.key)}
+                onClick={() => fillRight(month.key)}
                 disabled={disabled || entry.distribution[month.key] === undefined}
+                title="Fill to the right"
               >
                 ↦
               </button>
@@ -219,7 +246,7 @@ const FinancialEntryCard = ({ entry, disabled, months, onChange, onRemove }: Ent
 };
 
 export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorProps) => {
-  const months = useMemo(() => getMonths(stage.periodYear, stage.periodMonth), [stage.periodMonth, stage.periodYear]);
+  const months = useMemo(() => buildMonthRange(stage), [stage]);
 
   useEffect(() => {
     const monthSet = new Set(months.map((month) => month.key));
@@ -282,21 +309,15 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
               <h4>{SECTION_LABELS[kind]}</h4>
               <p>{SECTION_HELP[kind]}</p>
             </div>
-            <button
-              className={styles.secondaryButton}
-              onClick={() => addEntry(kind)}
-              type="button"
-              disabled={disabled}
-            >
+            <button className={styles.secondaryButton} onClick={() => addEntry(kind)} type="button" disabled={disabled}>
               Add line
             </button>
           </header>
-
           {stage.financials[kind].length === 0 ? (
             <p className={styles.placeholder}>No data yet. Use “Add line” to start capturing this metric.</p>
           ) : (
             stage.financials[kind].map((entry) => (
-              <FinancialEntryCard
+              <EntryRow
                 key={entry.id}
                 entry={entry}
                 disabled={disabled}
