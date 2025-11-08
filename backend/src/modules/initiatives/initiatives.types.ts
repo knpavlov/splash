@@ -99,7 +99,7 @@ export interface InitiativeResponse extends InitiativeRecord {
   totals: InitiativeTotals;
 }
 
-export interface InitiativeApprovalRow {
+export interface InitiativeApprovalRow extends Record<string, unknown> {
   id: string;
   initiative_id: string;
   stage_key: string;

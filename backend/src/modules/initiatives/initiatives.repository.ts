@@ -7,7 +7,9 @@ import {
   InitiativeRow,
   InitiativeStageMap,
   InitiativeStagePayload,
+  InitiativeStageState,
   InitiativeStageStateMap,
+  InitiativeStageKey,
   InitiativeWriteModel,
   InitiativeApprovalRow,
   InitiativeApprovalRecord
@@ -121,9 +123,21 @@ const normalizeStageKey = (value: unknown): InitiativeRecord['activeStage'] => {
   return 'l0';
 };
 
+const createDefaultStageState = (): InitiativeStageStateMap =>
+  initiativeStageKeys.reduce(
+    (acc, key) => {
+      acc[key] = { status: 'draft', roundIndex: 0 };
+      return acc;
+    },
+    {} as InitiativeStageStateMap
+  );
+
 const ensureStageState = (value: unknown): InitiativeStageStateMap => {
-  const map = {} as InitiativeStageStateMap;
-  const payload = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const base = createDefaultStageState();
+  if (!value || typeof value !== 'object') {
+    return base;
+  }
+  const payload = value as Record<string, unknown>;
   for (const key of initiativeStageKeys) {
     const raw = payload[key];
     if (raw && typeof raw === 'object') {
@@ -137,12 +151,10 @@ const ensureStageState = (value: unknown): InitiativeStageStateMap => {
           : 'draft';
       const roundIndex = typeof entry.roundIndex === 'number' ? entry.roundIndex : 0;
       const comment = typeof entry.comment === 'string' ? entry.comment : null;
-      map[key] = { status, roundIndex, comment };
-    } else {
-      map[key] = { status: 'draft', roundIndex: 0 };
+      base[key] = { status, roundIndex, comment };
     }
   }
-  return map;
+  return base;
 };
 
 const mapRowToRecord = (row: InitiativeRow): InitiativeRecord => ({
@@ -176,8 +188,8 @@ export class InitiativesRepository {
 
   async createInitiative(model: InitiativeWriteModel): Promise<InitiativeRecord> {
     const result = await postgresPool.query<InitiativeRow>(
-      `INSERT INTO workstream_initiatives (id, workstream_id, name, description, owner_account_id, owner_name, current_status, active_stage, l4_date, stage_payload, version, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, 1, NOW(), NOW())
+      `INSERT INTO workstream_initiatives (id, workstream_id, name, description, owner_account_id, owner_name, current_status, active_stage, l4_date, stage_payload, stage_state, version, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, 1, NOW(), NOW())
        RETURNING *;`,
       [
         model.id,
@@ -189,7 +201,8 @@ export class InitiativesRepository {
         model.currentStatus,
         model.activeStage,
         model.l4Date,
-        JSON.stringify(model.stages)
+        JSON.stringify(model.stages),
+        JSON.stringify(model.stageState)
       ]
     );
     return mapRowToRecord(result.rows[0]);
@@ -210,9 +223,10 @@ export class InitiativesRepository {
               active_stage = $8,
               l4_date = $9,
               stage_payload = $10::jsonb,
+              stage_state = $11::jsonb,
               version = version + 1,
               updated_at = NOW()
-        WHERE id = $1 AND version = $11
+        WHERE id = $1 AND version = $12
         RETURNING *;`,
       [
         model.id,
@@ -225,6 +239,7 @@ export class InitiativesRepository {
         model.activeStage,
         model.l4Date,
         JSON.stringify(model.stages),
+        JSON.stringify(model.stageState),
         expectedVersion
       ]
     );

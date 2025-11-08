@@ -9,6 +9,7 @@ import {
   InitiativeStageKey,
   InitiativeStageMap,
   InitiativeStagePayload,
+  InitiativeStageStateMap,
   InitiativeTotals,
   InitiativeWriteModel
 } from './initiatives.types.js';
@@ -142,6 +143,41 @@ const sanitizeStageMap = (value: unknown): InitiativeStageMap => {
   return map;
 };
 
+const createDefaultStageStateMap = (): InitiativeStageStateMap =>
+  initiativeStageKeys.reduce(
+    (acc, key) => {
+      acc[key] = { status: 'draft', roundIndex: 0 };
+      return acc;
+    },
+    {} as InitiativeStageStateMap
+  );
+
+const sanitizeStageStateMap = (value: unknown): InitiativeStageStateMap => {
+  const base = createDefaultStageStateMap();
+  if (!value || typeof value !== 'object') {
+    return base;
+  }
+  const payload = value as Record<string, unknown>;
+  for (const key of initiativeStageKeys) {
+    const raw = payload[key];
+    if (!raw || typeof raw !== 'object') {
+      continue;
+    }
+    const entry = raw as { status?: unknown; roundIndex?: unknown; comment?: unknown };
+    const status =
+      entry.status === 'pending' ||
+      entry.status === 'approved' ||
+      entry.status === 'returned' ||
+      entry.status === 'rejected'
+        ? entry.status
+        : 'draft';
+    const roundIndex = typeof entry.roundIndex === 'number' ? entry.roundIndex : 0;
+    const comment = typeof entry.comment === 'string' ? entry.comment : null;
+    base[key] = { status, roundIndex, comment };
+  }
+  return base;
+};
+
 const sumFinancialEntries = (stages: InitiativeStageMap, kind: typeof initiativeFinancialKinds[number]) => {
   let total = 0;
   for (const stageKey of initiativeStageKeys) {
@@ -207,6 +243,7 @@ export class InitiativesService {
       activeStage?: unknown;
       l4Date?: unknown;
       stages?: unknown;
+      stageState?: unknown;
     };
 
     const id = idOverride ?? (typeof input.id === 'string' && input.id.trim() ? input.id.trim() : randomUUID());
@@ -225,6 +262,7 @@ export class InitiativesService {
     const ownerName = sanitizeOptionalString(input.ownerName);
     const currentStatus = sanitizeString(input.currentStatus) || 'draft';
     const stages = sanitizeStageMap(input.stages);
+    const stageState = sanitizeStageStateMap(input.stageState);
     const activeStage = normalizeStageKey(input.activeStage);
     const l4Date = sanitizeOptionalString(input.l4Date) ?? stages.l4.l4Date ?? null;
 
@@ -238,7 +276,8 @@ export class InitiativesService {
       currentStatus,
       activeStage,
       l4Date,
-      stages
+      stages,
+      stageState
     };
   }
 
@@ -296,7 +335,8 @@ export class InitiativesService {
       currentStatus: record.currentStatus,
       activeStage: desiredStage,
       l4Date: record.l4Date,
-      stages: record.stages
+      stages: record.stages,
+      stageState: record.stageState
     };
     const result = await this.repository.updateInitiative(updatedModel, record.version);
     if (typeof result === 'string') {
