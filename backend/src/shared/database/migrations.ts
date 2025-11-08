@@ -259,6 +259,8 @@ const createTables = async () => {
       stage_key TEXT NOT NULL,
       round_index INTEGER NOT NULL,
       role TEXT NOT NULL,
+      rule TEXT NOT NULL DEFAULT 'any',
+      account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
       status TEXT NOT NULL DEFAULT 'pending',
       comment TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -268,8 +270,56 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    ALTER TABLE workstream_initiative_approvals
+      ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES accounts(id) ON DELETE SET NULL;
+  `);
+
+  await postgresPool.query(`
+    ALTER TABLE workstream_initiative_approvals
+      ADD COLUMN IF NOT EXISTS rule TEXT NOT NULL DEFAULT 'any';
+  `);
+
+  await postgresPool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+          FROM information_schema.table_constraints
+         WHERE table_name = 'workstream_initiative_approvals'
+           AND constraint_name = 'workstream_initiative_approvals_initiative_id_stage_key_round_index_role_key'
+      ) THEN
+        ALTER TABLE workstream_initiative_approvals
+          DROP CONSTRAINT workstream_initiative_approvals_initiative_id_stage_key_round_index_role_key;
+      END IF;
+    END
+    $$;
+  `);
+
+  await postgresPool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+          FROM information_schema.table_constraints
+         WHERE table_name = 'workstream_initiative_approvals'
+           AND constraint_name = 'workstream_initiative_approvals_unique'
+      ) THEN
+        ALTER TABLE workstream_initiative_approvals
+          ADD CONSTRAINT workstream_initiative_approvals_unique
+            UNIQUE (initiative_id, stage_key, round_index, role, account_id);
+      END IF;
+    END
+    $$;
+  `);
+
+  await postgresPool.query(`
     CREATE INDEX IF NOT EXISTS workstream_initiative_approvals_stage_idx
       ON workstream_initiative_approvals(initiative_id, stage_key, round_index);
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS workstream_initiative_approvals_account_idx
+      ON workstream_initiative_approvals(account_id);
   `);
 
   await postgresPool.query(`

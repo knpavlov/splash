@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Initiative, InitiativeStageKey } from '../../shared/types/initiative';
+import { Initiative } from '../../shared/types/initiative';
 import { Workstream } from '../../shared/types/workstream';
 import { useInitiativesState, useWorkstreamsState, useAccountsState } from '../../app/state/AppStateContext';
 import { InitiativesList } from './components/InitiativesList';
@@ -20,7 +20,7 @@ const findInitiative = (list: Initiative[], id?: string | null) =>
   id ? list.find((item) => item.id === id) ?? null : null;
 
 export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps) => {
-  const { list, saveInitiative, removeInitiative, advanceStage } = useInitiativesState();
+  const { list, saveInitiative, removeInitiative, submitStage } = useInitiativesState();
   const { list: workstreams } = useWorkstreamsState();
   const { list: accounts } = useAccountsState();
 
@@ -90,10 +90,7 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
     [handleBackToList, removeInitiative]
   );
 
-  const handleAdvance = useCallback(
-    (id: string, targetStage?: InitiativeStageKey) => advanceStage(id, targetStage),
-    [advanceStage]
-  );
+  const handleSubmit = useCallback((id: string) => submitStage(id), [submitStage]);
 
   if (view.mode === 'view') {
     const initiative = findInitiative(list, view.initiativeId);
@@ -106,7 +103,7 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
         onBack={handleBackToList}
         onSave={handleSave}
         onDelete={handleRemove}
-        onAdvanceStage={handleAdvance}
+        onSubmitStage={handleSubmit}
       />
     );
   }
@@ -122,7 +119,7 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
         onBack={handleBackToList}
         onSave={handleSave}
         onDelete={handleRemove}
-        onAdvanceStage={handleAdvance}
+        onSubmitStage={handleSubmit}
       />
     );
   }

@@ -18,6 +18,24 @@ const handleError = (error: unknown, res: Response) => {
     case 'VERSION_CONFLICT':
       res.status(409).json({ code: 'version-conflict', message: 'Initiative was updated elsewhere.' });
       return;
+    case 'STAGE_PENDING':
+      res.status(409).json({ code: 'stage-pending', message: 'This stage is already awaiting approvals.' });
+      return;
+    case 'STAGE_ALREADY_APPROVED':
+      res.status(409).json({ code: 'stage-approved', message: 'This stage has already been approved.' });
+      return;
+    case 'MISSING_APPROVERS':
+      res.status(422).json({ code: 'missing-approvers', message: 'Assign account roles for all approvers before submitting.' });
+      return;
+    case 'WORKSTREAM_NOT_FOUND':
+      res.status(404).json({ code: 'workstream-not-found', message: 'Workstream configuration not found.' });
+      return;
+    case 'APPROVAL_NOT_FOUND':
+      res.status(404).json({ code: 'approval-not-found', message: 'Approval request not found.' });
+      return;
+    case 'FORBIDDEN':
+      res.status(403).json({ code: 'forbidden', message: 'You cannot act on this approval.' });
+      return;
     default:
       res.status(500).json({ code: 'unknown', message: 'Failed to process the request.' });
   }
@@ -81,6 +99,15 @@ router.post('/:id/advance', async (req, res) => {
       req.params.id,
       typeof targetStage === 'string' ? (targetStage as any) : undefined
     );
+    res.json(initiative);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.post('/:id/submit', async (req, res) => {
+  try {
+    const initiative = await initiativesService.submitStage(req.params.id);
     res.json(initiative);
   } catch (error) {
     handleError(error, res);

@@ -5,6 +5,7 @@ interface VerifyCodeResponse {
   token: string;
   email: string;
   role: AccountRole;
+  accountId: string;
 }
 
 export const authApi = {

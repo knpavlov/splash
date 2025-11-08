@@ -16,6 +16,7 @@ export interface AuthSession {
   email: string;
   role: AccountRole;
   expiresAt: number;
+  accountId: string;
 }
 
 export type RequestCodeError =
@@ -93,7 +94,13 @@ const readStoredSession = (): AuthSession | null => {
 
     try {
       const parsed = JSON.parse(raw) as Partial<AuthSession> | null;
-      if (!parsed || typeof parsed.token !== 'string' || typeof parsed.email !== 'string' || typeof parsed.expiresAt !== 'number') {
+      if (
+        !parsed ||
+        typeof parsed.token !== 'string' ||
+        typeof parsed.email !== 'string' ||
+        typeof parsed.expiresAt !== 'number' ||
+        typeof parsed.accountId !== 'string'
+      ) {
         storage.removeItem(SESSION_STORAGE_KEY);
         continue;
       }
@@ -113,7 +120,8 @@ const readStoredSession = (): AuthSession | null => {
         token: parsed.token,
         email: parsed.email,
         role,
-        expiresAt: parsed.expiresAt
+        expiresAt: parsed.expiresAt,
+        accountId: parsed.accountId
       };
     } catch (error) {
       console.warn('Failed to parse persisted session:', error);
@@ -224,7 +232,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           token: response.token,
           email: response.email,
           role: resolvedRole,
-          expiresAt
+          expiresAt,
+          accountId: response.accountId
         };
         setSession(nextSession);
         persistSession(nextSession, remember);

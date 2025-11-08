@@ -203,6 +203,21 @@ export class WorkstreamsRepository {
       );
   }
 
+  async listAssignmentsByWorkstream(workstreamId: string): Promise<WorkstreamRoleAssignmentRecord[]> {
+    const result = await postgresPool.query<AssignmentRow>(
+      `SELECT * FROM workstream_role_assignments
+        WHERE workstream_id = $1
+        ORDER BY created_at ASC;`,
+      [workstreamId]
+    );
+    return (result.rows ?? [])
+      .map((row: AssignmentRow) => mapAssignmentRow(row))
+      .filter(
+        (row: WorkstreamRoleAssignmentRecord | null): row is WorkstreamRoleAssignmentRecord =>
+          Boolean(row)
+      );
+  }
+
   async saveAssignments(
     accountId: string,
     assignments: Array<{ workstreamId: string; role: WorkstreamRole | null }>

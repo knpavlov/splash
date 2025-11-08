@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/FinancialEditor.module.css';
 import {
   InitiativeFinancialEntry,
@@ -86,20 +86,33 @@ interface EntryRowProps {
   entry: InitiativeFinancialEntry;
   disabled: boolean;
   months: { key: string; label: string; year: number }[];
+  gridTemplateColumns: string;
   onChange: (entry: InitiativeFinancialEntry) => void;
   onRemove: () => void;
 }
 
-const EntryRow = ({ entry, disabled, months, onChange, onRemove }: EntryRowProps) => {
+const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRemove }: EntryRowProps) => {
   const [monthlyValue, setMonthlyValue] = useState('');
   const [totalValue, setTotalValue] = useState('');
   const [duration, setDuration] = useState(months.length || 1);
   const [startMonth, setStartMonth] = useState(months[0]?.key ?? '');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setStartMonth((current) => (months.find((month) => month.key === current) ? current : months[0]?.key ?? ''));
     setDuration((current) => Math.min(current, months.length || 1));
   }, [months]);
+
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      if (menuRef.current && event.target instanceof Node && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   const fillAllMonths = () => {
     const amount = Number(monthlyValue);
@@ -159,94 +172,116 @@ const EntryRow = ({ entry, disabled, months, onChange, onRemove }: EntryRowProps
   };
 
   return (
-    <div className={styles.entryRow}>
-      <div className={styles.controlsColumn}>
-        <label>
-          <span>P&L category</span>
-          <select
-            value={entry.category}
-            onChange={(event) => {
-              const nextCategory = event.target.value;
-              onChange({ ...entry, category: nextCategory, label: nextCategory || entry.label });
-            }}
-            disabled={disabled}
-          >
-            <option value="">Select P&L category</option>
-            {pnlCategories.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className={styles.quickRow}>
-          <span>Fill all months</span>
-          <div className={styles.quickInputs}>
-            <input type="number" value={monthlyValue} onChange={(event) => setMonthlyValue(event.target.value)} disabled={disabled} />
-            <button type="button" onClick={fillAllMonths} disabled={disabled}>
-              Apply
-            </button>
-          </div>
-        </div>
-        <div className={styles.quickRow}>
-          <span>Distribute total</span>
-          <div className={styles.quickInputs}>
-            <input type="number" value={totalValue} onChange={(event) => setTotalValue(event.target.value)} disabled={disabled} />
-            <select value={startMonth} onChange={(event) => setStartMonth(event.target.value)} disabled={disabled}>
-              {months.map((month) => (
-                <option key={month.key} value={month.key}>
-                  {month.label} {month.year}
-                </option>
-              ))}
-            </select>
-            <select value={duration} onChange={(event) => setDuration(Number(event.target.value))} disabled={disabled}>
-              {Array.from({ length: months.length }).map((_, index) => (
-                <option key={index + 1} value={index + 1}>
-                  {index + 1} m
-                </option>
-              ))}
-            </select>
-            <button type="button" onClick={distributeTotal} disabled={disabled}>
-              Distribute
-            </button>
-          </div>
-        </div>
-        <button className={styles.removeButton} onClick={onRemove} disabled={disabled} type="button">
-          Remove line
+    <div className={styles.sheetRow} style={{ gridTemplateColumns }}>
+      <div className={styles.categoryCell}>
+        <select
+          value={entry.category}
+          onChange={(event) => {
+            const nextCategory = event.target.value;
+            onChange({ ...entry, category: nextCategory, label: nextCategory || entry.label });
+          }}
+          disabled={disabled}
+        >
+          <option value="">Select P&L category</option>
+          {pnlCategories.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className={styles.rowMenuButton}
+          onClick={() => setMenuOpen((prev) => !prev)}
+          disabled={disabled}
+          title="More actions"
+        >
+          …
         </button>
-      </div>
-      <div className={styles.monthScroll}>
-        {months.map((month) => (
-          <label key={month.key} className={styles.monthCell}>
-            <span>
-              {month.label} {month.year}
-            </span>
-            <div className={styles.monthInputWrapper}>
-              <input
-                type="number"
-                value={entry.distribution[month.key] ?? ''}
-                onChange={(event) => updateMonthValue(month.key, event.target.value)}
-                disabled={disabled}
-              />
-              <button
-                type="button"
-                className={styles.fillRightButton}
-                onClick={() => fillRight(month.key)}
-                disabled={disabled || entry.distribution[month.key] === undefined}
-                title="Fill to the right"
-              >
-                ↦
-              </button>
+        {menuOpen && (
+          <div className={styles.rowMenu} ref={menuRef}>
+            <div className={styles.menuSection}>
+              <span>Fill all months</span>
+              <div className={styles.menuInputs}>
+                <input
+                  type="number"
+                  value={monthlyValue}
+                  onChange={(event) => setMonthlyValue(event.target.value)}
+                  disabled={disabled}
+                />
+                <button type="button" onClick={fillAllMonths} disabled={disabled}>
+                  Apply
+                </button>
+              </div>
             </div>
-          </label>
-        ))}
+            <div className={styles.menuSection}>
+              <span>Distribute total</span>
+              <div className={styles.menuInputs}>
+                <input
+                  type="number"
+                  value={totalValue}
+                  onChange={(event) => setTotalValue(event.target.value)}
+                  disabled={disabled}
+                />
+                <select value={startMonth} onChange={(event) => setStartMonth(event.target.value)} disabled={disabled}>
+                  {months.map((month) => (
+                    <option key={month.key} value={month.key}>
+                      {month.label} {month.year}
+                    </option>
+                  ))}
+                </select>
+                <select value={duration} onChange={(event) => setDuration(Number(event.target.value))} disabled={disabled}>
+                  {Array.from({ length: months.length }).map((_, index) => (
+                    <option key={index + 1} value={index + 1}>
+                      {index + 1} m
+                    </option>
+                  ))}
+                </select>
+                <button type="button" onClick={distributeTotal} disabled={disabled}>
+                  Spread
+                </button>
+              </div>
+            </div>
+            <button className={styles.menuRemoveButton} onClick={onRemove} disabled={disabled} type="button">
+              Remove line
+            </button>
+          </div>
+        )}
       </div>
+      {months.map((month) => (
+        <label key={month.key} className={styles.sheetCell}>
+          <span className={styles.monthLabel}>
+            {month.label} {month.year}
+          </span>
+          <div className={styles.monthInputWrapper}>
+            <input
+              type="number"
+              value={entry.distribution[month.key] ?? ''}
+              onChange={(event) => updateMonthValue(month.key, event.target.value)}
+              disabled={disabled}
+            />
+            <button
+              type="button"
+              className={styles.fillRightButton}
+              onClick={() => fillRight(month.key)}
+              disabled={disabled || entry.distribution[month.key] === undefined}
+              title="Fill to the right"
+            >
+              ↦
+            </button>
+          </div>
+        </label>
+      ))}
     </div>
   );
 };
 
 export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorProps) => {
   const months = useMemo(() => buildMonthRange(stage), [stage]);
+  const gridTemplateColumns = useMemo(
+    () => `220px repeat(${Math.max(months.length, 1)}, minmax(120px, 1fr))`,
+    [months.length]
+  );
 
   useEffect(() => {
     const monthSet = new Set(months.map((month) => month.key));
@@ -316,16 +351,29 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
           {stage.financials[kind].length === 0 ? (
             <p className={styles.placeholder}>No data yet. Use “Add line” to start capturing this metric.</p>
           ) : (
-            stage.financials[kind].map((entry) => (
-              <EntryRow
-                key={entry.id}
-                entry={entry}
-                disabled={disabled}
-                months={months}
-                onChange={(nextEntry) => handleEntryChange(kind, nextEntry)}
-                onRemove={() => removeEntry(kind, entry.id)}
-              />
-            ))
+            <div className={styles.sheetWrapper}>
+              <div className={styles.sheetScroller}>
+                <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
+                  <div className={styles.categoryHeader}>P&L category</div>
+                  {months.map((month) => (
+                    <div key={month.key} className={styles.monthHeader}>
+                      {month.label} {month.year}
+                    </div>
+                  ))}
+                </div>
+                {stage.financials[kind].map((entry) => (
+                  <EntryRow
+                    key={entry.id}
+                    entry={entry}
+                    disabled={disabled}
+                    months={months}
+                    gridTemplateColumns={gridTemplateColumns}
+                    onChange={(nextEntry) => handleEntryChange(kind, nextEntry)}
+                    onRemove={() => removeEntry(kind, entry.id)}
+                  />
+                ))}
+              </div>
+            </div>
           )}
         </section>
       ))}

@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
-import { InitiativesRepository } from './initiatives.repository.js';
+import { ApprovalTaskRow, InitiativesRepository } from './initiatives.repository.js';
+import { WorkstreamsRepository } from '../workstreams/workstreams.repository.js';
 import {
   initiativeFinancialKinds,
   initiativeStageKeys,
@@ -9,10 +10,21 @@ import {
   InitiativeStageKey,
   InitiativeStageMap,
   InitiativeStagePayload,
+  InitiativeStageState,
   InitiativeStageStateMap,
   InitiativeTotals,
-  InitiativeWriteModel
+  InitiativeWriteModel,
+  InitiativeApprovalRecord,
+  InitiativeApprovalTask,
+  InitiativeApprovalRule,
+  ApprovalDecision
 } from './initiatives.types.js';
+import {
+  workstreamGateKeys,
+  WorkstreamGateKey,
+  WorkstreamApprovalRound,
+  WorkstreamRoleAssignmentRecord
+} from '../workstreams/workstreams.types.js';
 
 const sanitizeString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
@@ -178,6 +190,97 @@ const sanitizeStageStateMap = (value: unknown): InitiativeStageStateMap => {
   return base;
 };
 
+const toIsoString = (value: Date | string | null | undefined) => {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+  }
+  return null;
+};
+
+const isGateKey = (stageKey: InitiativeStageKey): stageKey is WorkstreamGateKey =>
+  (workstreamGateKeys as readonly string[]).includes(stageKey);
+
+const getNextStageKey = (stageKey: InitiativeStageKey): InitiativeStageKey | null => {
+  const index = initiativeStageKeys.indexOf(stageKey);
+  if (index === -1 || index >= initiativeStageKeys.length - 1) {
+    return null;
+  }
+  return initiativeStageKeys[index + 1];
+};
+
+const cloneStagePayload = (stage: InitiativeStagePayload): InitiativeStagePayload => ({
+  name: stage.name,
+  description: stage.description,
+  periodMonth: stage.periodMonth,
+  periodYear: stage.periodYear,
+  l4Date: stage.l4Date ?? null,
+  financials: initiativeFinancialKinds.reduce(
+    (acc, kind) => {
+      acc[kind] = stage.financials[kind].map((entry) => ({
+        id: entry.id,
+        label: entry.label,
+        category: entry.category,
+        distribution: { ...entry.distribution }
+      }));
+      return acc;
+    },
+    {} as InitiativeStagePayload['financials']
+  )
+});
+
+const readRoundCount = (gates: unknown, stageKey: InitiativeStageKey): number => {
+  if (!isGateKey(stageKey) || !gates || typeof gates !== 'object') {
+    return 0;
+  }
+  const payload = gates as Record<string, unknown>;
+  const rounds = Array.isArray(payload[stageKey]) ? payload[stageKey] : [];
+  return rounds.length;
+};
+
+const buildRoleAssignmentsMap = (assignments: WorkstreamRoleAssignmentRecord[]) => {
+  const map = new Map<string, string[]>();
+  for (const assignment of assignments) {
+    if (!assignment.role) {
+      continue;
+    }
+    const list = map.get(assignment.role) ?? [];
+    list.push(assignment.accountId);
+    map.set(assignment.role, list);
+  }
+  return map;
+};
+
+const resolveApprovalThreshold = (rule: InitiativeApprovalRule, total: number): number => {
+  if (total <= 0) {
+    return 0;
+  }
+  switch (rule) {
+    case 'all':
+      return total;
+    case 'majority':
+      return Math.floor(total / 2) + 1;
+    case 'any':
+    default:
+      return 1;
+  }
+};
+
+const isRequirementSatisfied = (
+  rule: InitiativeApprovalRule,
+  approved: number,
+  total: number
+): boolean => approved >= resolveApprovalThreshold(rule, total);
+
+const createDefaultStageStateEntry = (stageKey: InitiativeStageKey): InitiativeStageState => ({
+  status: stageKey === 'l0' ? 'approved' : 'draft',
+  roundIndex: 0,
+  comment: null
+});
+
 const sumFinancialEntries = (stages: InitiativeStageMap, kind: typeof initiativeFinancialKinds[number]) => {
   let total = 0;
   for (const stageKey of initiativeStageKeys) {
@@ -213,7 +316,10 @@ const toResponse = (record: InitiativeRecord): InitiativeResponse => ({
 });
 
 export class InitiativesService {
-  constructor(private readonly repository: InitiativesRepository) {}
+  constructor(
+    private readonly repository: InitiativesRepository,
+    private readonly workstreamsRepository: WorkstreamsRepository
+  ) {}
 
   async listInitiatives(): Promise<InitiativeResponse[]> {
     const records = await this.repository.listInitiatives();
@@ -325,18 +431,223 @@ export class InitiativesService {
     if (desiredIndex !== currentIndex + 1) {
       throw new Error('INVALID_INPUT');
     }
+    const roundIndex = record.stageState[record.activeStage]?.roundIndex ?? 0;
+    const updated = await this.finalizeStage(record, record.activeStage, roundIndex);
+    return toResponse(updated);
+  }
+
+  async submitStage(id: string): Promise<InitiativeResponse> {
+    const record = await this.repository.findInitiative(id);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    const stageKey = record.activeStage;
+    const stageStateEntry = record.stageState[stageKey] ?? createDefaultStageStateEntry(stageKey);
+    if (stageStateEntry.status === 'pending') {
+      throw new Error('STAGE_PENDING');
+    }
+    if (stageStateEntry.status === 'approved') {
+      throw new Error('STAGE_ALREADY_APPROVED');
+    }
+    const workstream = await this.workstreamsRepository.findWorkstream(record.workstreamId);
+    if (!workstream) {
+      throw new Error('WORKSTREAM_NOT_FOUND');
+    }
+    const assignments = await this.workstreamsRepository.listAssignmentsByWorkstream(record.workstreamId);
+    const roleAssignments = buildRoleAssignmentsMap(assignments);
+    const rounds = isGateKey(stageKey) ? workstream.gates[stageKey] ?? [] : [];
+    if (!rounds.length) {
+      const approvedRecord = await this.finalizeStage(record, stageKey, stageStateEntry.roundIndex);
+      return toResponse(approvedRecord);
+    }
+    const firstRound = rounds[0];
+    const approvalsPayload = this.composeApprovalsPayload(record.id, stageKey, 0, firstRound, roleAssignments);
+    if (!approvalsPayload.length) {
+      throw new Error('MISSING_APPROVERS');
+    }
+    await this.repository.deleteApprovalsForStage(record.id, stageKey);
+    await this.repository.insertApprovals(approvalsPayload);
+    const nextStageState = {
+      ...record.stageState,
+      [stageKey]: { status: 'pending', roundIndex: 0, comment: null }
+    };
     const updatedModel: InitiativeWriteModel = {
-      id: record.id,
-      workstreamId: record.workstreamId,
-      name: record.name,
-      description: record.description,
-      ownerAccountId: record.ownerAccountId,
-      ownerName: record.ownerName,
-      currentStatus: record.currentStatus,
-      activeStage: desiredStage,
-      l4Date: record.l4Date,
-      stages: record.stages,
-      stageState: record.stageState
+      ...record,
+      stageState: nextStageState
+    };
+    const result = await this.repository.updateInitiative(updatedModel, record.version);
+    if (typeof result === 'string') {
+      await this.repository.deleteApprovalsForStage(record.id, stageKey);
+      if (result === 'version-conflict') {
+        throw new Error('VERSION_CONFLICT');
+      }
+      throw new Error('NOT_FOUND');
+    }
+    return toResponse(result);
+  }
+
+  async listApprovalTasks(filter: {
+    status?: InitiativeApprovalRecord['status'];
+    accountId?: string | null;
+  } = {}): Promise<InitiativeApprovalTask[]> {
+    const rows = await this.repository.listApprovalTaskRows(filter);
+    return rows.map((row) => this.mapApprovalTask(row));
+  }
+
+  async decideApproval(
+    approvalId: string,
+    decision: ApprovalDecision,
+    actorAccountId?: string,
+    comment?: string | null
+  ): Promise<InitiativeResponse> {
+    const approval = await this.repository.findApproval(approvalId);
+    if (!approval) {
+      throw new Error('APPROVAL_NOT_FOUND');
+    }
+    if (approval.status !== 'pending') {
+      const record = await this.repository.findInitiative(approval.initiativeId);
+      if (!record) {
+        throw new Error('NOT_FOUND');
+      }
+      return toResponse(record);
+    }
+    if (approval.accountId && actorAccountId && approval.accountId !== actorAccountId) {
+      throw new Error('FORBIDDEN');
+    }
+    const record = await this.repository.findInitiative(approval.initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    const stageKey = approval.stageKey;
+    if (record.activeStage !== stageKey) {
+      return toResponse(record);
+    }
+    const workstream = await this.workstreamsRepository.findWorkstream(record.workstreamId);
+    if (!workstream) {
+      throw new Error('WORKSTREAM_NOT_FOUND');
+    }
+    const nextStatus = decision === 'approve' ? 'approved' : decision === 'return' ? 'returned' : 'rejected';
+    await this.repository.updateApprovalStatus(approvalId, nextStatus, comment ?? null);
+
+    if (decision === 'return' || decision === 'reject') {
+      await this.repository.updateApprovalsForStage(
+        record.id,
+        stageKey,
+        ['pending'],
+        decision === 'return' ? 'returned' : 'rejected',
+        comment ?? null
+      );
+      const updated = await this.updateStageState(record, stageKey, {
+        status: decision === 'return' ? 'returned' : 'rejected',
+        roundIndex: approval.roundIndex,
+        comment: comment ?? null
+      });
+      return toResponse(updated);
+    }
+
+    const roundApprovals = await this.repository.listApprovalsForStage(record.id, stageKey, approval.roundIndex);
+    const roleTotals = new Map<string, { total: number; approved: number }>();
+    for (const entry of roundApprovals) {
+      const bucket = roleTotals.get(entry.role) ?? { total: 0, approved: 0 };
+      bucket.total += 1;
+      if (entry.status === 'approved') {
+        bucket.approved += 1;
+      }
+      roleTotals.set(entry.role, bucket);
+    }
+    const currentRound = isGateKey(stageKey) ? workstream.gates[stageKey]?.[approval.roundIndex] : null;
+    if (!currentRound) {
+      const updated = await this.finalizeStage(record, stageKey, approval.roundIndex);
+      return toResponse(updated);
+    }
+    const requirement = currentRound.approvers.find((item) => item.role === approval.role);
+    if (requirement && isRequirementSatisfied(requirement.rule, roleTotals.get(approval.role)?.approved ?? 0, roleTotals.get(approval.role)?.total ?? 0)) {
+      await this.repository.updateApprovalsForRole(
+        record.id,
+        stageKey,
+        approval.roundIndex,
+        approval.role,
+        ['pending'],
+        'approved',
+        'Auto-approved (rule satisfied)'
+      );
+    }
+    const roundSatisfied = currentRound.approvers.every((item) => {
+      const stats = roleTotals.get(item.role);
+      if (!stats) {
+        return false;
+      }
+      return isRequirementSatisfied(item.rule, stats.approved, stats.total);
+    });
+    if (!roundSatisfied) {
+      const updated = await this.repository.findInitiative(record.id);
+      return toResponse(updated ?? record);
+    }
+    const nextRoundIndex = approval.roundIndex + 1;
+    const rounds = isGateKey(stageKey) ? workstream.gates[stageKey] ?? [] : [];
+    if (nextRoundIndex >= rounds.length) {
+      const updated = await this.finalizeStage(record, stageKey, approval.roundIndex);
+      return toResponse(updated);
+    }
+    const assignments = await this.workstreamsRepository.listAssignmentsByWorkstream(record.workstreamId);
+    const payload = this.composeApprovalsPayload(record.id, stageKey, nextRoundIndex, rounds[nextRoundIndex], buildRoleAssignmentsMap(assignments));
+    if (!payload.length) {
+      throw new Error('MISSING_APPROVERS');
+    }
+    await this.repository.insertApprovals(payload);
+    const updated = await this.updateStageState(record, stageKey, {
+      status: 'pending',
+      roundIndex: nextRoundIndex,
+      comment: null
+    });
+    return toResponse(updated);
+  }
+
+  private composeApprovalsPayload(
+    initiativeId: string,
+    stageKey: InitiativeStageKey,
+    roundIndex: number,
+    round: WorkstreamApprovalRound,
+    roleAssignments: Map<string, string[]>
+  ) {
+    const approvals: Array<{
+      id: string;
+      initiativeId: string;
+      stageKey: InitiativeStageKey;
+      roundIndex: number;
+      role: string;
+      rule: InitiativeApprovalRule;
+      accountId: string | null;
+    }> = [];
+    for (const approver of round.approvers) {
+      const accounts = roleAssignments.get(approver.role) ?? [];
+      if (!accounts.length) {
+        throw new Error('MISSING_APPROVERS');
+      }
+      for (const accountId of accounts) {
+        approvals.push({
+          id: randomUUID(),
+          initiativeId,
+          stageKey,
+          roundIndex,
+          role: approver.role,
+          rule: approver.rule,
+          accountId
+        });
+      }
+    }
+    return approvals;
+  }
+
+  private async updateStageState(
+    record: InitiativeRecord,
+    stageKey: InitiativeStageKey,
+    nextState: InitiativeStageState
+  ): Promise<InitiativeRecord> {
+    const stageState = { ...record.stageState, [stageKey]: nextState };
+    const updatedModel: InitiativeWriteModel = {
+      ...record,
+      stageState
     };
     const result = await this.repository.updateInitiative(updatedModel, record.version);
     if (typeof result === 'string') {
@@ -345,6 +656,88 @@ export class InitiativesService {
       }
       throw new Error('NOT_FOUND');
     }
-    return toResponse(result);
+    return result;
+  }
+
+  private async finalizeStage(
+    record: InitiativeRecord,
+    stageKey: InitiativeStageKey,
+    roundIndex: number
+  ): Promise<InitiativeRecord> {
+    const nextStage = getNextStageKey(stageKey);
+    const nextStages = { ...record.stages };
+    if (nextStage && nextStage !== stageKey) {
+      nextStages[nextStage] = cloneStagePayload(nextStages[stageKey]);
+    }
+    const stageState = {
+      ...record.stageState,
+      [stageKey]: { status: 'approved', roundIndex, comment: null }
+    };
+    const updatedModel: InitiativeWriteModel = {
+      ...record,
+      activeStage: nextStage ?? record.activeStage,
+      stages: nextStages,
+      stageState
+    };
+    const result = await this.repository.updateInitiative(updatedModel, record.version);
+    if (typeof result === 'string') {
+      if (result === 'version-conflict') {
+        throw new Error('VERSION_CONFLICT');
+      }
+      throw new Error('NOT_FOUND');
+    }
+    await this.repository.deleteApprovalsForStage(record.id, stageKey);
+    return result;
+  }
+
+  private mapApprovalTask(row: ApprovalTaskRow): InitiativeApprovalTask {
+    const stageKey = normalizeStageKey(row.stage_key);
+    const stages = sanitizeStageMap(row.stage_payload);
+    const stageStateMap = sanitizeStageStateMap(row.stage_state);
+    const stage = stages[stageKey];
+    const stageState = stageStateMap[stageKey] ?? createDefaultStageStateEntry(stageKey);
+    const initiativeRecord: InitiativeRecord = {
+      id: row.initiative_id,
+      workstreamId: row.workstream_id,
+      name: row.initiative_name,
+      description: row.initiative_description ?? '',
+      ownerAccountId: row.owner_account_id,
+      ownerName: row.owner_name,
+      currentStatus: row.current_status,
+      activeStage: normalizeStageKey(row.active_stage),
+      l4Date: toIsoString(row.l4_date),
+      version: Number(row.version ?? 1),
+      createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
+      updatedAt: toIsoString(row.updated_at) ?? new Date().toISOString(),
+      stages,
+      stageState: stageStateMap
+    };
+    return {
+      id: row.id,
+      initiativeId: row.initiative_id,
+      initiativeName: row.initiative_name,
+      workstreamId: row.workstream_id,
+      workstreamName: row.workstream_name,
+      workstreamDescription: row.workstream_description ?? null,
+      stageKey,
+      roundIndex: Number(row.round_index ?? 0),
+      roundCount: readRoundCount(row.workstream_gates, stageKey),
+      role: row.role,
+      rule: (row.rule as InitiativeApprovalRule) ?? 'any',
+      status: row.status as InitiativeApprovalRecord['status'],
+      accountId: row.account_id ?? null,
+      accountName: row.account_name,
+      accountEmail: row.account_email,
+      requestedAt: toIsoString(row.created_at) ?? new Date().toISOString(),
+      decidedAt: toIsoString(row.decided_at),
+      ownerName: row.owner_name,
+      ownerAccountId: row.owner_account_id,
+      stage,
+      stageState,
+      totals: buildTotals(initiativeRecord),
+      roleTotal: Number(row.role_total ?? 0),
+      roleApproved: Number(row.role_approved ?? 0),
+      rolePending: Number(row.role_pending ?? 0)
+    };
   }
 }

@@ -5,9 +5,10 @@ import {
   InitiativeStageData,
   InitiativeStageKey,
   initiativeStageKeys,
-  initiativeStageLabels
+  initiativeStageLabels,
+  InitiativeStageState
 } from '../../../shared/types/initiative';
-import { Workstream } from '../../../shared/types/workstream';
+import { Workstream, WorkstreamGateKey } from '../../../shared/types/workstream';
 import { AccountRecord } from '../../../shared/types/account';
 import { StageGatePanel } from './StageGatePanel';
 import { FinancialEditor } from './FinancialEditor';
@@ -24,7 +25,7 @@ interface InitiativeProfileProps {
   onBack: (workstreamId?: string) => void;
   onSave: (initiative: Initiative, options: { closeAfterSave: boolean }) => Promise<DomainResult<Initiative>>;
   onDelete: (id: string) => Promise<DomainResult<string>>;
-  onAdvanceStage: (id: string, targetStage?: InitiativeStageKey) => Promise<DomainResult<Initiative>>;
+  onSubmitStage: (id: string) => Promise<DomainResult<Initiative>>;
 }
 
 type Banner = { type: 'info' | 'error'; text: string } | null;
@@ -90,6 +91,17 @@ const calculateTotals = (stages: Initiative['stages']) => {
   };
 };
 
+const createDefaultStageState = () =>
+  initiativeStageKeys.reduce(
+    (acc, key) => {
+      acc[key] = { status: key === 'l0' ? 'approved' : 'draft', roundIndex: 0, comment: null };
+      return acc;
+    },
+    {} as Initiative['stageState']
+  );
+
+const isGateStage = (key: InitiativeStageKey): key is WorkstreamGateKey => key !== 'l0';
+
 const createEmptyInitiative = (workstreamId?: string): Initiative => {
   const now = new Date().toISOString();
   const stages = initiativeStageKeys.reduce((acc, key) => {
@@ -111,6 +123,7 @@ const createEmptyInitiative = (workstreamId?: string): Initiative => {
     createdAt: now,
     updatedAt: now,
     stages,
+    stageState: createDefaultStageState(),
     totals: calculateTotals(stages)
   };
 };
@@ -138,7 +151,7 @@ export const InitiativeProfile = ({
   onBack,
   onSave,
   onDelete,
-  onAdvanceStage
+  onSubmitStage
 }: InitiativeProfileProps) => {
   const [draft, setDraft] = useState<Initiative>(() =>
     initiative ?? createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id)
@@ -147,7 +160,7 @@ export const InitiativeProfile = ({
   const [banner, setBanner] = useState<Banner>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isAdvancing, setIsAdvancing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
 
   useEffect(() => {
@@ -168,6 +181,42 @@ export const InitiativeProfile = ({
   const stageLocked = selectedIndex > activeIndex;
   const l4Date = draft.stages.l4.l4Date ?? draft.l4Date;
   const hasWorkstreams = workstreams.length > 0;
+  const currentStageState: InitiativeStageState =
+    draft.stageState[selectedStage] ??
+    { status: selectedStage === 'l0' ? 'approved' : 'draft', roundIndex: 0, comment: null };
+  const selectedWorkstream = workstreams.find((ws) => ws.id === draft.workstreamId) ?? null;
+  const stageRounds =
+    selectedWorkstream && isGateStage(selectedStage) ? selectedWorkstream.gates[selectedStage]?.length ?? 0 : 0;
+  const canSubmitStage = isStageEditable && currentStageState.status !== 'pending';
+  const stageStatusLabel = (() => {
+    switch (currentStageState.status) {
+      case 'pending':
+        return 'Awaiting approvals';
+      case 'approved':
+        return 'Gate approved';
+      case 'returned':
+        return 'Returned for updates';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return 'Draft';
+    }
+  })();
+  const stageStatusDetails = (() => {
+    if (currentStageState.status === 'pending') {
+      if (stageRounds > 0) {
+        return `Round ${Math.min(currentStageState.roundIndex + 1, stageRounds)} of ${stageRounds}`;
+      }
+      return `Round ${currentStageState.roundIndex + 1}`;
+    }
+    if (currentStageState.status === 'returned' || currentStageState.status === 'rejected') {
+      return 'Review the feedback below and resubmit.';
+    }
+    if (currentStageState.status === 'approved') {
+      return 'You can start preparing the next gate.';
+    }
+    return 'Not yet submitted.';
+  })();
 
   const clearErrors = (next: ValidationErrors) => {
     setErrors((prev) => ({ ...prev, ...next }));
@@ -298,32 +347,34 @@ export const InitiativeProfile = ({
     }
   };
 
-  const handleAdvanceClick = async () => {
+  const handleSubmitClick = async () => {
     if (!initiative) {
       return;
     }
-    const nextIndex = initiativeStageKeys.indexOf(draft.activeStage) + 1;
-    if (nextIndex >= initiativeStageKeys.length) {
+    if (!canSubmitStage) {
       return;
     }
-    const nextStage = initiativeStageKeys[nextIndex];
-    setIsAdvancing(true);
-    const result = await onAdvanceStage(initiative.id, nextStage);
-    setIsAdvancing(false);
+    setIsSubmitting(true);
+    const result = await onSubmitStage(initiative.id);
+    setIsSubmitting(false);
     if (!result.ok) {
       const message =
-        result.error === 'version-conflict'
-          ? 'Could not advance stage because the initiative was modified elsewhere.'
-          : result.error === 'invalid-input'
-            ? 'Stage progression must follow the gate order.'
-            : result.error === 'not-found'
-              ? 'Initiative not found. Please reload.'
-              : 'Failed to advance stage.';
+        result.error === 'stage-pending'
+          ? 'This stage is already awaiting approvals.'
+          : result.error === 'stage-approved'
+            ? 'The current stage has already been approved.'
+            : result.error === 'missing-approvers'
+              ? 'Assign account roles for all approvers in the workstream before submitting.'
+              : result.error === 'version-conflict'
+                ? 'Could not submit because the initiative was updated elsewhere.'
+                : result.error === 'not-found'
+                  ? 'Initiative not found. Please reload.'
+                  : 'Failed to submit the stage for approval.';
       setBanner({ type: 'error', text: message });
     } else {
       setDraft(result.data);
       setSelectedStage(result.data.activeStage);
-      setBanner({ type: 'info', text: 'Stage advanced.' });
+      setBanner({ type: 'info', text: 'Stage submitted for approval.' });
     }
   };
 
@@ -409,6 +460,7 @@ export const InitiativeProfile = ({
         activeStage={draft.activeStage}
         selectedStage={selectedStage}
         stages={draft.stages}
+        stageState={draft.stageState}
         onSelectStage={handleStageChange}
       />
 
@@ -422,12 +474,33 @@ export const InitiativeProfile = ({
             <h3>{initiativeStageLabels[selectedStage]}</h3>
             {!isStageEditable && <p className={styles.stageHint}>Fields are read-only for this gate.</p>}
           </div>
-          {mode === 'view' && selectedStage === draft.activeStage && draft.activeStage !== 'l5' && (
-            <button className={styles.secondaryButton} onClick={handleAdvanceClick} disabled={isAdvancing} type="button">
-              {isAdvancing ? 'Advancing…' : 'Approve stage'}
-            </button>
-          )}
+          {mode === 'view' && initiative && isStageEditable && !stageLocked && (
+              <button
+                className={styles.secondaryButton}
+                onClick={handleSubmitClick}
+                disabled={isSubmitting || !canSubmitStage}
+                type="button"
+              >
+                {currentStageState.status === 'pending'
+                  ? 'Waiting for approvals'
+                  : isSubmitting
+                    ? 'Submitting…'
+                    : 'Submit for next gate'}
+              </button>
+            )}
         </header>
+        <div className={styles.stageStatusRow}>
+          <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
+            {stageStatusLabel}
+          </span>
+          <span className={styles.stageStatusMeta}>{stageStatusDetails}</span>
+        </div>
+        {currentStageState.comment && currentStageState.status !== 'draft' && (
+          <div className={styles.stageAlert}>
+            <strong>Reviewer note:</strong>
+            <p>{currentStageState.comment}</p>
+          </div>
+        )}
 
         {stageLocked && <p className={styles.lockedNote}>Complete previous gates before editing this stage.</p>}
 

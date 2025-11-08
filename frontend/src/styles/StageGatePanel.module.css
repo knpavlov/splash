@@ -29,6 +29,16 @@
   color: #0f172a;
 }
 
+.stageStatus {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+}
+
 .current {
   border-color: #2563eb;
   box-shadow: 0 12px 24px rgba(37, 99, 235, 0.15);
@@ -50,4 +60,28 @@
 .selected .stageLabel,
 .selected .stageName {
   color: #fff;
+}
+
+.stage-pending {
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.stage-pending .stageStatus {
+  color: #1d4ed8;
+}
+
+.stage-approved {
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.stage-approved .stageStatus {
+  color: #047857;
+}
+
+.stage-returned .stageStatus {
+  color: #92400e;
+}
+
+.stage-rejected .stageStatus {
+  color: #b91c1c;
 }

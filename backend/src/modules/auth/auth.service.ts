@@ -74,7 +74,8 @@ export class AuthService {
     return {
       token: randomUUID(),
       role: account.role,
-      email: account.email
+      email: account.email,
+      accountId: account.id
     };
   }
 }

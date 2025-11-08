@@ -100,6 +100,62 @@
   font-size: 13px;
 }
 
+.stageStatusRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.stageStatusBadge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stageStatusMeta {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.stageAlert {
+  margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.status-draft {
+  background: rgba(148, 163, 184, 0.2);
+  color: #475569;
+}
+
+.status-pending {
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
+}
+
+.status-approved {
+  background: rgba(16, 185, 129, 0.18);
+  color: #047857;
+}
+
+.status-returned {
+  background: rgba(250, 204, 21, 0.2);
+  color: #92400e;
+}
+
+.status-rejected {
+  background: rgba(248, 113, 113, 0.2);
+  color: #b91c1c;
+}
+
 .lockedNote {
   margin: 0;
   padding: 12px;

@@ -83,6 +83,7 @@ interface AppStateContextValue {
       id: string,
       targetStage?: InitiativeStageKey
     ) => Promise<DomainResult<Initiative>>;
+    submitStage: (id: string) => Promise<DomainResult<Initiative>>;
   };
   candidates: {
     list: CandidateProfile[];
@@ -341,6 +342,15 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     };
     return acc;
   }, {} as Initiative['stages']);
+  const sanitizedStageState = initiativeStageKeys.reduce((acc, key) => {
+    const state = initiative.stageState[key];
+    acc[key] = {
+      status: state?.status ?? (key === 'l0' ? 'approved' : 'draft'),
+      roundIndex: Number.isFinite(state?.roundIndex) ? Number(state?.roundIndex) : 0,
+      comment: state?.comment?.trim() || null
+    };
+    return acc;
+  }, {} as Initiative['stageState']);
 
   return {
     ...initiative,
@@ -351,7 +361,8 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     currentStatus: trimmedStatus,
     ownerName: trimmedOwnerName,
     ownerAccountId: trimmedOwnerAccountId,
-    stages: sanitizedStages
+    stages: sanitizedStages,
+    stageState: sanitizedStageState
   };
 };
 
@@ -790,30 +801,63 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
           return { ok: false, error: 'unknown' };
         }
       },
-      advanceStage: async (id, targetStage) => {
+    advanceStage: async (id, targetStage) => {
+      const trimmed = id.trim();
+      if (!trimmed) {
+        return { ok: false, error: 'invalid-input' };
+      }
+      try {
+        const updated = await initiativesApi.advance(trimmed, targetStage);
+        setInitiatives((prev) =>
+          sortInitiativesByUpdated(prev.map((item) => (item.id === trimmed ? updated : item)))
+        );
+        return { ok: true, data: updated };
+      } catch (error) {
+        if (error instanceof ApiError) {
+          if (error.code === 'version-conflict') {
+            return { ok: false, error: 'version-conflict' };
+          }
+          if (error.code === 'not-found' || error.status === 404) {
+            return { ok: false, error: 'not-found' };
+          }
+          if (error.code === 'invalid-input') {
+            return { ok: false, error: 'invalid-input' };
+          }
+        }
+        console.error('Failed to advance initiative stage:', error);
+        return { ok: false, error: 'unknown' };
+      }
+      },
+      submitStage: async (id) => {
         const trimmed = id.trim();
         if (!trimmed) {
           return { ok: false, error: 'invalid-input' };
         }
         try {
-          const updated = await initiativesApi.advance(trimmed, targetStage);
+          const updated = await initiativesApi.submit(trimmed);
           setInitiatives((prev) =>
             sortInitiativesByUpdated(prev.map((item) => (item.id === trimmed ? updated : item)))
           );
           return { ok: true, data: updated };
         } catch (error) {
           if (error instanceof ApiError) {
+            if (error.code === 'stage-pending') {
+              return { ok: false, error: 'stage-pending' };
+            }
+            if (error.code === 'stage-approved') {
+              return { ok: false, error: 'stage-approved' };
+            }
+            if (error.code === 'missing-approvers') {
+              return { ok: false, error: 'missing-approvers' };
+            }
             if (error.code === 'version-conflict') {
               return { ok: false, error: 'version-conflict' };
             }
             if (error.code === 'not-found' || error.status === 404) {
               return { ok: false, error: 'not-found' };
             }
-            if (error.code === 'invalid-input') {
-              return { ok: false, error: 'invalid-input' };
-            }
           }
-          console.error('Failed to advance initiative stage:', error);
+          console.error('Failed to submit initiative stage:', error);
           return { ok: false, error: 'unknown' };
         }
       }

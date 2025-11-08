@@ -105,6 +105,8 @@ export interface InitiativeApprovalRow extends Record<string, unknown> {
   stage_key: string;
   round_index: number;
   role: string;
+  rule: string;
+  account_id: string | null;
   status: string;
   comment: string | null;
   created_at: Date;
@@ -113,14 +115,46 @@ export interface InitiativeApprovalRow extends Record<string, unknown> {
 
 export type ApprovalDecision = 'approve' | 'return' | 'reject';
 
+export type InitiativeApprovalRule = 'any' | 'all' | 'majority';
+
 export interface InitiativeApprovalRecord {
   id: string;
   initiativeId: string;
   stageKey: InitiativeStageKey;
   roundIndex: number;
   role: string;
+  rule: InitiativeApprovalRule;
+  accountId: string | null;
   status: 'pending' | 'approved' | 'returned' | 'rejected';
   comment: string | null;
   createdAt: string;
   decidedAt: string | null;
+}
+
+export interface InitiativeApprovalTask {
+  id: string;
+  initiativeId: string;
+  initiativeName: string;
+  workstreamId: string;
+  workstreamName: string;
+  stageKey: InitiativeStageKey;
+  roundIndex: number;
+  roundCount: number;
+  role: string;
+  rule: InitiativeApprovalRule;
+  status: 'pending' | 'approved' | 'returned' | 'rejected';
+  accountId: string | null;
+  accountName: string | null;
+  accountEmail: string | null;
+  requestedAt: string;
+  decidedAt: string | null;
+  ownerName: string | null;
+  ownerAccountId: string | null;
+  stage: InitiativeStagePayload;
+  stageState: InitiativeStageState;
+  totals: InitiativeTotals;
+  workstreamDescription: string | null;
+  roleTotal: number;
+  roleApproved: number;
+  rolePending: number;
 }

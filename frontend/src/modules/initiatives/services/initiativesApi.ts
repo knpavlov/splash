@@ -7,7 +7,8 @@ import {
   InitiativeStageData,
   InitiativeStageMap,
   InitiativeTotals,
-  InitiativeStageKey
+  InitiativeStageKey,
+  InitiativeStageStateMap
 } from '../../../shared/types/initiative';
 
 const toIsoString = (value: unknown): string | null => {
@@ -130,6 +131,41 @@ const normalizeStageMap = (value: unknown): InitiativeStageMap => {
   return map;
 };
 
+const createDefaultStageState = (): InitiativeStageStateMap =>
+  initiativeStageKeys.reduce(
+    (acc, key) => {
+      acc[key] = { status: key === 'l0' ? 'approved' : 'draft', roundIndex: 0, comment: null };
+      return acc;
+    },
+    {} as InitiativeStageStateMap
+  );
+
+const normalizeStageState = (value: unknown): InitiativeStageStateMap => {
+  const base = createDefaultStageState();
+  if (!value || typeof value !== 'object') {
+    return base;
+  }
+  const payload = value as Record<string, unknown>;
+  for (const key of initiativeStageKeys) {
+    const raw = payload[key];
+    if (!raw || typeof raw !== 'object') {
+      continue;
+    }
+    const entry = raw as { status?: unknown; roundIndex?: unknown; comment?: unknown };
+    const status =
+      entry.status === 'pending' ||
+      entry.status === 'approved' ||
+      entry.status === 'returned' ||
+      entry.status === 'rejected'
+        ? entry.status
+        : base[key].status;
+    const roundIndex = typeof entry.roundIndex === 'number' ? entry.roundIndex : base[key].roundIndex;
+    const comment = typeof entry.comment === 'string' ? entry.comment : null;
+    base[key] = { status, roundIndex, comment };
+  }
+  return base;
+};
+
 const normalizeTotals = (value: unknown): InitiativeTotals => {
   if (!value || typeof value !== 'object') {
     return {
@@ -177,6 +213,7 @@ const normalizeInitiative = (value: unknown): Initiative | null => {
   const updatedAt = toIsoString(payload.updatedAt) ?? createdAt;
   const l4Date = toIsoString(payload.l4Date);
   const stages = normalizeStageMap(payload.stages);
+  const stageState = normalizeStageState(payload.stageState);
   const totals = normalizeTotals(payload.totals);
 
   return {
@@ -193,6 +230,7 @@ const normalizeInitiative = (value: unknown): Initiative | null => {
     createdAt,
     updatedAt,
     stages,
+    stageState,
     totals
   };
 };
@@ -238,6 +276,12 @@ export const initiativesApi = {
       await apiRequest<unknown>(`/initiatives/${id}/advance`, {
         method: 'POST',
         body: targetStage ? { targetStage } : undefined
+      })
+    ),
+  submit: async (id: string) =>
+    ensureInitiative(
+      await apiRequest<unknown>(`/initiatives/${id}/submit`, {
+        method: 'POST'
       })
     )
 };

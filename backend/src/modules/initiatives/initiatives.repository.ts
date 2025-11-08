@@ -15,6 +15,30 @@ import {
   InitiativeApprovalRecord
 } from './initiatives.types.js';
 
+export interface ApprovalTaskRow extends InitiativeApprovalRow {
+  initiative_name: string;
+  initiative_description: string | null;
+  workstream_id: string;
+  workstream_name: string;
+  workstream_description: string | null;
+  workstream_gates: unknown;
+  owner_name: string | null;
+  owner_account_id: string | null;
+  current_status: string;
+  active_stage: string;
+  version: number;
+  created_at: Date;
+  updated_at: Date;
+  l4_date: Date | null;
+  stage_payload: unknown;
+  stage_state: unknown;
+  account_name: string | null;
+  account_email: string | null;
+  role_total: number;
+  role_approved: number;
+  role_pending: number;
+}
+
 const toIsoString = (value: Date | null | undefined) =>
   value instanceof Date ? value.toISOString() : value ? new Date(value).toISOString() : null;
 
@@ -283,6 +307,8 @@ export class InitiativesRepository {
       stageKey: normalizeStageKey(row.stage_key) as InitiativeApprovalRecord['stageKey'],
       roundIndex: Number(row.round_index ?? 0),
       role: row.role,
+      rule: (row.rule as InitiativeApprovalRecord['rule']) ?? 'any',
+      accountId: row.account_id ?? null,
       status: row.status as InitiativeApprovalRecord['status'],
       comment: row.comment,
       createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
@@ -307,6 +333,8 @@ export class InitiativesRepository {
       stageKey: normalizeStageKey(row.stage_key),
       roundIndex: Number(row.round_index ?? 0),
       role: row.role,
+      rule: (row.rule as InitiativeApprovalRecord['rule']) ?? 'any',
+      accountId: row.account_id ?? null,
       status: row.status as InitiativeApprovalRecord['status'],
       comment: row.comment,
       createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
@@ -315,22 +343,30 @@ export class InitiativesRepository {
   }
 
   async insertApprovals(
-    approvals: Array<{ id: string; initiativeId: string; stageKey: InitiativeStageKey; roundIndex: number; role: string }>
+    approvals: Array<{
+      id: string;
+      initiativeId: string;
+      stageKey: InitiativeStageKey;
+      roundIndex: number;
+      role: string;
+      rule: InitiativeApprovalRecord['rule'];
+      accountId: string | null;
+    }>
   ) {
     for (const approval of approvals) {
       await postgresPool.query(
-        `INSERT INTO workstream_initiative_approvals (id, initiative_id, stage_key, round_index, role, status, created_at)
-         VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
-         ON CONFLICT (initiative_id, stage_key, round_index, role)
+        `INSERT INTO workstream_initiative_approvals (id, initiative_id, stage_key, round_index, role, rule, account_id, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW())
+         ON CONFLICT (initiative_id, stage_key, round_index, role, account_id)
          DO NOTHING;`,
-        [approval.id, approval.initiativeId, approval.stageKey, approval.roundIndex, approval.role]
+        [approval.id, approval.initiativeId, approval.stageKey, approval.roundIndex, approval.role, approval.rule, approval.accountId]
       );
     }
   }
 
   async updateApprovalStatus(
     id: string,
-    status: 'approved' | 'returned' | 'rejected',
+    status: 'approved' | 'returned' | 'rejected' | 'pending',
     comment?: string | null
   ): Promise<InitiativeApprovalRecord | null> {
     const result = await postgresPool.query<InitiativeApprovalRow>(
@@ -352,10 +388,140 @@ export class InitiativesRepository {
       stageKey: normalizeStageKey(row.stage_key),
       roundIndex: Number(row.round_index ?? 0),
       role: row.role,
+      rule: (row.rule as InitiativeApprovalRecord['rule']) ?? 'any',
+      accountId: row.account_id ?? null,
       status: row.status as InitiativeApprovalRecord['status'],
       comment: row.comment,
       createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
       decidedAt: toIsoString(row.decided_at)
     };
+  }
+
+  async findApproval(id: string): Promise<InitiativeApprovalRecord | null> {
+    const result = await postgresPool.query<InitiativeApprovalRow>(
+      'SELECT * FROM workstream_initiative_approvals WHERE id = $1 LIMIT 1;',
+      [id]
+    );
+    const row = result.rows?.[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      initiativeId: row.initiative_id,
+      stageKey: normalizeStageKey(row.stage_key),
+      roundIndex: Number(row.round_index ?? 0),
+      role: row.role,
+      rule: (row.rule as InitiativeApprovalRecord['rule']) ?? 'any',
+      accountId: row.account_id ?? null,
+      status: row.status as InitiativeApprovalRecord['status'],
+      comment: row.comment,
+      createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
+      decidedAt: toIsoString(row.decided_at)
+    };
+  }
+
+  async deleteApprovalsForStage(initiativeId: string, stageKey: InitiativeStageKey): Promise<void> {
+    await postgresPool.query(
+      `DELETE FROM workstream_initiative_approvals
+        WHERE initiative_id = $1 AND stage_key = $2;`,
+      [initiativeId, stageKey]
+    );
+  }
+
+  async updateApprovalsForRole(
+    initiativeId: string,
+    stageKey: InitiativeStageKey,
+    roundIndex: number,
+    role: string,
+    fromStatuses: InitiativeApprovalRecord['status'][],
+    nextStatus: InitiativeApprovalRecord['status'],
+    comment?: string | null
+  ): Promise<void> {
+    await postgresPool.query(
+      `UPDATE workstream_initiative_approvals
+          SET status = $6,
+              comment = COALESCE($7, comment),
+              decided_at = CASE WHEN $6 <> 'pending' THEN NOW() ELSE decided_at END
+        WHERE initiative_id = $1
+          AND stage_key = $2
+          AND round_index = $3
+          AND role = $4
+          AND status = ANY($5::text[]);`,
+      [initiativeId, stageKey, roundIndex, role, fromStatuses, nextStatus, comment ?? null]
+    );
+  }
+
+  async updateApprovalsForStage(
+    initiativeId: string,
+    stageKey: InitiativeStageKey,
+    fromStatuses: InitiativeApprovalRecord['status'][],
+    nextStatus: InitiativeApprovalRecord['status'],
+    comment?: string | null
+  ): Promise<void> {
+    await postgresPool.query(
+      `UPDATE workstream_initiative_approvals
+          SET status = $4,
+              comment = COALESCE($5, comment),
+              decided_at = CASE WHEN $4 <> 'pending' THEN NOW() ELSE decided_at END
+        WHERE initiative_id = $1
+          AND stage_key = $2
+          AND status = ANY($3::text[]);`,
+      [initiativeId, stageKey, fromStatuses, nextStatus, comment ?? null]
+    );
+  }
+
+  async listApprovalTaskRows(filter: {
+    status?: InitiativeApprovalRecord['status'];
+    accountId?: string | null;
+  } = {}): Promise<ApprovalTaskRow[]> {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (filter.status) {
+      params.push(filter.status);
+      conditions.push(`wa.status = $${params.length}`);
+    }
+    if (filter.accountId) {
+      params.push(filter.accountId);
+      conditions.push(`wa.account_id = $${params.length}`);
+    }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const partition =
+      'PARTITION BY wa.initiative_id, wa.stage_key, wa.round_index, wa.role';
+    const result = await postgresPool.query<ApprovalTaskRow>(
+      `
+        SELECT
+          wa.*,
+          i.name AS initiative_name,
+          i.description AS initiative_description,
+          i.workstream_id,
+          i.current_status,
+          i.active_stage,
+          i.version,
+          i.created_at,
+          i.updated_at,
+          i.l4_date,
+          i.stage_payload,
+          i.stage_state,
+          i.owner_name,
+          i.owner_account_id,
+          w.name AS workstream_name,
+          w.description AS workstream_description,
+          w.gates AS workstream_gates,
+          a.name AS account_name,
+          a.email AS account_email,
+          COUNT(*) OVER (${partition}) AS role_total,
+          COUNT(*) FILTER (WHERE wa.status = 'approved') OVER (${partition}) AS role_approved,
+          COUNT(*) FILTER (WHERE wa.status = 'pending') OVER (${partition}) AS role_pending
+        FROM workstream_initiative_approvals wa
+        JOIN workstream_initiatives i ON i.id = wa.initiative_id
+        JOIN workstreams w ON w.id = i.workstream_id
+        LEFT JOIN accounts a ON a.id = wa.account_id
+        ${whereClause}
+        ORDER BY wa.created_at ASC;
+      `,
+      params
+    );
+    return result.rows ?? [];
   }
 }

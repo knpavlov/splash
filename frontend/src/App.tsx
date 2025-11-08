@@ -16,6 +16,7 @@ import { InterviewerScreen } from './modules/evaluation/InterviewerScreen';
 import { useHasInterviewerAssignments } from './app/hooks/useHasInterviewerAssignments';
 import { AnalyticsScreen } from './modules/analytics/AnalyticsScreen';
 import { InitiativesScreen, InitiativesViewRoute } from './modules/initiatives/InitiativesScreen';
+import { ApprovalsScreen } from './modules/approvals/ApprovalsScreen';
 
 interface AppRoute {
   page: NavigationKey;
@@ -252,6 +253,8 @@ const AppContent = () => {
             onViewChange={(next) => updateRoute({ page: 'initiatives', initiative: next })}
           />
         );
+      case 'approvals':
+        return <ApprovalsScreen />;
       case 'candidates':
         return <CandidatesScreen />;
       case 'evaluation':

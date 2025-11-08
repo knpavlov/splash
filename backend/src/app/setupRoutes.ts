@@ -12,6 +12,7 @@ import { authRouter } from '../modules/auth/auth.router.js';
 import { demoRouter } from '../modules/demo/demo.router.js';
 import { workstreamsRouter } from '../modules/workstreams/workstreams.router.js';
 import { initiativesRouter } from '../modules/initiatives/initiatives.router.js';
+import { approvalsRouter } from '../modules/approvals/approvals.router.js';
 
 export const registerAppRoutes = (app: Application) => {
   // TODO: add middleware for authentication and request logging
@@ -27,5 +28,6 @@ export const registerAppRoutes = (app: Application) => {
   app.use('/analytics', analyticsRouter);
   app.use('/workstreams', workstreamsRouter);
   app.use('/initiatives', initiativesRouter);
+  app.use('/approvals', approvalsRouter);
   app.use('/demo', demoRouter);
 };

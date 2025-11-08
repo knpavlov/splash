@@ -6,6 +6,7 @@ export type NavigationKey =
   | 'questions'
   | 'workstreams'
   | 'initiatives'
+  | 'approvals'
   | 'candidates'
   | 'evaluation'
   | 'interviews'
@@ -24,6 +25,7 @@ export const navigationItems: NavigationItem[] = [
   { key: 'questions', label: 'Fit questions', roleAccess: ['super-admin', 'admin'] },
   { key: 'workstreams', label: 'Workstreams', roleAccess: ['super-admin', 'admin'] },
   { key: 'initiatives', label: 'Initiatives', roleAccess: ['super-admin', 'admin'] },
+  { key: 'approvals', label: 'Approvals', roleAccess: ['super-admin', 'admin', 'user'] },
   { key: 'candidates', label: 'Candidate database', roleAccess: ['super-admin', 'admin'] },
   { key: 'evaluation', label: 'Evaluations', roleAccess: ['super-admin', 'admin'] },
   { key: 'interviews', label: 'Interviews', roleAccess: ['super-admin', 'admin', 'user'] },

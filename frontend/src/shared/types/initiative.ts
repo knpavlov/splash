@@ -39,6 +39,16 @@ export interface InitiativeStageData {
 
 export type InitiativeStageMap = Record<InitiativeStageKey, InitiativeStageData>;
 
+export type InitiativeStageStatus = 'draft' | 'pending' | 'approved' | 'returned' | 'rejected';
+
+export interface InitiativeStageState {
+  status: InitiativeStageStatus;
+  roundIndex: number;
+  comment?: string | null;
+}
+
+export type InitiativeStageStateMap = Record<InitiativeStageKey, InitiativeStageState>;
+
 export interface InitiativeTotals {
   recurringBenefits: number;
   recurringCosts: number;
@@ -61,6 +71,7 @@ export interface Initiative {
   createdAt: string;
   updatedAt: string;
   stages: InitiativeStageMap;
+  stageState: InitiativeStageStateMap;
   totals: InitiativeTotals;
 }
 
