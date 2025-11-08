@@ -1,0 +1,455 @@
+import { useEffect, useMemo, useState } from 'react';
+import styles from '../../../styles/InitiativeProfile.module.css';
+import {
+  Initiative,
+  InitiativeStageData,
+  InitiativeStageKey,
+  initiativeStageKeys,
+  initiativeStageLabels
+} from '../../../shared/types/initiative';
+import { Workstream } from '../../../shared/types/workstream';
+import { AccountRecord } from '../../../shared/types/account';
+import { StageGatePanel } from './StageGatePanel';
+import { FinancialEditor } from './FinancialEditor';
+import { generateId } from '../../../shared/ui/generateId';
+import { DomainResult } from '../../../shared/types/results';
+import { resolveAccountName } from '../../../shared/utils/accountName';
+
+interface InitiativeProfileProps {
+  mode: 'create' | 'view';
+  initiative: Initiative | null;
+  workstreams: Workstream[];
+  accounts: AccountRecord[];
+  initialWorkstreamId?: string;
+  onBack: (workstreamId?: string) => void;
+  onSave: (initiative: Initiative, options: { closeAfterSave: boolean }) => Promise<DomainResult<Initiative>>;
+  onDelete: (id: string) => Promise<DomainResult<string>>;
+  onAdvanceStage: (id: string, targetStage?: InitiativeStageKey) => Promise<DomainResult<Initiative>>;
+}
+
+type Banner = { type: 'info' | 'error'; text: string } | null;
+
+const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
+  key,
+  name: '',
+  description: '',
+  periodMonth: null,
+  periodYear: new Date().getFullYear(),
+  l4Date: null,
+  financials: {
+    'recurring-benefits': [],
+    'recurring-costs': [],
+    'oneoff-benefits': [],
+    'oneoff-costs': []
+  }
+});
+
+const calculateTotals = (stages: Initiative['stages']) => {
+  const sum = (kind: keyof Initiative['totals']) => {
+    let total = 0;
+    for (const stageKey of initiativeStageKeys) {
+      const entries = stages[stageKey].financials[
+        kind === 'recurringBenefits'
+          ? 'recurring-benefits'
+          : kind === 'recurringCosts'
+            ? 'recurring-costs'
+            : kind === 'oneoffBenefits'
+              ? 'oneoff-benefits'
+              : 'oneoff-costs'
+      ];
+      for (const entry of entries) {
+        for (const value of Object.values(entry.distribution)) {
+          if (Number.isFinite(value)) {
+            total += value;
+          }
+        }
+      }
+    }
+    return total;
+  };
+
+  const recurringBenefits = sum('recurringBenefits');
+  const recurringCosts = sum('recurringCosts');
+  const oneoffBenefits = sum('oneoffBenefits');
+  const oneoffCosts = sum('oneoffCosts');
+
+  return {
+    recurringBenefits,
+    recurringCosts,
+    oneoffBenefits,
+    oneoffCosts,
+    recurringImpact: recurringBenefits - recurringCosts
+  };
+};
+
+const createEmptyInitiative = (workstreamId?: string): Initiative => {
+  const now = new Date().toISOString();
+  const stages = initiativeStageKeys.reduce((acc, key) => {
+    acc[key] = createEmptyStage(key);
+    return acc;
+  }, {} as Initiative['stages']);
+
+  return {
+    id: generateId(),
+    workstreamId: workstreamId ?? '',
+    name: '',
+    description: '',
+    ownerAccountId: null,
+    ownerName: null,
+    currentStatus: 'draft',
+    activeStage: 'l0',
+    l4Date: null,
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+    stages,
+    totals: calculateTotals(stages)
+  };
+};
+
+const formatImpact = (value: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+
+const formatDate = (value: string | null) => {
+  if (!value) {
+    return '—';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
+};
+
+export const InitiativeProfile = ({
+  mode,
+  initiative,
+  workstreams,
+  accounts,
+  initialWorkstreamId,
+  onBack,
+  onSave,
+  onDelete,
+  onAdvanceStage
+}: InitiativeProfileProps) => {
+  const [draft, setDraft] = useState<Initiative>(() =>
+    initiative ?? createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id)
+  );
+  const [selectedStage, setSelectedStage] = useState<InitiativeStageKey>(draft.activeStage);
+  const [banner, setBanner] = useState<Banner>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isAdvancing, setIsAdvancing] = useState(false);
+
+  useEffect(() => {
+    if (initiative) {
+      setDraft(initiative);
+      setSelectedStage(initiative.activeStage);
+    } else {
+      setDraft(createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id));
+      setSelectedStage('l0');
+    }
+  }, [initiative, initialWorkstreamId, workstreams]);
+
+  const currentStage = draft.stages[selectedStage];
+  const activeIndex = initiativeStageKeys.indexOf(draft.activeStage);
+  const selectedIndex = initiativeStageKeys.indexOf(selectedStage);
+  const isStageEditable = selectedIndex === activeIndex;
+  const stageLocked = selectedIndex > activeIndex;
+  const l4Date = draft.stages.l4.l4Date ?? draft.l4Date;
+
+  const handleFieldChange = <K extends keyof Initiative>(key: K, value: Initiative[K]) => {
+    setDraft((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleStageChange = (stageKey: InitiativeStageKey) => {
+    setSelectedStage(stageKey);
+  };
+
+  const updateStage = (stageKey: InitiativeStageKey, nextStage: InitiativeStageData) => {
+    setDraft((prev) => {
+      const stages = { ...prev.stages, [stageKey]: nextStage };
+      return { ...prev, stages, totals: calculateTotals(stages) };
+    });
+  };
+
+  const handleStageFieldChange = <K extends keyof InitiativeStageData>(key: K, value: InitiativeStageData[K]) => {
+    updateStage(selectedStage, { ...currentStage, [key]: value });
+  };
+
+  const handleOwnerSelect = (accountId: string) => {
+    if (!accountId) {
+      handleFieldChange('ownerAccountId', null);
+      return;
+    }
+    const account = accounts.find((item) => item.id === accountId);
+    const ownerName = account ? resolveAccountName(account) || account.email : '';
+    handleFieldChange('ownerAccountId', account ? account.id : null);
+    handleFieldChange('ownerName', ownerName);
+  };
+
+  const handleSaveClick = async (closeAfterSave: boolean) => {
+    setIsSaving(true);
+    setBanner(null);
+    const result = await onSave(draft, { closeAfterSave });
+    setIsSaving(false);
+    if (!result.ok) {
+      const message =
+        result.error === 'version-conflict'
+          ? 'Changes could not be saved because the initiative was updated elsewhere.'
+          : result.error === 'invalid-input'
+            ? 'Fill in the required fields before saving.'
+            : result.error === 'not-found'
+              ? 'Initiative not found. Please reload.'
+              : 'Failed to save initiative.';
+      setBanner({ type: 'error', text: message });
+    } else {
+      setDraft(result.data);
+      setSelectedStage(result.data.activeStage);
+      setBanner({ type: 'info', text: 'Initiative saved.' });
+    }
+  };
+
+  const handleDeleteClick = async () => {
+    if (!initiative) {
+      onBack(draft.workstreamId);
+      return;
+    }
+    const confirmed = window.confirm('Delete this initiative permanently?');
+    if (!confirmed) {
+      return;
+    }
+    setIsDeleting(true);
+    const result = await onDelete(initiative.id);
+    setIsDeleting(false);
+    if (!result.ok) {
+      setBanner({ type: 'error', text: result.error === 'not-found' ? 'Initiative already removed.' : 'Failed to delete initiative.' });
+    }
+  };
+
+  const handleAdvanceClick = async () => {
+    if (!initiative) {
+      return;
+    }
+    const nextIndex = initiativeStageKeys.indexOf(draft.activeStage) + 1;
+    if (nextIndex >= initiativeStageKeys.length) {
+      return;
+    }
+    const nextStage = initiativeStageKeys[nextIndex];
+    setIsAdvancing(true);
+    const result = await onAdvanceStage(initiative.id, nextStage);
+    setIsAdvancing(false);
+    if (!result.ok) {
+      const message =
+        result.error === 'version-conflict'
+          ? 'Could not advance stage because the initiative was modified elsewhere.'
+          : result.error === 'invalid-input'
+            ? 'Stage progression must follow the gate order.'
+            : result.error === 'not-found'
+              ? 'Initiative not found. Please reload.'
+              : 'Failed to advance stage.';
+      setBanner({ type: 'error', text: message });
+    } else {
+      setDraft(result.data);
+      setSelectedStage(result.data.activeStage);
+      setBanner({ type: 'info', text: 'Stage advanced.' });
+    }
+  };
+
+  if (mode === 'view' && !initiative) {
+    return (
+      <section className={styles.placeholder}>
+        <h2>Initiative not found</h2>
+        <p>The initiative may have been deleted. Refresh the list and try again.</p>
+        <button className={styles.secondaryButton} onClick={() => onBack()} type="button">
+          Back to list
+        </button>
+      </section>
+    );
+  }
+
+  const hasWorkstreams = workstreams.length > 0;
+
+  return (
+    <section className={styles.profileWrapper}>
+      <button className={styles.backLink} onClick={() => onBack(draft.workstreamId)} type="button">
+        ← Back to initiatives
+      </button>
+
+      <div className={styles.quickInfoCard}>
+        <div>
+          <p className={styles.quickLabel}>Initiative</p>
+          <h2>{draft.name || 'Unnamed initiative'}</h2>
+        </div>
+        <div>
+          <p className={styles.quickLabel}>Owner</p>
+          <h3>{draft.ownerName || 'Unassigned'}</h3>
+        </div>
+        <div>
+          <p className={styles.quickLabel}>Recurring impact</p>
+          <h1 className={styles.impactValue}>{formatImpact(draft.totals.recurringImpact)}</h1>
+        </div>
+        <div>
+          <p className={styles.quickLabel}>L4 date</p>
+          <h3>{formatDate(l4Date)}</h3>
+        </div>
+      </div>
+
+      <div className={styles.metaGrid}>
+        <label>
+          <span>Workstream</span>
+          <select
+            value={draft.workstreamId}
+            onChange={(event) => handleFieldChange('workstreamId', event.target.value)}
+            disabled={!hasWorkstreams}
+          >
+            {!hasWorkstreams && <option value="">Create a workstream first</option>}
+            {workstreams.map((ws) => (
+              <option key={ws.id} value={ws.id}>
+                {ws.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Current status</span>
+          <input
+            type="text"
+            value={draft.currentStatus}
+            onChange={(event) => handleFieldChange('currentStatus', event.target.value)}
+          />
+        </label>
+        <label>
+          <span>Initiative owner</span>
+          <select
+            value={draft.ownerAccountId ?? ''}
+            onChange={(event) => handleOwnerSelect(event.target.value)}
+          >
+            <option value="">No linked account</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>
+                {resolveAccountName(account) || account.email}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Custom owner name</span>
+          <input
+            type="text"
+            value={draft.ownerName ?? ''}
+            onChange={(event) => handleFieldChange('ownerName', event.target.value)}
+          />
+        </label>
+      </div>
+
+      <StageGatePanel
+        activeStage={draft.activeStage}
+        selectedStage={selectedStage}
+        stages={draft.stages}
+        onSelectStage={handleStageChange}
+      />
+
+      {banner && (
+        <div className={banner.type === 'info' ? styles.bannerInfo : styles.bannerError}>{banner.text}</div>
+      )}
+
+      <div className={styles.stagePanel}>
+        <header className={styles.stageHeader}>
+          <div>
+            <h3>{initiativeStageLabels[selectedStage]}</h3>
+            {!isStageEditable && <p className={styles.stageHint}>Fields are read-only for this gate.</p>}
+          </div>
+          {mode === 'view' && selectedStage === draft.activeStage && draft.activeStage !== 'l5' && (
+            <button className={styles.secondaryButton} onClick={handleAdvanceClick} disabled={isAdvancing} type="button">
+              {isAdvancing ? 'Advancing…' : 'Approve stage'}
+            </button>
+          )}
+        </header>
+
+        {stageLocked && <p className={styles.lockedNote}>Complete previous gates before editing this stage.</p>}
+
+        <label className={styles.fieldBlock}>
+          <span>Initiative name</span>
+          <input
+            type="text"
+            value={currentStage.name}
+            onChange={(event) => handleStageFieldChange('name', event.target.value)}
+            disabled={!isStageEditable}
+          />
+        </label>
+
+        <label className={styles.fieldBlock}>
+          <span>Description</span>
+          <textarea
+            value={currentStage.description}
+            onChange={(event) => handleStageFieldChange('description', event.target.value)}
+            disabled={!isStageEditable}
+            rows={4}
+          />
+        </label>
+
+        <div className={styles.periodRow}>
+          <label>
+            <span>Period month</span>
+            <select
+              value={currentStage.periodMonth ?? ''}
+              onChange={(event) => handleStageFieldChange('periodMonth', Number(event.target.value) || null)}
+              disabled={!isStageEditable}
+            >
+              <option value="">Not set</option>
+              {Array.from({ length: 12 }).map((_, index) => (
+                <option key={index + 1} value={index + 1}>
+                  {new Date(2000, index, 1).toLocaleString('en-US', { month: 'short' })}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Period year</span>
+            <input
+              type="number"
+              value={currentStage.periodYear ?? ''}
+              onChange={(event) => handleStageFieldChange('periodYear', Number(event.target.value) || null)}
+              disabled={!isStageEditable}
+            />
+          </label>
+          {selectedStage === 'l4' && (
+            <label>
+              <span>L4 date</span>
+              <input
+                type="date"
+                value={currentStage.l4Date ?? ''}
+                onChange={(event) => handleStageFieldChange('l4Date', event.target.value)}
+                disabled={!isStageEditable}
+              />
+            </label>
+          )}
+        </div>
+
+        <FinancialEditor
+          stage={currentStage}
+          disabled={!isStageEditable}
+          onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+        />
+      </div>
+
+      <footer className={styles.footer}>
+        <button className={styles.secondaryButton} onClick={() => onBack(draft.workstreamId)} type="button">
+          Cancel
+        </button>
+        {mode === 'view' && (
+          <button className={styles.dangerButton} onClick={handleDeleteClick} disabled={isDeleting} type="button">
+            {isDeleting ? 'Deleting…' : 'Delete'}
+          </button>
+        )}
+        <button className={styles.secondaryButton} onClick={() => handleSaveClick(false)} disabled={isSaving} type="button">
+          {isSaving ? 'Saving…' : 'Save'}
+        </button>
+        <button className={styles.primaryButton} onClick={() => handleSaveClick(true)} disabled={isSaving} type="button">
+          {isSaving ? 'Saving…' : 'Save and close'}
+        </button>
+      </footer>
+    </section>
+  );
+};

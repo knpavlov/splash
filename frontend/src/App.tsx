@@ -15,10 +15,12 @@ import { CaseCriteriaScreen } from './modules/caseCriteria/CaseCriteriaScreen';
 import { InterviewerScreen } from './modules/evaluation/InterviewerScreen';
 import { useHasInterviewerAssignments } from './app/hooks/useHasInterviewerAssignments';
 import { AnalyticsScreen } from './modules/analytics/AnalyticsScreen';
+import { InitiativesScreen, InitiativesViewRoute } from './modules/initiatives/InitiativesScreen';
 
 interface AppRoute {
   page: NavigationKey;
   evaluation?: EvaluationViewRoute;
+  initiative?: InitiativesViewRoute;
 }
 
 type NavigationItem = (typeof navigationItems)[number];
@@ -31,24 +33,6 @@ const normalizeEvaluationRoute = (value?: EvaluationViewRoute): EvaluationViewRo
     return { mode: 'list' };
   }
   return value;
-};
-
-const routesEqual = (a: AppRoute, b: AppRoute) => {
-  if (a.page !== b.page) {
-    return false;
-  }
-  if (a.page !== 'evaluation') {
-    return true;
-  }
-  const left = normalizeEvaluationRoute(a.evaluation);
-  const right = normalizeEvaluationRoute(b.evaluation);
-  if (left.mode !== right.mode) {
-    return false;
-  }
-  if (left.mode === 'edit' && right.mode === 'edit') {
-    return left.evaluationId === right.evaluationId;
-  }
-  return true;
 };
 
 const parseHash = (hash: string): AppRoute => {
@@ -72,6 +56,19 @@ const parseHash = (hash: string): AppRoute => {
     return { page: 'evaluation', evaluation: { mode: 'list' } };
   }
 
+  if (page === 'initiatives') {
+    if (action === 'new') {
+      return { page: 'initiatives', initiative: { mode: 'create', workstreamId: identifier || undefined } };
+    }
+    if (action === 'view' && identifier) {
+      return { page: 'initiatives', initiative: { mode: 'view', initiativeId: identifier } };
+    }
+    if (action === 'ws' && identifier) {
+      return { page: 'initiatives', initiative: { mode: 'list', workstreamId: identifier } };
+    }
+    return { page: 'initiatives', initiative: { mode: 'list' } };
+  }
+
   return { page };
 };
 
@@ -87,7 +84,59 @@ const buildHash = (route: AppRoute): string => {
     return '/evaluation';
   }
 
+  if (route.page === 'initiatives') {
+    const initiativeRoute = route.initiative ?? { mode: 'list' };
+    if (initiativeRoute.mode === 'create') {
+      if (initiativeRoute.workstreamId) {
+        return `/initiatives/new/${initiativeRoute.workstreamId}`;
+      }
+      return '/initiatives/new';
+    }
+    if (initiativeRoute.mode === 'view') {
+      return `/initiatives/view/${initiativeRoute.initiativeId}`;
+    }
+    if (initiativeRoute.workstreamId) {
+      return `/initiatives/ws/${initiativeRoute.workstreamId}`;
+    }
+    return '/initiatives';
+  }
+
   return `/${route.page}`;
+};
+
+const routesEqual = (a: AppRoute, b: AppRoute) => {
+  if (a.page !== b.page) {
+    return false;
+  }
+  if (a.page === 'evaluation') {
+    const left = normalizeEvaluationRoute(a.evaluation);
+    const right = normalizeEvaluationRoute(b.evaluation);
+    if (left.mode !== right.mode) {
+      return false;
+    }
+    if (left.mode === 'edit' && right.mode === 'edit') {
+      return left.evaluationId === right.evaluationId;
+    }
+    return true;
+  }
+  if (a.page === 'initiatives') {
+    const left = a.initiative ?? { mode: 'list' };
+    const right = b.initiative ?? { mode: 'list' };
+    if (left.mode !== right.mode) {
+      return false;
+    }
+    if (left.mode === 'view' && right.mode === 'view') {
+      return left.initiativeId === right.initiativeId;
+    }
+    if (left.mode === 'list' && right.mode === 'list') {
+      return (left.workstreamId ?? '') === (right.workstreamId ?? '');
+    }
+    if (left.mode === 'create' && right.mode === 'create') {
+      return (left.workstreamId ?? '') === (right.workstreamId ?? '');
+    }
+    return false;
+  }
+  return true;
 };
 
 const AppContent = () => {
@@ -175,11 +224,15 @@ const AppContent = () => {
     (key: NavigationKey) => {
       if (key === 'evaluation') {
         updateRoute({ page: 'evaluation', evaluation: { mode: 'list' } });
+      } else if (key === 'initiatives') {
+        const currentWorkstream =
+          route.initiative && route.initiative.mode !== 'view' ? route.initiative.workstreamId : undefined;
+        updateRoute({ page: 'initiatives', initiative: { mode: 'list', workstreamId: currentWorkstream } });
       } else {
         updateRoute({ page: key });
       }
     },
-    [updateRoute]
+    [route.initiative, updateRoute]
   );
 
   const renderContent = () => {
@@ -192,6 +245,13 @@ const AppContent = () => {
         return <FitQuestionsScreen />;
       case 'workstreams':
         return <WorkstreamsScreen />;
+      case 'initiatives':
+        return (
+          <InitiativesScreen
+            view={route.initiative ?? { mode: 'list' }}
+            onViewChange={(next) => updateRoute({ page: 'initiatives', initiative: next })}
+          />
+        );
       case 'candidates':
         return <CandidatesScreen />;
       case 'evaluation':

@@ -1,0 +1,113 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.subtitle {
+  margin: 6px 0 0 0;
+  color: #475569;
+}
+
+.primaryButton {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tab,
+.activeTab {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  background: rgba(148, 163, 184, 0.15);
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.activeTab {
+  background: #0f172a;
+  color: #fff;
+}
+
+.tableWrapper {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 24px;
+  padding: 16px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.sortButton {
+  background: none;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sortIcon {
+  font-size: 12px;
+}
+
+.row {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.row:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.emptyState {
+  padding: 48px;
+  text-align: center;
+  color: #475569;
+}
+
+.emptyState h2 {
+  margin-bottom: 8px;
+  color: #0f172a;
+}
+
+.impact {
+  font-weight: 600;
+  color: #047857;
+}

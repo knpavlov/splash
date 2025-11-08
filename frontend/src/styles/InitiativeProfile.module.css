@@ -1,0 +1,155 @@
+.profileWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.backLink {
+  border: none;
+  background: none;
+  color: #2563eb;
+  cursor: pointer;
+  text-align: left;
+  font-weight: 600;
+}
+
+.quickInfoCard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  padding: 24px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(99, 102, 241, 0.12));
+}
+
+.quickLabel {
+  margin: 0;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #475569;
+}
+
+.impactValue {
+  margin: 8px 0 0 0;
+  font-size: 32px;
+  color: #0f172a;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.metaGrid label,
+.fieldBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: #475569;
+}
+
+.metaGrid select,
+.metaGrid input,
+.fieldBlock input,
+.fieldBlock textarea,
+.periodRow select,
+.periodRow input {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.periodRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.stagePanel {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 24px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.stageHint {
+  margin: 4px 0 0 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.lockedNote {
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.8);
+  color: #0f172a;
+}
+
+.bannerInfo,
+.bannerError {
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+
+.bannerInfo {
+  background: rgba(191, 219, 254, 0.5);
+  color: #1d4ed8;
+}
+
+.bannerError {
+  background: rgba(254, 202, 202, 0.6);
+  color: #b91c1c;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.secondaryButton,
+.primaryButton,
+.dangerButton {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.secondaryButton {
+  background: rgba(148, 163, 184, 0.2);
+  color: #0f172a;
+}
+
+.dangerButton {
+  background: rgba(248, 113, 113, 0.2);
+  color: #b91c1c;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #10b981, #14b8a6);
+  color: #fff;
+}
+
+.placeholder {
+  padding: 48px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}

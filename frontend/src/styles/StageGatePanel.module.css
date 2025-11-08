@@ -1,0 +1,53 @@
+.panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.stage {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 16px;
+  padding: 12px;
+  text-align: left;
+  background: rgba(248, 250, 252, 0.9);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stageLabel {
+  display: block;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+}
+
+.stageName {
+  display: block;
+  margin-top: 6px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.current {
+  border-color: #2563eb;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.15);
+}
+
+.complete {
+  border-color: #22c55e;
+}
+
+.upcoming {
+  opacity: 0.7;
+}
+
+.selected {
+  background: #0f172a;
+  color: #fff;
+}
+
+.selected .stageLabel,
+.selected .stageName {
+  color: #fff;
+}

@@ -6,6 +6,7 @@ import { AccountRecord, AccountRole, InterviewerSeniority } from '../../shared/t
 import { FitQuestion } from '../../shared/types/fitQuestion';
 import { CaseCriterion } from '../../shared/types/caseCriteria';
 import { DomainResult } from '../../shared/types/results';
+import { Initiative, InitiativeStageKey, initiativeStageKeys, initiativeFinancialKinds } from '../../shared/types/initiative';
 import {
   defaultWorkstreamRoleOptions,
   Workstream,
@@ -19,6 +20,7 @@ import { accountsApi } from '../../modules/accounts/services/accountsApi';
 import { fitQuestionsApi } from '../../modules/questions/services/fitQuestionsApi';
 import { caseCriteriaApi } from '../../modules/caseCriteria/services/caseCriteriaApi';
 import { evaluationsApi } from '../../modules/evaluation/services/evaluationsApi';
+import { initiativesApi } from '../../modules/initiatives/services/initiativesApi';
 import { workstreamsApi } from '../../modules/workstreams/services/workstreamsApi';
 import { ApiError } from '../../shared/api/httpClient';
 import { useAuth } from '../../modules/auth/AuthContext';
@@ -69,6 +71,18 @@ interface AppStateContextValue {
       accountId: string,
       roles: WorkstreamRoleSelection[]
     ) => Promise<DomainResult<WorkstreamRoleAssignment[]>>;
+  };
+  initiatives: {
+    list: Initiative[];
+    saveInitiative: (
+      initiative: Initiative,
+      expectedVersion: number | null
+    ) => Promise<DomainResult<Initiative>>;
+    removeInitiative: (id: string) => Promise<DomainResult<string>>;
+    advanceStage: (
+      id: string,
+      targetStage?: InitiativeStageKey
+    ) => Promise<DomainResult<Initiative>>;
   };
   candidates: {
     list: CandidateProfile[];
@@ -126,6 +140,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [workstreamRoleOptions, setWorkstreamRoleOptions] = useState<WorkstreamRoleOption[]>([
     ...defaultWorkstreamRoleOptions
   ]);
+  const [initiatives, setInitiatives] = useState<Initiative[]>([]);
   const [evaluations, setEvaluations] = useState<EvaluationConfig[]>([]);
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [caseCriteria, setCaseCriteria] = useState<CaseCriterion[]>([]);
@@ -174,6 +189,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
       setCaseCriteria([]);
       setWorkstreams([]);
       setWorkstreamRoleOptions([...defaultWorkstreamRoleOptions]);
+      setInitiatives([]);
     }
   }, [session]);
 
@@ -242,6 +258,22 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!session) {
+      setInitiatives([]);
+      return;
+    }
+    const loadInitiatives = async () => {
+      try {
+        const remote = await initiativesApi.list();
+        setInitiatives(remote);
+      } catch (error) {
+        console.error('Failed to load initiatives:', error);
+      }
+    };
+    void loadInitiatives();
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
       return;
     }
     const loadQuestions = async () => {
@@ -273,8 +305,55 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const sortQuestionsByUpdated = (items: FitQuestion[]) =>
     [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  const sortWorkstreamsByUpdated = (items: Workstream[]) =>
-    [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+const sortWorkstreamsByUpdated = (items: Workstream[]) =>
+  [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+const sortInitiativesByUpdated = (items: Initiative[]) =>
+  [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+const sanitizeNumber = (value: number) => (Number.isFinite(value) ? Number(value) : 0);
+
+const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
+  const trimmedId = initiative.id.trim();
+  const trimmedWorkstream = initiative.workstreamId.trim();
+  const trimmedName = initiative.name.trim();
+  const trimmedDescription = initiative.description.trim();
+  const trimmedStatus = initiative.currentStatus.trim() || 'draft';
+  const trimmedOwnerName = initiative.ownerName?.trim() || null;
+  const trimmedOwnerAccountId = initiative.ownerAccountId?.trim() || null;
+  const sanitizedStages = initiativeStageKeys.reduce((acc, key) => {
+    const stage = initiative.stages[key];
+    acc[key] = {
+      ...stage,
+      name: stage.name.trim(),
+      description: stage.description.trim(),
+      financials: initiativeFinancialKinds.reduce((finAcc, kind) => {
+        finAcc[kind] = stage.financials[kind].map((entry) => ({
+          ...entry,
+          label: entry.label.trim(),
+          category: entry.category.trim(),
+          distribution: Object.fromEntries(
+            Object.entries(entry.distribution).map(([month, amount]) => [month, sanitizeNumber(amount)])
+          )
+        }));
+        return finAcc;
+      }, {} as Initiative['stages'][InitiativeStageKey]['financials'])
+    };
+    return acc;
+  }, {} as Initiative['stages']);
+
+  return {
+    ...initiative,
+    id: trimmedId,
+    workstreamId: trimmedWorkstream,
+    name: trimmedName,
+    description: trimmedDescription,
+    currentStatus: trimmedStatus,
+    ownerName: trimmedOwnerName,
+    ownerAccountId: trimmedOwnerAccountId,
+    stages: sanitizedStages
+  };
+};
 
   const value = useMemo<AppStateContextValue>(() => ({
     cases: {
@@ -630,17 +709,103 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
           console.error('Failed to load workstream roles:', error);
           return { ok: false, error: 'unknown' };
         }
+    },
+    saveAssignments: async (accountId, roles) => {
+      const trimmed = accountId.trim();
+      if (!trimmed) {
+        return { ok: false, error: 'invalid-input' };
+      }
+      try {
+        const saved = await workstreamsApi.saveAssignments(trimmed, roles);
+        return { ok: true, data: saved };
+      } catch (error) {
+        if (error instanceof ApiError) {
+          if (error.code === 'not-found' || error.status === 404) {
+            return { ok: false, error: 'not-found' };
+          }
+          if (error.code === 'invalid-input') {
+            return { ok: false, error: 'invalid-input' };
+          }
+        }
+        console.error('Failed to save workstream roles:', error);
+        return { ok: false, error: 'unknown' };
+      }
+    }
+  },
+    initiatives: {
+      list: initiatives,
+      saveInitiative: async (initiative, expectedVersion) => {
+        const sanitized = sanitizeInitiativeForSave(initiative);
+        if (!sanitized.id || !sanitized.workstreamId) {
+          return { ok: false, error: 'invalid-input' };
+        }
+
+        const exists = initiatives.some((item) => item.id === sanitized.id);
+
+        try {
+          if (exists) {
+            if (expectedVersion === null || expectedVersion === undefined) {
+              return { ok: false, error: 'invalid-input' };
+            }
+            const updated = await initiativesApi.update(sanitized.id, sanitized, expectedVersion);
+            setInitiatives((prev) =>
+              sortInitiativesByUpdated(prev.map((item) => (item.id === sanitized.id ? updated : item)))
+            );
+            return { ok: true, data: updated };
+          }
+
+          const created = await initiativesApi.create(sanitized);
+          setInitiatives((prev) => sortInitiativesByUpdated([...prev, created]));
+          return { ok: true, data: created };
+        } catch (error) {
+          if (error instanceof ApiError) {
+            if (error.code === 'version-conflict') {
+              return { ok: false, error: 'version-conflict' };
+            }
+            if (error.code === 'invalid-input') {
+              return { ok: false, error: 'invalid-input' };
+            }
+            if (error.code === 'not-found' || error.status === 404) {
+              return { ok: false, error: 'not-found' };
+            }
+          }
+          console.error('Failed to save initiative:', error);
+          return { ok: false, error: 'unknown' };
+        }
       },
-      saveAssignments: async (accountId, roles) => {
-        const trimmed = accountId.trim();
+      removeInitiative: async (id) => {
+        const trimmed = id.trim();
         if (!trimmed) {
           return { ok: false, error: 'invalid-input' };
         }
         try {
-          const saved = await workstreamsApi.saveAssignments(trimmed, roles);
-          return { ok: true, data: saved };
+          await initiativesApi.remove(trimmed);
+          setInitiatives((prev) => prev.filter((item) => item.id !== trimmed));
+          return { ok: true, data: trimmed };
+        } catch (error) {
+          if (error instanceof ApiError && (error.code === 'not-found' || error.status === 404)) {
+            return { ok: false, error: 'not-found' };
+          }
+          console.error('Failed to delete initiative:', error);
+          return { ok: false, error: 'unknown' };
+        }
+      },
+      advanceStage: async (id, targetStage) => {
+        const trimmed = id.trim();
+        if (!trimmed) {
+          return { ok: false, error: 'invalid-input' };
+        }
+        try {
+          const updated = await initiativesApi.advance(trimmed, targetStage);
+          setInitiatives((prev) =>
+            sortInitiativesByUpdated(prev.map((item) => (item.id === trimmed ? updated : item)))
+          );
+          return { ok: true, data: updated };
         } catch (error) {
           if (error instanceof ApiError) {
+            if (error.code === 'version-conflict') {
+              return { ok: false, error: 'version-conflict' };
+            }
             if (error.code === 'not-found' || error.status === 404) {
               return { ok: false, error: 'not-found' };
             }
@@ -648,7 +813,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
               return { ok: false, error: 'invalid-input' };
             }
           }
-          console.error('Failed to save workstream roles:', error);
+          console.error('Failed to advance initiative stage:', error);
           return { ok: false, error: 'unknown' };
         }
       }
@@ -984,7 +1149,18 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     }
-  }), [folders, caseCriteria, fitQuestions, workstreams, workstreamRoleOptions, candidates, evaluations, accounts, syncFolders]);
+  }), [
+    folders,
+    caseCriteria,
+    fitQuestions,
+    workstreams,
+    workstreamRoleOptions,
+    initiatives,
+    candidates,
+    evaluations,
+    accounts,
+    syncFolders
+  ]);
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
 };
@@ -1001,6 +1177,7 @@ export const useCasesState = () => useAppState().cases;
 export const useCaseCriteriaState = () => useAppState().caseCriteria;
 export const useFitQuestionsState = () => useAppState().fitQuestions;
 export const useWorkstreamsState = () => useAppState().workstreams;
+export const useInitiativesState = () => useAppState().initiatives;
 export const useCandidatesState = () => useAppState().candidates;
 export const useEvaluationsState = () => useAppState().evaluations;
 export const useAccountsState = () => useAppState().accounts;
