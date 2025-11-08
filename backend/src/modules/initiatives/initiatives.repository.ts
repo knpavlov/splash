@@ -7,7 +7,10 @@ import {
   InitiativeRow,
   InitiativeStageMap,
   InitiativeStagePayload,
-  InitiativeWriteModel
+  InitiativeStageStateMap,
+  InitiativeWriteModel,
+  InitiativeApprovalRow,
+  InitiativeApprovalRecord
 } from './initiatives.types.js';
 
 const toIsoString = (value: Date | null | undefined) =>
@@ -118,6 +121,30 @@ const normalizeStageKey = (value: unknown): InitiativeRecord['activeStage'] => {
   return 'l0';
 };
 
+const ensureStageState = (value: unknown): InitiativeStageStateMap => {
+  const map = {} as InitiativeStageStateMap;
+  const payload = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  for (const key of initiativeStageKeys) {
+    const raw = payload[key];
+    if (raw && typeof raw === 'object') {
+      const entry = raw as { status?: unknown; roundIndex?: unknown; comment?: unknown };
+      const status =
+        entry.status === 'pending' ||
+        entry.status === 'approved' ||
+        entry.status === 'returned' ||
+        entry.status === 'rejected'
+          ? entry.status
+          : 'draft';
+      const roundIndex = typeof entry.roundIndex === 'number' ? entry.roundIndex : 0;
+      const comment = typeof entry.comment === 'string' ? entry.comment : null;
+      map[key] = { status, roundIndex, comment };
+    } else {
+      map[key] = { status: 'draft', roundIndex: 0 };
+    }
+  }
+  return map;
+};
+
 const mapRowToRecord = (row: InitiativeRow): InitiativeRecord => ({
   id: row.id,
   workstreamId: row.workstream_id,
@@ -131,7 +158,8 @@ const mapRowToRecord = (row: InitiativeRow): InitiativeRecord => ({
   version: Number(row.version ?? 1),
   createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
   updatedAt: toIsoString(row.updated_at) ?? new Date().toISOString(),
-  stages: ensureStageMap(row.stage_payload)
+  stages: ensureStageMap(row.stage_payload),
+  stageState: ensureStageState(row.stage_state)
 });
 
 export class InitiativesRepository {
@@ -215,5 +243,104 @@ export class InitiativesRepository {
     const result = await postgresPool.query('DELETE FROM workstream_initiatives WHERE id = $1;', [id]);
     const affected = (result as { rowCount?: number }).rowCount ?? 0;
     return affected > 0;
+  }
+
+  async updateStageState(id: string, state: InitiativeStageStateMap): Promise<InitiativeRecord | null> {
+    const result = await postgresPool.query<InitiativeRow>(
+      `UPDATE workstream_initiatives
+          SET stage_state = $2::jsonb,
+              updated_at = NOW()
+        WHERE id = $1
+        RETURNING *;`,
+      [id, JSON.stringify(state)]
+    );
+    const row = result.rows?.[0];
+    return row ? mapRowToRecord(row) : null;
+  }
+
+  async listApprovals(): Promise<InitiativeApprovalRecord[]> {
+    const result = await postgresPool.query<InitiativeApprovalRow>(
+      'SELECT * FROM workstream_initiative_approvals ORDER BY created_at ASC;'
+    );
+    return (result.rows ?? []).map((row) => ({
+      id: row.id,
+      initiativeId: row.initiative_id,
+      stageKey: normalizeStageKey(row.stage_key) as InitiativeApprovalRecord['stageKey'],
+      roundIndex: Number(row.round_index ?? 0),
+      role: row.role,
+      status: row.status as InitiativeApprovalRecord['status'],
+      comment: row.comment,
+      createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
+      decidedAt: toIsoString(row.decided_at)
+    }));
+  }
+
+  async listApprovalsForStage(
+    initiativeId: string,
+    stageKey: InitiativeStageKey,
+    roundIndex: number
+  ): Promise<InitiativeApprovalRecord[]> {
+    const result = await postgresPool.query<InitiativeApprovalRow>(
+      `SELECT * FROM workstream_initiative_approvals
+        WHERE initiative_id = $1 AND stage_key = $2 AND round_index = $3
+        ORDER BY created_at ASC;`,
+      [initiativeId, stageKey, roundIndex]
+    );
+    return (result.rows ?? []).map((row) => ({
+      id: row.id,
+      initiativeId: row.initiative_id,
+      stageKey: normalizeStageKey(row.stage_key),
+      roundIndex: Number(row.round_index ?? 0),
+      role: row.role,
+      status: row.status as InitiativeApprovalRecord['status'],
+      comment: row.comment,
+      createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
+      decidedAt: toIsoString(row.decided_at)
+    }));
+  }
+
+  async insertApprovals(
+    approvals: Array<{ id: string; initiativeId: string; stageKey: InitiativeStageKey; roundIndex: number; role: string }>
+  ) {
+    for (const approval of approvals) {
+      await postgresPool.query(
+        `INSERT INTO workstream_initiative_approvals (id, initiative_id, stage_key, round_index, role, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
+         ON CONFLICT (initiative_id, stage_key, round_index, role)
+         DO NOTHING;`,
+        [approval.id, approval.initiativeId, approval.stageKey, approval.roundIndex, approval.role]
+      );
+    }
+  }
+
+  async updateApprovalStatus(
+    id: string,
+    status: 'approved' | 'returned' | 'rejected',
+    comment?: string | null
+  ): Promise<InitiativeApprovalRecord | null> {
+    const result = await postgresPool.query<InitiativeApprovalRow>(
+      `UPDATE workstream_initiative_approvals
+          SET status = $2,
+              comment = $3,
+              decided_at = NOW()
+        WHERE id = $1
+        RETURNING *;`,
+      [id, status, comment ?? null]
+    );
+    const row = result.rows?.[0];
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      initiativeId: row.initiative_id,
+      stageKey: normalizeStageKey(row.stage_key),
+      roundIndex: Number(row.round_index ?? 0),
+      role: row.role,
+      status: row.status as InitiativeApprovalRecord['status'],
+      comment: row.comment,
+      createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
+      decidedAt: toIsoString(row.decided_at)
+    };
   }
 }

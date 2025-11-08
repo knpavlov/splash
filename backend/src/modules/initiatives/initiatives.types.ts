@@ -29,6 +29,16 @@ export interface InitiativeStagePayload {
 
 export type InitiativeStageMap = Record<InitiativeStageKey, InitiativeStagePayload>;
 
+export type InitiativeStageStatus = 'draft' | 'pending' | 'approved' | 'returned' | 'rejected';
+
+export interface InitiativeStageState {
+  status: InitiativeStageStatus;
+  roundIndex: number;
+  comment?: string | null;
+}
+
+export type InitiativeStageStateMap = Record<InitiativeStageKey, InitiativeStageState>;
+
 export interface InitiativeRow extends Record<string, unknown> {
   id: string;
   workstream_id: string;
@@ -40,6 +50,7 @@ export interface InitiativeRow extends Record<string, unknown> {
   active_stage: string;
   l4_date: Date | null;
   stage_payload: unknown;
+  stage_state: unknown;
   version: number;
   created_at: Date;
   updated_at: Date;
@@ -59,6 +70,7 @@ export interface InitiativeRecord {
   createdAt: string;
   updatedAt: string;
   stages: InitiativeStageMap;
+  stageState: InitiativeStageStateMap;
 }
 
 export interface InitiativeWriteModel {
@@ -72,6 +84,7 @@ export interface InitiativeWriteModel {
   activeStage: InitiativeStageKey;
   l4Date: string | null;
   stages: InitiativeStageMap;
+  stageState: InitiativeStageStateMap;
 }
 
 export interface InitiativeTotals {
@@ -84,4 +97,30 @@ export interface InitiativeTotals {
 
 export interface InitiativeResponse extends InitiativeRecord {
   totals: InitiativeTotals;
+}
+
+export interface InitiativeApprovalRow {
+  id: string;
+  initiative_id: string;
+  stage_key: string;
+  round_index: number;
+  role: string;
+  status: string;
+  comment: string | null;
+  created_at: Date;
+  decided_at: Date | null;
+}
+
+export type ApprovalDecision = 'approve' | 'return' | 'reject';
+
+export interface InitiativeApprovalRecord {
+  id: string;
+  initiativeId: string;
+  stageKey: InitiativeStageKey;
+  roundIndex: number;
+  role: string;
+  status: 'pending' | 'approved' | 'returned' | 'rejected';
+  comment: string | null;
+  createdAt: string;
+  decidedAt: string | null;
 }

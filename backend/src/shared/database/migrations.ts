@@ -240,6 +240,7 @@ const createTables = async () => {
       active_stage TEXT NOT NULL DEFAULT 'l0',
       l4_date DATE,
       stage_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      stage_state JSONB NOT NULL DEFAULT '{}'::jsonb,
       version INTEGER NOT NULL DEFAULT 1,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -249,6 +250,26 @@ const createTables = async () => {
   await postgresPool.query(`
     CREATE INDEX IF NOT EXISTS workstream_initiatives_workstream_id_idx
       ON workstream_initiatives(workstream_id);
+  `);
+
+  await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS workstream_initiative_approvals (
+      id UUID PRIMARY KEY,
+      initiative_id UUID NOT NULL REFERENCES workstream_initiatives(id) ON DELETE CASCADE,
+      stage_key TEXT NOT NULL,
+      round_index INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      comment TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      decided_at TIMESTAMPTZ,
+      UNIQUE (initiative_id, stage_key, round_index, role)
+    );
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS workstream_initiative_approvals_stage_idx
+      ON workstream_initiative_approvals(initiative_id, stage_key, round_index);
   `);
 
   await postgresPool.query(`
