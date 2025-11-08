@@ -46,9 +46,13 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
 
   const handleOpen = useCallback(
     (initiativeId: string) => {
-      onViewChange({ mode: 'view', initiativeId });
+      onViewChange({
+        mode: 'view',
+        initiativeId,
+        workstreamId: selectedWorkstreamId ?? undefined
+      });
     },
-    [onViewChange]
+    [onViewChange, selectedWorkstreamId]
   );
 
   const handleBackToList = useCallback(

@@ -51,6 +51,15 @@
   color: #475569;
 }
 
+.fieldError span {
+  color: #b91c1c;
+}
+
+.inputError {
+  border-color: #f87171 !important;
+  background: rgba(248, 113, 113, 0.08);
+}
+
 .metaGrid select,
 .metaGrid input,
 .fieldBlock input,

@@ -59,9 +59,13 @@
   flex-wrap: wrap;
 }
 
+.entryHeader select {
+  min-width: 220px;
+}
+
 .entryHeader select,
 .entryHeader input {
-  flex: 1 1 200px;
+  flex: 1 1 220px;
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 12px;
   padding: 8px 12px;
@@ -122,4 +126,24 @@
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 10px;
   padding: 6px;
+}
+
+.monthInputWrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fillRightButton {
+  border: none;
+  border-radius: 8px;
+  padding: 4px 6px;
+  background: rgba(59, 130, 246, 0.18);
+  color: #1d4ed8;
+  cursor: pointer;
+}
+
+.fillRightButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

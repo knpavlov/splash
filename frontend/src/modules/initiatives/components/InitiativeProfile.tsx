@@ -28,6 +28,14 @@ interface InitiativeProfileProps {
 }
 
 type Banner = { type: 'info' | 'error'; text: string } | null;
+type ValidationErrors = {
+  initiativeName?: boolean;
+  workstream?: boolean;
+  stageName?: boolean;
+  stageDescription?: boolean;
+  periodMonth?: boolean;
+  periodYear?: boolean;
+};
 
 const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
   key,
@@ -140,6 +148,7 @@ export const InitiativeProfile = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [errors, setErrors] = useState<ValidationErrors>({});
 
   useEffect(() => {
     if (initiative) {
@@ -152,13 +161,25 @@ export const InitiativeProfile = ({
   }, [initiative, initialWorkstreamId, workstreams]);
 
   const currentStage = draft.stages[selectedStage];
+  const activeStageData = draft.stages[draft.activeStage];
   const activeIndex = initiativeStageKeys.indexOf(draft.activeStage);
   const selectedIndex = initiativeStageKeys.indexOf(selectedStage);
   const isStageEditable = selectedIndex === activeIndex;
   const stageLocked = selectedIndex > activeIndex;
   const l4Date = draft.stages.l4.l4Date ?? draft.l4Date;
+  const hasWorkstreams = workstreams.length > 0;
+
+  const clearErrors = (next: ValidationErrors) => {
+    setErrors((prev) => ({ ...prev, ...next }));
+  };
 
   const handleFieldChange = <K extends keyof Initiative>(key: K, value: Initiative[K]) => {
+    if (key === 'name') {
+      clearErrors({ initiativeName: false });
+    }
+    if (key === 'workstreamId') {
+      clearErrors({ workstream: false });
+    }
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -174,6 +195,21 @@ export const InitiativeProfile = ({
   };
 
   const handleStageFieldChange = <K extends keyof InitiativeStageData>(key: K, value: InitiativeStageData[K]) => {
+    if (key === 'name') {
+      clearErrors({ stageName: false, initiativeName: false });
+      if (typeof value === 'string' && (selectedStage === 'l0' || selectedStage === draft.activeStage)) {
+        handleFieldChange('name', value as Initiative['name']);
+      }
+    }
+    if (key === 'description') {
+      clearErrors({ stageDescription: false });
+    }
+    if (key === 'periodMonth') {
+      clearErrors({ periodMonth: false });
+    }
+    if (key === 'periodYear') {
+      clearErrors({ periodYear: false });
+    }
     updateStage(selectedStage, { ...currentStage, [key]: value });
   };
 
@@ -188,7 +224,42 @@ export const InitiativeProfile = ({
     handleFieldChange('ownerName', ownerName);
   };
 
+  const validateDraft = () => {
+    const nextErrors: ValidationErrors = {};
+    if (!draft.name.trim()) {
+      nextErrors.initiativeName = true;
+    }
+    if (!draft.workstreamId) {
+      nextErrors.workstream = true;
+    }
+    if (!activeStageData.name.trim()) {
+      nextErrors.stageName = true;
+    }
+    if (!activeStageData.description.trim()) {
+      nextErrors.stageDescription = true;
+    }
+    if (!activeStageData.periodMonth) {
+      nextErrors.periodMonth = true;
+    }
+    if (!activeStageData.periodYear) {
+      nextErrors.periodYear = true;
+    }
+    if (draft.activeStage !== selectedStage) {
+      setSelectedStage(draft.activeStage);
+    }
+    setErrors(nextErrors);
+    return Object.values(nextErrors).every((value) => !value);
+  };
+
   const handleSaveClick = async (closeAfterSave: boolean) => {
+    if (!validateDraft()) {
+      setBanner({ type: 'error', text: 'Заполните обязательные поля.' });
+      return;
+    }
+    if (!hasWorkstreams) {
+      setBanner({ type: 'error', text: 'Создайте workstream, прежде чем добавлять инициативы.' });
+      return;
+    }
     setIsSaving(true);
     setBanner(null);
     const result = await onSave(draft, { closeAfterSave });
@@ -268,8 +339,6 @@ export const InitiativeProfile = ({
     );
   }
 
-  const hasWorkstreams = workstreams.length > 0;
-
   return (
     <section className={styles.profileWrapper}>
       <button className={styles.backLink} onClick={() => onBack(draft.workstreamId)} type="button">
@@ -296,9 +365,10 @@ export const InitiativeProfile = ({
       </div>
 
       <div className={styles.metaGrid}>
-        <label>
+        <label className={errors.workstream ? styles.fieldError : undefined}>
           <span>Workstream</span>
           <select
+            className={errors.workstream ? styles.inputError : undefined}
             value={draft.workstreamId}
             onChange={(event) => handleFieldChange('workstreamId', event.target.value)}
             disabled={!hasWorkstreams}
@@ -333,14 +403,6 @@ export const InitiativeProfile = ({
             ))}
           </select>
         </label>
-        <label>
-          <span>Custom owner name</span>
-          <input
-            type="text"
-            value={draft.ownerName ?? ''}
-            onChange={(event) => handleFieldChange('ownerName', event.target.value)}
-          />
-        </label>
       </div>
 
       <StageGatePanel
@@ -369,19 +431,21 @@ export const InitiativeProfile = ({
 
         {stageLocked && <p className={styles.lockedNote}>Complete previous gates before editing this stage.</p>}
 
-        <label className={styles.fieldBlock}>
+        <label className={`${styles.fieldBlock} ${errors.stageName ? styles.fieldError : ''}`}>
           <span>Initiative name</span>
           <input
             type="text"
+            className={errors.stageName ? styles.inputError : undefined}
             value={currentStage.name}
             onChange={(event) => handleStageFieldChange('name', event.target.value)}
             disabled={!isStageEditable}
           />
         </label>
 
-        <label className={styles.fieldBlock}>
+        <label className={`${styles.fieldBlock} ${errors.stageDescription ? styles.fieldError : ''}`}>
           <span>Description</span>
           <textarea
+            className={errors.stageDescription ? styles.inputError : undefined}
             value={currentStage.description}
             onChange={(event) => handleStageFieldChange('description', event.target.value)}
             disabled={!isStageEditable}
@@ -390,9 +454,10 @@ export const InitiativeProfile = ({
         </label>
 
         <div className={styles.periodRow}>
-          <label>
+          <label className={errors.periodMonth ? styles.fieldError : undefined}>
             <span>Period month</span>
             <select
+              className={errors.periodMonth ? styles.inputError : undefined}
               value={currentStage.periodMonth ?? ''}
               onChange={(event) => handleStageFieldChange('periodMonth', Number(event.target.value) || null)}
               disabled={!isStageEditable}
@@ -405,10 +470,11 @@ export const InitiativeProfile = ({
               ))}
             </select>
           </label>
-          <label>
+          <label className={errors.periodYear ? styles.fieldError : undefined}>
             <span>Period year</span>
             <input
               type="number"
+              className={errors.periodYear ? styles.inputError : undefined}
               value={currentStage.periodYear ?? ''}
               onChange={(event) => handleStageFieldChange('periodYear', Number(event.target.value) || null)}
               disabled={!isStageEditable}

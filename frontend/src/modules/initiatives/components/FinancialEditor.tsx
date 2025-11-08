@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from '../../../styles/FinancialEditor.module.css';
 import {
   InitiativeFinancialEntry,
@@ -29,9 +29,10 @@ const SECTION_HELP: Record<InitiativeFinancialKind, string> = {
   'oneoff-costs': 'Single-time expenses (e.g. implementation fees).'
 };
 
-const getMonths = (year: number | null) => {
+const getMonths = (year: number | null, endMonth: number | null) => {
   const baseYear = year && Number.isFinite(year) ? year : new Date().getFullYear();
-  return Array.from({ length: 12 }).map((_, index) => {
+  const limit = endMonth && endMonth >= 1 && endMonth <= 12 ? endMonth : 12;
+  return Array.from({ length: limit }).map((_, index) => {
     const date = new Date(baseYear, index, 1);
     const key = `${baseYear}-${String(index + 1).padStart(2, '0')}`;
     return { key, label: date.toLocaleString('en-US', { month: 'short' }) };
@@ -39,7 +40,6 @@ const getMonths = (year: number | null) => {
 };
 
 interface EntryCardProps {
-  kind: InitiativeFinancialKind;
   entry: InitiativeFinancialEntry;
   disabled: boolean;
   months: { key: string; label: string }[];
@@ -47,11 +47,16 @@ interface EntryCardProps {
   onRemove: () => void;
 }
 
-const FinancialEntryCard = ({ kind, entry, disabled, months, onChange, onRemove }: EntryCardProps) => {
+const FinancialEntryCard = ({ entry, disabled, months, onChange, onRemove }: EntryCardProps) => {
   const [monthlyValue, setMonthlyValue] = useState('');
   const [totalValue, setTotalValue] = useState('');
-  const [duration, setDuration] = useState(12);
+  const [duration, setDuration] = useState(months.length || 1);
   const [startMonth, setStartMonth] = useState(months[0]?.key ?? '');
+
+  useEffect(() => {
+    setStartMonth((current) => (months.find((month) => month.key === current) ? current : months[0]?.key ?? ''));
+    setDuration((current) => Math.min(current, months.length || 1));
+  }, [months]);
 
   const handleMonthlyFill = () => {
     const amount = Number(monthlyValue);
@@ -94,12 +99,31 @@ const FinancialEntryCard = ({ kind, entry, disabled, months, onChange, onRemove 
     onChange({ ...entry, distribution });
   };
 
+  const handleFillRight = (key: string) => {
+    const value = entry.distribution[key];
+    if (value === undefined) {
+      return;
+    }
+    const startIndex = months.findIndex((month) => month.key === key);
+    if (startIndex === -1) {
+      return;
+    }
+    const distribution = { ...entry.distribution };
+    for (let index = startIndex + 1; index < months.length; index += 1) {
+      distribution[months[index].key] = value;
+    }
+    onChange({ ...entry, distribution });
+  };
+
   return (
     <div className={styles.entryCard}>
       <div className={styles.entryHeader}>
         <select
           value={entry.category}
-          onChange={(event) => onChange({ ...entry, category: event.target.value })}
+          onChange={(event) => {
+            const nextCategory = event.target.value;
+            onChange({ ...entry, category: nextCategory, label: nextCategory || entry.label });
+          }}
           disabled={disabled}
         >
           <option value="">Select P&L category</option>
@@ -109,13 +133,6 @@ const FinancialEntryCard = ({ kind, entry, disabled, months, onChange, onRemove 
             </option>
           ))}
         </select>
-        <input
-          type="text"
-          value={entry.label}
-          placeholder="Line item label"
-          onChange={(event) => onChange({ ...entry, label: event.target.value })}
-          disabled={disabled}
-        />
         <button className={styles.removeButton} onClick={onRemove} disabled={disabled} type="button">
           Remove
         </button>
@@ -178,12 +195,22 @@ const FinancialEntryCard = ({ kind, entry, disabled, months, onChange, onRemove 
         {months.map((month) => (
           <label key={month.key}>
             <span>{month.label}</span>
-            <input
-              type="number"
-              value={entry.distribution[month.key] ?? ''}
-              onChange={(event) => handleMonthValueChange(month.key, event.target.value)}
-              disabled={disabled}
-            />
+            <div className={styles.monthInputWrapper}>
+              <input
+                type="number"
+                value={entry.distribution[month.key] ?? ''}
+                onChange={(event) => handleMonthValueChange(month.key, event.target.value)}
+                disabled={disabled}
+              />
+              <button
+                type="button"
+                className={styles.fillRightButton}
+                onClick={() => handleFillRight(month.key)}
+                disabled={disabled || entry.distribution[month.key] === undefined}
+              >
+                ↦
+              </button>
+            </div>
           </label>
         ))}
       </div>
@@ -192,7 +219,31 @@ const FinancialEntryCard = ({ kind, entry, disabled, months, onChange, onRemove 
 };
 
 export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorProps) => {
-  const months = useMemo(() => getMonths(stage.periodYear), [stage.periodYear]);
+  const months = useMemo(() => getMonths(stage.periodYear, stage.periodMonth), [stage.periodMonth, stage.periodYear]);
+
+  useEffect(() => {
+    const monthSet = new Set(months.map((month) => month.key));
+    let changed = false;
+    const nextStage: InitiativeStageData = {
+      ...stage,
+      financials: { ...stage.financials }
+    };
+    initiativeFinancialKinds.forEach((kind) => {
+      nextStage.financials[kind] = stage.financials[kind].map((entry) => {
+        const filtered = Object.fromEntries(
+          Object.entries(entry.distribution).filter(([key]) => monthSet.has(key))
+        );
+        if (Object.keys(filtered).length !== Object.keys(entry.distribution).length) {
+          changed = true;
+          return { ...entry, distribution: filtered };
+        }
+        return entry;
+      });
+    });
+    if (changed) {
+      onChange(nextStage);
+    }
+  }, [months, onChange, stage]);
 
   const updateEntries = (
     kind: InitiativeFinancialKind,
@@ -247,7 +298,6 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
             stage.financials[kind].map((entry) => (
               <FinancialEntryCard
                 key={entry.id}
-                kind={kind}
                 entry={entry}
                 disabled={disabled}
                 months={months}
