@@ -9,7 +9,7 @@ import { AccountRecord } from '../../shared/types/account';
 export type InitiativesViewRoute =
   | { mode: 'list'; workstreamId?: string }
   | { mode: 'create'; workstreamId?: string }
-  | { mode: 'view'; initiativeId: string };
+  | { mode: 'view'; initiativeId: string; workstreamId?: string };
 
 interface InitiativesScreenProps {
   view: InitiativesViewRoute;

@@ -29,7 +29,7 @@ export interface InitiativeStagePayload {
 
 export type InitiativeStageMap = Record<InitiativeStageKey, InitiativeStagePayload>;
 
-export interface InitiativeRow {
+export interface InitiativeRow extends Record<string, unknown> {
   id: string;
   workstream_id: string;
   name: string;
