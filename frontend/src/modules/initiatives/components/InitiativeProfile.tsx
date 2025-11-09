@@ -236,6 +236,9 @@ export const InitiativeProfile = ({
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const changeLogLoadedKeyRef = useRef<string | null>(null);
+  const initiativeId = initiative?.id ?? null;
+  const initiativeUpdatedAt = initiative?.updatedAt ?? null;
 
   useEffect(() => {
     if (initiative) {
@@ -255,23 +258,33 @@ export const InitiativeProfile = ({
     }
   }, [initiative?.id]);
 
-  const loadChangeLog = useCallback(async () => {
-    if (!initiative) {
-      setChangeLog([]);
-      setIsLogLoading(false);
-      return;
-    }
-    setIsLogLoading(true);
-    try {
-      const entries = await initiativesApi.events(initiative.id);
-      setChangeLog(entries);
-    } catch (error) {
-      console.error('Failed to load initiative change log:', error);
-      setChangeLog([]);
-    } finally {
-      setIsLogLoading(false);
-    }
-  }, [initiative]);
+  const loadChangeLog = useCallback(
+    async (force = false) => {
+      if (!initiativeId) {
+        changeLogLoadedKeyRef.current = null;
+        setChangeLog([]);
+        setIsLogLoading(false);
+        return;
+      }
+      const key = `${initiativeId}:${initiativeUpdatedAt ?? ''}`;
+      if (!force && changeLogLoadedKeyRef.current === key) {
+        return;
+      }
+      setIsLogLoading(true);
+      try {
+        const entries = await initiativesApi.events(initiativeId);
+        setChangeLog(entries);
+        changeLogLoadedKeyRef.current = key;
+      } catch (error) {
+        console.error('Failed to load initiative change log:', error);
+        setChangeLog([]);
+        changeLogLoadedKeyRef.current = null;
+      } finally {
+        setIsLogLoading(false);
+      }
+    },
+    [initiativeId, initiativeUpdatedAt]
+  );
 
   useEffect(() => {
     void loadChangeLog();
@@ -487,7 +500,7 @@ export const InitiativeProfile = ({
       setDraft(result.data);
       setSelectedStage(result.data.activeStage);
       setBanner({ type: 'info', text: 'Initiative saved.' });
-      void loadChangeLog();
+      void loadChangeLog(true);
     }
   };
 
@@ -536,7 +549,7 @@ export const InitiativeProfile = ({
       setDraft(result.data);
       setSelectedStage(result.data.activeStage);
       setBanner({ type: 'info', text: 'Stage submitted for approval.' });
-      void loadChangeLog();
+      void loadChangeLog(true);
     }
   };
 
