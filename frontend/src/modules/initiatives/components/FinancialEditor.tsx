@@ -8,6 +8,13 @@ import {
   initiativeFinancialKinds
 } from '../../../shared/types/initiative';
 import { generateId } from '../../../shared/ui/generateId';
+import {
+  buildKindMonthlyTotals,
+  buildMonthRange,
+  calculateRunRate,
+  calculateYearSummaries,
+  YearSummaryEntry
+} from './financials.helpers';
 
 interface FinancialEditorProps {
   stage: InitiativeStageData;
@@ -29,67 +36,135 @@ const SECTION_HELP: Record<InitiativeFinancialKind, string> = {
   'oneoff-costs': 'Single-time expenses (e.g. implementation fees).'
 };
 
-const parseMonthKey = (key: string) => {
-  const [year, month] = key.split('-').map(Number);
-  if (!Number.isFinite(year) || !Number.isFinite(month)) {
-    return null;
-  }
-  return new Date(year, month - 1, 1);
-};
+type MonthDescriptor = { key: string; label: string; year: number; index: number };
 
-const buildMonthRange = (stage: InitiativeStageData) => {
-  const now = new Date();
-  now.setDate(1);
+const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+const compactFormatter = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
 
-  const defaultEnd = new Date(now);
-  defaultEnd.setMonth(defaultEnd.getMonth() + 11);
-
-  const endYear = stage.periodYear ?? defaultEnd.getFullYear();
-  const endMonth = stage.periodMonth ?? defaultEnd.getMonth() + 1;
-  const endCandidate = new Date(endYear, endMonth - 1, 1);
-  const end = endCandidate.getTime() < now.getTime() ? defaultEnd : endCandidate;
-
-  let earliest: Date | null = null;
-  for (const kind of initiativeFinancialKinds) {
-    stage.financials[kind].forEach((entry) => {
-      Object.keys(entry.distribution).forEach((key) => {
-        const parsed = parseMonthKey(key);
-        if (!parsed) {
-          return;
-        }
-        if (!earliest || parsed.getTime() < earliest.getTime()) {
-          earliest = parsed;
-        }
-      });
-    });
-  }
-
-  const earliestDate = earliest as Date | null;
-  let start = now;
-  if (earliestDate && earliestDate.getTime() < now.getTime()) {
-    start = earliestDate;
-  }
-  const months: { key: string; label: string; year: number }[] = [];
-  const cursor = new Date(start);
-  while (cursor.getTime() <= end.getTime() && months.length < 360) {
-    months.push({
-      key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`,
-      label: cursor.toLocaleString('en-US', { month: 'short' }),
-      year: cursor.getFullYear()
-    });
-    cursor.setMonth(cursor.getMonth() + 1);
-  }
-  return months;
-};
+const formatCurrency = (value: number) => currencyFormatter.format(Math.round(value || 0));
+const formatCompact = (value: number) => compactFormatter.format(Math.round(value || 0));
 
 interface EntryRowProps {
   entry: InitiativeFinancialEntry;
   disabled: boolean;
-  months: { key: string; label: string; year: number }[];
+  months: MonthDescriptor[];
   gridTemplateColumns: string;
   onChange: (entry: InitiativeFinancialEntry) => void;
   onRemove: () => void;
 }
+
+const SummaryList = ({ title, items }: { title: string; items: YearSummaryEntry[] }) => {
+  if (!items.length) {
+    return null;
+  }
+  return (
+    <div className={styles.summaryList}>
+      <span className={styles.summaryListTitle}>{title}</span>
+      <ul>
+        {items.map((item) => (
+          <li key={item.label}>
+            <span>{item.label}</span>
+            <strong>{formatCurrency(item.value)}</strong>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+interface ImpactSummaryCardProps {
+  stage: InitiativeStageData;
+  months: MonthDescriptor[];
+  gridTemplateColumns: string;
+}
+
+const ImpactSummaryCard = ({ stage, months, gridTemplateColumns }: ImpactSummaryCardProps) => {
+  const recurringBenefits = useMemo(() => buildKindMonthlyTotals(stage, 'recurring-benefits'), [stage]);
+  const recurringCosts = useMemo(() => buildKindMonthlyTotals(stage, 'recurring-costs'), [stage]);
+  const impactTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    months.forEach((month) => {
+      totals[month.key] = (recurringBenefits[month.key] ?? 0) - (recurringCosts[month.key] ?? 0);
+    });
+    return totals;
+  }, [months, recurringBenefits, recurringCosts]);
+
+  const monthKeys = months.map((month) => month.key);
+  const runRate = calculateRunRate(monthKeys, impactTotals);
+  const summaries = calculateYearSummaries(impactTotals);
+
+  return (
+    <div className={styles.summaryCard}>
+      <div className={styles.summaryHeading}>
+        <div>
+          <h3>Impact outlook</h3>
+          <p>Recurring benefits minus recurring costs for the selected stage.</p>
+        </div>
+        <div className={styles.summaryHighlight}>
+          <span>Run rate (last 12 months)</span>
+          <strong>{formatCurrency(runRate)}</strong>
+        </div>
+      </div>
+      <div className={styles.summaryGroup}>
+        <SummaryList title="Fiscal years" items={summaries.fiscal} />
+        <SummaryList title="Calendar years" items={summaries.calendar} />
+      </div>
+      <TrendChart
+        label="Impact trend"
+        months={months}
+        totals={impactTotals}
+        gridTemplateColumns={gridTemplateColumns}
+        hideSummary
+      />
+    </div>
+  );
+};
+
+interface ChartRowProps {
+  label: string;
+  months: MonthDescriptor[];
+  totals: Record<string, number>;
+  gridTemplateColumns: string;
+  hideSummary?: boolean;
+}
+
+const TrendChart = ({ label, months, totals, gridTemplateColumns, hideSummary }: ChartRowProps) => {
+  const maxValue = months.reduce((acc, month) => Math.max(acc, Math.abs(totals[month.key] ?? 0)), 0);
+  const monthKeys = months.map((month) => month.key);
+  const runRate = calculateRunRate(monthKeys, totals);
+  const summaries = calculateYearSummaries(totals);
+
+  return (
+    <div className={styles.chartBlock}>
+      <div className={styles.chartMeta}>
+        <div>
+          <h5>{label}</h5>
+          <p>Run rate (last 12 months): {formatCurrency(runRate)}</p>
+        </div>
+        {!hideSummary && (
+          <div className={styles.summaryGroup}>
+            <SummaryList title="Fiscal years" items={summaries.fiscal} />
+            <SummaryList title="Calendar years" items={summaries.calendar} />
+          </div>
+        )}
+      </div>
+      <div className={styles.chartRow} style={{ gridTemplateColumns }}>
+        <div className={styles.chartLegend} />
+        {months.map((month) => {
+          const value = totals[month.key] ?? 0;
+          const height = maxValue > 0 ? (Math.abs(value) / maxValue) * 100 : 0;
+          return (
+            <div key={month.key} className={styles.chartCell}>
+              <div className={styles.chartBar} style={{ height: `${height}%` }} data-negative={value < 0} />
+              <span className={styles.chartValue}>{value ? formatCompact(value) : ''}</span>
+              <span className={styles.chartMonth}>{month.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRemove }: EntryRowProps) => {
   const [monthlyValue, setMonthlyValue] = useState('');
@@ -277,10 +352,21 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
 };
 
 export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorProps) => {
-  const months = useMemo(() => buildMonthRange(stage), [stage]);
+  const months = useMemo<MonthDescriptor[]>(() => buildMonthRange(stage), [stage]);
   const gridTemplateColumns = useMemo(
     () => `220px repeat(${Math.max(months.length, 1)}, minmax(120px, 1fr))`,
     [months.length]
+  );
+  const kindMonthlyTotals = useMemo(
+    () =>
+      initiativeFinancialKinds.reduce(
+        (acc, kind) => {
+          acc[kind] = buildKindMonthlyTotals(stage, kind);
+          return acc;
+        },
+        {} as Record<InitiativeFinancialKind, Record<string, number>>
+      ),
+    [stage]
   );
 
   useEffect(() => {
@@ -337,6 +423,7 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
 
   return (
     <div className={styles.editorWrapper}>
+      <ImpactSummaryCard stage={stage} months={months} gridTemplateColumns={gridTemplateColumns} />
       {initiativeFinancialKinds.map((kind) => (
         <section key={kind} className={styles.section}>
           <header className={styles.sectionHeader}>
@@ -351,29 +438,37 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
           {stage.financials[kind].length === 0 ? (
             <p className={styles.placeholder}>No data yet. Use "Add line" to start capturing this metric.</p>
           ) : (
-            <div className={styles.sheetWrapper}>
-              <div className={styles.sheetScroller}>
-                <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
-                  <div className={styles.categoryHeader}>P&L category</div>
-                  {months.map((month) => (
-                    <div key={month.key} className={styles.monthHeader}>
-                      {month.label} {month.year}
-                    </div>
+            <>
+              <TrendChart
+                label={`${SECTION_LABELS[kind]} trend`}
+                months={months}
+                totals={kindMonthlyTotals[kind]}
+                gridTemplateColumns={gridTemplateColumns}
+              />
+              <div className={styles.sheetWrapper}>
+                <div className={styles.sheetScroller}>
+                  <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
+                    <div className={styles.categoryHeader}>P&L category</div>
+                    {months.map((month) => (
+                      <div key={month.key} className={styles.monthHeader}>
+                        {month.label} {month.year}
+                      </div>
+                    ))}
+                  </div>
+                  {stage.financials[kind].map((entry) => (
+                    <EntryRow
+                      key={entry.id}
+                      entry={entry}
+                      disabled={disabled}
+                      months={months}
+                      gridTemplateColumns={gridTemplateColumns}
+                      onChange={(nextEntry) => handleEntryChange(kind, nextEntry)}
+                      onRemove={() => removeEntry(kind, entry.id)}
+                    />
                   ))}
                 </div>
-                {stage.financials[kind].map((entry) => (
-                  <EntryRow
-                    key={entry.id}
-                    entry={entry}
-                    disabled={disabled}
-                    months={months}
-                    gridTemplateColumns={gridTemplateColumns}
-                    onChange={(nextEntry) => handleEntryChange(kind, nextEntry)}
-                    onRemove={() => removeEntry(kind, entry.id)}
-                  />
-                ))}
               </div>
-            </div>
+            </>
           )}
         </section>
       ))}

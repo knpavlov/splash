@@ -250,21 +250,104 @@ const ensureInitiativeList = (value: unknown): Initiative[] => {
   return value.map((item) => normalizeInitiative(item)).filter((item): item is Initiative => Boolean(item));
 };
 
+export interface InitiativeEventChange {
+  field: string;
+  previousValue: unknown;
+  nextValue: unknown;
+}
+
+export interface InitiativeEventEntry {
+  id: string;
+  eventType: string;
+  createdAt: string;
+  actorAccountId: string | null;
+  actorName: string | null;
+  changes: InitiativeEventChange[];
+}
+
+const normalizeEventChange = (value: unknown): InitiativeEventChange | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as { field?: unknown; previousValue?: unknown; nextValue?: unknown };
+  if (typeof payload.field !== 'string') {
+    return null;
+  }
+  return {
+    field: payload.field,
+    previousValue: payload.previousValue ?? null,
+    nextValue: payload.nextValue ?? null
+  };
+};
+
+const normalizeEventEntry = (value: unknown): InitiativeEventEntry | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  const id = typeof payload.id === 'string' ? payload.id : null;
+  if (!id) {
+    return null;
+  }
+  const eventType = typeof payload.eventType === 'string' ? payload.eventType : 'update';
+  const createdAt = toIsoString(payload.createdAt) ?? new Date().toISOString();
+  const actorName = typeof payload.actorName === 'string' ? payload.actorName : null;
+  const actorAccountId = typeof payload.actorAccountId === 'string' ? payload.actorAccountId : null;
+  const changesSource = Array.isArray(payload.changes) ? payload.changes : [];
+  const changes = changesSource
+    .map((change) => normalizeEventChange(change))
+    .filter((change): change is InitiativeEventChange => Boolean(change));
+  return {
+    id,
+    eventType,
+    createdAt,
+    actorAccountId,
+    actorName,
+    changes
+  };
+};
+
+const ensureEventList = (value: unknown): InitiativeEventEntry[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item) => normalizeEventEntry(item)).filter((item): item is InitiativeEventEntry => Boolean(item));
+};
+
+export interface InitiativeActorMetadata {
+  accountId?: string | null;
+  name?: string | null;
+}
+
+const withActor = (payload: Record<string, unknown>, actor?: InitiativeActorMetadata) => {
+  if (!actor) {
+    return payload;
+  }
+  const normalized = {
+    accountId: actor.accountId ?? null,
+    name: actor.name ?? null
+  };
+  if (!normalized.accountId && !normalized.name) {
+    return payload;
+  }
+  return { ...payload, actor: normalized };
+};
+
 export const initiativesApi = {
   list: async () => ensureInitiativeList(await apiRequest<unknown>('/initiatives')),
   get: async (id: string) => ensureInitiative(await apiRequest<unknown>(`/initiatives/${id}`)),
-  create: async (initiative: Initiative) =>
+  create: async (initiative: Initiative, actor?: InitiativeActorMetadata) =>
     ensureInitiative(
       await apiRequest<unknown>('/initiatives', {
         method: 'POST',
-        body: { initiative }
+        body: withActor({ initiative }, actor)
       })
     ),
-  update: async (id: string, initiative: Initiative, expectedVersion: number) =>
+  update: async (id: string, initiative: Initiative, expectedVersion: number, actor?: InitiativeActorMetadata) =>
     ensureInitiative(
       await apiRequest<unknown>(`/initiatives/${id}`, {
         method: 'PUT',
-        body: { initiative, expectedVersion }
+        body: withActor({ initiative, expectedVersion }, actor)
       })
     ),
   remove: async (id: string) => {
@@ -283,5 +366,6 @@ export const initiativesApi = {
       await apiRequest<unknown>(`/initiatives/${id}/submit`, {
         method: 'POST'
       })
-    )
+    ),
+  events: async (id: string) => ensureEventList(await apiRequest<unknown>(`/initiatives/${id}/events`))
 };

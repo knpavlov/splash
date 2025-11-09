@@ -752,20 +752,21 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
         }
 
         const exists = initiatives.some((item) => item.id === sanitized.id);
+        const actorMetadata = session ? { accountId: session.accountId, name: session.email } : undefined;
 
         try {
           if (exists) {
             if (expectedVersion === null || expectedVersion === undefined) {
               return { ok: false, error: 'invalid-input' };
             }
-            const updated = await initiativesApi.update(sanitized.id, sanitized, expectedVersion);
+            const updated = await initiativesApi.update(sanitized.id, sanitized, expectedVersion, actorMetadata);
             setInitiatives((prev) =>
               sortInitiativesByUpdated(prev.map((item) => (item.id === sanitized.id ? updated : item)))
             );
             return { ok: true, data: updated };
           }
 
-          const created = await initiativesApi.create(sanitized);
+          const created = await initiativesApi.create(sanitized, actorMetadata);
           setInitiatives((prev) => sortInitiativesByUpdated([...prev, created]));
           return { ok: true, data: created };
         } catch (error) {

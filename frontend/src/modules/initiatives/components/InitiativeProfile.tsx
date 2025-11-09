@@ -15,6 +15,7 @@ import { FinancialEditor } from './FinancialEditor';
 import { generateId } from '../../../shared/ui/generateId';
 import { DomainResult } from '../../../shared/types/results';
 import { resolveAccountName } from '../../../shared/utils/accountName';
+import { initiativesApi, InitiativeEventEntry } from '../services/initiativesApi';
 
 interface InitiativeProfileProps {
   mode: 'create' | 'view';
@@ -142,6 +143,41 @@ const formatDate = (value: string | null) => {
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
 };
 
+const logFieldLabels: Record<string, string> = {
+  name: 'Name',
+  description: 'Description',
+  owner: 'Owner',
+  status: 'Status',
+  l4Date: 'L4 date',
+  recurringImpact: 'Recurring impact',
+  created: 'Created'
+};
+
+const formatLogValue = (field: string, value: unknown): string => {
+  if (value === null || value === undefined) {
+    return '—';
+  }
+  if (field === 'recurringImpact') {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    return formatImpact(Number.isFinite(numeric) ? numeric : 0);
+  }
+  if (field === 'l4Date' && typeof value === 'string') {
+    return formatDate(value);
+  }
+  if (field === 'owner' && value && typeof value === 'object') {
+    const payload = value as { name?: string | null };
+    return payload.name ?? 'Unassigned';
+  }
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+};
+
 export const InitiativeProfile = ({
   mode,
   initiative,
@@ -162,6 +198,8 @@ export const InitiativeProfile = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
+  const [changeLog, setChangeLog] = useState<InitiativeEventEntry[]>([]);
+  const [isLogLoading, setIsLogLoading] = useState(false);
 
   useEffect(() => {
     if (initiative) {
@@ -172,6 +210,37 @@ export const InitiativeProfile = ({
       setSelectedStage('l0');
     }
   }, [initiative, initialWorkstreamId, workstreams]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!initiative) {
+      setChangeLog([]);
+      setIsLogLoading(false);
+      return;
+    }
+    setIsLogLoading(true);
+    initiativesApi
+      .events(initiative.id)
+      .then((entries) => {
+        if (!cancelled) {
+          setChangeLog(entries);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load initiative change log:', error);
+        if (!cancelled) {
+          setChangeLog([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLogLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initiative?.id]);
 
   const currentStage = draft.stages[selectedStage];
   const activeStageData = draft.stages[draft.activeStage];
@@ -441,6 +510,14 @@ export const InitiativeProfile = ({
           />
         </label>
         <label>
+          <span>Target L4 date</span>
+          <input
+            type="date"
+            value={draft.l4Date ?? ''}
+            onChange={(event) => handleFieldChange('l4Date', event.target.value || null)}
+          />
+        </label>
+        <label>
           <span>Initiative owner</span>
           <select
             value={draft.ownerAccountId ?? ''}
@@ -573,6 +650,47 @@ export const InitiativeProfile = ({
           onChange={(nextStage) => updateStage(selectedStage, nextStage)}
         />
       </div>
+
+      <section className={styles.changeLogSection}>
+        <header>
+          <h4>Change log</h4>
+        </header>
+        {isLogLoading ? (
+          <p className={styles.placeholder}>Loading change log…</p>
+        ) : changeLog.length === 0 ? (
+          <p className={styles.placeholder}>No changes recorded yet.</p>
+        ) : (
+          <ul className={styles.changeLogList}>
+            {changeLog.map((entry) => (
+              <li key={entry.id} className={styles.changeLogItem}>
+                <div className={styles.logMeta}>
+                  <span className={styles.logActor}>{entry.actorName ?? 'System'}</span>
+                  <span>{new Date(entry.createdAt).toLocaleString()}</span>
+                  <span className={styles.logBadge}>{entry.eventType}</span>
+                </div>
+                <div className={styles.logChanges}>
+                  {entry.changes.map((change) =>
+                    change.field === 'created' ? (
+                      <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
+                        <span className={styles.logField}>{logFieldLabels[change.field] ?? change.field}</span>
+                        <span className={styles.logValue}>Initiative created.</span>
+                      </div>
+                    ) : (
+                      <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
+                        <span className={styles.logField}>{logFieldLabels[change.field] ?? change.field}</span>
+                        <span className={styles.logValue}>
+                          {formatLogValue(change.field, change.previousValue)} →{' '}
+                          {formatLogValue(change.field, change.nextValue)}
+                        </span>
+                      </div>
+                    )
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <footer className={styles.footer}>
         <button className={styles.secondaryButton} onClick={() => onBack(draft.workstreamId)} type="button">

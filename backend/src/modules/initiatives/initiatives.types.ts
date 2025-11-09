@@ -158,3 +158,49 @@ export interface InitiativeApprovalTask {
   roleApproved: number;
   rolePending: number;
 }
+
+export interface InitiativeMutationMetadata {
+  actorAccountId?: string | null;
+  actorName?: string | null;
+}
+
+export interface InitiativeEventRow extends Record<string, unknown> {
+  id: string;
+  event_id: string;
+  initiative_id: string;
+  event_type: string;
+  field: string;
+  previous_value: unknown;
+  next_value: unknown;
+  actor_account_id: string | null;
+  actor_name: string | null;
+  created_at: Date;
+}
+
+export interface InitiativeEventChange {
+  field: string;
+  previousValue: unknown;
+  nextValue: unknown;
+}
+
+export interface InitiativeEventRecord {
+  id: string;
+  eventId: string;
+  initiativeId: string;
+  eventType: string;
+  field: string;
+  previousValue: unknown;
+  nextValue: unknown;
+  actorAccountId: string | null;
+  actorName: string | null;
+  createdAt: string;
+}
+
+export interface InitiativeEventTimelineEntry {
+  id: string;
+  eventType: string;
+  createdAt: string;
+  actorAccountId: string | null;
+  actorName: string | null;
+  changes: InitiativeEventChange[];
+}

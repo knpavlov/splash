@@ -347,6 +347,26 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS workstream_initiative_events (
+      id UUID PRIMARY KEY,
+      event_id UUID NOT NULL,
+      initiative_id UUID NOT NULL REFERENCES workstream_initiatives(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL,
+      field TEXT NOT NULL,
+      previous_value JSONB,
+      next_value JSONB,
+      actor_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+      actor_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS workstream_initiative_events_initiative_idx
+      ON workstream_initiative_events(initiative_id, created_at DESC);
+  `);
+
+  await postgresPool.query(`
     CREATE TABLE IF NOT EXISTS evaluations (
       id UUID PRIMARY KEY,
       candidate_id UUID REFERENCES candidates(id) ON DELETE SET NULL,

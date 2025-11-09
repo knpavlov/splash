@@ -17,7 +17,9 @@ import {
   InitiativeApprovalRecord,
   InitiativeApprovalTask,
   InitiativeApprovalRule,
-  ApprovalDecision
+  ApprovalDecision,
+  InitiativeMutationMetadata,
+  InitiativeEventTimelineEntry
 } from './initiatives.types.js';
 import {
   workstreamGateKeys,
@@ -390,15 +392,25 @@ export class InitiativesService {
     };
   }
 
-  async createInitiative(payload: unknown): Promise<InitiativeResponse> {
+  async createInitiative(payload: unknown, metadata?: InitiativeMutationMetadata): Promise<InitiativeResponse> {
     const model = this.sanitizeModel(payload);
     const record = await this.repository.createInitiative(model);
+    await this.recordEvents(null, record, metadata, 'create');
     return toResponse(record);
   }
 
-  async updateInitiative(id: string, payload: unknown, expectedVersion: number): Promise<InitiativeResponse> {
+  async updateInitiative(
+    id: string,
+    payload: unknown,
+    expectedVersion: number,
+    metadata?: InitiativeMutationMetadata
+  ): Promise<InitiativeResponse> {
     if (!Number.isInteger(expectedVersion)) {
       throw new Error('INVALID_INPUT');
+    }
+    const current = await this.repository.findInitiative(id);
+    if (!current) {
+      throw new Error('NOT_FOUND');
     }
     const safePayload = payload && typeof payload === 'object' ? { ...(payload as Record<string, unknown>), id } : { id };
     const model = this.sanitizeModel(safePayload, id);
@@ -409,6 +421,7 @@ export class InitiativesService {
     if (result === 'version-conflict') {
       throw new Error('VERSION_CONFLICT');
     }
+    await this.recordEvents(current, result, metadata, 'update');
     return toResponse(result);
   }
 
@@ -616,6 +629,29 @@ export class InitiativesService {
     return toResponse(updated);
   }
 
+  async listEvents(id: string): Promise<InitiativeEventTimelineEntry[]> {
+    const events = await this.repository.listEvents(id);
+    const grouped = new Map<string, InitiativeEventTimelineEntry>();
+    for (const row of events) {
+      let entry = grouped.get(row.eventId);
+      if (!entry) {
+        entry = {
+          id: row.eventId,
+          eventType: row.eventType,
+          createdAt: row.createdAt,
+          actorAccountId: row.actorAccountId,
+          actorName: row.actorName,
+          changes: []
+        };
+        grouped.set(row.eventId, entry);
+      }
+      entry.changes.push({ field: row.field, previousValue: row.previousValue, nextValue: row.nextValue });
+    }
+    return Array.from(grouped.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
   private composeApprovalsPayload(
     initiativeId: string,
     stageKey: InitiativeStageKey,
@@ -752,5 +788,78 @@ export class InitiativesService {
       roleApproved: Number(row.role_approved ?? 0),
       rolePending: Number(row.role_pending ?? 0)
     };
+  }
+
+  private async recordEvents(
+    previous: InitiativeRecord | null,
+    next: InitiativeRecord,
+    metadata: InitiativeMutationMetadata | undefined,
+    eventType: 'create' | 'update'
+  ): Promise<void> {
+    const changes = this.buildChangeSet(previous, next);
+    if (!changes.length) {
+      return;
+    }
+    const eventId = randomUUID();
+    await this.repository.insertEvents(
+      changes.map((change) => ({
+        id: randomUUID(),
+        eventId,
+        initiativeId: next.id,
+        eventType,
+        field: change.field,
+        previousValue: change.previousValue,
+        nextValue: change.nextValue,
+        actorAccountId: metadata?.actorAccountId ?? null,
+        actorName: metadata?.actorName ?? null
+      }))
+    );
+  }
+
+  private buildChangeSet(previous: InitiativeRecord | null, next: InitiativeRecord): Array<{
+    field: string;
+    previousValue: unknown;
+    nextValue: unknown;
+  }> {
+    const changes: Array<{ field: string; previousValue: unknown; nextValue: unknown }> = [];
+    if (!previous) {
+      changes.push({
+        field: 'created',
+        previousValue: null,
+        nextValue: {
+          name: next.name,
+          status: next.currentStatus,
+          ownerName: next.ownerName
+        }
+      });
+      return changes;
+    }
+    const trackedFields: Array<{ field: string; previousValue: unknown; nextValue: unknown }> = [
+      { field: 'name', previousValue: previous.name, nextValue: next.name },
+      { field: 'description', previousValue: previous.description, nextValue: next.description },
+      {
+        field: 'owner',
+        previousValue: { accountId: previous.ownerAccountId, name: previous.ownerName },
+        nextValue: { accountId: next.ownerAccountId, name: next.ownerName }
+      },
+      { field: 'status', previousValue: previous.currentStatus, nextValue: next.currentStatus },
+      { field: 'l4Date', previousValue: previous.l4Date, nextValue: next.l4Date }
+    ];
+    const previousTotals = buildTotals(previous);
+    const nextTotals = buildTotals(next);
+    trackedFields.push({
+      field: 'recurringImpact',
+      previousValue: previousTotals.recurringImpact,
+      nextValue: nextTotals.recurringImpact
+    });
+
+    for (const item of trackedFields) {
+      const prevValue = JSON.stringify(item.previousValue ?? null);
+      const nextValue = JSON.stringify(item.nextValue ?? null);
+      if (prevValue !== nextValue) {
+        changes.push(item);
+      }
+    }
+    return changes;
   }
 }

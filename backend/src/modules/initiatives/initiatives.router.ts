@@ -1,7 +1,22 @@
 import { Router, Response } from 'express';
 import { initiativesService } from './initiatives.module.js';
+import type { InitiativeMutationMetadata } from './initiatives.types.js';
 
 const router = Router();
+
+const normalizeActor = (input: unknown): InitiativeMutationMetadata | undefined => {
+  if (!input || typeof input !== 'object') {
+    return undefined;
+  }
+  const payload = input as { accountId?: unknown; name?: unknown };
+  const accountId =
+    typeof payload.accountId === 'string' && payload.accountId.trim() ? payload.accountId.trim() : null;
+  const actorName = typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : null;
+  if (!accountId && !actorName) {
+    return undefined;
+  }
+  return { actorAccountId: accountId, actorName };
+};
 
 const handleError = (error: unknown, res: Response) => {
   if (!(error instanceof Error)) {
@@ -56,13 +71,13 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { initiative } = req.body as { initiative?: unknown };
+  const { initiative, actor } = req.body as { initiative?: unknown; actor?: unknown };
   if (!initiative) {
     res.status(400).json({ code: 'invalid-input', message: 'Provide initiative data.' });
     return;
   }
   try {
-    const record = await initiativesService.createInitiative(initiative);
+    const record = await initiativesService.createInitiative(initiative, normalizeActor(actor));
     res.status(201).json(record);
   } catch (error) {
     handleError(error, res);
@@ -70,13 +85,22 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { initiative, expectedVersion } = req.body as { initiative?: unknown; expectedVersion?: unknown };
+  const { initiative, expectedVersion, actor } = req.body as {
+    initiative?: unknown;
+    expectedVersion?: unknown;
+    actor?: unknown;
+  };
   if (!initiative || typeof expectedVersion !== 'number') {
     res.status(400).json({ code: 'invalid-input', message: 'Provide initiative data and expected version.' });
     return;
   }
   try {
-    const record = await initiativesService.updateInitiative(req.params.id, initiative, expectedVersion);
+    const record = await initiativesService.updateInitiative(
+      req.params.id,
+      initiative,
+      expectedVersion,
+      normalizeActor(actor)
+    );
     res.json(record);
   } catch (error) {
     handleError(error, res);
@@ -109,6 +133,15 @@ router.post('/:id/submit', async (req, res) => {
   try {
     const initiative = await initiativesService.submitStage(req.params.id);
     res.json(initiative);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.get('/:id/events', async (req, res) => {
+  try {
+    const events = await initiativesService.listEvents(req.params.id);
+    res.json(events);
   } catch (error) {
     handleError(error, res);
   }

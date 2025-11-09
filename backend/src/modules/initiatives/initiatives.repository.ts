@@ -12,7 +12,9 @@ import {
   InitiativeStageKey,
   InitiativeWriteModel,
   InitiativeApprovalRow,
-  InitiativeApprovalRecord
+  InitiativeApprovalRecord,
+  InitiativeEventRecord,
+  InitiativeEventRow
 } from './initiatives.types.js';
 
 export interface ApprovalTaskRow extends InitiativeApprovalRow {
@@ -527,5 +529,63 @@ export class InitiativesRepository {
       params
     );
     return result.rows ?? [];
+  }
+
+  async insertEvents(
+    entries: Array<{
+      id: string;
+      eventId: string;
+      initiativeId: string;
+      eventType: string;
+      field: string;
+      previousValue: unknown;
+      nextValue: unknown;
+      actorAccountId?: string | null;
+      actorName?: string | null;
+    }>
+  ): Promise<void> {
+    if (!entries.length) {
+      return;
+    }
+    for (const entry of entries) {
+      await postgresPool.query(
+        `INSERT INTO workstream_initiative_events
+           (id, event_id, initiative_id, event_type, field, previous_value, next_value, actor_account_id, actor_name)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9);`,
+        [
+          entry.id,
+          entry.eventId,
+          entry.initiativeId,
+          entry.eventType,
+          entry.field,
+          JSON.stringify(entry.previousValue ?? null),
+          JSON.stringify(entry.nextValue ?? null),
+          entry.actorAccountId ?? null,
+          entry.actorName ?? null
+        ]
+      );
+    }
+  }
+
+  async listEvents(initiativeId: string): Promise<InitiativeEventRecord[]> {
+    const result = await postgresPool.query<InitiativeEventRow>(
+      `SELECT *
+         FROM workstream_initiative_events
+        WHERE initiative_id = $1
+        ORDER BY created_at DESC, event_id DESC;`,
+      [initiativeId]
+    );
+    return (result.rows ?? []).map((row) => ({
+      id: row.id,
+      eventId: row.event_id,
+      initiativeId: row.initiative_id,
+      eventType: row.event_type,
+      field: row.field,
+      previousValue: row.previous_value ?? null,
+      nextValue: row.next_value ?? null,
+      actorAccountId: row.actor_account_id ?? null,
+      actorName: row.actor_name ?? null,
+      createdAt: toIsoString(row.created_at) ?? new Date().toISOString()
+    }));
   }
 }
