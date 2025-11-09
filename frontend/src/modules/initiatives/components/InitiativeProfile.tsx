@@ -462,6 +462,7 @@ export const InitiativeProfile = ({
         stages={draft.stages}
         stageState={draft.stageState}
         onSelectStage={handleStageChange}
+        workstream={selectedWorkstream}
       />
 
       {banner && (

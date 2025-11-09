@@ -53,7 +53,9 @@
 }
 
 .sheetScroller {
+  position: relative;
   overflow-x: auto;
+  overflow-y: visible;
   border-radius: 16px;
 }
 
@@ -82,7 +84,7 @@
   position: sticky;
   left: 0;
   background: rgba(15, 23, 42, 0.04);
-  z-index: 4;
+  z-index: 6;
 }
 
 .monthHeader {
@@ -97,12 +99,12 @@
 .categoryCell {
   position: sticky;
   left: 0;
-  background: rgba(255, 255, 255, 0.98);
+  background: #fff;
   padding: 12px;
   display: flex;
   align-items: center;
   gap: 8px;
-  z-index: 3;
+  z-index: 5;
   border-right: 1px solid rgba(148, 163, 184, 0.18);
   box-shadow: 8px 0 12px rgba(15, 23, 42, 0.06);
 }
