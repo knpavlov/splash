@@ -129,7 +129,7 @@ const CombinedChart = ({
               {stat.positiveTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValuePositive}`}
-                  style={{ top: `calc(${positiveLabelTop}% - 12px)` }}
+                  style={{ top: `calc(${positiveLabelTop}% - 18px)` }}
                 >
                   {formatCurrency(stat.positiveTotal)}
                 </span>
@@ -137,7 +137,7 @@ const CombinedChart = ({
               {stat.negativeTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValueNegative}`}
-                  style={{ top: `calc(${negativeLabelTop}% + 4px)` }}
+                  style={{ top: `calc(${negativeLabelTop}% + 6px)` }}
                 >
                   {formatCurrency(stat.negativeTotal)}
                 </span>
