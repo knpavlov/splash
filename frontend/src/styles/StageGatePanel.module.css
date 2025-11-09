@@ -39,6 +39,9 @@
   cursor: pointer;
   clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.chevron {
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
 }
 
@@ -114,7 +117,7 @@
 }
 
 .gate {
-  min-width: 140px;
+  min-width: 160px;
   padding: 14px 18px;
   border: 1px dashed rgba(148, 163, 184, 0.8);
   background: rgba(248, 250, 252, 0.85);

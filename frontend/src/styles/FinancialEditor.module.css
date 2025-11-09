@@ -1,89 +1,22 @@
-.editorWrapper {
+.financialBoard {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
-.section {
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 20px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.95);
-}
-
-.sectionHeader {
+.financialHeading {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
 }
 
-.sectionHeader h4 {
+.financialHeading h3 {
   margin: 0;
 }
 
-.sectionHeader p {
-  margin: 4px 0 0 0;
-  color: #475569;
-  font-size: 13px;
-}
-
-.secondaryButton {
-  border: none;
-  border-radius: 10px;
-  padding: 8px 14px;
-  background: rgba(59, 130, 246, 0.1);
-  color: #1d4ed8;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.placeholder {
-  margin: 16px 0 0 0;
-  color: #64748b;
-}
-
-.sheetWrapper {
-  margin-top: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 16px;
-  background: rgba(248, 250, 252, 0.7);
-  position: relative;
-  overflow: visible;
-}
-
-.sheetScroller {
-  position: relative;
-  overflow-x: auto;
-  overflow-y: visible;
-  border-radius: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.summaryCard {
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 20px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-}
-
-.summaryHeading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.summaryHeading h3 {
-  margin: 0;
-}
-
-.summaryHeading p {
-  margin: 6px 0 0;
+.financialHeading p {
+  margin: 4px 0 0;
   color: #475569;
 }
 
@@ -93,61 +26,36 @@
 
 .summaryHighlight span {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: #94a3b8;
 }
 
 .summaryHighlight strong {
-  font-size: 24px;
-  color: #0f172a;
-}
-
-.sectionChartMeta {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-top: 16px;
-}
-
-.runRateLabel {
-  display: block;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #94a3b8;
-}
-
-.runRateValue {
-  display: block;
   font-size: 26px;
-  font-weight: 600;
   color: #0f172a;
 }
 
 .summaryGroup {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  margin: 12px 0;
+  gap: 12px;
 }
 
 .summaryList {
-  min-width: 180px;
-  background: rgba(248, 250, 252, 0.8);
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 12px;
   padding: 10px 14px;
+  background: rgba(248, 250, 252, 0.85);
+  min-width: 180px;
 }
 
 .summaryListTitle {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: #94a3b8;
   margin-bottom: 6px;
 }
@@ -168,156 +76,173 @@
   color: #475569;
 }
 
-.summaryList strong {
-  color: #0f172a;
+.sheetWrapper {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.95);
 }
 
-.chartBlock {
-  margin-top: 12px;
-}
-
-.chartMeta {
+.sheetScroller {
+  overflow-x: auto;
+  padding: 16px;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.chartMeta h5 {
-  margin: 0;
+.sheetScroller::-webkit-scrollbar {
+  height: 6px;
+}
+
+.sheetScroller::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
 }
 
 .chartRow {
   display: grid;
-  align-items: end;
+  align-items: center;
   gap: 0;
-  min-height: 160px;
+  min-height: 140px;
   position: relative;
 }
 
-.chartRow::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 32px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.4);
-  pointer-events: none;
-}
-
 .chartLegend {
-  padding: 0 12px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
 }
 
 .chartCell {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 0 6px 16px;
-  height: 160px;
-  justify-content: flex-end;
+  gap: 6px;
+}
+
+.chartBarGroup {
+  width: 100%;
+  height: 110px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.chartBarGroup::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.4);
+}
+
+.positiveStack,
+.negativeStack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.positiveStack {
+  bottom: 50%;
+  align-items: flex-end;
+}
+
+.negativeStack {
+  top: 50%;
+  align-items: flex-start;
 }
 
 .chartBar {
-  width: 26px;
-  border-radius: 6px 6px 0 0;
-  background: #0f172a;
-  transition: height 0.2s ease, background 0.2s ease;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
-}
-
-.chartBar[data-negative='true'] {
-  background: #ef4444;
-}
-
-.chartValue {
-  font-size: 11px;
-  color: #475569;
+  width: 14px;
+  border-radius: 4px;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.15);
 }
 
 .chartMonth {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: #94a3b8;
-}
-
-.chartWrapperStandalone {
-  overflow-x: auto;
-  padding-bottom: 8px;
-}
-
-.chartMetaCompact {
-  font-size: 13px;
-  color: #475569;
-  margin-bottom: 6px;
 }
 
 .sheetRow {
   display: grid;
   align-items: stretch;
-  min-width: 600px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-  background: #fff;
-  position: relative;
-}
-
-.sheetRow:last-of-type {
-  border-bottom: none;
+  gap: 0;
 }
 
 .sheetHeader {
-  background: rgba(15, 23, 42, 0.04);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: #475569;
 }
 
 .categoryHeader {
-  padding: 12px;
+  padding: 10px;
   position: sticky;
   left: 0;
-  background: rgba(15, 23, 42, 0.04);
-  z-index: 6;
+  background: rgba(248, 250, 252, 0.9);
+  border-right: 1px solid rgba(148, 163, 184, 0.2);
+  z-index: 2;
 }
 
-.monthHeader {
-  padding: 12px;
-  border-left: 1px solid rgba(148, 163, 184, 0.18);
+.kindDivider {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.sectionAddButton {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+  font-weight: 600;
   font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #64748b;
 }
 
 .categoryCell {
   position: sticky;
   left: 0;
   background: #fff;
-  padding: 12px;
+  padding: 10px;
   display: flex;
   align-items: center;
   gap: 8px;
-  z-index: 5;
+  z-index: 1;
   border-right: 1px solid rgba(148, 163, 184, 0.18);
-  box-shadow: 8px 0 12px rgba(15, 23, 42, 0.06);
 }
 
 .categoryCell select {
   flex: 1;
   border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 14px;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
 }
 
 .rowMenuButton {
   border: none;
-  border-radius: 8px;
-  padding: 4px 10px;
-  background: rgba(148, 163, 184, 0.2);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  background: rgba(148, 163, 184, 0.18);
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
@@ -325,10 +250,10 @@
 
 .rowMenu {
   position: absolute;
-  top: 44px;
-  left: 12px;
+  top: 42px;
+  left: 10px;
   z-index: 10;
-  width: 280px;
+  width: 260px;
   background: #fff;
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 12px;
@@ -358,16 +283,15 @@
   flex: 1;
   min-width: 80px;
   border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 6px 8px;
 }
 
 .menuInputs button {
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 6px 10px;
   background: rgba(14, 165, 233, 0.15);
-  color: #0f172a;
   cursor: pointer;
   font-weight: 600;
 }
@@ -383,43 +307,49 @@
 }
 
 .sheetCell {
-  padding: 12px;
-  border-left: 1px solid rgba(148, 163, 184, 0.18);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.monthLabel {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #94a3b8;
-}
-
-.monthInputWrapper {
+  padding: 6px 8px;
+  border-left: 1px solid rgba(148, 163, 184, 0.12);
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.monthInputWrapper input {
+.sheetCell input {
   border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 6px 8px;
   width: 100%;
+  font-size: 13px;
+}
+
+.sheetCell input::-webkit-outer-spin-button,
+.sheetCell input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.sheetCell input[type='number'] {
+  -moz-appearance: textfield;
 }
 
 .fillRightButton {
   border: none;
-  border-radius: 6px;
-  padding: 4px 6px;
-  background: rgba(59, 130, 246, 0.18);
+  border-radius: 999px;
+  padding: 2px 6px;
+  background: rgba(59, 130, 246, 0.15);
   color: #1d4ed8;
   cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .fillRightButton:disabled {
-  opacity: 0.4;
+  opacity: 0.3;
   cursor: not-allowed;
+}
+
+.placeholder {
+  margin: 8px 0 16px;
+  color: #94a3b8;
+  font-size: 13px;
 }

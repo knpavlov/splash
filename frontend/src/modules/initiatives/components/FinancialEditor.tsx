@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/FinancialEditor.module.css';
 import {
   InitiativeFinancialEntry,
   InitiativeStageData,
-  pnlCategories,
   InitiativeFinancialKind,
-  initiativeFinancialKinds
+  initiativeFinancialKinds,
+  pnlCategories
 } from '../../../shared/types/initiative';
 import { generateId } from '../../../shared/ui/generateId';
 import {
@@ -29,36 +29,25 @@ const SECTION_LABELS: Record<InitiativeFinancialKind, string> = {
   'oneoff-costs': 'One-off costs'
 };
 
-const SECTION_HELP: Record<InitiativeFinancialKind, string> = {
-  'recurring-benefits': 'Monthly uplift that repeats over the initiative period.',
-  'recurring-costs': 'Monthly cost to keep the initiative running.',
-  'oneoff-benefits': 'Single-time positive impact (e.g. sale of assets).',
-  'oneoff-costs': 'Single-time expenses (e.g. implementation fees).'
+const benefitKinds: InitiativeFinancialKind[] = ['recurring-benefits', 'oneoff-benefits'];
+const costKinds: InitiativeFinancialKind[] = ['recurring-costs', 'oneoff-costs'];
+
+const SECTION_COLORS: Record<InitiativeFinancialKind, string> = {
+  'recurring-benefits': '#ef4444',
+  'oneoff-benefits': '#fb923c',
+  'recurring-costs': '#0f172a',
+  'oneoff-costs': '#475569'
 };
 
 type MonthDescriptor = { key: string; label: string; year: number; index: number };
 
-const currencyFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const compactFormatter = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 0
+});
 
 const formatCurrency = (value: number) => currencyFormatter.format(Math.round(value || 0));
-const formatCompact = (value: number) => compactFormatter.format(Math.round(value || 0));
-
-const SECTION_COLORS: Record<InitiativeFinancialKind, string> = {
-  'recurring-benefits': '#ef4444',
-  'recurring-costs': '#0f172a',
-  'oneoff-benefits': '#fb923c',
-  'oneoff-costs': '#475569'
-};
-
-interface EntryRowProps {
-  entry: InitiativeFinancialEntry;
-  disabled: boolean;
-  months: MonthDescriptor[];
-  gridTemplateColumns: string;
-  onChange: (entry: InitiativeFinancialEntry) => void;
-  onRemove: () => void;
-}
 
 const SummaryList = ({ title, items }: { title: string; items: YearSummaryEntry[] }) => {
   if (!items.length) {
@@ -79,88 +68,76 @@ const SummaryList = ({ title, items }: { title: string; items: YearSummaryEntry[
   );
 };
 
-interface ImpactSummaryCardProps {
-  stage: InitiativeStageData;
+const CombinedChart = ({
+  months,
+  gridTemplateColumns,
+  totals
+}: {
   months: MonthDescriptor[];
   gridTemplateColumns: string;
-}
+  totals: Record<InitiativeFinancialKind, Record<string, number>>;
+}) => {
+  const maxPositive = months.reduce((acc, month) => {
+    const total =
+      (totals['recurring-benefits'][month.key] ?? 0) + (totals['oneoff-benefits'][month.key] ?? 0);
+    return Math.max(acc, total);
+  }, 0);
+  const maxNegative = months.reduce((acc, month) => {
+    const total =
+      (totals['recurring-costs'][month.key] ?? 0) + (totals['oneoff-costs'][month.key] ?? 0);
+    return Math.max(acc, total);
+  }, 0);
+  const positiveBase = maxPositive || 1;
+  const negativeBase = maxNegative || 1;
 
-const ImpactSummaryCard = ({ stage, months, gridTemplateColumns }: ImpactSummaryCardProps) => {
-  const recurringBenefits = useMemo(() => buildKindMonthlyTotals(stage, 'recurring-benefits'), [stage]);
-  const recurringCosts = useMemo(() => buildKindMonthlyTotals(stage, 'recurring-costs'), [stage]);
-  const impactTotals = useMemo(() => {
-    const totals: Record<string, number> = {};
-    months.forEach((month) => {
-      totals[month.key] = (recurringBenefits[month.key] ?? 0) - (recurringCosts[month.key] ?? 0);
-    });
-    return totals;
-  }, [months, recurringBenefits, recurringCosts]);
-
-  const monthKeys = months.map((month) => month.key);
-  const runRate = calculateRunRate(monthKeys, impactTotals);
-  const summaries = calculateYearSummaries(impactTotals);
-
-  return (
-    <div className={styles.summaryCard}>
-      <div className={styles.summaryHeading}>
-        <div>
-          <h3>Impact outlook</h3>
-          <p>Recurring benefits minus recurring costs for the selected stage.</p>
-        </div>
-        <div className={styles.summaryHighlight}>
-          <span>Run rate (last 12 months)</span>
-          <strong>{formatCurrency(runRate)}</strong>
-        </div>
-      </div>
-      <div className={styles.summaryGroup}>
-        <SummaryList title="Fiscal years" items={summaries.fiscal} />
-        <SummaryList title="Calendar years" items={summaries.calendar} />
-      </div>
-      <div className={styles.chartMetaCompact}>
-        <span>Impact trend</span>
-      </div>
-      <div className={styles.chartWrapperStandalone}>
-        <ChartBars
-          months={months}
-          totals={impactTotals}
-          gridTemplateColumns={gridTemplateColumns}
-          color="#b91c1c"
-        />
-      </div>
-    </div>
-  );
-};
-
-interface ChartRowProps {
-  months: MonthDescriptor[];
-  totals: Record<string, number>;
-  gridTemplateColumns: string;
-  color?: string;
-}
-
-const ChartBars = ({ months, totals, gridTemplateColumns, color }: ChartRowProps) => {
-  const maxValue = months.reduce((acc, month) => Math.max(acc, Math.abs(totals[month.key] ?? 0)), 0);
   return (
     <div className={styles.chartRow} style={{ gridTemplateColumns }}>
-      <div className={styles.chartLegend} />
-      {months.map((month) => {
-        const value = totals[month.key] ?? 0;
-        const height = maxValue > 0 ? Math.max(4, Math.round((Math.abs(value) / maxValue) * 100)) : 0;
-        return (
-          <div key={month.key} className={styles.chartCell}>
-            <div
-              className={styles.chartBar}
-              style={{ height: `${height}%`, background: color }}
-              data-negative={value < 0}
-            />
-            <span className={styles.chartValue}>{value ? formatCompact(value) : ''}</span>
-            <span className={styles.chartMonth}>{month.label}</span>
+      <div className={styles.chartLegend}>Trend</div>
+      {months.map((month) => (
+        <div key={month.key} className={styles.chartCell}>
+          <div className={styles.chartBarGroup}>
+            <div className={styles.positiveStack}>
+              {benefitKinds.map((kind) => {
+                const value = totals[kind][month.key] ?? 0;
+                const height = Math.max(0, Math.min(100, (value / positiveBase) * 100));
+                return (
+                  <div
+                    key={kind}
+                    className={styles.chartBar}
+                    style={{ height: `${height}%`, background: SECTION_COLORS[kind] }}
+                  />
+                );
+              })}
+            </div>
+            <div className={styles.negativeStack}>
+              {costKinds.map((kind) => {
+                const value = totals[kind][month.key] ?? 0;
+                const height = Math.max(0, Math.min(100, (value / negativeBase) * 100));
+                return (
+                  <div
+                    key={kind}
+                    className={styles.chartBar}
+                    style={{ height: `${height}%`, background: SECTION_COLORS[kind] }}
+                  />
+                );
+              })}
+            </div>
           </div>
-        );
-      })}
+          <span className={styles.chartMonth}>{month.label}</span>
+        </div>
+      ))}
     </div>
   );
 };
+
+interface EntryRowProps {
+  entry: InitiativeFinancialEntry;
+  disabled: boolean;
+  months: MonthDescriptor[];
+  gridTemplateColumns: string;
+  onChange: (entry: InitiativeFinancialEntry) => void;
+  onRemove: () => void;
+}
 
 const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRemove }: EntryRowProps) => {
   const [monthlyValue, setMonthlyValue] = useState('');
@@ -265,9 +242,9 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
           className={styles.rowMenuButton}
           onClick={() => setMenuOpen((prev) => !prev)}
           disabled={disabled}
-          title="More actions"
+          title="Actions"
         >
-          ...
+          ⋯
         </button>
         {menuOpen && (
           <div className={styles.rowMenu} ref={menuRef}>
@@ -301,19 +278,19 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
                     </option>
                   ))}
                 </select>
-                <select value={duration} onChange={(event) => setDuration(Number(event.target.value))} disabled={disabled}>
-                  {Array.from({ length: months.length }).map((_, index) => (
-                    <option key={index + 1} value={index + 1}>
-                      {index + 1} m
-                    </option>
-                  ))}
-                </select>
+                <input
+                  type="number"
+                  min={1}
+                  value={duration}
+                  onChange={(event) => setDuration(Math.max(1, Number(event.target.value)))}
+                  disabled={disabled}
+                />
                 <button type="button" onClick={distributeTotal} disabled={disabled}>
                   Spread
                 </button>
               </div>
             </div>
-            <button className={styles.menuRemoveButton} onClick={onRemove} disabled={disabled} type="button">
+            <button type="button" className={styles.menuRemoveButton} onClick={onRemove} disabled={disabled}>
               Remove line
             </button>
           </div>
@@ -321,26 +298,21 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
       </div>
       {months.map((month) => (
         <label key={month.key} className={styles.sheetCell}>
-          <span className={styles.monthLabel}>
-            {month.label} {month.year}
-          </span>
-          <div className={styles.monthInputWrapper}>
-            <input
-              type="number"
-              value={entry.distribution[month.key] ?? ''}
-              onChange={(event) => updateMonthValue(month.key, event.target.value)}
-              disabled={disabled}
-            />
-            <button
-              type="button"
-              className={styles.fillRightButton}
-              onClick={() => fillRight(month.key)}
-              disabled={disabled || entry.distribution[month.key] === undefined}
-              title="Fill to the right"
-            >
-              {'->'}
-            </button>
-          </div>
+          <input
+            type="number"
+            value={entry.distribution[month.key] ?? ''}
+            onChange={(event) => updateMonthValue(month.key, event.target.value)}
+            disabled={disabled}
+          />
+          <button
+            type="button"
+            className={styles.fillRightButton}
+            onClick={() => fillRight(month.key)}
+            disabled={disabled || entry.distribution[month.key] === undefined}
+            title="Fill to the right"
+          >
+            →
+          </button>
         </label>
       ))}
     </div>
@@ -350,9 +322,12 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
 export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorProps) => {
   const months = useMemo<MonthDescriptor[]>(() => buildMonthRange(stage), [stage]);
   const gridTemplateColumns = useMemo(
-    () => `220px repeat(${Math.max(months.length, 1)}, minmax(120px, 1fr))`,
+    () => `200px repeat(${Math.max(months.length, 1)}, minmax(110px, 1fr))`,
     [months.length]
   );
+
+  const monthKeys = useMemo(() => months.map((month) => month.key), [months]);
+
   const kindMonthlyTotals = useMemo(
     () =>
       initiativeFinancialKinds.reduce(
@@ -364,31 +339,21 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
       ),
     [stage]
   );
-  const monthKeys = useMemo(() => months.map((month) => month.key), [months]);
 
-  useEffect(() => {
-    const monthSet = new Set(months.map((month) => month.key));
-    let changed = false;
-    const nextStage: InitiativeStageData = {
-      ...stage,
-      financials: { ...stage.financials }
-    };
-    initiativeFinancialKinds.forEach((kind) => {
-      nextStage.financials[kind] = stage.financials[kind].map((entry) => {
-        const filtered = Object.fromEntries(
-          Object.entries(entry.distribution).filter(([key]) => monthSet.has(key))
-        );
-        if (Object.keys(filtered).length !== Object.keys(entry.distribution).length) {
-          changed = true;
-          return { ...entry, distribution: filtered };
-        }
-        return entry;
-      });
+  const impactTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    months.forEach((month) => {
+      totals[month.key] =
+        (kindMonthlyTotals['recurring-benefits'][month.key] ?? 0) +
+        (kindMonthlyTotals['oneoff-benefits'][month.key] ?? 0) -
+        (kindMonthlyTotals['recurring-costs'][month.key] ?? 0) -
+        (kindMonthlyTotals['oneoff-costs'][month.key] ?? 0);
     });
-    if (changed) {
-      onChange(nextStage);
-    }
-  }, [months, onChange, stage]);
+    return totals;
+  }, [months, kindMonthlyTotals]);
+
+  const runRate = calculateRunRate(monthKeys, impactTotals);
+  const summaryTotals = calculateYearSummaries(impactTotals);
 
   const updateEntries = (
     kind: InitiativeFinancialKind,
@@ -419,73 +384,66 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
   };
 
   return (
-    <div className={styles.editorWrapper}>
-      <ImpactSummaryCard stage={stage} months={months} gridTemplateColumns={gridTemplateColumns} />
-      {initiativeFinancialKinds.map((kind) => (
-        <section key={kind} className={styles.section}>
-          <header className={styles.sectionHeader}>
-            <div>
-              <h4>{SECTION_LABELS[kind]}</h4>
-              <p>{SECTION_HELP[kind]}</p>
-            </div>
-            <button className={styles.secondaryButton} onClick={() => addEntry(kind)} type="button" disabled={disabled}>
-              Add line
-            </button>
-          </header>
-          {stage.financials[kind].length === 0 ? (
-            <p className={styles.placeholder}>No data yet. Use "Add line" to start capturing this metric.</p>
-          ) : (
-            <>
-              {(() => {
-                const totals = kindMonthlyTotals[kind];
-                const runRateValue = formatCurrency(calculateRunRate(monthKeys, totals));
-                const summaries = calculateYearSummaries(totals);
-                return (
-                  <div className={styles.sectionChartMeta}>
-                    <div>
-                      <span className={styles.runRateLabel}>Run rate (last 12 months)</span>
-                      <strong className={styles.runRateValue}>{runRateValue}</strong>
-                    </div>
-                    <div className={styles.summaryGroup}>
-                      <SummaryList title="Fiscal years" items={summaries.fiscal} />
-                      <SummaryList title="Calendar years" items={summaries.calendar} />
-                    </div>
-                  </div>
-                );
-              })()}
-              <div className={styles.sheetWrapper}>
-                <div className={styles.sheetScroller}>
-                  <ChartBars
-                    months={months}
-                    totals={kindMonthlyTotals[kind]}
-                    gridTemplateColumns={gridTemplateColumns}
-                    color={SECTION_COLORS[kind]}
-                  />
-                  <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
-                    <div className={styles.categoryHeader}>P&L category</div>
-                    {months.map((month) => (
-                      <div key={month.key} className={styles.monthHeader}>
-                        {month.label} {month.year}
-                      </div>
-                    ))}
-                  </div>
-                  {stage.financials[kind].map((entry) => (
-                    <EntryRow
-                      key={entry.id}
-                      entry={entry}
-                      disabled={disabled}
-                      months={months}
-                      gridTemplateColumns={gridTemplateColumns}
-                      onChange={(nextEntry) => handleEntryChange(kind, nextEntry)}
-                      onRemove={() => removeEntry(kind, entry.id)}
-                    />
-                  ))}
-                </div>
+    <section className={styles.financialBoard}>
+      <header className={styles.financialHeading}>
+        <div>
+          <h3>Financial outlook</h3>
+          <p>All recurring and one-off flows in a single, minimal view.</p>
+        </div>
+        <div className={styles.summaryHighlight}>
+          <span>Net run rate (last 12 months)</span>
+          <strong>{formatCurrency(runRate)}</strong>
+        </div>
+      </header>
+
+      <div className={styles.summaryGroup}>
+        <SummaryList title="Fiscal years" items={summaryTotals.fiscal} />
+        <SummaryList title="Calendar years" items={summaryTotals.calendar} />
+      </div>
+
+      <div className={styles.sheetWrapper}>
+        <div className={styles.sheetScroller}>
+          <CombinedChart months={months} gridTemplateColumns={gridTemplateColumns} totals={kindMonthlyTotals} />
+          <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
+            <div className={styles.categoryHeader}>Line item</div>
+            {months.map((month) => (
+              <div key={month.key} className={styles.monthHeader}>
+                {month.label} {month.year}
               </div>
-            </>
-          )}
-        </section>
-      ))}
-    </div>
+            ))}
+          </div>
+          {initiativeFinancialKinds.map((kind) => (
+            <Fragment key={kind}>
+              <div className={styles.kindDivider}>
+                <span>{SECTION_LABELS[kind]}</span>
+                <button
+                  className={styles.sectionAddButton}
+                  onClick={() => addEntry(kind)}
+                  type="button"
+                  disabled={disabled}
+                >
+                  Add line
+                </button>
+              </div>
+              {stage.financials[kind].length === 0 ? (
+                <p className={styles.placeholder}>No data yet. Use “Add line” to start capturing this metric.</p>
+              ) : (
+                stage.financials[kind].map((entry) => (
+                  <EntryRow
+                    key={entry.id}
+                    entry={entry}
+                    disabled={disabled}
+                    months={months}
+                    gridTemplateColumns={gridTemplateColumns}
+                    onChange={(nextEntry) => handleEntryChange(kind, nextEntry)}
+                    onRemove={() => removeEntry(kind, entry.id)}
+                  />
+                ))
+              )}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 };
