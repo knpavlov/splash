@@ -77,18 +77,14 @@ const CombinedChart = ({
   gridTemplateColumns: string;
   totals: Record<InitiativeFinancialKind, Record<string, number>>;
 }) => {
-  const maxPositive = months.reduce((acc, month) => {
-    const total =
-      (totals['recurring-benefits'][month.key] ?? 0) + (totals['oneoff-benefits'][month.key] ?? 0);
-    return Math.max(acc, total);
-  }, 0);
-  const maxNegative = months.reduce((acc, month) => {
-    const total =
-      (totals['recurring-costs'][month.key] ?? 0) + (totals['oneoff-costs'][month.key] ?? 0);
-    return Math.max(acc, total);
-  }, 0);
-  const positiveBase = maxPositive || 1;
-  const negativeBase = maxNegative || 1;
+  const positiveBase = Math.max(
+    1,
+    ...months.map((month) => benefitKinds.reduce((sum, kind) => sum + Math.max(0, totals[kind][month.key] ?? 0), 0))
+  );
+  const negativeBase = Math.max(
+    1,
+    ...months.map((month) => costKinds.reduce((sum, kind) => sum + Math.max(0, totals[kind][month.key] ?? 0), 0))
+  );
 
   return (
     <div className={styles.chartRow} style={{ gridTemplateColumns }}>
@@ -98,8 +94,8 @@ const CombinedChart = ({
           <div className={styles.chartBarGroup}>
             <div className={styles.positiveStack}>
               {benefitKinds.map((kind) => {
-                const value = totals[kind][month.key] ?? 0;
-                const height = Math.max(0, Math.min(100, (value / positiveBase) * 100));
+                const value = Math.max(0, totals[kind][month.key] ?? 0);
+                const height = Math.min(100, (value / positiveBase) * 100);
                 return (
                   <div
                     key={kind}
@@ -111,8 +107,8 @@ const CombinedChart = ({
             </div>
             <div className={styles.negativeStack}>
               {costKinds.map((kind) => {
-                const value = totals[kind][month.key] ?? 0;
-                const height = Math.max(0, Math.min(100, (value / negativeBase) * 100));
+                const value = Math.abs(totals[kind][month.key] ?? 0);
+                const height = Math.min(100, (value / negativeBase) * 100);
                 return (
                   <div
                     key={kind}
@@ -123,7 +119,6 @@ const CombinedChart = ({
               })}
             </div>
           </div>
-          <span className={styles.chartMonth}>{month.label}</span>
         </div>
       ))}
     </div>

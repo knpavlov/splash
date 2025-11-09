@@ -177,13 +177,6 @@
   transform-origin: top;
 }
 
-.chartMonth {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #94a3b8;
-}
-
 .sheetRow {
   display: grid;
   align-items: stretch;

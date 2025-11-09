@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
+import type { MouseEvent } from 'react';
 import styles from '../../../styles/StageGatePanel.module.css';
 import { InitiativeStageKey, InitiativeStageMap, initiativeStageKeys, InitiativeStageStateMap } from '../../../shared/types/initiative';
 import {
@@ -102,29 +103,40 @@ export const StageGatePanel = ({
     return map;
   }, []);
 
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+
+  const handleMouseMove = useCallback((event: MouseEvent<HTMLElement>) => {
+    setTooltipPos({ x: event.clientX + 12, y: event.clientY + 16 });
+  }, []);
+
   const renderGate = (gateKey: WorkstreamGateKey) => {
     const gateState = stageState[gateKey];
     const stateClass = styles[`gate-${gateState?.status ?? 'draft'}`] ?? '';
     const rounds = workstream?.gates[gateKey] ?? [];
-    const gateClasses = [styles.gate, styles.chevron, styles[`gate-${gateState?.status ?? 'draft'}`]]
-      .filter(Boolean)
-      .join(' ');
+    const gateClasses = [styles.gate, styles.chevron, stateClass].filter(Boolean).join(' ');
     return (
       <div
         key={`${gateKey}-connector`}
         className={styles.gateWrapper}
-        onMouseEnter={() => setHoveredGate(gateKey)}
-        onMouseLeave={() => setHoveredGate((prev) => (prev === gateKey ? null : prev))}
+        onMouseEnter={(event) => {
+          setHoveredGate(gateKey);
+          handleMouseMove(event);
+        }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => {
+          setHoveredGate((prev) => (prev === gateKey ? null : prev));
+          setTooltipPos(null);
+        }}
       >
-        <button type="button" className={[gateClasses, stateClass].filter(Boolean).join(' ')}>
+        <button type="button" className={gateClasses}>
           <span className={styles.gateName}>{gateKey.toUpperCase()}</span>
           <span className={styles.gateLabel}>Gate</span>
           <span className={styles.gateStatus}>
             {rounds.length > 0 ? stageStatusLabel(gateState?.status) : 'Not set'}
           </span>
         </button>
-        {hoveredGate === gateKey && (
-          <div className={styles.gateTooltip}>
+        {hoveredGate === gateKey && tooltipPos && (
+          <div className={styles.gateTooltip} style={{ left: tooltipPos.x, top: tooltipPos.y }}>
             <p>
               <strong>{gateKey.toUpperCase()} gate</strong> · {stageStatusLabel(gateState?.status)}
             </p>

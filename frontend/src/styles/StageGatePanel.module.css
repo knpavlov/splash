@@ -155,10 +155,7 @@
 }
 
 .gateTooltip {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  position: fixed;
   min-width: 240px;
   background: #0f172a;
   color: #fff;
