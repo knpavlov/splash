@@ -217,6 +217,15 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    ALTER TABLE workstreams
+      ADD COLUMN IF NOT EXISTS description TEXT,
+      ADD COLUMN IF NOT EXISTS gates JSONB NOT NULL DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+  `);
+
+  await postgresPool.query(`
     CREATE TABLE IF NOT EXISTS workstream_role_assignments (
       id UUID PRIMARY KEY,
       account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -245,6 +254,21 @@ const createTables = async () => {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+
+  await postgresPool.query(`
+    ALTER TABLE workstream_initiatives
+      ADD COLUMN IF NOT EXISTS description TEXT,
+      ADD COLUMN IF NOT EXISTS owner_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS owner_name TEXT,
+      ADD COLUMN IF NOT EXISTS current_status TEXT NOT NULL DEFAULT 'draft',
+      ADD COLUMN IF NOT EXISTS active_stage TEXT NOT NULL DEFAULT 'l0',
+      ADD COLUMN IF NOT EXISTS l4_date DATE,
+      ADD COLUMN IF NOT EXISTS stage_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS stage_state JSONB NOT NULL DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   `);
 
   await postgresPool.query(`

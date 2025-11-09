@@ -196,7 +196,7 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
           disabled={disabled}
           title="More actions"
         >
-          …
+          ...
         </button>
         {menuOpen && (
           <div className={styles.rowMenu} ref={menuRef}>
@@ -267,7 +267,7 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
               disabled={disabled || entry.distribution[month.key] === undefined}
               title="Fill to the right"
             >
-              ↦
+              {'->'}
             </button>
           </div>
         </label>
@@ -349,7 +349,7 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
             </button>
           </header>
           {stage.financials[kind].length === 0 ? (
-            <p className={styles.placeholder}>No data yet. Use “Add line” to start capturing this metric.</p>
+            <p className={styles.placeholder}>No data yet. Use "Add line" to start capturing this metric.</p>
           ) : (
             <div className={styles.sheetWrapper}>
               <div className={styles.sheetScroller}>

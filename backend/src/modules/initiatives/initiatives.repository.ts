@@ -508,7 +508,11 @@ export class InitiativesRepository {
           w.name AS workstream_name,
           w.description AS workstream_description,
           w.gates AS workstream_gates,
-          a.name AS account_name,
+          COALESCE(
+            NULLIF(trim(a.display_name), ''),
+            NULLIF(trim(concat_ws(' ', a.first_name, a.last_name)), ''),
+            NULLIF(trim(a.email), '')
+          ) AS account_name,
           a.email AS account_email,
           COUNT(*) OVER (${partition}) AS role_total,
           COUNT(*) FILTER (WHERE wa.status = 'approved') OVER (${partition}) AS role_approved,
