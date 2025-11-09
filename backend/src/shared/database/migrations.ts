@@ -347,6 +347,44 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS initiative_comment_threads (
+      id UUID PRIMARY KEY,
+      initiative_id UUID NOT NULL REFERENCES workstream_initiatives(id) ON DELETE CASCADE,
+      stage_key TEXT,
+      target_id TEXT NOT NULL,
+      target_label TEXT,
+      target_path TEXT,
+      selection JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_by_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+      created_by_name TEXT
+    );
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS initiative_comment_threads_initiative_idx
+      ON initiative_comment_threads(initiative_id);
+  `);
+
+  await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS initiative_comment_messages (
+      id UUID PRIMARY KEY,
+      thread_id UUID NOT NULL REFERENCES initiative_comment_threads(id) ON DELETE CASCADE,
+      parent_id UUID REFERENCES initiative_comment_messages(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      author_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+      author_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS initiative_comment_messages_thread_idx
+      ON initiative_comment_messages(thread_id);
+  `);
+
+  await postgresPool.query(`
     CREATE TABLE IF NOT EXISTS workstream_initiative_events (
       id UUID PRIMARY KEY,
       event_id UUID NOT NULL,

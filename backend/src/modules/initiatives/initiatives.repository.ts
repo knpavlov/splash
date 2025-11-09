@@ -14,7 +14,9 @@ import {
   InitiativeApprovalRow,
   InitiativeApprovalRecord,
   InitiativeEventRecord,
-  InitiativeEventRow
+  InitiativeEventRow,
+  InitiativeCommentThreadRow,
+  InitiativeCommentMessageRow
 } from './initiatives.types.js';
 
 export interface ApprovalTaskRow extends InitiativeApprovalRow {
@@ -84,6 +86,14 @@ const ensureFinancialEntry = (value: unknown): InitiativeFinancialEntry => {
     distribution: ensureDistribution(payload.distribution)
   };
 };
+
+type PoolClientLike = {
+  query: typeof postgresPool.query;
+  release: () => void;
+};
+
+const connectClient = async (): Promise<PoolClientLike> =>
+  (postgresPool as unknown as { connect: () => Promise<PoolClientLike> }).connect();
 
 const createEmptyStagePayload = (): InitiativeStagePayload => ({
   name: '',
@@ -587,5 +597,161 @@ export class InitiativesRepository {
       actorName: row.actor_name ?? null,
       createdAt: toIsoString(row.created_at) ?? new Date().toISOString()
     }));
+  }
+
+  async listCommentThreads(
+    initiativeId: string
+  ): Promise<Array<{ thread: InitiativeCommentThreadRow; messages: InitiativeCommentMessageRow[] }>> {
+    const threadResult = await postgresPool.query<InitiativeCommentThreadRow>(
+      `SELECT *
+         FROM initiative_comment_threads
+        WHERE initiative_id = $1
+        ORDER BY created_at ASC;`,
+      [initiativeId]
+    );
+    const threads = threadResult.rows ?? [];
+    if (!threads.length) {
+      return [];
+    }
+    const threadIds = threads.map((thread) => thread.id);
+    const messageResult = await postgresPool.query<InitiativeCommentMessageRow>(
+      `SELECT *
+         FROM initiative_comment_messages
+        WHERE thread_id = ANY($1::uuid[])
+        ORDER BY created_at ASC, id ASC;`,
+      [threadIds]
+    );
+    const grouped = new Map<string, InitiativeCommentMessageRow[]>();
+    for (const message of messageResult.rows ?? []) {
+      const bucket = grouped.get(message.thread_id) ?? [];
+      bucket.push(message);
+      grouped.set(message.thread_id, bucket);
+    }
+    return threads.map((thread) => ({
+      thread,
+      messages: grouped.get(thread.id) ?? []
+    }));
+  }
+
+  async listCommentMessages(threadId: string): Promise<InitiativeCommentMessageRow[]> {
+    const result = await postgresPool.query<InitiativeCommentMessageRow>(
+      `SELECT *
+         FROM initiative_comment_messages
+        WHERE thread_id = $1
+        ORDER BY created_at ASC, id ASC;`,
+      [threadId]
+    );
+    return result.rows ?? [];
+  }
+
+  async findCommentThread(id: string): Promise<InitiativeCommentThreadRow | null> {
+    const result = await postgresPool.query<InitiativeCommentThreadRow>(
+      `SELECT *
+         FROM initiative_comment_threads
+        WHERE id = $1
+        LIMIT 1;`,
+      [id]
+    );
+    return result.rows?.[0] ?? null;
+  }
+
+  async findCommentMessage(id: string): Promise<InitiativeCommentMessageRow | null> {
+    const result = await postgresPool.query<InitiativeCommentMessageRow>(
+      `SELECT *
+         FROM initiative_comment_messages
+        WHERE id = $1
+        LIMIT 1;`,
+      [id]
+    );
+    return result.rows?.[0] ?? null;
+  }
+
+  async createCommentThread(payload: {
+    threadId: string;
+    initiativeId: string;
+    stageKey?: string | null;
+    targetId: string;
+    targetLabel?: string | null;
+    targetPath?: string | null;
+    selection?: unknown;
+    authorAccountId?: string | null;
+    authorName?: string | null;
+    messageId: string;
+    body: string;
+  }): Promise<{ thread: InitiativeCommentThreadRow; message: InitiativeCommentMessageRow }> {
+    const client = await connectClient();
+    try {
+      await client.query('BEGIN');
+      const threadResult = await client.query<InitiativeCommentThreadRow>(
+        `INSERT INTO initiative_comment_threads
+           (id, initiative_id, stage_key, target_id, target_label, target_path, selection, created_by_account_id, created_by_name)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
+         RETURNING *;`,
+        [
+          payload.threadId,
+          payload.initiativeId,
+          payload.stageKey ?? null,
+          payload.targetId,
+          payload.targetLabel ?? null,
+          payload.targetPath ?? null,
+          payload.selection ? JSON.stringify(payload.selection) : null,
+          payload.authorAccountId ?? null,
+          payload.authorName ?? null
+        ]
+      );
+      const threadRow = threadResult.rows?.[0];
+      if (!threadRow) {
+        throw new Error('INSERT_FAILED');
+      }
+      const messageResult = await client.query<InitiativeCommentMessageRow>(
+        `INSERT INTO initiative_comment_messages
+           (id, thread_id, parent_id, body, author_account_id, author_name)
+         VALUES ($1, $2, NULL, $3, $4, $5)
+         RETURNING *;`,
+        [
+          payload.messageId,
+          payload.threadId,
+          payload.body,
+          payload.authorAccountId ?? null,
+          payload.authorName ?? null
+        ]
+      );
+      const messageRow = messageResult.rows?.[0];
+      if (!messageRow) {
+        throw new Error('INSERT_FAILED');
+      }
+      await client.query('COMMIT');
+      return { thread: threadRow, message: messageRow };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async insertCommentMessage(payload: {
+    id: string;
+    threadId: string;
+    parentId?: string | null;
+    body: string;
+    authorAccountId?: string | null;
+    authorName?: string | null;
+  }): Promise<InitiativeCommentMessageRow | null> {
+    const result = await postgresPool.query<InitiativeCommentMessageRow>(
+      `INSERT INTO initiative_comment_messages
+         (id, thread_id, parent_id, body, author_account_id, author_name)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *;`,
+      [
+        payload.id,
+        payload.threadId,
+        payload.parentId ?? null,
+        payload.body,
+        payload.authorAccountId ?? null,
+        payload.authorName ?? null
+      ]
+    );
+    return result.rows?.[0] ?? null;
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/InitiativeProfile.module.css';
 import {
   Initiative,
@@ -19,6 +19,12 @@ import { DomainResult } from '../../../shared/types/results';
 import { resolveAccountName } from '../../../shared/utils/accountName';
 import { initiativesApi, InitiativeEventEntry } from '../services/initiativesApi';
 import { buildKindMonthlyTotals, buildMonthRange, calculateRunRate } from './financials.helpers';
+import { CommentSidebar } from '../comments/CommentSidebar';
+import { CommentSelectionOverlay } from '../comments/CommentSelectionOverlay';
+import { CommentHighlights } from '../comments/CommentHighlights';
+import { CommentSelectionDraft, CommentSelectionTarget } from '../comments/types';
+import { useInitiativeComments } from '../hooks/useInitiativeComments';
+import { useAuth } from '../../auth/AuthContext';
 
 interface InitiativeProfileProps {
   mode: 'create' | 'view';
@@ -30,6 +36,8 @@ interface InitiativeProfileProps {
   onSave: (initiative: Initiative, options: { closeAfterSave: boolean }) => Promise<DomainResult<Initiative>>;
   onDelete: (id: string) => Promise<DomainResult<string>>;
   onSubmitStage: (id: string) => Promise<DomainResult<Initiative>>;
+  readOnly?: boolean;
+  hideBackLink?: boolean;
 }
 
 type Banner = { type: 'info' | 'error'; text: string } | null;
@@ -192,7 +200,9 @@ export const InitiativeProfile = ({
   onBack,
   onSave,
   onDelete,
-  onSubmitStage
+  onSubmitStage,
+  readOnly = false,
+  hideBackLink = false
 }: InitiativeProfileProps) => {
   const [draft, setDraft] = useState<Initiative>(() =>
     initiative ?? createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id)
@@ -205,6 +215,27 @@ export const InitiativeProfile = ({
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [changeLog, setChangeLog] = useState<InitiativeEventEntry[]>([]);
   const [isLogLoading, setIsLogLoading] = useState(false);
+  const { session } = useAuth();
+  const commentActor = useMemo(
+    () => (session ? { accountId: session.accountId, name: session.email } : undefined),
+    [session]
+  );
+  const {
+    threads: commentThreads,
+    isLoading: isLoadingComments,
+    isSaving: isSavingComment,
+    error: commentError,
+    createComment,
+    replyToComment
+  } = useInitiativeComments(initiative?.id ?? null, {
+    actor: commentActor,
+    enabled: Boolean(initiative?.id)
+  });
+  const [isCommentMode, setIsCommentMode] = useState(false);
+  const [pendingSelection, setPendingSelection] = useState<CommentSelectionDraft | null>(null);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (initiative) {
@@ -215,6 +246,14 @@ export const InitiativeProfile = ({
       setSelectedStage('l0');
     }
   }, [initiative, initialWorkstreamId, workstreams]);
+
+  useEffect(() => {
+    if (!initiative?.id) {
+      setIsCommentMode(false);
+      setPendingSelection(null);
+      setActiveThreadId(null);
+    }
+  }, [initiative?.id]);
 
   const loadChangeLog = useCallback(async () => {
     if (!initiative) {
@@ -282,6 +321,62 @@ export const InitiativeProfile = ({
     }
     return 'Not yet submitted.';
   })();
+  const isReadOnlyMode = readOnly;
+  const commentsAvailable = Boolean(initiative?.id);
+
+  const handleCommentToggle = () => {
+    if (!commentsAvailable) {
+      return;
+    }
+    setIsCommentMode((prev) => {
+      if (prev) {
+        setPendingSelection(null);
+        setActiveThreadId(null);
+      }
+      return !prev;
+    });
+  };
+
+  const handleSelectionTarget = useCallback(
+    (target: CommentSelectionTarget) => {
+      if (!commentsAvailable) {
+        return;
+      }
+      setPendingSelection({ ...target, stageKey: selectedStage });
+      setActiveThreadId(null);
+    },
+    [commentsAvailable, selectedStage]
+  );
+
+  const handleSubmitComment = useCallback(
+    async (body: string) => {
+      if (!pendingSelection || !commentsAvailable) {
+        return;
+      }
+      const created = await createComment({
+        targetId: pendingSelection.targetId,
+        targetLabel: pendingSelection.targetLabel,
+        targetPath: pendingSelection.targetPath,
+        stageKey: pendingSelection.stageKey,
+        selection: pendingSelection.selection,
+        body
+      });
+      if (created) {
+        setPendingSelection(null);
+      }
+    },
+    [commentsAvailable, createComment, pendingSelection]
+  );
+
+  const handleReplyComment = useCallback(
+    async (threadId: string, body: string) => {
+      if (!commentsAvailable) {
+        return;
+      }
+      await replyToComment(threadId, { body });
+    },
+    [commentsAvailable, replyToComment]
+  );
 
   const clearErrors = (next: ValidationErrors) => {
     setErrors((prev) => ({ ...prev, ...next }));
@@ -478,9 +573,23 @@ export const InitiativeProfile = ({
     });
     return calculateRunRate(monthKeys, netTotals);
   }, [draft]);
+  const commentButtonLabel = isLoadingComments
+    ? 'Комментарии...'
+    : `Комментарии${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
+  const profileContentClass = `${styles.profileContent}${hideBackLink ? ` ${styles.profileContentNoBack}` : ''}`;
 
   return (
-    <section className={styles.profileWrapper}>
+    <section className={`${styles.profileWrapper} ${isCommentMode ? styles.profileWithComments : ''}`}>
+      <div className={profileContentClass} ref={contentRef}>
+        {isCommentMode && (
+          <CommentHighlights
+            containerRef={contentRef}
+            threads={commentThreads}
+            isVisible
+            activeThreadId={activeThreadId}
+            onSelect={setActiveThreadId}
+          />
+        )}
       <button className={styles.backLink} onClick={() => onBack(draft.workstreamId)} type="button">
         ← Back to initiatives
       </button>
@@ -572,7 +681,16 @@ export const InitiativeProfile = ({
             <h3>{initiativeStageLabels[selectedStage]}</h3>
             {!isStageEditable && <p className={styles.stageHint}>Fields are read-only for this gate.</p>}
           </div>
-          {mode === 'view' && initiative && isStageEditable && !stageLocked && (
+          <div className={styles.stageActions}>
+            <button
+              className={isCommentMode ? styles.commentButtonActive : styles.commentButton}
+              type="button"
+              onClick={handleCommentToggle}
+              disabled={!commentsAvailable}
+            >
+              {commentButtonLabel}
+            </button>
+            {mode === 'view' && initiative && isStageEditable && !stageLocked && (
               <button
                 className={styles.secondaryButton}
                 onClick={handleSubmitClick}
@@ -582,10 +700,11 @@ export const InitiativeProfile = ({
                 {currentStageState.status === 'pending'
                   ? 'Waiting for approvals'
                   : isSubmitting
-                    ? 'Submitting…'
+                    ? 'Submitting...'
                     : 'Submit for next gate'}
               </button>
             )}
+          </div>
         </header>
         <div className={styles.stageStatusRow}>
           <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
@@ -676,7 +795,7 @@ export const InitiativeProfile = ({
           <h4>Change log</h4>
         </header>
         {isLogLoading ? (
-          <p className={styles.placeholder}>Loading change log…</p>
+        <p className={styles.placeholder}>Loading change log...</p>
         ) : changeLog.length === 0 ? (
           <p className={styles.placeholder}>No changes recorded yet.</p>
         ) : (
@@ -723,20 +842,56 @@ export const InitiativeProfile = ({
 
       <footer className={styles.footer}>
         <button className={styles.secondaryButton} onClick={() => onBack(draft.workstreamId)} type="button">
-          Cancel
+          {isReadOnlyMode ? 'Close' : 'Cancel'}
         </button>
-        {mode === 'view' && (
+        {!isReadOnlyMode && mode === 'view' && (
           <button className={styles.dangerButton} onClick={handleDeleteClick} disabled={isDeleting} type="button">
-            {isDeleting ? 'Deleting…' : 'Delete'}
+            {isDeleting ? 'Deleting...' : 'Delete'}
           </button>
         )}
-        <button className={styles.secondaryButton} onClick={() => handleSaveClick(false)} disabled={isSaving} type="button">
-          {isSaving ? 'Saving…' : 'Save'}
-        </button>
-        <button className={styles.primaryButton} onClick={() => handleSaveClick(true)} disabled={isSaving} type="button">
-          {isSaving ? 'Saving…' : 'Save and close'}
-        </button>
+        {!isReadOnlyMode && (
+          <>
+            <button
+              className={styles.secondaryButton}
+              onClick={() => handleSaveClick(false)}
+              disabled={isSaving}
+              type="button"
+            >
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+            <button className={styles.primaryButton} onClick={() => handleSaveClick(true)} disabled={isSaving} type="button">
+              {isSaving ? 'Saving...' : 'Save and close'}
+            </button>
+          </>
+        )}
       </footer>
+      </div>
+      {isCommentMode && commentsAvailable && (
+        <CommentSidebar
+          ref={sidebarRef}
+          threads={commentThreads}
+          isLoading={isLoadingComments}
+          isSaving={isSavingComment}
+          error={commentError}
+          pendingSelection={pendingSelection}
+          onSubmitPending={handleSubmitComment}
+          onCancelPending={() => setPendingSelection(null)}
+          onReply={handleReplyComment}
+          onClose={() => {
+            setIsCommentMode(false);
+            setPendingSelection(null);
+            setActiveThreadId(null);
+          }}
+          onSelectThread={setActiveThreadId}
+          activeThreadId={activeThreadId}
+        />
+      )}
+      <CommentSelectionOverlay
+        isActive={isCommentMode && commentsAvailable}
+        containerRef={contentRef}
+        sidebarRef={sidebarRef}
+        onSelect={handleSelectionTarget}
+      />
     </section>
   );
 };

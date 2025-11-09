@@ -8,7 +8,10 @@ import {
   InitiativeStageMap,
   InitiativeTotals,
   InitiativeStageKey,
-  InitiativeStageStateMap
+  InitiativeStageStateMap,
+  InitiativeCommentSelection,
+  InitiativeCommentMessage,
+  InitiativeCommentThread
 } from '../../../shared/types/initiative';
 
 const toIsoString = (value: unknown): string | null => {
@@ -89,6 +92,9 @@ const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
     {} as InitiativeStageData['financials']
   )
 });
+
+const isStageKey = (value: string): value is InitiativeStageKey =>
+  initiativeStageKeys.includes(value as InitiativeStageKey);
 
 const normalizeStage = (key: InitiativeStageKey, value: unknown): InitiativeStageData => {
   const stage = createEmptyStage(key);
@@ -319,6 +325,124 @@ export interface InitiativeActorMetadata {
   name?: string | null;
 }
 
+const normalizeCommentSelection = (value: unknown): InitiativeCommentSelection | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  const readNumber = (input: unknown) => {
+    if (typeof input === 'number' && Number.isFinite(input)) {
+      return input;
+    }
+    if (typeof input === 'string') {
+      const parsed = Number(input.trim());
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+  const top = readNumber(payload.top);
+  const left = readNumber(payload.left);
+  const width = readNumber(payload.width);
+  const height = readNumber(payload.height);
+  const pageWidth = readNumber(payload.pageWidth);
+  const pageHeight = readNumber(payload.pageHeight);
+  if (
+    top === null ||
+    left === null ||
+    width === null ||
+    height === null ||
+    pageWidth === null ||
+    pageHeight === null
+  ) {
+    return null;
+  }
+  return { top, left, width, height, pageWidth, pageHeight };
+};
+
+const normalizeCommentMessage = (value: unknown): InitiativeCommentMessage | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  const id = typeof payload.id === 'string' ? payload.id : null;
+  const threadId = typeof payload.threadId === 'string' ? payload.threadId : null;
+  if (!id || !threadId) {
+    return null;
+  }
+  return {
+    id,
+    threadId,
+    parentId: typeof payload.parentId === 'string' ? payload.parentId : null,
+    body: typeof payload.body === 'string' ? payload.body : '',
+    authorAccountId: typeof payload.authorAccountId === 'string' ? payload.authorAccountId : null,
+    authorName: typeof payload.authorName === 'string' ? payload.authorName : null,
+    createdAt: toIsoString(payload.createdAt) ?? new Date().toISOString(),
+    updatedAt: toIsoString(payload.updatedAt) ?? new Date().toISOString()
+  };
+};
+
+const normalizeCommentThread = (value: unknown): InitiativeCommentThread | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  const id = typeof payload.id === 'string' ? payload.id : null;
+  const initiativeId = typeof payload.initiativeId === 'string' ? payload.initiativeId : null;
+  if (!id || !initiativeId) {
+    return null;
+  }
+  const stageKeyValue = typeof payload.stageKey === 'string' ? payload.stageKey : null;
+  const normalizedStageKey = stageKeyValue && isStageKey(stageKeyValue.toLowerCase())
+    ? (stageKeyValue.toLowerCase() as InitiativeStageKey)
+    : null;
+  const commentsSource = Array.isArray(payload.comments) ? payload.comments : [];
+  const comments = commentsSource
+    .map((entry) => normalizeCommentMessage(entry))
+    .filter((entry): entry is InitiativeCommentMessage => Boolean(entry));
+  return {
+    id,
+    initiativeId,
+    stageKey: normalizedStageKey,
+    targetId: typeof payload.targetId === 'string' ? payload.targetId : id,
+    targetLabel: typeof payload.targetLabel === 'string' ? payload.targetLabel : null,
+    targetPath: typeof payload.targetPath === 'string' ? payload.targetPath : null,
+    selection: normalizeCommentSelection(payload.selection),
+    createdAt: toIsoString(payload.createdAt) ?? new Date().toISOString(),
+    createdByAccountId: typeof payload.createdByAccountId === 'string' ? payload.createdByAccountId : null,
+    createdByName: typeof payload.createdByName === 'string' ? payload.createdByName : null,
+    comments
+  };
+};
+
+const ensureCommentThread = (value: unknown): InitiativeCommentThread => {
+  const thread = normalizeCommentThread(value);
+  if (!thread) {
+    throw new Error('Failed to parse comment thread payload.');
+  }
+  return thread;
+};
+
+const ensureCommentThreadList = (value: unknown): InitiativeCommentThread[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => normalizeCommentThread(entry)).filter((entry): entry is InitiativeCommentThread => Boolean(entry));
+};
+
+export interface InitiativeCommentInput {
+  targetId: string;
+  targetLabel?: string | null;
+  targetPath?: string | null;
+  stageKey?: InitiativeStageKey | null;
+  selection?: InitiativeCommentSelection | null;
+  body: string;
+}
+
+export interface InitiativeCommentReplyInput {
+  body: string;
+  parentId?: string | null;
+}
+
 const withActor = (payload: Record<string, unknown>, actor?: InitiativeActorMetadata) => {
   if (!actor) {
     return payload;
@@ -367,5 +491,25 @@ export const initiativesApi = {
         method: 'POST'
       })
     ),
-  events: async (id: string) => ensureEventList(await apiRequest<unknown>(`/initiatives/${id}/events`))
+  events: async (id: string) => ensureEventList(await apiRequest<unknown>(`/initiatives/${id}/events`)),
+  listComments: async (id: string) => ensureCommentThreadList(await apiRequest<unknown>(`/initiatives/${id}/comments`)),
+  createComment: async (id: string, input: InitiativeCommentInput, actor?: InitiativeActorMetadata) =>
+    ensureCommentThread(
+      await apiRequest<unknown>(`/initiatives/${id}/comments`, {
+        method: 'POST',
+        body: withActor({ comment: input }, actor)
+      })
+    ),
+  replyToComment: async (
+    id: string,
+    threadId: string,
+    input: InitiativeCommentReplyInput,
+    actor?: InitiativeActorMetadata
+  ) =>
+    ensureCommentThread(
+      await apiRequest<unknown>(`/initiatives/${id}/comments/${threadId}/replies`, {
+        method: 'POST',
+        body: withActor({ reply: input }, actor)
+      })
+    )
 };

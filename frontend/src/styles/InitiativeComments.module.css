@@ -1,0 +1,263 @@
+.sidebar {
+  width: 320px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 24px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+.sidebarHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.sidebarTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.sidebarSubtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.sidebarClose {
+  border: none;
+  background: rgba(226, 232, 240, 0.6);
+  border-radius: 12px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+}
+
+.errorMessage {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(254, 226, 226, 0.7);
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.pendingCard {
+  border: 1px dashed rgba(148, 163, 184, 0.7);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(248, 250, 252, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pendingHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pendingLabel {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.pendingTarget {
+  margin: 2px 0 0;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.pendingCancel {
+  border: none;
+  background: none;
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pendingEmpty {
+  border: 1px dashed rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  padding: 16px;
+  font-size: 13px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.textarea {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.primaryButton,
+.secondaryButton {
+  border: none;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primaryButton {
+  align-self: flex-start;
+  background: linear-gradient(120deg, #2563eb, #38bdf8);
+  color: #fff;
+}
+
+.secondaryButton {
+  align-self: flex-end;
+  background: rgba(226, 232, 240, 0.6);
+  color: #0f172a;
+}
+
+.threadList {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.helperText {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.emptyState {
+  border: 1px dashed rgba(226, 232, 240, 0.8);
+  border-radius: 18px;
+  padding: 16px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.threadCard {
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 18px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.threadActive {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.threadHeader {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.threadBadge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(191, 219, 254, 0.8);
+  color: #1d4ed8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.threadTarget {
+  margin: 0;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.threadMeta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.messageList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message {
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.9);
+  padding: 8px 10px;
+}
+
+.messageMeta {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.messageBody {
+  margin: 0;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.replyBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.highlightLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.highlight {
+  position: absolute;
+  border: 2px dashed rgba(59, 130, 246, 0.9);
+  border-radius: 16px;
+  background: rgba(191, 219, 254, 0.2);
+  color: #1d4ed8;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease;
+}
+
+.highlightActive {
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.6);
+}
+
+.overlayNotice {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 50;
+}

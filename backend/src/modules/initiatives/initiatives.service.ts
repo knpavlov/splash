@@ -19,7 +19,12 @@ import {
   InitiativeApprovalRule,
   ApprovalDecision,
   InitiativeMutationMetadata,
-  InitiativeEventTimelineEntry
+  InitiativeEventTimelineEntry,
+  InitiativeCommentThread,
+  InitiativeCommentMessage,
+  InitiativeCommentSelection,
+  InitiativeCommentThreadRow,
+  InitiativeCommentMessageRow
 } from './initiatives.types.js';
 import {
   workstreamGateKeys,
@@ -46,6 +51,16 @@ const normalizeStageKey = (value: unknown): InitiativeStageKey => {
     }
   }
   return 'l0';
+};
+
+const normalizeStageKeyOrNull = (value: unknown): InitiativeStageKey | null => {
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase();
+    if (initiativeStageKeys.includes(normalized as InitiativeStageKey)) {
+      return normalized as InitiativeStageKey;
+    }
+  }
+  return null;
 };
 
 const sanitizeNumber = (value: unknown): number | null => {
@@ -192,6 +207,51 @@ const sanitizeStageStateMap = (value: unknown): InitiativeStageStateMap => {
   return base;
 };
 
+const normalizeSelection = (value: unknown): InitiativeCommentSelection | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  const top = sanitizeNumber(payload.top);
+  const left = sanitizeNumber(payload.left);
+  const width = sanitizeNumber(payload.width);
+  const height = sanitizeNumber(payload.height);
+  const pageWidth = sanitizeNumber(payload.pageWidth);
+  const pageHeight = sanitizeNumber(payload.pageHeight);
+  if (
+    top === null ||
+    left === null ||
+    width === null ||
+    height === null ||
+    pageWidth === null ||
+    pageHeight === null
+  ) {
+    return null;
+  }
+  return {
+    top,
+    left,
+    width,
+    height,
+    pageWidth,
+    pageHeight
+  };
+};
+
+export interface InitiativeCommentPayload {
+  targetId?: string | null;
+  targetLabel?: string | null;
+  targetPath?: string | null;
+  stageKey?: InitiativeStageKey | null;
+  selection?: InitiativeCommentSelection | null;
+  body?: string | null;
+}
+
+export interface InitiativeCommentReplyPayload {
+  body?: string | null;
+  parentId?: string | null;
+}
+
 const toIsoString = (value: Date | string | null | undefined) => {
   if (value instanceof Date) {
     return value.toISOString();
@@ -318,6 +378,34 @@ const buildTotals = (record: InitiativeRecord): InitiativeTotals => {
 const toResponse = (record: InitiativeRecord): InitiativeResponse => ({
   ...record,
   totals: buildTotals(record)
+});
+
+const mapCommentMessageRow = (row: InitiativeCommentMessageRow): InitiativeCommentMessage => ({
+  id: row.id,
+  threadId: row.thread_id,
+  parentId: row.parent_id ?? null,
+  body: row.body,
+  authorAccountId: row.author_account_id ?? null,
+  authorName: row.author_name ?? null,
+  createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
+  updatedAt: toIsoString(row.updated_at) ?? new Date().toISOString()
+});
+
+const mapCommentThreadRow = (
+  thread: InitiativeCommentThreadRow,
+  messages: InitiativeCommentMessageRow[]
+): InitiativeCommentThread => ({
+  id: thread.id,
+  initiativeId: thread.initiative_id,
+  stageKey: thread.stage_key ? normalizeStageKeyOrNull(thread.stage_key) : null,
+  targetId: thread.target_id,
+  targetLabel: thread.target_label ?? null,
+  targetPath: thread.target_path ?? null,
+  selection: normalizeSelection(thread.selection),
+  createdAt: toIsoString(thread.created_at) ?? new Date().toISOString(),
+  createdByAccountId: thread.created_by_account_id ?? null,
+  createdByName: thread.created_by_name ?? null,
+  comments: messages.map((message) => mapCommentMessageRow(message))
 });
 
 export class InitiativesService {
@@ -650,6 +738,85 @@ export class InitiativesService {
     return Array.from(grouped.values()).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
+  }
+
+  async listComments(initiativeId: string): Promise<InitiativeCommentThread[]> {
+    const record = await this.repository.findInitiative(initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    const rows = await this.repository.listCommentThreads(initiativeId);
+    return rows.map(({ thread, messages }) => mapCommentThreadRow(thread, messages));
+  }
+
+  async createComment(
+    initiativeId: string,
+    payload: InitiativeCommentPayload,
+    actor?: InitiativeMutationMetadata
+  ): Promise<InitiativeCommentThread> {
+    const record = await this.repository.findInitiative(initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    const targetId = sanitizeString(payload.targetId);
+    const body = sanitizeString(payload.body);
+    if (!targetId || !body) {
+      throw new Error('INVALID_INPUT');
+    }
+    const selection = payload.selection ? normalizeSelection(payload.selection) : null;
+    const stageKey = payload.stageKey ? normalizeStageKeyOrNull(payload.stageKey) : null;
+    const created = await this.repository.createCommentThread({
+      threadId: randomUUID(),
+      messageId: randomUUID(),
+      initiativeId,
+      stageKey: stageKey ?? undefined,
+      targetId,
+      targetLabel: sanitizeOptionalString(payload.targetLabel),
+      targetPath: sanitizeOptionalString(payload.targetPath),
+      selection: selection ?? null,
+      authorAccountId: actor?.actorAccountId ?? null,
+      authorName: actor?.actorName ?? null,
+      body
+    });
+    return mapCommentThreadRow(created.thread, [created.message]);
+  }
+
+  async replyToComment(
+    initiativeId: string,
+    threadId: string,
+    payload: InitiativeCommentReplyPayload,
+    actor?: InitiativeMutationMetadata
+  ): Promise<InitiativeCommentThread> {
+    const record = await this.repository.findInitiative(initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    const thread = await this.repository.findCommentThread(threadId);
+    if (!thread || thread.initiative_id !== initiativeId) {
+      throw new Error('NOT_FOUND');
+    }
+    const body = sanitizeString(payload.body);
+    if (!body) {
+      throw new Error('INVALID_INPUT');
+    }
+    let parentId: string | null = null;
+    if (payload.parentId) {
+      const parent = await this.repository.findCommentMessage(payload.parentId);
+      if (!parent || parent.thread_id !== threadId) {
+        throw new Error('INVALID_INPUT');
+      }
+      parentId = parent.id;
+    }
+    await this.repository.insertCommentMessage({
+      id: randomUUID(),
+      threadId,
+      parentId,
+      body,
+      authorAccountId: actor?.actorAccountId ?? null,
+      authorName: actor?.actorName ?? null
+    });
+    const messages = await this.repository.listCommentMessages(threadId);
+    return mapCommentThreadRow(thread, messages);
   }
 
   private composeApprovalsPayload(

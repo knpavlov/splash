@@ -49,6 +49,40 @@ export interface InitiativeStageState {
 
 export type InitiativeStageStateMap = Record<InitiativeStageKey, InitiativeStageState>;
 
+export interface InitiativeCommentSelection {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  pageWidth: number;
+  pageHeight: number;
+}
+
+export interface InitiativeCommentMessage {
+  id: string;
+  threadId: string;
+  parentId: string | null;
+  body: string;
+  authorAccountId: string | null;
+  authorName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InitiativeCommentThread {
+  id: string;
+  initiativeId: string;
+  stageKey: InitiativeStageKey | null;
+  targetId: string;
+  targetLabel: string | null;
+  targetPath: string | null;
+  selection: InitiativeCommentSelection | null;
+  createdAt: string;
+  createdByAccountId: string | null;
+  createdByName: string | null;
+  comments: InitiativeCommentMessage[];
+}
+
 export interface InitiativeTotals {
   recurringBenefits: number;
   recurringCosts: number;

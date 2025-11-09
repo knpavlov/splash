@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { initiativesService } from './initiatives.module.js';
+import type { InitiativeCommentPayload, InitiativeCommentReplyPayload } from './initiatives.service.js';
 import type { InitiativeMutationMetadata } from './initiatives.types.js';
 
 const router = Router();
@@ -142,6 +143,52 @@ router.get('/:id/events', async (req, res) => {
   try {
     const events = await initiativesService.listEvents(req.params.id);
     res.json(events);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.get('/:id/comments', async (req, res) => {
+  try {
+    const threads = await initiativesService.listComments(req.params.id);
+    res.json(threads);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.post('/:id/comments', async (req, res) => {
+  const { comment, actor } = req.body as { comment?: unknown; actor?: unknown };
+  if (!comment || typeof comment !== 'object') {
+    res.status(400).json({ code: 'invalid-input', message: 'Provide comment payload.' });
+    return;
+  }
+  try {
+    const thread = await initiativesService.createComment(
+      req.params.id,
+      comment as InitiativeCommentPayload,
+      normalizeActor(actor)
+    );
+    res.status(201).json(thread);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.post('/:id/comments/:threadId/replies', async (req, res) => {
+  const { reply, actor } = req.body as { reply?: unknown; actor?: unknown };
+  if (!reply || typeof reply !== 'object') {
+    res.status(400).json({ code: 'invalid-input', message: 'Provide reply payload.' });
+    return;
+  }
+  try {
+    const thread = await initiativesService.replyToComment(
+      req.params.id,
+      req.params.threadId,
+      reply as InitiativeCommentReplyPayload,
+      normalizeActor(actor)
+    );
+    res.status(201).json(thread);
   } catch (error) {
     handleError(error, res);
   }

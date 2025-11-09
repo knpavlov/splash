@@ -99,6 +99,15 @@ export interface InitiativeResponse extends InitiativeRecord {
   totals: InitiativeTotals;
 }
 
+export interface InitiativeCommentSelection {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  pageWidth: number;
+  pageHeight: number;
+}
+
 export interface InitiativeApprovalRow extends Record<string, unknown> {
   id: string;
   initiative_id: string;
@@ -157,6 +166,55 @@ export interface InitiativeApprovalTask {
   roleTotal: number;
   roleApproved: number;
   rolePending: number;
+}
+
+export interface InitiativeCommentThreadRow extends Record<string, unknown> {
+  id: string;
+  initiative_id: string;
+  stage_key: string | null;
+  target_id: string;
+  target_label: string | null;
+  target_path: string | null;
+  selection: unknown;
+  created_at: Date;
+  created_by_account_id: string | null;
+  created_by_name: string | null;
+}
+
+export interface InitiativeCommentMessageRow extends Record<string, unknown> {
+  id: string;
+  thread_id: string;
+  parent_id: string | null;
+  body: string;
+  author_account_id: string | null;
+  author_name: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface InitiativeCommentMessage {
+  id: string;
+  threadId: string;
+  parentId: string | null;
+  body: string;
+  authorAccountId: string | null;
+  authorName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InitiativeCommentThread {
+  id: string;
+  initiativeId: string;
+  stageKey: InitiativeStageKey | null;
+  targetId: string;
+  targetLabel: string | null;
+  targetPath: string | null;
+  selection: InitiativeCommentSelection | null;
+  createdAt: string;
+  createdByAccountId: string | null;
+  createdByName: string | null;
+  comments: InitiativeCommentMessage[];
 }
 
 export interface InitiativeMutationMetadata {
