@@ -111,22 +111,34 @@ const CombinedChart = ({
   const negativeShare = hasData ? maxNegative / totalSpan : 0.5;
   const positiveScale = maxPositive || 1;
   const negativeScale = maxNegative || 1;
+  const stackTopOffset = (positiveShare: number, ratio: number) => positiveShare * (1 - ratio);
 
   return (
     <div className={styles.chartRow} style={{ gridTemplateColumns }}>
       <div className={styles.chartLegend}>Trend</div>
       {months.map((month, index) => {
         const stat = data[index];
+        const positiveRatio = positiveScale ? Math.min(1, stat.positiveTotal / positiveScale) : 0;
+        const negativeRatio = negativeScale ? Math.min(1, stat.negativeTotal / negativeScale) : 0;
+        const positiveLabelTop = stackTopOffset(positiveShare, positiveRatio) * 100;
+        const negativeLabelTop =
+          positiveShare * 100 + negativeRatio * negativeShare * 100;
         return (
           <div key={month.key} className={styles.chartCell}>
             <div className={styles.chartBarGroup}>
               {stat.positiveTotal > 0 && (
-                <span className={`${styles.chartValue} ${styles.chartValuePositive}`}>
+                <span
+                  className={`${styles.chartValue} ${styles.chartValuePositive}`}
+                  style={{ top: `calc(${positiveLabelTop}% - 12px)` }}
+                >
                   {formatCurrency(stat.positiveTotal)}
                 </span>
               )}
               {stat.negativeTotal > 0 && (
-                <span className={`${styles.chartValue} ${styles.chartValueNegative}`}>
+                <span
+                  className={`${styles.chartValue} ${styles.chartValueNegative}`}
+                  style={{ top: `calc(${negativeLabelTop}% + 4px)` }}
+                >
                   {formatCurrency(stat.negativeTotal)}
                 </span>
               )}
@@ -383,10 +395,10 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
     const assignColors = (kind: InitiativeFinancialKind[], lighten: boolean) => {
       kind.forEach((key) => {
         const entries = stage.financials[key];
+        const spread = entries.length > 1 ? 0.4 / (entries.length - 1) : 0;
         entries.forEach((entry, index) => {
-          const offset = Math.min(0.45, index * 0.08);
-          const signedOffset = lighten ? offset : -offset;
-          map[entry.id] = shadeColor(SECTION_COLORS[key], signedOffset);
+          const offset = lighten ? index * spread : -index * spread;
+          map[entry.id] = shadeColor(SECTION_COLORS[key], offset);
         });
       });
     };
@@ -403,8 +415,7 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
 
         benefitKinds.forEach((kind) => {
           stage.financials[kind].forEach((entry) => {
-            const raw = entry.distribution[month.key] ?? 0;
-            const value = Math.max(0, raw);
+            const value = Math.max(0, entry.distribution[month.key] ?? 0);
             if (value > 0) {
               positiveSegments.push({
                 value,
@@ -416,8 +427,7 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
 
         costKinds.forEach((kind) => {
           stage.financials[kind].forEach((entry) => {
-            const raw = entry.distribution[month.key] ?? 0;
-            const value = Math.abs(raw);
+            const value = Math.max(0, entry.distribution[month.key] ?? 0);
             if (value > 0) {
               negativeSegments.push({
                 value,
