@@ -77,13 +77,13 @@ const CombinedChart = ({
   gridTemplateColumns: string;
   totals: Record<InitiativeFinancialKind, Record<string, number>>;
 }) => {
-  const positiveBase = Math.max(
+  const unifiedBase = Math.max(
     1,
-    ...months.map((month) => benefitKinds.reduce((sum, kind) => sum + Math.max(0, totals[kind][month.key] ?? 0), 0))
-  );
-  const negativeBase = Math.max(
-    1,
-    ...months.map((month) => costKinds.reduce((sum, kind) => sum + Math.max(0, totals[kind][month.key] ?? 0), 0))
+    ...months.map((month) => {
+      const benefits = benefitKinds.reduce((sum, kind) => sum + Math.max(0, totals[kind][month.key] ?? 0), 0);
+      const costs = costKinds.reduce((sum, kind) => sum + Math.max(0, totals[kind][month.key] ?? 0), 0);
+      return Math.max(benefits, costs);
+    })
   );
 
   return (
@@ -95,7 +95,7 @@ const CombinedChart = ({
             <div className={styles.positiveStack}>
               {benefitKinds.map((kind) => {
                 const value = Math.max(0, totals[kind][month.key] ?? 0);
-                const height = Math.min(100, (value / positiveBase) * 100);
+                const height = Math.min(100, (value / unifiedBase) * 100);
                 return (
                   <div
                     key={kind}
@@ -108,7 +108,7 @@ const CombinedChart = ({
             <div className={styles.negativeStack}>
               {costKinds.map((kind) => {
                 const value = Math.abs(totals[kind][month.key] ?? 0);
-                const height = Math.min(100, (value / negativeBase) * 100);
+                const height = Math.min(100, (value / unifiedBase) * 100);
                 return (
                   <div
                     key={kind}

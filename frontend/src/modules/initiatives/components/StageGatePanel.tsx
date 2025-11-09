@@ -1,5 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
-import type { MouseEvent } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import styles from '../../../styles/StageGatePanel.module.css';
 import { InitiativeStageKey, InitiativeStageMap, initiativeStageKeys, InitiativeStageStateMap } from '../../../shared/types/initiative';
 import {
@@ -95,6 +94,8 @@ export const StageGatePanel = ({
 }: StageGatePanelProps) => {
   const activeIndex = initiativeStageKeys.indexOf(activeStage);
   const [hoveredGate, setHoveredGate] = useState<WorkstreamGateKey | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+
   const roleLabelMap = useMemo(() => {
     const map = new Map<string, string>();
     defaultWorkstreamRoleOptions.forEach((option) => {
@@ -103,65 +104,54 @@ export const StageGatePanel = ({
     return map;
   }, []);
 
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const handleGateMouseEnter = useCallback(
+    (gateKey: WorkstreamGateKey, event: React.MouseEvent<HTMLDivElement>) => {
+      setHoveredGate(gateKey);
+      setTooltipPos({ x: event.clientX + 12, y: event.clientY + 16 });
+    },
+    []
+  );
 
-  const handleMouseMove = useCallback((event: MouseEvent<HTMLElement>) => {
+  const handleGateMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     setTooltipPos({ x: event.clientX + 12, y: event.clientY + 16 });
   }, []);
 
-  const renderGate = (gateKey: WorkstreamGateKey) => {
-    const gateState = stageState[gateKey];
-    const stateClass = styles[`gate-${gateState?.status ?? 'draft'}`] ?? '';
-    const rounds = workstream?.gates[gateKey] ?? [];
-    const gateClasses = [styles.gate, styles.chevron, stateClass].filter(Boolean).join(' ');
+  const handleGateMouseLeave = useCallback(() => {
+    setHoveredGate(null);
+    setTooltipPos(null);
+  }, []);
+
+  const renderGateTooltip = () => {
+    if (!hoveredGate || !tooltipPos) {
+      return null;
+    }
+    const gateState = stageState[hoveredGate];
+    const rounds = workstream?.gates[hoveredGate] ?? [];
     return (
-      <div
-        key={`${gateKey}-connector`}
-        className={styles.gateWrapper}
-        onMouseEnter={(event) => {
-          setHoveredGate(gateKey);
-          handleMouseMove(event);
-        }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => {
-          setHoveredGate((prev) => (prev === gateKey ? null : prev));
-          setTooltipPos(null);
-        }}
-      >
-        <button type="button" className={gateClasses}>
-          <span className={styles.gateName}>{gateKey.toUpperCase()}</span>
-          <span className={styles.gateLabel}>Gate</span>
-          <span className={styles.gateStatus}>
-            {rounds.length > 0 ? stageStatusLabel(gateState?.status) : 'Not set'}
-          </span>
-        </button>
-        {hoveredGate === gateKey && tooltipPos && (
-          <div className={styles.gateTooltip} style={{ left: tooltipPos.x, top: tooltipPos.y }}>
-            <p>
-              <strong>{gateKey.toUpperCase()} gate</strong> · {stageStatusLabel(gateState?.status)}
-            </p>
-            {rounds.length === 0 ? (
-              <span>No approvers configured.</span>
-            ) : (
-              <ul>
-                {rounds.map((round, index) => (
-                  <li key={round.id}>
-                    <span className={styles.tooltipRoundTitle}>
-                      Round {index + 1} · {roundStatusLabel[resolveRoundStatus(gateState, index)]}
-                    </span>
-                    <div className={styles.tooltipApprovers}>
-                      {round.approvers.map((approver) => (
-                        <div key={approver.id}>
-                          <strong>{roleLabelMap.get(approver.role) ?? approver.role}</strong>
-                          <span>{approver.rule.toUpperCase()}</span>
-                        </div>
-                      ))}
+      <div className={styles.gateTooltip} style={{ left: tooltipPos.x, top: tooltipPos.y }}>
+        <p>
+          <strong>{hoveredGate.toUpperCase()} gate</strong> · {stageStatusLabel(gateState?.status)}
+        </p>
+        {rounds.length === 0 ? (
+          <span>No approvers configured.</span>
+        ) : (
+          <ul>
+            {rounds.map((round, index) => (
+              <li key={round.id}>
+                <span className={styles.tooltipRoundTitle}>
+                  Round {index + 1} · {roundStatusLabel[resolveRoundStatus(gateState, index)]}
+                </span>
+                <div className={styles.tooltipApprovers}>
+                  {round.approvers.map((approver) => (
+                    <div key={approver.id}>
+                      <strong>{roleLabelMap.get(approver.role) ?? approver.role}</strong>
+                      <span>{approver.rule.toUpperCase()}</span>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     );
@@ -187,20 +177,33 @@ export const StageGatePanel = ({
             .join(' ');
           return (
             <div key={key} className={styles.trackItem}>
-              <button
-                type="button"
-                className={stageClassNames}
-                onClick={() => onSelectStage(key)}
-              >
+              <button type="button" className={stageClassNames} onClick={() => onSelectStage(key)}>
                 <span className={styles.stageLabel}>{key.toUpperCase()}</span>
                 <span className={styles.stageName}>{displayName}</span>
                 <span className={styles.stageStatus}>{stageStatusLabel(state.status)}</span>
               </button>
-              {nextStage && isGateKey(nextStage) && renderGate(nextStage)}
+              {nextStage && isGateKey(nextStage) && (
+                <div
+                  className={styles.gateWrapper}
+                  onMouseEnter={(event) => handleGateMouseEnter(nextStage, event)}
+                  onMouseMove={handleGateMouseMove}
+                  onMouseLeave={handleGateMouseLeave}
+                >
+                  <button
+                    type="button"
+                    className={[styles.gate, styles.chevron, styles[`gate-${(stageState[nextStage]?.status ?? 'draft')}`]].join(' ')}
+                  >
+                    <span className={styles.gateName}>{nextStage.toUpperCase()}</span>
+                    <span className={styles.gateLabel}>Gate</span>
+                    <span className={styles.gateStatus}>{stageStatusLabel(stageState[nextStage]?.status)}</span>
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
       </div>
+      {renderGateTooltip()}
     </div>
   );
 };
