@@ -123,58 +123,55 @@
 
 .chartBarGroup {
   width: 100%;
-  height: 120px;
+  height: 140px;
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.chartBarGroup::before {
-  content: '';
+.stackWrapper {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stackPositive,
+.stackNegative {
+  position: relative;
+  width: 100%;
+}
+
+.stackFill {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 4px 10px;
+  box-sizing: border-box;
+}
+
+.stackFillPositive {
+  flex-direction: column-reverse;
+}
+
+.stackFillNegative {
+  flex-direction: column;
+}
+
+.chartSegment {
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+  min-height: 2px;
+}
+
+.chartZeroLine {
   position: absolute;
   left: 0;
   right: 0;
   height: 1px;
-  background: rgba(148, 163, 184, 0.4);
-}
-
-.positiveStack,
-.negativeStack {
-  position: absolute;
-  width: 26px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: center;
-}
-
-.positiveStack {
-  bottom: 50%;
-  height: 50%;
-  justify-content: flex-end;
-}
-
-.negativeStack {
-  top: 50%;
-  height: 50%;
-  justify-content: flex-start;
-}
-
-.negativeStack .chartBar {
-  transform: scaleY(-1);
-  transform-origin: top;
-}
-
-.chartBar {
-  width: 14px;
-  border-radius: 4px;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.15);
-}
-
-.chartBarNegative {
-  transform: scaleY(-1);
-  transform-origin: top;
+  background: rgba(15, 23, 42, 0.45);
+  pointer-events: none;
 }
 
 .sheetRow {

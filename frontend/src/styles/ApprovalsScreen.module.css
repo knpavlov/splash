@@ -98,6 +98,23 @@
   gap: 16px;
 }
 
+.profileBody {
+  position: relative;
+}
+
+.profileLoadingOverlay {
+  position: absolute;
+  inset: 12px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  pointer-events: none;
+}
+
 .profileTopBar h2 {
   margin: 0;
 }

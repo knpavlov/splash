@@ -172,20 +172,29 @@ export const ApprovalsScreen = () => {
         <div className={banner.type === 'info' ? styles.infoBanner : styles.errorBanner}>{banner.text}</div>
       )}
       {profileError && <div className={styles.errorBanner}>{profileError}</div>}
-      {isProfileLoading && <p className={styles.placeholder}>Loading initiative profile...</p>}
+      {isProfileLoading && !selectedInitiative && (
+        <p className={styles.placeholder}>Loading initiative profile...</p>
+      )}
       {selectedInitiative && (
-        <InitiativeProfile
-          mode="view"
-          initiative={selectedInitiative}
-          workstreams={workstreams}
-          accounts={accounts}
-          onBack={() => handleBackToQueue()}
-          onSave={handleProfileSave}
-          onDelete={handleProfileDelete}
-          onSubmitStage={submitStage}
-          readOnly
-          hideBackLink
-        />
+        <div className={styles.profileBody}>
+          <InitiativeProfile
+            mode="view"
+            initiative={selectedInitiative}
+            workstreams={workstreams}
+            accounts={accounts}
+            onBack={() => handleBackToQueue()}
+            onSave={handleProfileSave}
+            onDelete={handleProfileDelete}
+            onSubmitStage={submitStage}
+            readOnly
+            hideBackLink
+          />
+          {isProfileLoading && (
+            <div className={styles.profileLoadingOverlay}>
+              <span>Refreshing profile...</span>
+            </div>
+          )}
+        </div>
       )}
       <div className={styles.decisionPanel}>
         <h3>Your decision</h3>

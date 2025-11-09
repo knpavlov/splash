@@ -77,50 +77,65 @@ const CombinedChart = ({
   gridTemplateColumns: string;
   totals: Record<InitiativeFinancialKind, Record<string, number>>;
 }) => {
-  const unifiedBase = Math.max(
-    1,
-    ...months.map((month) => {
-      const benefits = benefitKinds.reduce((sum, kind) => sum + Math.max(0, totals[kind][month.key] ?? 0), 0);
-      const costs = costKinds.reduce((sum, kind) => sum + Math.max(0, totals[kind][month.key] ?? 0), 0);
-      return Math.max(benefits, costs);
-    })
-  );
+  const monthStats = months.map((month) => {
+    const positive = benefitKinds.reduce((sum, kind) => sum + Math.max(0, totals[kind][month.key] ?? 0), 0);
+    const negative = costKinds.reduce((sum, kind) => sum + Math.max(0, Math.abs(totals[kind][month.key] ?? 0)), 0);
+    return { key: month.key, positive, negative };
+  });
+
+  const maxPositive = Math.max(0, ...monthStats.map((stat) => stat.positive));
+  const maxNegative = Math.max(0, ...monthStats.map((stat) => stat.negative));
+  const totalSpan = maxPositive + maxNegative || 1;
+  const hasData = maxPositive > 0 || maxNegative > 0;
+  const positiveShare = hasData ? maxPositive / totalSpan : 0.5;
+  const negativeShare = hasData ? maxNegative / totalSpan : 0.5;
+  const positiveScale = maxPositive || 1;
+  const negativeScale = maxNegative || 1;
 
   return (
     <div className={styles.chartRow} style={{ gridTemplateColumns }}>
       <div className={styles.chartLegend}>Trend</div>
-      {months.map((month) => (
-        <div key={month.key} className={styles.chartCell}>
-          <div className={styles.chartBarGroup}>
-            <div className={styles.positiveStack}>
-              {benefitKinds.map((kind) => {
-                const value = Math.max(0, totals[kind][month.key] ?? 0);
-                const height = Math.min(100, (value / unifiedBase) * 100);
-                return (
-                  <div
-                    key={kind}
-                    className={styles.chartBar}
-                    style={{ height: `${height}%`, background: SECTION_COLORS[kind] }}
-                  />
-                );
-              })}
-            </div>
-            <div className={styles.negativeStack}>
-              {costKinds.map((kind) => {
-                const value = Math.abs(totals[kind][month.key] ?? 0);
-                const height = Math.min(100, (value / unifiedBase) * 100);
-                return (
-                  <div
-                    key={kind}
-                    className={`${styles.chartBar} ${styles.chartBarNegative}`}
-                    style={{ height: `${height}%`, background: SECTION_COLORS[kind] }}
-                  />
-                );
-              })}
+      {months.map((month) => {
+        return (
+          <div key={month.key} className={styles.chartCell}>
+            <div className={styles.chartBarGroup}>
+              <div className={styles.stackWrapper}>
+                <div className={styles.stackPositive} style={{ height: `${positiveShare * 100}%` }}>
+                  <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
+                    {benefitKinds.map((kind) => {
+                      const value = Math.max(0, totals[kind][month.key] ?? 0);
+                      const height = (value / positiveScale) * 100;
+                      return (
+                        <div
+                          key={kind}
+                          className={styles.chartSegment}
+                          style={{ height: `${height}%`, background: SECTION_COLORS[kind] }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className={styles.stackNegative} style={{ height: `${negativeShare * 100}%` }}>
+                  <div className={`${styles.stackFill} ${styles.stackFillNegative}`}>
+                    {costKinds.map((kind) => {
+                      const value = Math.max(0, Math.abs(totals[kind][month.key] ?? 0));
+                      const height = (value / negativeScale) * 100;
+                      return (
+                        <div
+                          key={kind}
+                          className={styles.chartSegment}
+                          style={{ height: `${height}%`, background: SECTION_COLORS[kind] }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className={styles.chartZeroLine} style={{ top: `${positiveShare * 100}%` }} />
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
