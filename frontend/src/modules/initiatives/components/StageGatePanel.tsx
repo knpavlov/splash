@@ -169,9 +169,7 @@ export const StageGatePanel = ({
             styles.chevron,
             styles[status],
             selectedStage === key ? styles.selected : '',
-            styles[`stage-${state.status}`],
-            index === 0 ? styles.stageStart : '',
-            index === initiativeStageKeys.length - 1 ? styles.stageEnd : ''
+            styles[`stage-${state.status}`]
           ]
             .filter(Boolean)
             .join(' ');

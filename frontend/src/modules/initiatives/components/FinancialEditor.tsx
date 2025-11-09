@@ -116,7 +116,7 @@ const CombinedChart = ({
                 return (
                   <div
                     key={kind}
-                    className={styles.chartBar}
+                    className={`${styles.chartBar} ${styles.chartBarNegative}`}
                     style={{ height: `${height}%`, background: SECTION_COLORS[kind] }}
                   />
                 );

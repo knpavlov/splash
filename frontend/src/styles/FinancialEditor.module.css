@@ -172,6 +172,11 @@
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.15);
 }
 
+.chartBarNegative {
+  transform: scaleY(-1);
+  transform-origin: top;
+}
+
 .chartMonth {
   font-size: 11px;
   text-transform: uppercase;
@@ -231,7 +236,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  z-index: 1;
+  z-index: 10;
   border-right: 1px solid rgba(148, 163, 184, 0.18);
 }
 
@@ -258,7 +263,7 @@
   position: absolute;
   top: 42px;
   left: 10px;
-  z-index: 1000;
+  z-index: 6000;
   width: 260px;
   background: #fff;
   border: 1px solid rgba(148, 163, 184, 0.35);

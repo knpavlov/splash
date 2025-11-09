@@ -6,7 +6,9 @@ import {
   InitiativeStageKey,
   initiativeStageKeys,
   initiativeStageLabels,
-  InitiativeStageState
+  InitiativeStageState,
+  initiativeFinancialKinds,
+  InitiativeFinancialKind
 } from '../../../shared/types/initiative';
 import { Workstream, WorkstreamGateKey } from '../../../shared/types/workstream';
 import { AccountRecord } from '../../../shared/types/account';
@@ -16,6 +18,7 @@ import { generateId } from '../../../shared/ui/generateId';
 import { DomainResult } from '../../../shared/types/results';
 import { resolveAccountName } from '../../../shared/utils/accountName';
 import { initiativesApi, InitiativeEventEntry } from '../services/initiativesApi';
+import { buildKindMonthlyTotals, buildMonthRange, calculateRunRate } from './financials.helpers';
 
 interface InitiativeProfileProps {
   mode: 'create' | 'view';
@@ -454,6 +457,28 @@ export const InitiativeProfile = ({
     );
   }
 
+  const netRunRate = useMemo(() => {
+    const stageData = draft.stages[draft.activeStage];
+    const months = buildMonthRange(stageData);
+    const monthKeys = months.map((month) => month.key);
+    const totalsByKind = initiativeFinancialKinds.reduce(
+      (acc, kind) => {
+        acc[kind] = buildKindMonthlyTotals(stageData, kind);
+        return acc;
+      },
+      {} as Record<InitiativeFinancialKind, Record<string, number>>
+    );
+    const netTotals: Record<string, number> = {};
+    monthKeys.forEach((key) => {
+      netTotals[key] =
+        (totalsByKind['recurring-benefits'][key] ?? 0) +
+        (totalsByKind['oneoff-benefits'][key] ?? 0) -
+        (totalsByKind['recurring-costs'][key] ?? 0) -
+        (totalsByKind['oneoff-costs'][key] ?? 0);
+    });
+    return calculateRunRate(monthKeys, netTotals);
+  }, [draft]);
+
   return (
     <section className={styles.profileWrapper}>
       <button className={styles.backLink} onClick={() => onBack(draft.workstreamId)} type="button">
@@ -470,8 +495,8 @@ export const InitiativeProfile = ({
           <h3>{draft.ownerName || 'Unassigned'}</h3>
         </div>
         <div>
-          <p className={styles.quickLabel}>Recurring impact</p>
-          <h1 className={styles.impactValue}>{formatImpact(draft.totals.recurringImpact)}</h1>
+          <p className={styles.quickLabel}>Net run rate (last 12 months)</p>
+          <h1 className={styles.impactValue}>{formatImpact(netRunRate)}</h1>
         </div>
         <div>
           <p className={styles.quickLabel}>L4 date</p>
