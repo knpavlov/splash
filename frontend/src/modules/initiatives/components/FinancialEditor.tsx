@@ -39,6 +39,19 @@ const SECTION_COLORS: Record<InitiativeFinancialKind, string> = {
   'oneoff-costs': '#475569'
 };
 
+const shadeColor = (hex: string, amount: number) => {
+  const clamped = Math.max(-1, Math.min(1, amount));
+  const value = parseInt(hex.replace('#', ''), 16);
+  const r = (value >> 16) & 0xff;
+  const g = (value >> 8) & 0xff;
+  const b = value & 0xff;
+  const mixTarget = clamped >= 0 ? 255 : 0;
+  const factor = Math.abs(clamped);
+  const mix = (channel: number) => Math.round(channel + (mixTarget - channel) * factor);
+  const toHex = (channel: number) => channel.toString(16).padStart(2, '0');
+  return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
+};
+
 type MonthDescriptor = { key: string; label: string; year: number; index: number };
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
@@ -68,23 +81,30 @@ const SummaryList = ({ title, items }: { title: string; items: YearSummaryEntry[
   );
 };
 
+interface ChartSegment {
+  value: number;
+  color: string;
+}
+
+interface ChartMonthStack {
+  key: string;
+  positiveSegments: ChartSegment[];
+  negativeSegments: ChartSegment[];
+  positiveTotal: number;
+  negativeTotal: number;
+}
+
 const CombinedChart = ({
   months,
   gridTemplateColumns,
-  totals
+  data
 }: {
   months: MonthDescriptor[];
   gridTemplateColumns: string;
-  totals: Record<InitiativeFinancialKind, Record<string, number>>;
+  data: ChartMonthStack[];
 }) => {
-  const monthStats = months.map((month) => {
-    const positive = benefitKinds.reduce((sum, kind) => sum + Math.max(0, totals[kind][month.key] ?? 0), 0);
-    const negative = costKinds.reduce((sum, kind) => sum + Math.max(0, Math.abs(totals[kind][month.key] ?? 0)), 0);
-    return { key: month.key, positive, negative };
-  });
-
-  const maxPositive = Math.max(0, ...monthStats.map((stat) => stat.positive));
-  const maxNegative = Math.max(0, ...monthStats.map((stat) => stat.negative));
+  const maxPositive = Math.max(0, ...data.map((stat) => stat.positiveTotal));
+  const maxNegative = Math.max(0, ...data.map((stat) => stat.negativeTotal));
   const totalSpan = maxPositive + maxNegative || 1;
   const hasData = maxPositive > 0 || maxNegative > 0;
   const positiveShare = hasData ? maxPositive / totalSpan : 0.5;
@@ -95,21 +115,31 @@ const CombinedChart = ({
   return (
     <div className={styles.chartRow} style={{ gridTemplateColumns }}>
       <div className={styles.chartLegend}>Trend</div>
-      {months.map((month) => {
+      {months.map((month, index) => {
+        const stat = data[index];
         return (
           <div key={month.key} className={styles.chartCell}>
             <div className={styles.chartBarGroup}>
+              {stat.positiveTotal > 0 && (
+                <span className={`${styles.chartValue} ${styles.chartValuePositive}`}>
+                  {formatCurrency(stat.positiveTotal)}
+                </span>
+              )}
+              {stat.negativeTotal > 0 && (
+                <span className={`${styles.chartValue} ${styles.chartValueNegative}`}>
+                  {formatCurrency(stat.negativeTotal)}
+                </span>
+              )}
               <div className={styles.stackWrapper}>
                 <div className={styles.stackPositive} style={{ height: `${positiveShare * 100}%` }}>
                   <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
-                    {benefitKinds.map((kind) => {
-                      const value = Math.max(0, totals[kind][month.key] ?? 0);
-                      const height = (value / positiveScale) * 100;
+                    {stat.positiveSegments.map((segment, segmentIndex) => {
+                      const height = (segment.value / positiveScale) * 100;
                       return (
                         <div
-                          key={kind}
+                          key={`${month.key}-pos-${segmentIndex}`}
                           className={styles.chartSegment}
-                          style={{ height: `${height}%`, background: SECTION_COLORS[kind] }}
+                          style={{ height: `${height}%`, background: segment.color }}
                         />
                       );
                     })}
@@ -117,21 +147,19 @@ const CombinedChart = ({
                 </div>
                 <div className={styles.stackNegative} style={{ height: `${negativeShare * 100}%` }}>
                   <div className={`${styles.stackFill} ${styles.stackFillNegative}`}>
-                    {costKinds.map((kind) => {
-                      const value = Math.max(0, Math.abs(totals[kind][month.key] ?? 0));
-                      const height = (value / negativeScale) * 100;
+                    {stat.negativeSegments.map((segment, segmentIndex) => {
+                      const height = (segment.value / negativeScale) * 100;
                       return (
                         <div
-                          key={kind}
+                          key={`${month.key}-neg-${segmentIndex}`}
                           className={styles.chartSegment}
-                          style={{ height: `${height}%`, background: SECTION_COLORS[kind] }}
+                          style={{ height: `${height}%`, background: segment.color }}
                         />
                       );
                     })}
                   </div>
                 </div>
               </div>
-              <div className={styles.chartZeroLine} style={{ top: `${positiveShare * 100}%` }} />
             </div>
           </div>
         );
@@ -350,6 +378,69 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
     [stage]
   );
 
+  const entryColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    const assignColors = (kind: InitiativeFinancialKind[], lighten: boolean) => {
+      kind.forEach((key) => {
+        const entries = stage.financials[key];
+        entries.forEach((entry, index) => {
+          const offset = Math.min(0.45, index * 0.08);
+          const signedOffset = lighten ? offset : -offset;
+          map[entry.id] = shadeColor(SECTION_COLORS[key], signedOffset);
+        });
+      });
+    };
+    assignColors(benefitKinds, true);
+    assignColors(costKinds, false);
+    return map;
+  }, [stage.financials]);
+
+  const chartData = useMemo<ChartMonthStack[]>(
+    () =>
+      months.map((month) => {
+        const positiveSegments: ChartSegment[] = [];
+        const negativeSegments: ChartSegment[] = [];
+
+        benefitKinds.forEach((kind) => {
+          stage.financials[kind].forEach((entry) => {
+            const raw = entry.distribution[month.key] ?? 0;
+            const value = Math.max(0, raw);
+            if (value > 0) {
+              positiveSegments.push({
+                value,
+                color: entryColorMap[entry.id] ?? SECTION_COLORS[kind]
+              });
+            }
+          });
+        });
+
+        costKinds.forEach((kind) => {
+          stage.financials[kind].forEach((entry) => {
+            const raw = entry.distribution[month.key] ?? 0;
+            const value = Math.abs(raw);
+            if (value > 0) {
+              negativeSegments.push({
+                value,
+                color: entryColorMap[entry.id] ?? SECTION_COLORS[kind]
+              });
+            }
+          });
+        });
+
+        const positiveTotal = positiveSegments.reduce((sum, segment) => sum + segment.value, 0);
+        const negativeTotal = negativeSegments.reduce((sum, segment) => sum + segment.value, 0);
+
+        return {
+          key: month.key,
+          positiveSegments,
+          negativeSegments,
+          positiveTotal,
+          negativeTotal
+        };
+      }),
+    [months, stage.financials, entryColorMap]
+  );
+
   const impactTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     months.forEach((month) => {
@@ -413,7 +504,7 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
 
       <div className={styles.sheetWrapper}>
         <div className={styles.sheetScroller}>
-          <CombinedChart months={months} gridTemplateColumns={gridTemplateColumns} totals={kindMonthlyTotals} />
+          <CombinedChart months={months} gridTemplateColumns={gridTemplateColumns} data={chartData} />
           <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
             <div className={styles.categoryHeader}>Line item</div>
             {months.map((month) => (
