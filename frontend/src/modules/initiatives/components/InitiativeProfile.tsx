@@ -150,7 +150,9 @@ const logFieldLabels: Record<string, string> = {
   status: 'Status',
   l4Date: 'L4 date',
   recurringImpact: 'Recurring impact',
-  created: 'Created'
+  created: 'Created',
+  'stage-content': 'Stage details',
+  updated: 'Update'
 };
 
 const formatLogValue = (field: string, value: unknown): string => {
@@ -662,21 +664,31 @@ export const InitiativeProfile = ({
                   <span className={styles.logBadge}>{entry.eventType}</span>
                 </div>
                 <div className={styles.logChanges}>
-                  {entry.changes.map((change) =>
-                    change.field === 'created' ? (
-                      <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
-                        <span className={styles.logValue}>Initiative created.</span>
-                      </div>
-                    ) : (
+                  {entry.changes.map((change) => {
+                    const label = logFieldLabels[change.field] ?? change.field;
+                    if (change.field === 'created') {
+                      return (
+                        <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
+                          <span className={styles.logValue}>Initiative created.</span>
+                        </div>
+                      );
+                    }
+                    if (change.field === 'stage-content' || change.field === 'updated') {
+                      return (
+                        <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
+                          <span className={styles.logValue}>{label} updated.</span>
+                        </div>
+                      );
+                    }
+                    return (
                       <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
                         <span className={styles.logValue}>
-                          Changed <strong>{logFieldLabels[change.field] ?? change.field}</strong> from{' '}
-                          {formatLogValue(change.field, change.previousValue)} to{' '}
+                          Changed <strong>{label}</strong> from {formatLogValue(change.field, change.previousValue)} to{' '}
                           {formatLogValue(change.field, change.nextValue)}.
                         </span>
                       </div>
-                    )
-                  )}
+                    );
+                  })}
                 </div>
               </li>
             ))}

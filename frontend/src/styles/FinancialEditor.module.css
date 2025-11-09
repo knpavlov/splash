@@ -123,12 +123,11 @@
 
 .chartBarGroup {
   width: 100%;
-  height: 110px;
+  height: 120px;
   position: relative;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
 }
 
 .chartBarGroup::before {
@@ -143,21 +142,28 @@
 .positiveStack,
 .negativeStack {
   position: absolute;
-  left: 0;
-  right: 0;
+  width: 26px;
   display: flex;
-  justify-content: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
 }
 
 .positiveStack {
   bottom: 50%;
-  align-items: flex-end;
+  height: 50%;
+  justify-content: flex-end;
 }
 
 .negativeStack {
   top: 50%;
-  align-items: flex-start;
+  height: 50%;
+  justify-content: flex-start;
+}
+
+.negativeStack .chartBar {
+  transform: scaleY(-1);
+  transform-origin: top;
 }
 
 .chartBar {
@@ -252,7 +258,7 @@
   position: absolute;
   top: 42px;
   left: 10px;
-  z-index: 10;
+  z-index: 1000;
   width: 260px;
   background: #fff;
   border: 1px solid rgba(148, 163, 184, 0.35);
@@ -353,3 +359,4 @@
   color: #94a3b8;
   font-size: 13px;
 }
+

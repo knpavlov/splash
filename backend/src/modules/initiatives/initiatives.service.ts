@@ -853,12 +853,25 @@ export class InitiativesService {
       nextValue: nextTotals.recurringImpact
     });
 
+    const previousStages = JSON.stringify(previous.stages);
+    const nextStages = JSON.stringify(next.stages);
+    if (previousStages !== nextStages) {
+      trackedFields.push({
+        field: 'stage-content',
+        previousValue: null,
+        nextValue: null
+      });
+    }
+
     for (const item of trackedFields) {
       const prevValue = JSON.stringify(item.previousValue ?? null);
       const nextValue = JSON.stringify(item.nextValue ?? null);
       if (prevValue !== nextValue) {
         changes.push(item);
       }
+    }
+    if (!changes.length) {
+      changes.push({ field: 'updated', previousValue: null, nextValue: null });
     }
     return changes;
   }
