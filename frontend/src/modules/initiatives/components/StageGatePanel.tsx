@@ -93,7 +93,7 @@ export const StageGatePanel = ({
   workstream
 }: StageGatePanelProps) => {
   const activeIndex = initiativeStageKeys.indexOf(activeStage);
-  const [expandedGate, setExpandedGate] = useState<WorkstreamGateKey | null>(null);
+  const [hoveredGate, setHoveredGate] = useState<WorkstreamGateKey | null>(null);
   const roleLabelMap = useMemo(() => {
     const map = new Map<string, string>();
     defaultWorkstreamRoleOptions.forEach((option) => {
@@ -105,76 +105,48 @@ export const StageGatePanel = ({
   const renderGate = (gateKey: WorkstreamGateKey) => {
     const gateState = stageState[gateKey];
     const stateClass = styles[`gate-${gateState?.status ?? 'draft'}`] ?? '';
-    const isOpen = expandedGate === gateKey;
-    const rounds = workstream?.gates[gateKey]?.length ?? 0;
+    const rounds = workstream?.gates[gateKey] ?? [];
     return (
-      <button
+      <div
         key={`${gateKey}-connector`}
-        type="button"
-        className={[styles.gate, stateClass, isOpen ? styles.gateOpen : ''].filter(Boolean).join(' ')}
-        onClick={() => setExpandedGate((prev) => (prev === gateKey ? null : gateKey))}
+        className={styles.gateWrapper}
+        onMouseEnter={() => setHoveredGate(gateKey)}
+        onMouseLeave={() => setHoveredGate((prev) => (prev === gateKey ? null : prev))}
       >
-        <span className={styles.gateName}>{gateKey.toUpperCase()}</span>
-        <span className={styles.gateLabel}>Gate</span>
-        <span className={styles.gateStatus}>
-          {rounds > 0 ? stageStatusLabel(gateState?.status) : 'Not configured'}
-        </span>
-      </button>
-    );
-  };
-
-  const renderGateDetails = () => {
-    if (!expandedGate) {
-      return null;
-    }
-    const gateRounds = workstream?.gates[expandedGate] ?? [];
-    const gateState = stageState[expandedGate];
-    return (
-      <div className={styles.gateDetails}>
-        <div className={styles.gateDetailsHeader}>
-          <div>
-            <p>Gate</p>
-            <h4>{`${expandedGate.toUpperCase()} gate`}</h4>
-            <span className={[styles.statusBadge, styles[`stage-${gateState?.status ?? 'draft'}`]].join(' ')}>
-              {stageStatusLabel(gateState?.status)}
-            </span>
-          </div>
-          <button type="button" className={styles.closeDetails} onClick={() => setExpandedGate(null)}>
-            Close
-          </button>
-        </div>
-        {gateRounds.length === 0 ? (
-          <p className={styles.gateDetailsEmpty}>No approval rounds configured for this gate.</p>
-        ) : (
-          <ol className={styles.roundList}>
-            {gateRounds.map((round, index) => {
-              const status = resolveRoundStatus(gateState, index);
-              return (
-                <li key={round.id} className={styles.roundItem}>
-                  <div className={styles.roundHeader}>
-                    <span className={styles.roundTitle}>Round {index + 1}</span>
-                    <span className={[styles.roundStatus, styles[`round-${status}`]].join(' ')}>
-                      {roundStatusLabel[status]}
+        <button type="button" className={[styles.gate, stateClass].filter(Boolean).join(' ')}>
+          <span className={styles.gateName}>{gateKey.toUpperCase()}</span>
+          <span className={styles.gateLabel}>Gate</span>
+          <span className={styles.gateStatus}>
+            {rounds.length > 0 ? stageStatusLabel(gateState?.status) : 'Not set'}
+          </span>
+        </button>
+        {hoveredGate === gateKey && (
+          <div className={styles.gateTooltip}>
+            <p>
+              <strong>{gateKey.toUpperCase()} gate</strong> · {stageStatusLabel(gateState?.status)}
+            </p>
+            {rounds.length === 0 ? (
+              <span>No approvers configured.</span>
+            ) : (
+              <ul>
+                {rounds.map((round, index) => (
+                  <li key={round.id}>
+                    <span className={styles.tooltipRoundTitle}>
+                      Round {index + 1} · {roundStatusLabel[resolveRoundStatus(gateState, index)]}
                     </span>
-                  </div>
-                  {round.approvers.length === 0 ? (
-                    <p className={styles.roundEmpty}>No approvers defined for this round.</p>
-                  ) : (
-                    <div className={styles.approverGrid}>
+                    <div className={styles.tooltipApprovers}>
                       {round.approvers.map((approver) => (
-                        <div key={approver.id} className={styles.approverCard}>
-                          <span className={styles.approverRole}>
-                            {roleLabelMap.get(approver.role) ?? approver.role}
-                          </span>
-                          <span className={styles.approverRule}>{approver.rule.toUpperCase()}</span>
+                        <div key={approver.id}>
+                          <strong>{roleLabelMap.get(approver.role) ?? approver.role}</strong>
+                          <span>{approver.rule.toUpperCase()}</span>
                         </div>
                       ))}
                     </div>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </div>
     );
@@ -196,6 +168,7 @@ export const StageGatePanel = ({
                 className={[
                   styles.stage,
                   styles[status],
+                  styles.chevron,
                   selectedStage === key ? styles.selected : '',
                   styles[`stage-${state.status}`]
                 ]
@@ -212,7 +185,6 @@ export const StageGatePanel = ({
           );
         })}
       </div>
-      {renderGateDetails()}
     </div>
   );
 };

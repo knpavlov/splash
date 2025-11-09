@@ -57,6 +57,9 @@
   overflow-x: auto;
   overflow-y: visible;
   border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .summaryCard {
@@ -98,6 +101,30 @@
 
 .summaryHighlight strong {
   font-size: 24px;
+  color: #0f172a;
+}
+
+.sectionChartMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.runRateLabel {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.runRateValue {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
   color: #0f172a;
 }
 
@@ -165,12 +192,14 @@
   display: grid;
   align-items: end;
   gap: 0;
-  min-height: 120px;
-  margin-top: 12px;
+  min-height: 140px;
 }
 
 .chartLegend {
   padding: 0 12px;
+  position: sticky;
+  left: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.8));
 }
 
 .chartCell {
@@ -178,18 +207,30 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 0 6px 6px;
+  padding: 0 6px 10px;
+  height: 140px;
+  justify-content: flex-end;
+}
+
+.chartBarTrack {
+  height: 110px;
+  width: 18px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.15);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
 }
 
 .chartBar {
-  width: 18px;
-  border-radius: 6px;
-  background: rgba(37, 99, 235, 0.5);
+  width: 100%;
+  border-radius: 10px;
+  background: rgba(37, 99, 235, 0.6);
   transition: height 0.2s ease;
 }
 
 .chartBar[data-negative='true'] {
-  background: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.65);
 }
 
 .chartValue {
@@ -202,6 +243,17 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #94a3b8;
+}
+
+.chartWrapperStandalone {
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.chartMetaCompact {
+  font-size: 13px;
+  color: #475569;
+  margin-bottom: 6px;
 }
 
 .sheetRow {

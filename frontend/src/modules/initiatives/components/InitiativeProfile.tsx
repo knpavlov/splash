@@ -672,15 +672,14 @@ export const InitiativeProfile = ({
                   {entry.changes.map((change) =>
                     change.field === 'created' ? (
                       <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
-                        <span className={styles.logField}>{logFieldLabels[change.field] ?? change.field}</span>
                         <span className={styles.logValue}>Initiative created.</span>
                       </div>
                     ) : (
                       <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
-                        <span className={styles.logField}>{logFieldLabels[change.field] ?? change.field}</span>
                         <span className={styles.logValue}>
-                          {formatLogValue(change.field, change.previousValue)} →{' '}
-                          {formatLogValue(change.field, change.nextValue)}
+                          Changed <strong>{logFieldLabels[change.field] ?? change.field}</strong> from{' '}
+                          {formatLogValue(change.field, change.previousValue)} to{' '}
+                          {formatLogValue(change.field, change.nextValue)}.
                         </span>
                       </div>
                     )

@@ -109,59 +109,45 @@ const ImpactSummaryCard = ({ stage, months, gridTemplateColumns }: ImpactSummary
         <SummaryList title="Fiscal years" items={summaries.fiscal} />
         <SummaryList title="Calendar years" items={summaries.calendar} />
       </div>
-      <TrendChart
-        label="Impact trend"
-        months={months}
-        totals={impactTotals}
-        gridTemplateColumns={gridTemplateColumns}
-        hideSummary
-      />
+      <div className={styles.chartMetaCompact}>
+        <span>Impact trend</span>
+      </div>
+      <div className={styles.chartWrapperStandalone}>
+        <ChartBars months={months} totals={impactTotals} gridTemplateColumns={gridTemplateColumns} />
+      </div>
     </div>
   );
 };
 
 interface ChartRowProps {
-  label: string;
   months: MonthDescriptor[];
   totals: Record<string, number>;
   gridTemplateColumns: string;
-  hideSummary?: boolean;
 }
 
-const TrendChart = ({ label, months, totals, gridTemplateColumns, hideSummary }: ChartRowProps) => {
+const ChartBars = ({ months, totals, gridTemplateColumns }: ChartRowProps) => {
   const maxValue = months.reduce((acc, month) => Math.max(acc, Math.abs(totals[month.key] ?? 0)), 0);
-  const monthKeys = months.map((month) => month.key);
-  const runRate = calculateRunRate(monthKeys, totals);
-  const summaries = calculateYearSummaries(totals);
-
   return (
-    <div className={styles.chartBlock}>
-      <div className={styles.chartMeta}>
-        <div>
-          <h5>{label}</h5>
-          <p>Run rate (last 12 months): {formatCurrency(runRate)}</p>
-        </div>
-        {!hideSummary && (
-          <div className={styles.summaryGroup}>
-            <SummaryList title="Fiscal years" items={summaries.fiscal} />
-            <SummaryList title="Calendar years" items={summaries.calendar} />
-          </div>
-        )}
-      </div>
-      <div className={styles.chartRow} style={{ gridTemplateColumns }}>
-        <div className={styles.chartLegend} />
-        {months.map((month) => {
-          const value = totals[month.key] ?? 0;
-          const height = maxValue > 0 ? (Math.abs(value) / maxValue) * 100 : 0;
-          return (
-            <div key={month.key} className={styles.chartCell}>
-              <div className={styles.chartBar} style={{ height: `${height}%` }} data-negative={value < 0} />
-              <span className={styles.chartValue}>{value ? formatCompact(value) : ''}</span>
-              <span className={styles.chartMonth}>{month.label}</span>
+    <div className={styles.chartRow} style={{ gridTemplateColumns }}>
+      <div className={styles.chartLegend} />
+      {months.map((month) => {
+        const value = totals[month.key] ?? 0;
+        const height =
+          maxValue > 0 ? Math.max(6, Math.round((Math.abs(value) / maxValue) * 100)) : 0;
+        return (
+          <div key={month.key} className={styles.chartCell}>
+            <div className={styles.chartBarTrack}>
+              <div
+                className={styles.chartBar}
+                style={{ height: `${height}%` }}
+                data-negative={value < 0}
+              />
             </div>
-          );
-        })}
-      </div>
+            <span className={styles.chartValue}>{value ? formatCompact(value) : ''}</span>
+            <span className={styles.chartMonth}>{month.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -368,6 +354,7 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
       ),
     [stage]
   );
+  const monthKeys = useMemo(() => months.map((month) => month.key), [months]);
 
   useEffect(() => {
     const monthSet = new Set(months.map((month) => month.key));
@@ -439,14 +426,26 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
             <p className={styles.placeholder}>No data yet. Use "Add line" to start capturing this metric.</p>
           ) : (
             <>
-              <TrendChart
-                label={`${SECTION_LABELS[kind]} trend`}
-                months={months}
-                totals={kindMonthlyTotals[kind]}
-                gridTemplateColumns={gridTemplateColumns}
-              />
+              {(() => {
+                const totals = kindMonthlyTotals[kind];
+                const runRateValue = formatCurrency(calculateRunRate(monthKeys, totals));
+                const summaries = calculateYearSummaries(totals);
+                return (
+                  <div className={styles.sectionChartMeta}>
+                    <div>
+                      <span className={styles.runRateLabel}>Run rate (last 12 months)</span>
+                      <strong className={styles.runRateValue}>{runRateValue}</strong>
+                    </div>
+                    <div className={styles.summaryGroup}>
+                      <SummaryList title="Fiscal years" items={summaries.fiscal} />
+                      <SummaryList title="Calendar years" items={summaries.calendar} />
+                    </div>
+                  </div>
+                );
+              })()}
               <div className={styles.sheetWrapper}>
                 <div className={styles.sheetScroller}>
+                  <ChartBars months={months} totals={kindMonthlyTotals[kind]} gridTemplateColumns={gridTemplateColumns} />
                   <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
                     <div className={styles.categoryHeader}>P&L category</div>
                     {months.map((month) => (
