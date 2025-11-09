@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../../../styles/InitiativeProfile.module.css';
 import {
   Initiative,
@@ -211,36 +211,27 @@ export const InitiativeProfile = ({
     }
   }, [initiative, initialWorkstreamId, workstreams]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadChangeLog = useCallback(async () => {
     if (!initiative) {
       setChangeLog([]);
       setIsLogLoading(false);
       return;
     }
     setIsLogLoading(true);
-    initiativesApi
-      .events(initiative.id)
-      .then((entries) => {
-        if (!cancelled) {
-          setChangeLog(entries);
-        }
-      })
-      .catch((error) => {
-        console.error('Failed to load initiative change log:', error);
-        if (!cancelled) {
-          setChangeLog([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLogLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [initiative?.id]);
+    try {
+      const entries = await initiativesApi.events(initiative.id);
+      setChangeLog(entries);
+    } catch (error) {
+      console.error('Failed to load initiative change log:', error);
+      setChangeLog([]);
+    } finally {
+      setIsLogLoading(false);
+    }
+  }, [initiative]);
+
+  useEffect(() => {
+    void loadChangeLog();
+  }, [loadChangeLog]);
 
   const currentStage = draft.stages[selectedStage];
   const activeStageData = draft.stages[draft.activeStage];
@@ -396,6 +387,7 @@ export const InitiativeProfile = ({
       setDraft(result.data);
       setSelectedStage(result.data.activeStage);
       setBanner({ type: 'info', text: 'Initiative saved.' });
+      void loadChangeLog();
     }
   };
 
@@ -444,6 +436,7 @@ export const InitiativeProfile = ({
       setDraft(result.data);
       setSelectedStage(result.data.activeStage);
       setBanner({ type: 'info', text: 'Stage submitted for approval.' });
+      void loadChangeLog();
     }
   };
 

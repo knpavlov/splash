@@ -44,6 +44,13 @@ const compactFormatter = new Intl.NumberFormat('en-US', { notation: 'compact', m
 const formatCurrency = (value: number) => currencyFormatter.format(Math.round(value || 0));
 const formatCompact = (value: number) => compactFormatter.format(Math.round(value || 0));
 
+const SECTION_COLORS: Record<InitiativeFinancialKind, string> = {
+  'recurring-benefits': '#ef4444',
+  'recurring-costs': '#0f172a',
+  'oneoff-benefits': '#fb923c',
+  'oneoff-costs': '#475569'
+};
+
 interface EntryRowProps {
   entry: InitiativeFinancialEntry;
   disabled: boolean;
@@ -113,7 +120,12 @@ const ImpactSummaryCard = ({ stage, months, gridTemplateColumns }: ImpactSummary
         <span>Impact trend</span>
       </div>
       <div className={styles.chartWrapperStandalone}>
-        <ChartBars months={months} totals={impactTotals} gridTemplateColumns={gridTemplateColumns} />
+        <ChartBars
+          months={months}
+          totals={impactTotals}
+          gridTemplateColumns={gridTemplateColumns}
+          color="#b91c1c"
+        />
       </div>
     </div>
   );
@@ -123,26 +135,24 @@ interface ChartRowProps {
   months: MonthDescriptor[];
   totals: Record<string, number>;
   gridTemplateColumns: string;
+  color?: string;
 }
 
-const ChartBars = ({ months, totals, gridTemplateColumns }: ChartRowProps) => {
+const ChartBars = ({ months, totals, gridTemplateColumns, color }: ChartRowProps) => {
   const maxValue = months.reduce((acc, month) => Math.max(acc, Math.abs(totals[month.key] ?? 0)), 0);
   return (
     <div className={styles.chartRow} style={{ gridTemplateColumns }}>
       <div className={styles.chartLegend} />
       {months.map((month) => {
         const value = totals[month.key] ?? 0;
-        const height =
-          maxValue > 0 ? Math.max(6, Math.round((Math.abs(value) / maxValue) * 100)) : 0;
+        const height = maxValue > 0 ? Math.max(4, Math.round((Math.abs(value) / maxValue) * 100)) : 0;
         return (
           <div key={month.key} className={styles.chartCell}>
-            <div className={styles.chartBarTrack}>
-              <div
-                className={styles.chartBar}
-                style={{ height: `${height}%` }}
-                data-negative={value < 0}
-              />
-            </div>
+            <div
+              className={styles.chartBar}
+              style={{ height: `${height}%`, background: color }}
+              data-negative={value < 0}
+            />
             <span className={styles.chartValue}>{value ? formatCompact(value) : ''}</span>
             <span className={styles.chartMonth}>{month.label}</span>
           </div>
@@ -445,7 +455,12 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
               })()}
               <div className={styles.sheetWrapper}>
                 <div className={styles.sheetScroller}>
-                  <ChartBars months={months} totals={kindMonthlyTotals[kind]} gridTemplateColumns={gridTemplateColumns} />
+                  <ChartBars
+                    months={months}
+                    totals={kindMonthlyTotals[kind]}
+                    gridTemplateColumns={gridTemplateColumns}
+                    color={SECTION_COLORS[kind]}
+                  />
                   <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
                     <div className={styles.categoryHeader}>P&L category</div>
                     {months.map((month) => (

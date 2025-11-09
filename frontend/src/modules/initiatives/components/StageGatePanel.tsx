@@ -106,6 +106,9 @@ export const StageGatePanel = ({
     const gateState = stageState[gateKey];
     const stateClass = styles[`gate-${gateState?.status ?? 'draft'}`] ?? '';
     const rounds = workstream?.gates[gateKey] ?? [];
+    const gateClasses = [styles.gate, styles.chevron, styles[`gate-${gateState?.status ?? 'draft'}`]]
+      .filter(Boolean)
+      .join(' ');
     return (
       <div
         key={`${gateKey}-connector`}
@@ -113,7 +116,7 @@ export const StageGatePanel = ({
         onMouseEnter={() => setHoveredGate(gateKey)}
         onMouseLeave={() => setHoveredGate((prev) => (prev === gateKey ? null : prev))}
       >
-        <button type="button" className={[styles.gate, stateClass].filter(Boolean).join(' ')}>
+        <button type="button" className={[gateClasses, stateClass].filter(Boolean).join(' ')}>
           <span className={styles.gateName}>{gateKey.toUpperCase()}</span>
           <span className={styles.gateLabel}>Gate</span>
           <span className={styles.gateStatus}>
@@ -161,19 +164,22 @@ export const StageGatePanel = ({
           const stage = stages[key];
           const nextStage = initiativeStageKeys[index + 1];
           const displayName = stage.name || 'Not started';
+          const stageClassNames = [
+            styles.stage,
+            styles.chevron,
+            styles[status],
+            selectedStage === key ? styles.selected : '',
+            styles[`stage-${state.status}`],
+            index === 0 ? styles.stageStart : '',
+            index === initiativeStageKeys.length - 1 ? styles.stageEnd : ''
+          ]
+            .filter(Boolean)
+            .join(' ');
           return (
             <div key={key} className={styles.trackItem}>
               <button
                 type="button"
-                className={[
-                  styles.stage,
-                  styles[status],
-                  styles.chevron,
-                  selectedStage === key ? styles.selected : '',
-                  styles[`stage-${state.status}`]
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
+                className={stageClassNames}
                 onClick={() => onSelectStage(key)}
               >
                 <span className={styles.stageLabel}>{key.toUpperCase()}</span>
