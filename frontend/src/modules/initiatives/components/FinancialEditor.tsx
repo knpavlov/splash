@@ -33,10 +33,10 @@ const benefitKinds: InitiativeFinancialKind[] = ['recurring-benefits', 'oneoff-b
 const costKinds: InitiativeFinancialKind[] = ['recurring-costs', 'oneoff-costs'];
 
 const SECTION_COLORS: Record<InitiativeFinancialKind, string> = {
-  'recurring-benefits': '#ef4444',
-  'oneoff-benefits': '#fb923c',
-  'recurring-costs': '#0f172a',
-  'oneoff-costs': '#475569'
+  'recurring-benefits': '#1d4ed8',
+  'oneoff-benefits': '#3b82f6',
+  'recurring-costs': '#ef4444',
+  'oneoff-costs': '#f97316'
 };
 
 const shadeColor = (hex: string, amount: number) => {
@@ -129,7 +129,7 @@ const CombinedChart = ({
               {stat.positiveTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValuePositive}`}
-                  style={{ top: `calc(${positiveLabelTop}% - 30px)` }}
+                  style={{ top: `calc(${positiveLabelTop}% - 26px)` }}
                 >
                   {formatCurrency(stat.positiveTotal)}
                 </span>
@@ -137,7 +137,7 @@ const CombinedChart = ({
               {stat.negativeTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValueNegative}`}
-                  style={{ top: `calc(${negativeLabelTop}% + 14px)` }}
+                  style={{ top: `calc(${negativeLabelTop}% + 18px)` }}
                 >
                   {formatCurrency(stat.negativeTotal)}
                 </span>
@@ -172,6 +172,7 @@ const CombinedChart = ({
                   </div>
                 </div>
               </div>
+              <div className={styles.chartZeroLine} style={{ top: `${positiveShare * 100}%` }} />
             </div>
           </div>
         );
@@ -398,10 +399,10 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
         if (!entries.length) {
           return;
         }
-        const range = 0.7;
+        const range = 0.85;
         entries.forEach((entry, index) => {
           const ratio = entries.length === 1 ? 0.5 : index / (entries.length - 1);
-          const offset = lighten ? 0.15 + ratio * range : -(0.15 + ratio * range);
+          const offset = lighten ? 0.2 + ratio * range : -(0.2 + ratio * range);
           map[entry.id] = shadeColor(SECTION_COLORS[kind], offset);
         });
       });
@@ -417,29 +418,21 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
         const positiveSegments: ChartSegment[] = [];
         const negativeSegments: ChartSegment[] = [];
 
-        benefitKinds.forEach((kind) => {
-          stage.financials[kind].forEach((entry) => {
-            const value = Math.max(0, entry.distribution[month.key] ?? 0);
-            if (value > 0) {
-              positiveSegments.push({
-                value,
-                color: entryColorMap[entry.id] ?? SECTION_COLORS[kind]
-              });
+        for (const kind of initiativeFinancialKinds) {
+          const isCost = costKinds.includes(kind);
+          for (const entry of stage.financials[kind]) {
+            const raw = entry.distribution[month.key] ?? 0;
+            if (!raw) {
+              continue;
             }
-          });
-        });
-
-        costKinds.forEach((kind) => {
-          stage.financials[kind].forEach((entry) => {
-            const value = Math.max(0, entry.distribution[month.key] ?? 0);
-            if (value > 0) {
-              negativeSegments.push({
-                value,
-                color: entryColorMap[entry.id] ?? SECTION_COLORS[kind]
-              });
-            }
-          });
-        });
+            const oriented = raw * (isCost ? -1 : 1);
+            const target = oriented >= 0 ? positiveSegments : negativeSegments;
+            target.push({
+              value: Math.abs(oriented),
+              color: entryColorMap[entry.id] ?? SECTION_COLORS[kind]
+            });
+          }
+        }
 
         const positiveTotal = positiveSegments.reduce((sum, segment) => sum + segment.value, 0);
         const negativeTotal = negativeSegments.reduce((sum, segment) => sum + segment.value, 0);
