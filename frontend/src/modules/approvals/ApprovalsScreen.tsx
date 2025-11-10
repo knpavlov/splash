@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import styles from '../../styles/ApprovalsScreen.module.css';
 import { approvalsApi } from './services/approvalsApi';
 import { ApprovalDecision, ApprovalTask } from '../../shared/types/approval';
@@ -25,6 +25,7 @@ export const ApprovalsScreen = () => {
   const [selectedTask, setSelectedTask] = useState<ApprovalTask | null>(null);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [hasLoadedProfile, setHasLoadedProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isDeciding, setIsDeciding] = useState<ApprovalDecision | null>(null);
   const [comment, setComment] = useState('');
@@ -69,13 +70,17 @@ export const ApprovalsScreen = () => {
   useEffect(() => {
     if (!selectedTask) {
       setSelectedInitiative(null);
+      setHasLoadedProfile(false);
       return;
     }
     setIsProfileLoading(true);
     setProfileError(null);
     initiativesApi
       .get(selectedTask.initiativeId)
-      .then((initiative) => setSelectedInitiative(initiative))
+      .then((initiative) => {
+        setSelectedInitiative(initiative);
+        setHasLoadedProfile(true);
+      })
       .catch((error) => {
         console.error('Failed to load initiative profile', error);
         setProfileError('Failed to load initiative profile. Please retry.');
@@ -95,6 +100,7 @@ export const ApprovalsScreen = () => {
     setSelectedTask(null);
     setSelectedInitiative(null);
     setComment('');
+    setHasLoadedProfile(false);
   };
 
   const handleDecision = async (decision: ApprovalDecision) => {
@@ -156,12 +162,12 @@ export const ApprovalsScreen = () => {
     <section className={styles.profileView}>
       <header className={styles.profileTopBar}>
         <button className={styles.backButton} type="button" onClick={handleBackToQueue}>
-          ← Back to queue
+          Back to queue
         </button>
         <div>
           <h2>{selectedTask?.initiativeName}</h2>
           <p>
-            {selectedTask?.workstreamName} · {selectedTask?.role}
+            {selectedTask?.workstreamName} В· {selectedTask?.role}
           </p>
         </div>
         <button className={styles.refreshButton} type="button" onClick={() => loadTasks()}>
@@ -172,7 +178,7 @@ export const ApprovalsScreen = () => {
         <div className={banner.type === 'info' ? styles.infoBanner : styles.errorBanner}>{banner.text}</div>
       )}
       {profileError && <div className={styles.errorBanner}>{profileError}</div>}
-      {isProfileLoading && !selectedInitiative && (
+      {isProfileLoading && !hasLoadedProfile && (
         <p className={styles.placeholder}>Loading initiative profile...</p>
       )}
       {selectedInitiative && (
@@ -237,3 +243,4 @@ export const ApprovalsScreen = () => {
 
   return viewMode === 'queue' ? renderQueue() : renderProfile();
 };
+

@@ -6,6 +6,10 @@
   z-index: 2;
 }
 
+.wrapperCompact {
+  gap: 12px;
+}
+
 .track {
   display: flex;
   align-items: center;
@@ -13,6 +17,25 @@
   overflow-x: auto;
   overflow-y: visible;
   padding: 12px 0;
+}
+
+.trackCompact {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+
+.trackCompact .trackItem {
+  flex: 1 1 220px;
+}
+
+.trackCompact .stage,
+.trackCompact .gate {
+  min-width: auto;
+  width: 100%;
+}
+
+.trackCompact .gateWrapper {
+  width: 100%;
 }
 
 .track::-webkit-scrollbar {

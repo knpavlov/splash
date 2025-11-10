@@ -405,7 +405,10 @@ const mapCommentThreadRow = (
   createdAt: toIsoString(thread.created_at) ?? new Date().toISOString(),
   createdByAccountId: thread.created_by_account_id ?? null,
   createdByName: thread.created_by_name ?? null,
-  comments: messages.map((message) => mapCommentMessageRow(message))
+  comments: messages.map((message) => mapCommentMessageRow(message)),
+  resolvedAt: thread.resolved_at ? toIsoString(thread.resolved_at) : null,
+  resolvedByAccountId: thread.resolved_by_account_id ?? null,
+  resolvedByName: thread.resolved_by_name ?? null
 });
 
 export class InitiativesService {
@@ -817,6 +820,27 @@ export class InitiativesService {
     });
     const messages = await this.repository.listCommentMessages(threadId);
     return mapCommentThreadRow(thread, messages);
+  }
+
+  async setCommentResolution(
+    initiativeId: string,
+    threadId: string,
+    resolved: boolean,
+    actor?: InitiativeMutationMetadata
+  ): Promise<InitiativeCommentThread> {
+    const thread = await this.repository.findCommentThread(threadId);
+    if (!thread || thread.initiative_id !== initiativeId) {
+      throw new Error('NOT_FOUND');
+    }
+    const updatedThread =
+      (await this.repository.updateCommentThreadResolution(
+        threadId,
+        resolved,
+        actor?.actorAccountId ?? null,
+        actor?.actorName ?? null
+      )) ?? thread;
+    const messages = await this.repository.listCommentMessages(threadId);
+    return mapCommentThreadRow(updatedThread, messages);
   }
 
   private composeApprovalsPayload(

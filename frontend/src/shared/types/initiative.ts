@@ -81,6 +81,9 @@ export interface InitiativeCommentThread {
   createdByAccountId: string | null;
   createdByName: string | null;
   comments: InitiativeCommentMessage[];
+  resolvedAt: string | null;
+  resolvedByAccountId: string | null;
+  resolvedByName: string | null;
 }
 
 export interface InitiativeTotals {

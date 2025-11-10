@@ -7,6 +7,7 @@ import {
   WorkstreamGateKey,
   workstreamGateKeys
 } from '../../../shared/types/workstream';
+import { createCommentAnchor } from '../comments/commentAnchors';
 
 interface StageGatePanelProps {
   stages: InitiativeStageMap;
@@ -15,6 +16,7 @@ interface StageGatePanelProps {
   selectedStage: InitiativeStageKey;
   onSelectStage: (stage: InitiativeStageKey) => void;
   workstream: Workstream | null;
+  compact?: boolean;
 }
 
 const stageStatusLabel = (status: InitiativeStageStateMap[InitiativeStageKey]['status'] | undefined) => {
@@ -90,7 +92,8 @@ export const StageGatePanel = ({
   activeStage,
   selectedStage,
   onSelectStage,
-  workstream
+  workstream,
+  compact = false
 }: StageGatePanelProps) => {
   const activeIndex = initiativeStageKeys.indexOf(activeStage);
   const [hoveredGate, setHoveredGate] = useState<WorkstreamGateKey | null>(null);
@@ -158,8 +161,8 @@ export const StageGatePanel = ({
   };
 
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.track}>
+    <div className={`${styles.wrapper} ${compact ? styles.wrapperCompact : ''}`}>
+      <div className={`${styles.track} ${compact ? styles.trackCompact : ''}`}>
         {initiativeStageKeys.map((key, index) => {
           const status = index < activeIndex ? 'complete' : index === activeIndex ? 'current' : 'upcoming';
           const state = stageState[key] ?? { status: 'draft' };
@@ -175,9 +178,10 @@ export const StageGatePanel = ({
           ]
             .filter(Boolean)
             .join(' ');
+          const stageAnchor = createCommentAnchor(`stage-track.${key}`, `${key.toUpperCase()} stage`);
           return (
             <div key={key} className={styles.trackItem}>
-              <button type="button" className={stageClassNames} onClick={() => onSelectStage(key)}>
+              <button type="button" className={stageClassNames} onClick={() => onSelectStage(key)} {...stageAnchor}>
                 <span className={styles.stageLabel}>{key.toUpperCase()}</span>
                 <span className={styles.stageName}>{displayName}</span>
                 <span className={styles.stageStatus}>{stageStatusLabel(state.status)}</span>
@@ -192,6 +196,7 @@ export const StageGatePanel = ({
                   <button
                     type="button"
                     className={[styles.gate, styles.chevron, styles[`gate-${(stageState[nextStage]?.status ?? 'draft')}`]].join(' ')}
+                    {...createCommentAnchor(`stage-track.${nextStage}`, `${nextStage.toUpperCase()} gate`)}
                   >
                     <span className={styles.gateName}>{nextStage.toUpperCase()}</span>
                     <span className={styles.gateLabel}>Gate</span>

@@ -31,7 +31,7 @@ export const useInitiativeComments = (initiativeId: string | null, options: UseI
       setThreads(list);
     } catch (err) {
       console.error('Failed to load initiative comments:', err);
-      setError('Не удалось загрузить комментарии.');
+      setError('Unable to load comments.');
     } finally {
       setIsLoading(false);
     }
@@ -58,7 +58,7 @@ export const useInitiativeComments = (initiativeId: string | null, options: UseI
         return thread;
       } catch (err) {
         console.error('Failed to create initiative comment:', err);
-        setError('Не удалось сохранить комментарий.');
+        setError('Unable to save comment.');
         return null;
       } finally {
         setIsSaving(false);
@@ -88,7 +88,29 @@ export const useInitiativeComments = (initiativeId: string | null, options: UseI
         return updated;
       } catch (err) {
         console.error('Failed to reply to initiative comment:', err);
-        setError('Не удалось отправить ответ.');
+        setError('Unable to send reply.');
+        return null;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [actor, initiativeId]
+  );
+
+  const toggleResolved = useCallback(
+    async (threadId: string, resolved: boolean) => {
+      if (!initiativeId) {
+        return null;
+      }
+      setIsSaving(true);
+      setError(null);
+      try {
+        const updated = await initiativesApi.setCommentResolution(initiativeId, threadId, resolved, actor);
+        setThreads((prev) => prev.map((thread) => (thread.id === updated.id ? updated : thread)));
+        return updated;
+      } catch (err) {
+        console.error('Failed to update comment status:', err);
+        setError('Unable to update comment status.');
         return null;
       } finally {
         setIsSaving(false);
@@ -104,6 +126,7 @@ export const useInitiativeComments = (initiativeId: string | null, options: UseI
     error,
     refresh,
     createComment,
-    replyToComment
+    replyToComment,
+    toggleResolved
   };
 };

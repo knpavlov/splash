@@ -15,11 +15,13 @@ import {
   calculateYearSummaries,
   YearSummaryEntry
 } from './financials.helpers';
+import { createCommentAnchor, CommentAnchorAttributes } from '../comments/commentAnchors';
 
 interface FinancialEditorProps {
   stage: InitiativeStageData;
   disabled: boolean;
   onChange: (nextStage: InitiativeStageData) => void;
+  commentScope?: string;
 }
 
 const SECTION_LABELS: Record<InitiativeFinancialKind, string> = {
@@ -62,12 +64,20 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 
 const formatCurrency = (value: number) => currencyFormatter.format(Math.round(value || 0));
 
-const SummaryList = ({ title, items }: { title: string; items: YearSummaryEntry[] }) => {
+const SummaryList = ({
+  title,
+  items,
+  anchorAttributes
+}: {
+  title: string;
+  items: YearSummaryEntry[];
+  anchorAttributes?: CommentAnchorAttributes;
+}) => {
   if (!items.length) {
     return null;
   }
   return (
-    <div className={styles.summaryList}>
+    <div className={styles.summaryList} {...anchorAttributes}>
       <span className={styles.summaryListTitle}>{title}</span>
       <ul>
         {items.map((item) => (
@@ -99,11 +109,13 @@ interface ChartMonthStack {
 const CombinedChart = ({
   months,
   gridTemplateColumns,
-  data
+  data,
+  anchorScope
 }: {
   months: MonthDescriptor[];
   gridTemplateColumns: string;
   data: ChartMonthStack[];
+  anchorScope?: string;
 }) => {
   const maxPositive = Math.max(0, ...data.map((stat) => stat.positiveTotal));
   const maxNegative = Math.max(0, ...data.map((stat) => stat.negativeTotal));
@@ -153,8 +165,12 @@ const CombinedChart = ({
         const positiveLabelTop = stackTopOffset(positiveShare, positiveRatio) * 100;
         const negativeLabelTop =
           positiveShare * 100 + negativeRatio * negativeShare * 100;
+        const chartAnchor = createCommentAnchor(
+          `${anchorScope ?? 'financial-chart'}.${month.key}`,
+          `${month.label} ${month.year} totals`
+        );
         return (
-          <div key={month.key} className={styles.chartCell}>
+          <div key={month.key} className={styles.chartCell} {...chartAnchor}>
             <div className={styles.chartBarGroup}>
               {stat.positiveTotal > 0 && (
                 <span
@@ -234,9 +250,10 @@ interface EntryRowProps {
   gridTemplateColumns: string;
   onChange: (entry: InitiativeFinancialEntry) => void;
   onRemove: () => void;
+  anchorAttributes?: CommentAnchorAttributes;
 }
 
-const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRemove }: EntryRowProps) => {
+const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRemove, anchorAttributes }: EntryRowProps) => {
   const [monthlyValue, setMonthlyValue] = useState('');
   const [totalValue, setTotalValue] = useState('');
   const [duration, setDuration] = useState(months.length || 1);
@@ -317,7 +334,7 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
   };
 
   return (
-    <div className={styles.sheetRow} style={{ gridTemplateColumns }}>
+    <div className={styles.sheetRow} style={{ gridTemplateColumns }} {...anchorAttributes}>
       <div className={styles.categoryCell}>
         <select
           value={entry.category}
@@ -416,8 +433,9 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
   );
 };
 
-export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorProps) => {
+export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: FinancialEditorProps) => {
   const months = useMemo<MonthDescriptor[]>(() => buildMonthRange(stage), [stage]);
+  const scopeKey = commentScope ?? stage.key ?? 'stage';
   const gridTemplateColumns = useMemo(
     () => `200px repeat(${Math.max(months.length, 1)}, minmax(110px, 1fr))`,
     [months.length]
@@ -557,13 +575,19 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
   };
 
   return (
-    <section className={styles.financialBoard}>
+    <section
+      className={styles.financialBoard}
+      {...createCommentAnchor(`financial.${scopeKey}.board`, 'Financial outlook')}
+    >
       <header className={styles.financialHeading}>
         <div>
           <h3>Financial outlook</h3>
           <p>All recurring and one-off flows in a single, minimal view.</p>
         </div>
-        <label className={styles.oneOffToggle}>
+        <label
+          className={styles.oneOffToggle}
+          {...createCommentAnchor(`financial.${scopeKey}.toggle.oneoff`, 'Include one-off items toggle')}
+        >
           <input
             type="checkbox"
             checked={includeOneOff}
@@ -574,9 +598,20 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
       </header>
 
       <div className={styles.metricsRow}>
-        <SummaryList title="Fiscal years" items={summaryTotals.fiscal} />
-        <SummaryList title="Calendar years" items={summaryTotals.calendar} />
-        <div className={styles.metricCard}>
+        <SummaryList
+          title="Fiscal years"
+          items={summaryTotals.fiscal}
+          anchorAttributes={createCommentAnchor(`financial.${scopeKey}.summary.fiscal`, 'Fiscal year totals')}
+        />
+        <SummaryList
+          title="Calendar years"
+          items={summaryTotals.calendar}
+          anchorAttributes={createCommentAnchor(`financial.${scopeKey}.summary.calendar`, 'Calendar year totals')}
+        />
+        <div
+          className={styles.metricCard}
+          {...createCommentAnchor(`financial.${scopeKey}.metric.run-rate`, 'Net run rate')}
+        >
           <span>Net run rate (last 12 months)</span>
           <strong>{formatCurrency(runRate)}</strong>
         </div>
@@ -584,7 +619,12 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
 
       <div className={styles.sheetWrapper}>
         <div className={styles.sheetScroller}>
-          <CombinedChart months={months} gridTemplateColumns={gridTemplateColumns} data={chartData} />
+          <CombinedChart
+            months={months}
+            gridTemplateColumns={gridTemplateColumns}
+            data={chartData}
+            anchorScope={`financial.${scopeKey}.chart`}
+          />
           <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
             <div className={styles.categoryHeader}>Line item</div>
             {months.map((month) => (
@@ -595,13 +635,20 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
           </div>
           {initiativeFinancialKinds.map((kind) => (
             <Fragment key={kind}>
-              <div className={styles.kindDivider}>
+              <div
+                className={styles.kindDivider}
+                {...createCommentAnchor(`financial.${scopeKey}.section.${kind}`, SECTION_LABELS[kind])}
+              >
                 <span>{SECTION_LABELS[kind]}</span>
                 <button
                   className={styles.sectionAddButton}
                   onClick={() => addEntry(kind)}
                   type="button"
                   disabled={disabled}
+                  {...createCommentAnchor(
+                    `financial.${scopeKey}.section.${kind}.add`,
+                    `Add ${SECTION_LABELS[kind]} line`
+                  )}
                 >
                   Add line
                 </button>
@@ -618,6 +665,10 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
                     gridTemplateColumns={gridTemplateColumns}
                     onChange={(nextEntry) => handleEntryChange(kind, nextEntry)}
                     onRemove={() => removeEntry(kind, entry.id)}
+                    anchorAttributes={createCommentAnchor(
+                      `financial.${scopeKey}.entry.${entry.id}`,
+                      entry.label || SECTION_LABELS[kind]
+                    )}
                   />
                 ))
               )}

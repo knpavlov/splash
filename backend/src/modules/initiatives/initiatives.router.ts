@@ -194,4 +194,23 @@ router.post('/:id/comments/:threadId/replies', async (req, res) => {
   }
 });
 
+router.patch('/:id/comments/:threadId/status', async (req, res) => {
+  const { resolved, actor } = req.body as { resolved?: unknown; actor?: unknown };
+  if (typeof resolved !== 'boolean') {
+    res.status(400).json({ code: 'invalid-input', message: 'Provide resolved flag.' });
+    return;
+  }
+  try {
+    const thread = await initiativesService.setCommentResolution(
+      req.params.id,
+      req.params.threadId,
+      resolved,
+      normalizeActor(actor)
+    );
+    res.json(thread);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 export { router as initiativesRouter };

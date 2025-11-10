@@ -357,13 +357,23 @@ const createTables = async () => {
       selection JSONB,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       created_by_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
-      created_by_name TEXT
+      created_by_name TEXT,
+      resolved_at TIMESTAMPTZ,
+      resolved_by_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+      resolved_by_name TEXT
     );
   `);
 
   await postgresPool.query(`
     CREATE INDEX IF NOT EXISTS initiative_comment_threads_initiative_idx
       ON initiative_comment_threads(initiative_id);
+  `);
+
+  await postgresPool.query(`
+    ALTER TABLE initiative_comment_threads
+      ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS resolved_by_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS resolved_by_name TEXT;
   `);
 
   await postgresPool.query(`

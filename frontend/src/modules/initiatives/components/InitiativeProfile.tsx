@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/InitiativeProfile.module.css';
 import {
   Initiative,
@@ -23,6 +23,8 @@ import { CommentSidebar } from '../comments/CommentSidebar';
 import { CommentSelectionOverlay } from '../comments/CommentSelectionOverlay';
 import { CommentHighlights } from '../comments/CommentHighlights';
 import { CommentSelectionDraft, CommentSelectionTarget } from '../comments/types';
+import { useCommentAnchors } from '../comments/useCommentAnchors';
+import { createCommentAnchor } from '../comments/commentAnchors';
 import { useInitiativeComments } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../auth/AuthContext';
 
@@ -145,7 +147,7 @@ const formatImpact = (value: number) =>
 
 const formatDate = (value: string | null) => {
   if (!value) {
-    return '—';
+    return 'вЂ”';
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -168,7 +170,7 @@ const logFieldLabels: Record<string, string> = {
 
 const formatLogValue = (field: string, value: unknown): string => {
   if (value === null || value === undefined) {
-    return '—';
+    return 'вЂ”';
   }
   if (field === 'recurringImpact') {
     const numeric = typeof value === 'number' ? value : Number(value);
@@ -226,7 +228,8 @@ export const InitiativeProfile = ({
     isSaving: isSavingComment,
     error: commentError,
     createComment,
-    replyToComment
+    replyToComment,
+    toggleResolved
   } = useInitiativeComments(initiative?.id ?? null, {
     actor: commentActor,
     enabled: Boolean(initiative?.id)
@@ -236,6 +239,7 @@ export const InitiativeProfile = ({
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const commentAnchors = useCommentAnchors(commentThreads, contentRef);
   const changeLogLoadedKeyRef = useRef<string | null>(null);
   const initiativeId = initiative?.id ?? null;
   const initiativeUpdatedAt = initiative?.updatedAt ?? null;
@@ -475,11 +479,11 @@ export const InitiativeProfile = ({
 
   const handleSaveClick = async (closeAfterSave: boolean) => {
     if (!validateDraft()) {
-      setBanner({ type: 'error', text: 'Заполните обязательные поля.' });
+      setBanner({ type: 'error', text: 'Р—Р°РїРѕР»РЅРёС‚Рµ РѕР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР»СЏ.' });
       return;
     }
     if (!hasWorkstreams) {
-      setBanner({ type: 'error', text: 'Создайте workstream, прежде чем добавлять инициативы.' });
+      setBanner({ type: 'error', text: 'РЎРѕР·РґР°Р№С‚Рµ workstream, РїСЂРµР¶РґРµ С‡РµРј РґРѕР±Р°РІР»СЏС‚СЊ РёРЅРёС†РёР°С‚РёРІС‹.' });
       return;
     }
     setIsSaving(true);
@@ -586,10 +590,10 @@ export const InitiativeProfile = ({
     });
     return calculateRunRate(monthKeys, netTotals);
   }, [draft]);
-  const commentButtonLabel = isLoadingComments
-    ? 'Комментарии...'
-    : `Комментарии${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
+  const commentButtonLabel = isLoadingComments ? 'Loading commentsвЂ¦' : `Comments${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
   const profileContentClass = `${styles.profileContent}${hideBackLink ? ` ${styles.profileContentNoBack}` : ''}`;
+  const buildProfileAnchor = (key: string, label?: string) => createCommentAnchor(`profile.${key}`, label);
+  const buildStageAnchor = (key: string, label?: string) => createCommentAnchor(`stage.${selectedStage}.${key}`, label);
 
   return (
     <section className={`${styles.profileWrapper} ${isCommentMode ? styles.profileWithComments : ''}`}>
@@ -601,79 +605,93 @@ export const InitiativeProfile = ({
             isVisible
             activeThreadId={activeThreadId}
             onSelect={setActiveThreadId}
+            anchors={commentAnchors}
           />
         )}
-      <button className={styles.backLink} onClick={() => onBack(draft.workstreamId)} type="button">
-        ← Back to initiatives
-      </button>
+        <div className={styles.topActions}>
+          {!hideBackLink && (
+            <button className={styles.backLink} onClick={() => onBack(draft.workstreamId)} type="button">
+              Back to initiatives
+            </button>
+          )}
+          <div className={styles.topActionsRight}>
+            <button
+              className={isCommentMode ? styles.commentButtonActive : styles.commentButton}
+              type="button"
+              onClick={handleCommentToggle}
+            >
+              {commentButtonLabel}
+            </button>
+          </div>
+        </div>
+        <div className={styles.quickInfoCard}>
+          <div {...buildProfileAnchor('overview.name', 'Initiative name')}>
+            <p className={styles.quickLabel}>Initiative</p>
+            <h2>{draft.name || 'Unnamed initiative'}</h2>
+          </div>
+          <div {...buildProfileAnchor('overview.owner', 'Initiative owner')}>
+            <p className={styles.quickLabel}>Owner</p>
+            <h3>{draft.ownerName || 'Unassigned'}</h3>
+          </div>
+          <div {...buildProfileAnchor('overview.run-rate', 'Net run rate')}>
+            <p className={styles.quickLabel}>Net run rate (last 12 months)</p>
+            <h1 className={styles.impactValue}>{formatImpact(netRunRate)}</h1>
+          </div>
+          <div {...buildProfileAnchor('overview.l4', 'Target L4 date')}>
+            <p className={styles.quickLabel}>L4 date</p>
+            <h3>{formatDate(l4Date)}</h3>
+          </div>
+        </div>
 
-      <div className={styles.quickInfoCard}>
-        <div>
-          <p className={styles.quickLabel}>Initiative</p>
-          <h2>{draft.name || 'Unnamed initiative'}</h2>
-        </div>
-        <div>
-          <p className={styles.quickLabel}>Owner</p>
-          <h3>{draft.ownerName || 'Unassigned'}</h3>
-        </div>
-        <div>
-          <p className={styles.quickLabel}>Net run rate (last 12 months)</p>
-          <h1 className={styles.impactValue}>{formatImpact(netRunRate)}</h1>
-        </div>
-        <div>
-          <p className={styles.quickLabel}>L4 date</p>
-          <h3>{formatDate(l4Date)}</h3>
-        </div>
-      </div>
 
-      <div className={styles.metaGrid}>
-        <label className={errors.workstream ? styles.fieldError : undefined}>
-          <span>Workstream</span>
-          <select
-            className={errors.workstream ? styles.inputError : undefined}
-            value={draft.workstreamId}
-            onChange={(event) => handleFieldChange('workstreamId', event.target.value)}
-            disabled={!hasWorkstreams}
+        <div className={styles.metaGrid}>
+          <label
+            className={errors.workstream ? styles.fieldError : undefined}
+            {...buildProfileAnchor('meta.workstream', 'Workstream')}
           >
-            {!hasWorkstreams && <option value="">Create a workstream first</option>}
-            {workstreams.map((ws) => (
-              <option key={ws.id} value={ws.id}>
-                {ws.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Current status</span>
-          <input
-            type="text"
-            value={draft.currentStatus}
-            onChange={(event) => handleFieldChange('currentStatus', event.target.value)}
-          />
-        </label>
-        <label>
-          <span>Target L4 date</span>
-          <input
-            type="date"
-            value={draft.l4Date ?? ''}
-            onChange={(event) => handleFieldChange('l4Date', event.target.value || null)}
-          />
-        </label>
-        <label>
-          <span>Initiative owner</span>
-          <select
-            value={draft.ownerAccountId ?? ''}
-            onChange={(event) => handleOwnerSelect(event.target.value)}
-          >
-            <option value="">No linked account</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {resolveAccountName(account) || account.email}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+            <span>Workstream</span>
+            <select
+              className={errors.workstream ? styles.inputError : undefined}
+              value={draft.workstreamId}
+              onChange={(event) => handleFieldChange('workstreamId', event.target.value)}
+              disabled={!hasWorkstreams}
+            >
+              {!hasWorkstreams && <option value="">Create a workstream first</option>}
+              {workstreams.map((ws) => (
+                <option key={ws.id} value={ws.id}>
+                  {ws.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label {...buildProfileAnchor('meta.status', 'Current status')}>
+            <span>Current status</span>
+            <input
+              type="text"
+              value={draft.currentStatus}
+              onChange={(event) => handleFieldChange('currentStatus', event.target.value)}
+            />
+          </label>
+          <label {...buildProfileAnchor('meta.l4-target', 'Portfolio L4 date')}>
+            <span>Target L4 date</span>
+            <input
+              type="date"
+              value={draft.l4Date ?? ''}
+              onChange={(event) => handleFieldChange('l4Date', event.target.value || null)}
+            />
+          </label>
+          <label {...buildProfileAnchor('meta.owner-account', 'Owner account')}>
+            <span>Initiative owner</span>
+            <select value={draft.ownerAccountId ?? ''} onChange={(event) => handleOwnerSelect(event.target.value)}>
+              <option value="">No linked account</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {resolveAccountName(account) || account.email}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
       <StageGatePanel
         activeStage={draft.activeStage}
@@ -682,6 +700,7 @@ export const InitiativeProfile = ({
         stageState={draft.stageState}
         onSelectStage={handleStageChange}
         workstream={selectedWorkstream}
+        compact={isCommentMode}
       />
 
       {banner && (
@@ -695,14 +714,6 @@ export const InitiativeProfile = ({
             {!isStageEditable && <p className={styles.stageHint}>Fields are read-only for this gate.</p>}
           </div>
           <div className={styles.stageActions}>
-            <button
-              className={isCommentMode ? styles.commentButtonActive : styles.commentButton}
-              type="button"
-              onClick={handleCommentToggle}
-              disabled={!commentsAvailable}
-            >
-              {commentButtonLabel}
-            </button>
             {mode === 'view' && initiative && isStageEditable && !stageLocked && (
               <button
                 className={styles.secondaryButton}
@@ -719,7 +730,7 @@ export const InitiativeProfile = ({
             )}
           </div>
         </header>
-        <div className={styles.stageStatusRow}>
+        <div className={styles.stageStatusRow} {...buildStageAnchor('status', 'Stage status')}>
           <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
             {stageStatusLabel}
           </span>
@@ -734,7 +745,10 @@ export const InitiativeProfile = ({
 
         {stageLocked && <p className={styles.lockedNote}>Complete previous gates before editing this stage.</p>}
 
-        <label className={`${styles.fieldBlock} ${errors.stageName ? styles.fieldError : ''}`}>
+        <label
+          className={`${styles.fieldBlock} ${errors.stageName ? styles.fieldError : ''}`}
+          {...buildStageAnchor('name', 'Stage name')}
+        >
           <span>Initiative name</span>
           <input
             type="text"
@@ -745,7 +759,10 @@ export const InitiativeProfile = ({
           />
         </label>
 
-        <label className={`${styles.fieldBlock} ${errors.stageDescription ? styles.fieldError : ''}`}>
+        <label
+          className={`${styles.fieldBlock} ${errors.stageDescription ? styles.fieldError : ''}`}
+          {...buildStageAnchor('description', 'Stage description')}
+        >
           <span>Description</span>
           <textarea
             className={errors.stageDescription ? styles.inputError : undefined}
@@ -757,7 +774,10 @@ export const InitiativeProfile = ({
         </label>
 
         <div className={styles.periodRow}>
-          <label className={errors.periodMonth ? styles.fieldError : undefined}>
+          <label
+            className={errors.periodMonth ? styles.fieldError : undefined}
+            {...buildStageAnchor('period-month', 'Period month')}
+          >
             <span>Period month</span>
             <select
               className={errors.periodMonth ? styles.inputError : undefined}
@@ -773,7 +793,10 @@ export const InitiativeProfile = ({
               ))}
             </select>
           </label>
-          <label className={errors.periodYear ? styles.fieldError : undefined}>
+          <label
+            className={errors.periodYear ? styles.fieldError : undefined}
+            {...buildStageAnchor('period-year', 'Period year')}
+          >
             <span>Period year</span>
             <input
               type="number"
@@ -784,7 +807,7 @@ export const InitiativeProfile = ({
             />
           </label>
           {selectedStage === 'l4' && (
-            <label>
+            <label {...buildStageAnchor('stage-l4-date', 'Stage L4 date')}>
               <span>L4 date</span>
               <input
                 type="date"
@@ -800,10 +823,11 @@ export const InitiativeProfile = ({
           stage={currentStage}
           disabled={!isStageEditable}
           onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+          commentScope={selectedStage}
         />
       </div>
 
-      <section className={styles.changeLogSection}>
+      <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
         <header>
           <h4>Change log</h4>
         </header>
@@ -831,7 +855,7 @@ export const InitiativeProfile = ({
                   if (previous === next) {
                     return null;
                   }
-                  return `${label}: ${previous} → ${next}`;
+                  return `${label}: ${previous} в†’ ${next}`;
                 })
                 .filter((value): value is string => Boolean(value));
               const summary = summaryParts.length ? summaryParts.join('; ') : 'Updated';
@@ -874,31 +898,34 @@ export const InitiativeProfile = ({
       </footer>
       </div>
       {isCommentMode && commentsAvailable && (
-        <CommentSidebar
-          ref={sidebarRef}
-          threads={commentThreads}
-          isLoading={isLoadingComments}
-          isSaving={isSavingComment}
-          error={commentError}
-          pendingSelection={pendingSelection}
-          onSubmitPending={handleSubmitComment}
-          onCancelPending={() => setPendingSelection(null)}
-          onReply={handleReplyComment}
-          onClose={() => {
-            setIsCommentMode(false);
-            setPendingSelection(null);
-            setActiveThreadId(null);
-          }}
-          onSelectThread={setActiveThreadId}
-          activeThreadId={activeThreadId}
+          <CommentSidebar
+            ref={sidebarRef}
+            threads={commentThreads}
+            isLoading={isLoadingComments}
+            isSaving={isSavingComment}
+            error={commentError}
+            pendingSelection={pendingSelection}
+            onSubmitPending={handleSubmitComment}
+            onCancelPending={() => setPendingSelection(null)}
+            onReply={handleReplyComment}
+            onClose={() => {
+              setIsCommentMode(false);
+              setPendingSelection(null);
+              setActiveThreadId(null);
+            }}
+            onSelectThread={setActiveThreadId}
+            activeThreadId={activeThreadId}
+            onToggleResolved={(threadId, next) => toggleResolved(threadId, next)}
+            anchorMap={commentAnchors}
+          />
+        )}
+        <CommentSelectionOverlay
+          isActive={isCommentMode && commentsAvailable}
+          containerRef={contentRef}
+          sidebarRef={sidebarRef}
+          onSelect={handleSelectionTarget}
         />
-      )}
-      <CommentSelectionOverlay
-        isActive={isCommentMode && commentsAvailable}
-        containerRef={contentRef}
-        sidebarRef={sidebarRef}
-        onSelect={handleSelectionTarget}
-      />
-    </section>
+      </section>
   );
 };
+

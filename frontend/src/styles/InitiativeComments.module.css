@@ -126,12 +126,23 @@
   color: #0f172a;
 }
 
+.tertiaryButton {
+  border: none;
+  border-radius: 12px;
+  padding: 6px 10px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .threadList {
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  position: relative;
 }
 
 .helperText {
@@ -171,11 +182,11 @@
 }
 
 .threadBadge {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(191, 219, 254, 0.8);
-  color: #1d4ed8;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #1d4ed8;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -192,6 +203,21 @@
   margin: 2px 0 0;
   font-size: 12px;
   color: #94a3b8;
+}
+
+.statusOpen,
+.statusResolved {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+  color: #475569;
+  margin-left: auto;
+}
+
+.statusResolved {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
 }
 
 .messageList {
@@ -224,6 +250,12 @@
   gap: 8px;
 }
 
+.replyActions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .highlightLayer {
   position: absolute;
   inset: 0;
@@ -235,8 +267,6 @@
   border: 2px dashed rgba(59, 130, 246, 0.9);
   border-radius: 16px;
   background: rgba(191, 219, 254, 0.2);
-  color: #1d4ed8;
-  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -249,10 +279,25 @@
   box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.6);
 }
 
+.highlight span {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #1d4ed8;
+  border: 2px solid #fff;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.3);
+}
+
 .overlayNotice {
   position: fixed;
-  top: 24px;
-  right: 24px;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   background: rgba(15, 23, 42, 0.9);
   color: #fff;
   padding: 10px 16px;
@@ -260,4 +305,5 @@
   font-size: 13px;
   pointer-events: none;
   z-index: 50;
+  text-align: center;
 }

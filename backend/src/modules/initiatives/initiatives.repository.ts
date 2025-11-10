@@ -652,8 +652,8 @@ export class InitiativesRepository {
         LIMIT 1;`,
       [id]
     );
-    return result.rows?.[0] ?? null;
-  }
+      return result.rows?.[0] ?? null;
+    }
 
   async findCommentMessage(id: string): Promise<InitiativeCommentMessageRow | null> {
     const result = await postgresPool.query<InitiativeCommentMessageRow>(
@@ -751,6 +751,24 @@ export class InitiativesRepository {
         payload.authorAccountId ?? null,
         payload.authorName ?? null
       ]
+    );
+    return result.rows?.[0] ?? null;
+  }
+
+  async updateCommentThreadResolution(
+    threadId: string,
+    resolved: boolean,
+    actorAccountId?: string | null,
+    actorName?: string | null
+  ): Promise<InitiativeCommentThreadRow | null> {
+    const result = await postgresPool.query<InitiativeCommentThreadRow>(
+      `UPDATE initiative_comment_threads
+          SET resolved_at = $2,
+              resolved_by_account_id = $3,
+              resolved_by_name = $4
+        WHERE id = $1
+        RETURNING *;`,
+      [threadId, resolved ? new Date() : null, resolved ? actorAccountId ?? null : null, resolved ? actorName ?? null : null]
     );
     return result.rows?.[0] ?? null;
   }

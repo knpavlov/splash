@@ -410,7 +410,10 @@ const normalizeCommentThread = (value: unknown): InitiativeCommentThread | null 
     createdAt: toIsoString(payload.createdAt) ?? new Date().toISOString(),
     createdByAccountId: typeof payload.createdByAccountId === 'string' ? payload.createdByAccountId : null,
     createdByName: typeof payload.createdByName === 'string' ? payload.createdByName : null,
-    comments
+    comments,
+    resolvedAt: toIsoString(payload.resolvedAt) ?? null,
+    resolvedByAccountId: typeof payload.resolvedByAccountId === 'string' ? payload.resolvedByAccountId : null,
+    resolvedByName: typeof payload.resolvedByName === 'string' ? payload.resolvedByName : null
   };
 };
 
@@ -510,6 +513,13 @@ export const initiativesApi = {
       await apiRequest<unknown>(`/initiatives/${id}/comments/${threadId}/replies`, {
         method: 'POST',
         body: withActor({ reply: input }, actor)
+      })
+    ),
+  setCommentResolution: async (id: string, threadId: string, resolved: boolean, actor?: InitiativeActorMetadata) =>
+    ensureCommentThread(
+      await apiRequest<unknown>(`/initiatives/${id}/comments/${threadId}/status`, {
+        method: 'PATCH',
+        body: withActor({ resolved }, actor)
       })
     )
 };

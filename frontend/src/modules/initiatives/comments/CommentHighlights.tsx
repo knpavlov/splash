@@ -8,15 +8,7 @@ interface CommentHighlightsProps {
   isVisible: boolean;
   activeThreadId?: string | null;
   onSelect?: (threadId: string) => void;
-}
-
-interface HighlightBox {
-  id: string;
-  index: number;
-  top: number;
-  left: number;
-  width: number;
-  height: number;
+  anchors: Map<string, { top: number; left: number; width: number; height: number }>;
 }
 
 export const CommentHighlights = ({
@@ -24,9 +16,10 @@ export const CommentHighlights = ({
   threads,
   isVisible,
   activeThreadId,
-  onSelect
+  onSelect,
+  anchors
 }: CommentHighlightsProps) => {
-  const [size, setSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
   useEffect(() => {
     const element = containerRef.current;
@@ -35,7 +28,7 @@ export const CommentHighlights = ({
     }
     const updateSize = () => {
       const rect = element.getBoundingClientRect();
-      setSize({ width: rect.width, height: rect.height });
+      setContainerSize({ width: rect.width, height: rect.height });
     };
     updateSize();
     if (typeof ResizeObserver !== 'undefined') {
@@ -48,18 +41,21 @@ export const CommentHighlights = ({
   }, [containerRef]);
 
   const boxes = useMemo(() => {
-    if (!size.width || !size.height) {
-      return [] as HighlightBox[];
-    }
+    const fallbackWidth = containerSize.width || 1;
+    const fallbackHeight = containerSize.height || 1;
     return threads
       .map((thread, index) => {
+        const anchor = anchors.get(thread.id);
+        if (anchor) {
+          return { id: thread.id, index: index + 1, ...anchor };
+        }
         if (!thread.selection) {
           return null;
         }
-        const baseWidth = thread.selection.pageWidth || size.width;
-        const baseHeight = thread.selection.pageHeight || size.height;
-        const scaleX = size.width / baseWidth;
-        const scaleY = size.height / baseHeight;
+        const baseWidth = thread.selection.pageWidth || fallbackWidth;
+        const baseHeight = thread.selection.pageHeight || fallbackHeight;
+        const scaleX = fallbackWidth / baseWidth;
+        const scaleY = fallbackHeight / baseHeight;
         return {
           id: thread.id,
           index: index + 1,
@@ -69,8 +65,10 @@ export const CommentHighlights = ({
           height: Math.max(thread.selection.height * scaleY, 24)
         };
       })
-      .filter((entry): entry is HighlightBox => Boolean(entry));
-  }, [threads, size.height, size.width]);
+      .filter((entry): entry is { id: string; index: number; top: number; left: number; width: number; height: number } =>
+        Boolean(entry)
+      );
+  }, [anchors, containerSize.height, containerSize.width, threads]);
 
   if (!isVisible || !boxes.length) {
     return null;

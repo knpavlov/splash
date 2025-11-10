@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import styles from '../../../styles/InitiativeComments.module.css';
 import { CommentSelectionTarget } from './types';
 
@@ -107,7 +107,9 @@ export const CommentSelectionOverlay = ({
 
   return (
     <div className={styles.overlayNotice}>
-      <p>Режим комментариев активен · Кликните по элементу, чтобы оставить заметку.</p>
+      <p>Comment mode is active. Click any UI element to anchor your note.</p>
     </div>
   );
 };
+
+

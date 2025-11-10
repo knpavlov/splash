@@ -179,6 +179,9 @@ export interface InitiativeCommentThreadRow extends Record<string, unknown> {
   created_at: Date;
   created_by_account_id: string | null;
   created_by_name: string | null;
+  resolved_at: Date | null;
+  resolved_by_account_id: string | null;
+  resolved_by_name: string | null;
 }
 
 export interface InitiativeCommentMessageRow extends Record<string, unknown> {
@@ -215,6 +218,9 @@ export interface InitiativeCommentThread {
   createdByAccountId: string | null;
   createdByName: string | null;
   comments: InitiativeCommentMessage[];
+  resolvedAt: string | null;
+  resolvedByAccountId: string | null;
+  resolvedByName: string | null;
 }
 
 export interface InitiativeMutationMetadata {
