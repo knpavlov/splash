@@ -20,35 +20,34 @@
   color: #475569;
 }
 
-.summaryHighlight {
-  text-align: right;
+.oneOffToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #475569;
 }
 
-.summaryHighlight span {
-  display: block;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #94a3b8;
+.oneOffToggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
 }
 
-.summaryHighlight strong {
-  font-size: 26px;
-  color: #0f172a;
-}
-
-.summaryGroup {
+.metricsRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 16px;
+  align-items: stretch;
 }
 
-.summaryList {
+.summaryList,
+.metricCard {
+  flex: 1 1 220px;
   border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 12px;
-  padding: 10px 14px;
-  background: rgba(248, 250, 252, 0.85);
-  min-width: 180px;
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: rgba(248, 250, 252, 0.9);
 }
 
 .summaryListTitle {
@@ -74,6 +73,20 @@
   justify-content: space-between;
   font-size: 13px;
   color: #475569;
+}
+
+.metricCard span {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.metricCard strong {
+  font-size: 26px;
+  color: #0f172a;
 }
 
 .sheetWrapper {
@@ -119,7 +132,7 @@
   flex-direction: column;
   align-items: center;
   position: relative;
-  padding: 0 14px 24px;
+  padding: 0 0 24px;
   box-sizing: border-box;
 }
 

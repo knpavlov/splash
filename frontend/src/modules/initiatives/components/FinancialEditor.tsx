@@ -376,6 +376,19 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
     () => `200px repeat(${Math.max(months.length, 1)}, minmax(110px, 1fr))`,
     [months.length]
   );
+  const [includeOneOff, setIncludeOneOff] = useState(true);
+  const activeBenefitKinds = useMemo<InitiativeFinancialKind[]>(
+    () => (includeOneOff ? benefitKinds : ['recurring-benefits']),
+    [includeOneOff]
+  );
+  const activeCostKinds = useMemo<InitiativeFinancialKind[]>(
+    () => (includeOneOff ? costKinds : ['recurring-costs']),
+    [includeOneOff]
+  );
+  const activeKindSet = useMemo(
+    () => new Set<InitiativeFinancialKind>([...activeBenefitKinds, ...activeCostKinds]),
+    [activeBenefitKinds, activeCostKinds]
+  );
 
   const monthKeys = useMemo(() => months.map((month) => month.key), [months]);
 
@@ -417,8 +430,10 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
       months.map((month) => {
         const positiveSegments: ChartSegment[] = [];
         const negativeSegments: ChartSegment[] = [];
-
         for (const kind of initiativeFinancialKinds) {
+          if (!activeKindSet.has(kind)) {
+            continue;
+          }
           const isCost = costKinds.includes(kind);
           for (const entry of stage.financials[kind]) {
             const raw = entry.distribution[month.key] ?? 0;
@@ -433,10 +448,8 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
             });
           }
         }
-
         const positiveTotal = positiveSegments.reduce((sum, segment) => sum + segment.value, 0);
         const negativeTotal = negativeSegments.reduce((sum, segment) => sum + segment.value, 0);
-
         return {
           key: month.key,
           positiveSegments,
@@ -445,20 +458,24 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
           negativeTotal
         };
       }),
-    [months, stage.financials, entryColorMap]
+    [activeKindSet, months, stage.financials, entryColorMap]
   );
 
   const impactTotals = useMemo(() => {
     const totals: Record<string, number> = {};
     months.forEach((month) => {
-      totals[month.key] =
-        (kindMonthlyTotals['recurring-benefits'][month.key] ?? 0) +
-        (kindMonthlyTotals['oneoff-benefits'][month.key] ?? 0) -
-        (kindMonthlyTotals['recurring-costs'][month.key] ?? 0) -
-        (kindMonthlyTotals['oneoff-costs'][month.key] ?? 0);
+      const benefits = activeBenefitKinds.reduce(
+        (sum, kind) => sum + (kindMonthlyTotals[kind][month.key] ?? 0),
+        0
+      );
+      const costs = activeCostKinds.reduce(
+        (sum, kind) => sum + (kindMonthlyTotals[kind][month.key] ?? 0),
+        0
+      );
+      totals[month.key] = benefits - costs;
     });
     return totals;
-  }, [months, kindMonthlyTotals]);
+  }, [months, kindMonthlyTotals, activeBenefitKinds, activeCostKinds]);
 
   const runRate = calculateRunRate(monthKeys, impactTotals);
   const summaryTotals = calculateYearSummaries(impactTotals);
@@ -498,15 +515,23 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
           <h3>Financial outlook</h3>
           <p>All recurring and one-off flows in a single, minimal view.</p>
         </div>
-        <div className={styles.summaryHighlight}>
+        <label className={styles.oneOffToggle}>
+          <input
+            type="checkbox"
+            checked={includeOneOff}
+            onChange={(event) => setIncludeOneOff(event.target.checked)}
+          />
+          <span>Include one-off items</span>
+        </label>
+      </header>
+
+      <div className={styles.metricsRow}>
+        <SummaryList title="Fiscal years" items={summaryTotals.fiscal} />
+        <SummaryList title="Calendar years" items={summaryTotals.calendar} />
+        <div className={styles.metricCard}>
           <span>Net run rate (last 12 months)</span>
           <strong>{formatCurrency(runRate)}</strong>
         </div>
-      </header>
-
-      <div className={styles.summaryGroup}>
-        <SummaryList title="Fiscal years" items={summaryTotals.fiscal} />
-        <SummaryList title="Calendar years" items={summaryTotals.calendar} />
       </div>
 
       <div className={styles.sheetWrapper}>

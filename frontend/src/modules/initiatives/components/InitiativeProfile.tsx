@@ -813,42 +813,33 @@ export const InitiativeProfile = ({
           <p className={styles.placeholder}>No changes recorded yet.</p>
         ) : (
           <ul className={styles.changeLogList}>
-            {changeLog.map((entry) => (
-              <li key={entry.id} className={styles.changeLogItem}>
-                <div className={styles.logMeta}>
+            {changeLog.map((entry) => {
+              const summaryParts = entry.changes
+                .map((change) => {
+                  const label = logFieldLabels[change.field] ?? change.field;
+                  if (change.field === 'created') {
+                    return 'Initiative created';
+                  }
+                  if (change.field === 'stage-content' || change.field === 'updated') {
+                    return `${label} updated`;
+                  }
+                  const previous = formatLogValue(change.field, change.previousValue);
+                  const next = formatLogValue(change.field, change.nextValue);
+                  if (previous === next) {
+                    return null;
+                  }
+                  return `${label}: ${previous} → ${next}`;
+                })
+                .filter((value): value is string => Boolean(value));
+              const summary = summaryParts.length ? summaryParts.join('; ') : 'Updated';
+              return (
+                <li key={entry.id} className={styles.changeLogLine}>
+                  <span className={styles.logTime}>{new Date(entry.createdAt).toLocaleString()}</span>
                   <span className={styles.logActor}>{entry.actorName ?? 'System'}</span>
-                  <span>{new Date(entry.createdAt).toLocaleString()}</span>
-                  <span className={styles.logBadge}>{entry.eventType}</span>
-                </div>
-                <div className={styles.logChanges}>
-                  {entry.changes.map((change) => {
-                    const label = logFieldLabels[change.field] ?? change.field;
-                    if (change.field === 'created') {
-                      return (
-                        <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
-                          <span className={styles.logValue}>Initiative created.</span>
-                        </div>
-                      );
-                    }
-                    if (change.field === 'stage-content' || change.field === 'updated') {
-                      return (
-                        <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
-                          <span className={styles.logValue}>{label} updated.</span>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div key={`${entry.id}-${change.field}`} className={styles.logChangeRow}>
-                        <span className={styles.logValue}>
-                          Changed <strong>{label}</strong> from {formatLogValue(change.field, change.previousValue)} to{' '}
-                          {formatLogValue(change.field, change.nextValue)}.
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </li>
-            ))}
+                  <span className={styles.logSummary}>{summary}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
