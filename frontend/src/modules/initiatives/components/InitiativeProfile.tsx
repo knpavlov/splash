@@ -820,8 +820,11 @@ export const InitiativeProfile = ({
                   if (change.field === 'created') {
                     return 'Initiative created';
                   }
-                  if (change.field === 'stage-content' || change.field === 'updated') {
-                    return `${label} updated`;
+                  if (change.field === 'stage-content') {
+                    return 'Stage content updated';
+                  }
+                  if (change.field === 'updated') {
+                    return 'Details updated';
                   }
                   const previous = formatLogValue(change.field, change.previousValue);
                   const next = formatLogValue(change.field, change.nextValue);

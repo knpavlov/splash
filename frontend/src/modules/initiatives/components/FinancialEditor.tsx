@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/FinancialEditor.module.css';
 import {
   InitiativeFinancialEntry,
@@ -84,6 +84,8 @@ const SummaryList = ({ title, items }: { title: string; items: YearSummaryEntry[
 interface ChartSegment {
   value: number;
   color: string;
+  label: string;
+  rawValue: number;
 }
 
 interface ChartMonthStack {
@@ -112,9 +114,37 @@ const CombinedChart = ({
   const positiveScale = maxPositive || 1;
   const negativeScale = maxNegative || 1;
   const stackTopOffset = (positiveShare: number, ratio: number) => positiveShare * (1 - ratio);
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    label: string;
+    value: number;
+    left: number;
+    top: number;
+  } | null>(null);
+
+  const handleSegmentHover = (
+    event: React.MouseEvent<HTMLDivElement>,
+    segment: ChartSegment,
+    position: 'positive' | 'negative'
+  ) => {
+    const container = chartRef.current;
+    if (!container) {
+      return;
+    }
+    const containerRect = container.getBoundingClientRect();
+    const segmentRect = event.currentTarget.getBoundingClientRect();
+    const left = segmentRect.left + segmentRect.width / 2 - containerRect.left;
+    const top =
+      position === 'positive'
+        ? segmentRect.top - containerRect.top - 8
+        : segmentRect.bottom - containerRect.top + 8;
+    setTooltip({ label: segment.label, value: segment.rawValue, left, top });
+  };
+
+  const clearTooltip = () => setTooltip(null);
 
   return (
-    <div className={styles.chartRow} style={{ gridTemplateColumns }}>
+    <div className={styles.chartRow} style={{ gridTemplateColumns }} ref={chartRef}>
       <div className={styles.chartLegend}>Trend</div>
       {months.map((month, index) => {
         const stat = data[index];
@@ -152,6 +182,9 @@ const CombinedChart = ({
                           key={`${month.key}-pos-${segmentIndex}`}
                           className={styles.chartSegment}
                           style={{ height: `${height}%`, background: segment.color }}
+                          onMouseEnter={(event) => handleSegmentHover(event, segment, 'positive')}
+                          onMouseMove={(event) => handleSegmentHover(event, segment, 'positive')}
+                          onMouseLeave={clearTooltip}
                         />
                       );
                     })}
@@ -166,6 +199,9 @@ const CombinedChart = ({
                           key={`${month.key}-neg-${segmentIndex}`}
                           className={styles.chartSegment}
                           style={{ height: `${height}%`, background: segment.color }}
+                          onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative')}
+                          onMouseMove={(event) => handleSegmentHover(event, segment, 'negative')}
+                          onMouseLeave={clearTooltip}
                         />
                       );
                     })}
@@ -177,6 +213,16 @@ const CombinedChart = ({
           </div>
         );
       })}
+      {tooltip && (
+        <div
+          className={styles.chartTooltip}
+          style={{ left: tooltip.left, top: tooltip.top }}
+        >
+          <strong>{tooltip.label || 'Line item'}</strong>
+          <span>{formatCurrency(Math.abs(tooltip.value))}</span>
+          <span className={styles.tooltipTag}>{tooltip.value >= 0 ? 'Benefit' : 'Cost'}</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -444,7 +490,9 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
             const target = oriented >= 0 ? positiveSegments : negativeSegments;
             target.push({
               value: Math.abs(oriented),
-              color: entryColorMap[entry.id] ?? SECTION_COLORS[kind]
+              color: entryColorMap[entry.id] ?? SECTION_COLORS[kind],
+              label: entry.label || 'Line item',
+              rawValue: oriented
             });
           }
         }
