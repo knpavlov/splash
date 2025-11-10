@@ -915,7 +915,9 @@ export const InitiativeProfile = ({
             }}
             onSelectThread={setActiveThreadId}
             activeThreadId={activeThreadId}
-            onToggleResolved={(threadId, next) => toggleResolved(threadId, next)}
+            onToggleResolved={async (threadId, next) => {
+              await toggleResolved(threadId, next);
+            }}
             anchorMap={commentAnchors}
           />
         )}
