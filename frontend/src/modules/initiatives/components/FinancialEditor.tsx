@@ -129,7 +129,7 @@ const CombinedChart = ({
               {stat.positiveTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValuePositive}`}
-                  style={{ top: `calc(${positiveLabelTop}% - 18px)` }}
+                  style={{ top: `calc(${positiveLabelTop}% - 30px)` }}
                 >
                   {formatCurrency(stat.positiveTotal)}
                 </span>
@@ -137,7 +137,7 @@ const CombinedChart = ({
               {stat.negativeTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValueNegative}`}
-                  style={{ top: `calc(${negativeLabelTop}% + 6px)` }}
+                  style={{ top: `calc(${negativeLabelTop}% + 14px)` }}
                 >
                   {formatCurrency(stat.negativeTotal)}
                 </span>
@@ -392,18 +392,22 @@ export const FinancialEditor = ({ stage, disabled, onChange }: FinancialEditorPr
 
   const entryColorMap = useMemo(() => {
     const map: Record<string, string> = {};
-    const assignColors = (kind: InitiativeFinancialKind[], lighten: boolean) => {
-      kind.forEach((key) => {
-        const entries = stage.financials[key];
-        const spread = entries.length > 1 ? 0.4 / (entries.length - 1) : 0;
+    const buildPalette = (groups: InitiativeFinancialKind[], lighten: boolean) => {
+      groups.forEach((kind) => {
+        const entries = stage.financials[kind];
+        if (!entries.length) {
+          return;
+        }
+        const range = 0.7;
         entries.forEach((entry, index) => {
-          const offset = lighten ? index * spread : -index * spread;
-          map[entry.id] = shadeColor(SECTION_COLORS[key], offset);
+          const ratio = entries.length === 1 ? 0.5 : index / (entries.length - 1);
+          const offset = lighten ? 0.15 + ratio * range : -(0.15 + ratio * range);
+          map[entry.id] = shadeColor(SECTION_COLORS[kind], offset);
         });
       });
     };
-    assignColors(benefitKinds, true);
-    assignColors(costKinds, false);
+    buildPalette(benefitKinds, true);
+    buildPalette(costKinds, false);
     return map;
   }, [stage.financials]);
 
