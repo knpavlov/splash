@@ -26,6 +26,7 @@ import {
   InitiativeCommentThreadRow,
   InitiativeCommentMessageRow
 } from './initiatives.types.js';
+import { normalizePlanModel } from './initiativePlan.helpers.js';
 import {
   workstreamGateKeys,
   WorkstreamGateKey,
@@ -452,6 +453,7 @@ export class InitiativesService {
       l4Date?: unknown;
       stages?: unknown;
       stageState?: unknown;
+      plan?: unknown;
     };
 
     const id = idOverride ?? (typeof input.id === 'string' && input.id.trim() ? input.id.trim() : randomUUID());
@@ -471,6 +473,7 @@ export class InitiativesService {
     const currentStatus = sanitizeString(input.currentStatus) || 'draft';
     const stages = sanitizeStageMap(input.stages);
     const stageState = sanitizeStageStateMap(input.stageState);
+    const plan = normalizePlanModel(input.plan);
     const activeStage = normalizeStageKey(input.activeStage);
     const l4Date = sanitizeOptionalString(input.l4Date) ?? stages.l4.l4Date ?? null;
 
@@ -485,7 +488,8 @@ export class InitiativesService {
       activeStage,
       l4Date,
       stages,
-      stageState
+      stageState,
+      plan
     };
   }
 
@@ -958,7 +962,8 @@ export class InitiativesService {
       createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
       updatedAt: toIsoString(row.updated_at) ?? new Date().toISOString(),
       stages,
-      stageState: stageStateMap
+      stageState: stageStateMap,
+      plan: normalizePlanModel(row.plan_payload)
     };
     return {
       id: row.id,
@@ -1057,6 +1062,15 @@ export class InitiativesService {
     if (previousStages !== nextStages) {
       trackedFields.push({
         field: 'stage-content',
+        previousValue: null,
+        nextValue: null
+      });
+    }
+    const previousPlan = JSON.stringify(previous.plan);
+    const nextPlan = JSON.stringify(next.plan);
+    if (previousPlan !== nextPlan) {
+      trackedFields.push({
+        field: 'execution-plan',
         previousValue: null,
         nextValue: null
       });

@@ -27,6 +27,8 @@ import { useCommentAnchors } from '../comments/useCommentAnchors';
 import { createCommentAnchor } from '../comments/commentAnchors';
 import { useInitiativeComments } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../auth/AuthContext';
+import { createEmptyPlanModel } from '../plan/planModel';
+import { InitiativePlanModule } from './plan/InitiativePlanModule';
 
 interface InitiativeProfileProps {
   mode: 'create' | 'view';
@@ -146,9 +148,10 @@ const createEmptyInitiative = (workstreamId?: string): Initiative => {
     version: 1,
     createdAt: now,
     updatedAt: now,
-    stages,
-    stageState: createDefaultStageState(),
-    totals: calculateTotals(stages)
+  stages,
+  stageState: createDefaultStageState(),
+    totals: calculateTotals(stages),
+    plan: createEmptyPlanModel()
   };
 };
 
@@ -458,6 +461,10 @@ export const InitiativeProfile = ({
     const ownerName = account ? resolveAccountName(account) || account.email : '';
     handleFieldChange('ownerAccountId', account ? account.id : null);
     handleFieldChange('ownerName', ownerName);
+  };
+
+  const handlePlanChange = (nextPlan: Initiative['plan']) => {
+    setDraft((prev) => ({ ...prev, plan: nextPlan }));
   };
 
   const validateDraft = () => {
@@ -837,6 +844,8 @@ export const InitiativeProfile = ({
           commentScope={selectedStage}
         />
       </div>
+
+      <InitiativePlanModule plan={draft.plan} onChange={handlePlanChange} readOnly={isReadOnlyMode} />
 
       <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
         <header>

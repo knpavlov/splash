@@ -39,6 +39,39 @@ export interface InitiativeStageState {
 
 export type InitiativeStageStateMap = Record<InitiativeStageKey, InitiativeStageState>;
 
+export type InitiativePlanCapacityMode = 'fixed' | 'variable';
+
+export interface InitiativePlanCapacitySegment {
+  id: string;
+  startDate: string;
+  endDate: string;
+  capacity: number;
+}
+
+export interface InitiativePlanTask {
+  id: string;
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  responsible: string;
+  progress: number;
+  requiredCapacity: number | null;
+  capacityMode: InitiativePlanCapacityMode;
+  capacitySegments: InitiativePlanCapacitySegment[];
+  indent: number;
+  color: string | null;
+}
+
+export interface InitiativePlanSettings {
+  zoomLevel: number;
+  splitRatio: number;
+}
+
+export interface InitiativePlanModel {
+  tasks: InitiativePlanTask[];
+  settings: InitiativePlanSettings;
+}
+
 export interface InitiativeRow extends Record<string, unknown> {
   id: string;
   workstream_id: string;
@@ -51,6 +84,7 @@ export interface InitiativeRow extends Record<string, unknown> {
   l4_date: Date | null;
   stage_payload: unknown;
   stage_state: unknown;
+  plan_payload: unknown;
   version: number;
   created_at: Date;
   updated_at: Date;
@@ -71,6 +105,7 @@ export interface InitiativeRecord {
   updatedAt: string;
   stages: InitiativeStageMap;
   stageState: InitiativeStageStateMap;
+  plan: InitiativePlanModel;
 }
 
 export interface InitiativeWriteModel {
@@ -85,6 +120,7 @@ export interface InitiativeWriteModel {
   l4Date: string | null;
   stages: InitiativeStageMap;
   stageState: InitiativeStageStateMap;
+  plan: InitiativePlanModel;
 }
 
 export interface InitiativeTotals {

@@ -1,0 +1,405 @@
+.planContainer {
+  margin-top: 24px;
+  padding: 20px;
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+}
+
+.planHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.planHeader h3 {
+  margin: 0;
+}
+
+.planSubtitle {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.toolbar button {
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(148, 163, 184, 0.6);
+}
+
+.infoBanner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(191, 219, 254, 0.6);
+  color: #1d4ed8;
+  font-size: 14px;
+}
+
+.infoBanner button {
+  border: none;
+  background: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: inherit;
+}
+
+.planBody {
+  display: flex;
+  min-height: 360px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.tablePanel {
+  border-right: 1px solid rgba(148, 163, 184, 0.3);
+  display: flex;
+  flex-direction: column;
+  background: rgba(249, 250, 251, 0.9);
+}
+
+.tableHeader {
+  display: grid;
+  grid-template-columns: 36px 2fr repeat(5, 1fr);
+  gap: 8px;
+  padding: 12px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.tableRows {
+  overflow-y: auto;
+  max-height: 460px;
+}
+
+.tableRow {
+  display: grid;
+  grid-template-columns: 36px 2fr repeat(5, 1fr);
+  gap: 8px;
+  padding: 8px 12px;
+  align-items: center;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+.rowSelected {
+  background: rgba(219, 234, 254, 0.8);
+}
+
+.dragHandle {
+  border: none;
+  background: none;
+  cursor: grab;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.dragHandle:disabled {
+  cursor: default;
+  color: #cbd5f5;
+}
+
+.taskNameCell {
+  display: flex;
+  align-items: center;
+}
+
+.taskNameCell input {
+  flex: 1;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.indentGuide {
+  display: inline-block;
+  width: 0;
+}
+
+.cell input {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.cell input:disabled {
+  background: rgba(248, 250, 252, 0.8);
+}
+
+.resizer {
+  width: 6px;
+  cursor: col-resize;
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.4));
+}
+
+.timelinePanel {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  padding: 12px;
+}
+
+.timelineHeader {
+  position: sticky;
+  top: 0;
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+  z-index: 1;
+}
+
+.monthRow,
+.dayRow {
+  display: flex;
+  height: 24px;
+}
+
+.monthCell {
+  border-right: 1px solid rgba(148, 163, 184, 0.2);
+  text-align: center;
+  font-size: 12px;
+  line-height: 24px;
+  color: #475569;
+}
+
+.dayCell {
+  border-right: 1px solid rgba(148, 163, 184, 0.1);
+  text-align: center;
+  font-size: 10px;
+  line-height: 24px;
+  color: #94a3b8;
+}
+
+.timelineGrid {
+  position: relative;
+  margin-top: 8px;
+  background-image: linear-gradient(
+      to right,
+      rgba(148, 163, 184, 0.15) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(148, 163, 184, 0.1) 1px,
+      transparent 1px
+    );
+}
+
+.timelineRow {
+  position: relative;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+  display: flex;
+  align-items: center;
+}
+
+.timelineBar {
+  position: absolute;
+  height: 28px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.barSelected {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+}
+
+.barHandle {
+  position: absolute;
+  width: 8px;
+  top: 0;
+  bottom: 0;
+  cursor: ew-resize;
+}
+
+.handleLeft {
+  left: -4px;
+}
+
+.handleRight {
+  right: -4px;
+}
+
+.barLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timelinePlaceholder {
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.dropZone {
+  text-align: center;
+  padding: 12px;
+  font-size: 13px;
+  color: #475569;
+  background: rgba(219, 234, 254, 0.5);
+  border-top: 1px dashed rgba(59, 130, 246, 0.5);
+}
+
+.capacityPopover {
+  position: absolute;
+  min-width: 280px;
+  max-width: 320px;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.2);
+  z-index: 5;
+  transform: translate(0, -100%);
+}
+
+.capacityPopover header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.capacityPopover header button {
+  border: none;
+  background: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.capacityList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.capacityRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.capacityRow input {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.capacityRow button {
+  border: none;
+  background: rgba(248, 113, 113, 0.15);
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.emptyState {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 8px;
+}
+
+.error {
+  color: #b91c1c;
+  font-size: 13px;
+  margin: 4px 0;
+}
+
+.capacityPopover footer {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 8px;
+}
+
+.capacityPopover footer button {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.footerSpacer {
+  width: 100%;
+}
+
+.linkButton {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+}
+
+.secondaryButton {
+  background: rgba(148, 163, 184, 0.2);
+  color: #0f172a;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  color: #fff;
+}
+
+@media (max-width: 1024px) {
+  .planBody {
+    flex-direction: column;
+  }
+
+  .tablePanel,
+  .timelinePanel {
+    width: 100% !important;
+  }
+
+  .resizer {
+    display: none;
+  }
+}

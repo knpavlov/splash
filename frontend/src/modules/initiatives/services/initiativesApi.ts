@@ -13,6 +13,7 @@ import {
   InitiativeCommentMessage,
   InitiativeCommentThread
 } from '../../../shared/types/initiative';
+import { normalizePlanModel } from '../plan/planModel';
 
 const toIsoString = (value: unknown): string | null => {
   if (typeof value === 'string') {
@@ -197,6 +198,7 @@ const normalizeTotals = (value: unknown): InitiativeTotals => {
   };
 };
 
+
 const normalizeInitiative = (value: unknown): Initiative | null => {
   if (!value || typeof value !== 'object') {
     return null;
@@ -222,6 +224,7 @@ const normalizeInitiative = (value: unknown): Initiative | null => {
   const stages = normalizeStageMap(payload.stages);
   const stageState = normalizeStageState(payload.stageState);
   const totals = normalizeTotals(payload.totals);
+  const plan = normalizePlanModel(payload.plan);
 
   return {
     id,
@@ -238,7 +241,8 @@ const normalizeInitiative = (value: unknown): Initiative | null => {
     updatedAt,
     stages,
     stageState,
-    totals
+    totals,
+    plan
   };
 };
 

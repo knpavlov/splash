@@ -49,6 +49,39 @@ export interface InitiativeStageState {
 
 export type InitiativeStageStateMap = Record<InitiativeStageKey, InitiativeStageState>;
 
+export type InitiativePlanCapacityMode = 'fixed' | 'variable';
+
+export interface InitiativePlanCapacitySegment {
+  id: string;
+  startDate: string;
+  endDate: string;
+  capacity: number;
+}
+
+export interface InitiativePlanTask {
+  id: string;
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  responsible: string;
+  progress: number;
+  requiredCapacity: number | null;
+  capacityMode: InitiativePlanCapacityMode;
+  capacitySegments: InitiativePlanCapacitySegment[];
+  indent: number;
+  color: string | null;
+}
+
+export interface InitiativePlanSettings {
+  zoomLevel: number;
+  splitRatio: number;
+}
+
+export interface InitiativePlanModel {
+  tasks: InitiativePlanTask[];
+  settings: InitiativePlanSettings;
+}
+
 export interface InitiativeCommentSelection {
   top: number;
   left: number;
@@ -110,6 +143,7 @@ export interface Initiative {
   stages: InitiativeStageMap;
   stageState: InitiativeStageStateMap;
   totals: InitiativeTotals;
+  plan: InitiativePlanModel;
 }
 
 export interface InitiativeDraft extends Initiative {}

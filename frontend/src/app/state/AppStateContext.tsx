@@ -21,6 +21,7 @@ import { fitQuestionsApi } from '../../modules/questions/services/fitQuestionsAp
 import { caseCriteriaApi } from '../../modules/caseCriteria/services/caseCriteriaApi';
 import { evaluationsApi } from '../../modules/evaluation/services/evaluationsApi';
 import { initiativesApi } from '../../modules/initiatives/services/initiativesApi';
+import { sanitizePlanModel } from '../../modules/initiatives/plan/planModel';
 import { workstreamsApi } from '../../modules/workstreams/services/workstreamsApi';
 import { ApiError } from '../../shared/api/httpClient';
 import { useAuth } from '../../modules/auth/AuthContext';
@@ -351,6 +352,7 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     };
     return acc;
   }, {} as Initiative['stageState']);
+  const sanitizedPlan = sanitizePlanModel(initiative.plan);
 
   return {
     ...initiative,
@@ -362,7 +364,8 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     ownerName: trimmedOwnerName,
     ownerAccountId: trimmedOwnerAccountId,
     stages: sanitizedStages,
-    stageState: sanitizedStageState
+    stageState: sanitizedStageState,
+    plan: sanitizedPlan
   };
 };
 

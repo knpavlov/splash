@@ -18,6 +18,7 @@ import {
   InitiativeCommentThreadRow,
   InitiativeCommentMessageRow
 } from './initiatives.types.js';
+import { createEmptyPlanModel, normalizePlanModel } from './initiativePlan.helpers.js';
 
 export interface ApprovalTaskRow extends InitiativeApprovalRow {
   initiative_name: string;
@@ -36,6 +37,7 @@ export interface ApprovalTaskRow extends InitiativeApprovalRow {
   l4_date: Date | null;
   stage_payload: unknown;
   stage_state: unknown;
+  plan_payload: unknown;
   account_name: string | null;
   account_email: string | null;
   role_total: number;
@@ -207,7 +209,8 @@ const mapRowToRecord = (row: InitiativeRow): InitiativeRecord => ({
   createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
   updatedAt: toIsoString(row.updated_at) ?? new Date().toISOString(),
   stages: ensureStageMap(row.stage_payload),
-  stageState: ensureStageState(row.stage_state)
+  stageState: ensureStageState(row.stage_state),
+  plan: normalizePlanModel(row.plan_payload)
 });
 
 export class InitiativesRepository {
@@ -224,8 +227,8 @@ export class InitiativesRepository {
 
   async createInitiative(model: InitiativeWriteModel): Promise<InitiativeRecord> {
     const result = await postgresPool.query<InitiativeRow>(
-      `INSERT INTO workstream_initiatives (id, workstream_id, name, description, owner_account_id, owner_name, current_status, active_stage, l4_date, stage_payload, stage_state, version, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, 1, NOW(), NOW())
+      `INSERT INTO workstream_initiatives (id, workstream_id, name, description, owner_account_id, owner_name, current_status, active_stage, l4_date, stage_payload, stage_state, plan_payload, version, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, 1, NOW(), NOW())
        RETURNING *;`,
       [
         model.id,
@@ -238,7 +241,8 @@ export class InitiativesRepository {
         model.activeStage,
         model.l4Date,
         JSON.stringify(model.stages),
-        JSON.stringify(model.stageState)
+        JSON.stringify(model.stageState),
+        JSON.stringify(model.plan ?? createEmptyPlanModel())
       ]
     );
     return mapRowToRecord(result.rows[0]);
@@ -260,9 +264,10 @@ export class InitiativesRepository {
               l4_date = $9,
               stage_payload = $10::jsonb,
               stage_state = $11::jsonb,
+              plan_payload = $12::jsonb,
               version = version + 1,
               updated_at = NOW()
-        WHERE id = $1 AND version = $12
+        WHERE id = $1 AND version = $13
         RETURNING *;`,
       [
         model.id,
@@ -276,6 +281,7 @@ export class InitiativesRepository {
         model.l4Date,
         JSON.stringify(model.stages),
         JSON.stringify(model.stageState),
+        JSON.stringify(model.plan ?? createEmptyPlanModel()),
         expectedVersion
       ]
     );
@@ -515,6 +521,7 @@ export class InitiativesRepository {
           i.l4_date,
           i.stage_payload,
           i.stage_state,
+          i.plan_payload,
           i.owner_name,
           i.owner_account_id,
           w.name AS workstream_name,
