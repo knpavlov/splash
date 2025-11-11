@@ -170,14 +170,9 @@ export const ApprovalsScreen = () => {
             {selectedTask?.workstreamName} В· {selectedTask?.role}
           </p>
         </div>
-        <div className={styles.refreshControls}>
-          <button className={styles.refreshButton} type="button" onClick={() => loadTasks()}>
-            Refresh queue
-          </button>
-          {isProfileLoading && hasLoadedProfile && (
-            <span className={styles.refreshHint}>Refreshing profile...</span>
-          )}
-        </div>
+        <button className={styles.refreshButton} type="button" onClick={() => loadTasks()}>
+          Refresh queue
+        </button>
       </header>
       {banner && (
         <div className={banner.type === 'info' ? styles.infoBanner : styles.errorBanner}>{banner.text}</div>

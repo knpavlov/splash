@@ -53,6 +53,39 @@
   background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(99, 102, 241, 0.12));
 }
 
+.initiativeSummary {
+  grid-column: span 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-end;
+}
+
+@media (max-width: 720px) {
+  .initiativeSummary {
+    grid-column: span 1;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.inlineField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: #475569;
+}
+
+.inlineField select {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 12px;
+  padding: 10px;
+  min-width: 220px;
+  max-width: 320px;
+  width: 100%;
+}
+
 .quickLabel {
   margin: 0;
   text-transform: uppercase;
