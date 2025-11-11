@@ -634,28 +634,6 @@ export const InitiativeProfile = ({
             </button>
           </div>
         </div>
-        <div className={styles.workstreamRow}>
-          <label
-            className={`${styles.inlineField} ${errors.workstream ? styles.fieldError : ''}`}
-            {...buildProfileAnchor('meta.workstream', 'Workstream')}
-          >
-            <span>Workstream</span>
-            <select
-              className={errors.workstream ? styles.inputError : undefined}
-              value={draft.workstreamId}
-              onChange={(event) => handleFieldChange('workstreamId', event.target.value)}
-              disabled={!hasWorkstreams}
-            >
-              {!hasWorkstreams && <option value="">Create a workstream first</option>}
-              {workstreams.map((ws) => (
-                <option key={ws.id} value={ws.id}>
-                  {ws.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
         <div className={styles.quickInfoCard}>
           <div className={styles.initiativeSummary}>
             <div {...buildProfileAnchor('overview.name', 'Initiative name')}>
@@ -663,6 +641,25 @@ export const InitiativeProfile = ({
               <h2>{draft.name || 'Unnamed initiative'}</h2>
             </div>
             <div className={styles.primaryFields}>
+              <label
+                className={errors.workstream ? styles.fieldError : undefined}
+                {...buildProfileAnchor('meta.workstream', 'Workstream')}
+              >
+                <span>Workstream</span>
+                <select
+                  className={errors.workstream ? styles.inputError : undefined}
+                  value={draft.workstreamId}
+                  onChange={(event) => handleFieldChange('workstreamId', event.target.value)}
+                  disabled={!hasWorkstreams}
+                >
+                  {!hasWorkstreams && <option value="">Create a workstream first</option>}
+                  {workstreams.map((ws) => (
+                    <option key={ws.id} value={ws.id}>
+                      {ws.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label {...buildProfileAnchor('meta.status', 'Current status')}>
                 <span>Current status</span>
                 <input
@@ -714,7 +711,6 @@ export const InitiativeProfile = ({
         initiativeName={draft.name}
         onSelectStage={handleStageChange}
         workstream={selectedWorkstream}
-        compact={isCommentMode}
       />
 
       {banner && (
