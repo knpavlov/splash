@@ -634,33 +634,65 @@ export const InitiativeProfile = ({
             </button>
           </div>
         </div>
+        <div className={styles.workstreamRow}>
+          <label
+            className={`${styles.inlineField} ${errors.workstream ? styles.fieldError : ''}`}
+            {...buildProfileAnchor('meta.workstream', 'Workstream')}
+          >
+            <span>Workstream</span>
+            <select
+              className={errors.workstream ? styles.inputError : undefined}
+              value={draft.workstreamId}
+              onChange={(event) => handleFieldChange('workstreamId', event.target.value)}
+              disabled={!hasWorkstreams}
+            >
+              {!hasWorkstreams && <option value="">Create a workstream first</option>}
+              {workstreams.map((ws) => (
+                <option key={ws.id} value={ws.id}>
+                  {ws.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
         <div className={styles.quickInfoCard}>
           <div className={styles.initiativeSummary}>
             <div {...buildProfileAnchor('overview.name', 'Initiative name')}>
               <p className={styles.quickLabel}>Initiative</p>
               <h2>{draft.name || 'Unnamed initiative'}</h2>
             </div>
-            <label
-              className={`${styles.inlineField} ${errors.workstream ? styles.fieldError : ''}`}
-              {...buildProfileAnchor('meta.workstream', 'Workstream')}
-            >
-              <span>Workstream</span>
-              <select
-                className={errors.workstream ? styles.inputError : undefined}
-                value={draft.workstreamId}
-                onChange={(event) => handleFieldChange('workstreamId', event.target.value)}
-                disabled={!hasWorkstreams}
-              >
-                {!hasWorkstreams && <option value="">Create a workstream first</option>}
-                {workstreams.map((ws) => (
-                  <option key={ws.id} value={ws.id}>
-                    {ws.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className={styles.primaryFields}>
+              <label {...buildProfileAnchor('meta.status', 'Current status')}>
+                <span>Current status</span>
+                <input
+                  type="text"
+                  value={draft.currentStatus}
+                  onChange={(event) => handleFieldChange('currentStatus', event.target.value)}
+                />
+              </label>
+              <label {...buildProfileAnchor('meta.l4-target', 'Portfolio L4 date')}>
+                <span>Target L4 date</span>
+                <input
+                  type="date"
+                  value={draft.l4Date ?? ''}
+                  onChange={(event) => handleFieldChange('l4Date', event.target.value || null)}
+                />
+              </label>
+              <label {...buildProfileAnchor('meta.owner-account', 'Owner account')}>
+                <span>Initiative owner</span>
+                <select value={draft.ownerAccountId ?? ''} onChange={(event) => handleOwnerSelect(event.target.value)}>
+                  <option value="">No linked account</option>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {resolveAccountName(account) || account.email}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
-          <div {...buildProfileAnchor('overview.owner', 'Initiative owner')}>
+          <div {...buildProfileAnchor('overview.owner', 'Initiative owner display')}>
             <p className={styles.quickLabel}>Owner</p>
             <h3>{draft.ownerName || 'Unassigned'}</h3>
           </div>
@@ -668,7 +700,7 @@ export const InitiativeProfile = ({
             <p className={styles.quickLabel}>Net run rate (last 12 months)</p>
             <h1 className={styles.impactValue}>{formatImpact(netRunRate)}</h1>
           </div>
-          <div {...buildProfileAnchor('overview.l4', 'Target L4 date')}>
+          <div {...buildProfileAnchor('overview.l4', 'Stage L4 date')}>
             <p className={styles.quickLabel}>L4 date</p>
             <h3>{formatDate(l4Date)}</h3>
           </div>
@@ -684,36 +716,6 @@ export const InitiativeProfile = ({
         workstream={selectedWorkstream}
         compact={isCommentMode}
       />
-
-      <div className={styles.metaGrid}>
-        <label {...buildProfileAnchor('meta.status', 'Current status')}>
-          <span>Current status</span>
-          <input
-            type="text"
-            value={draft.currentStatus}
-            onChange={(event) => handleFieldChange('currentStatus', event.target.value)}
-          />
-        </label>
-        <label {...buildProfileAnchor('meta.l4-target', 'Portfolio L4 date')}>
-          <span>Target L4 date</span>
-          <input
-            type="date"
-            value={draft.l4Date ?? ''}
-            onChange={(event) => handleFieldChange('l4Date', event.target.value || null)}
-          />
-        </label>
-        <label {...buildProfileAnchor('meta.owner-account', 'Owner account')}>
-          <span>Initiative owner</span>
-          <select value={draft.ownerAccountId ?? ''} onChange={(event) => handleOwnerSelect(event.target.value)}>
-            <option value="">No linked account</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {resolveAccountName(account) || account.email}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
 
       {banner && (
         <div className={banner.type === 'info' ? styles.bannerInfo : styles.bannerError}>{banner.text}</div>
