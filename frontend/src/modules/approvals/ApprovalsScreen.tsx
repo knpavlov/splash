@@ -170,9 +170,14 @@ export const ApprovalsScreen = () => {
             {selectedTask?.workstreamName} В· {selectedTask?.role}
           </p>
         </div>
-        <button className={styles.refreshButton} type="button" onClick={() => loadTasks()}>
-          Refresh queue
-        </button>
+        <div className={styles.refreshControls}>
+          <button className={styles.refreshButton} type="button" onClick={() => loadTasks()}>
+            Refresh queue
+          </button>
+          {isProfileLoading && hasLoadedProfile && (
+            <span className={styles.refreshHint}>Refreshing profile...</span>
+          )}
+        </div>
       </header>
       {banner && (
         <div className={banner.type === 'info' ? styles.infoBanner : styles.errorBanner}>{banner.text}</div>
@@ -195,11 +200,6 @@ export const ApprovalsScreen = () => {
             readOnly
             hideBackLink
           />
-          {isProfileLoading && (
-            <div className={styles.profileLoadingOverlay}>
-              <span>Refreshing profile...</span>
-            </div>
-          )}
         </div>
       )}
       <div className={styles.decisionPanel}>

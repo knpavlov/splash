@@ -274,6 +274,11 @@ const getNextStageKey = (stageKey: InitiativeStageKey): InitiativeStageKey | nul
   return initiativeStageKeys[index + 1];
 };
 
+const getGateKeyForStage = (stageKey: InitiativeStageKey): WorkstreamGateKey | null => {
+  const next = getNextStageKey(stageKey);
+  return next && isGateKey(next) ? next : null;
+};
+
 const cloneStagePayload = (stage: InitiativeStagePayload): InitiativeStagePayload => ({
   name: stage.name,
   description: stage.description,
@@ -295,11 +300,12 @@ const cloneStagePayload = (stage: InitiativeStagePayload): InitiativeStagePayloa
 });
 
 const readRoundCount = (gates: unknown, stageKey: InitiativeStageKey): number => {
-  if (!isGateKey(stageKey) || !gates || typeof gates !== 'object') {
+  const gateKey = getGateKeyForStage(stageKey);
+  if (!gateKey || !gates || typeof gates !== 'object') {
     return 0;
   }
   const payload = gates as Record<string, unknown>;
-  const rounds = Array.isArray(payload[stageKey]) ? payload[stageKey] : [];
+  const rounds = Array.isArray(payload[gateKey]) ? payload[gateKey] : [];
   return rounds.length;
 };
 
@@ -562,7 +568,8 @@ export class InitiativesService {
     }
     const assignments = await this.workstreamsRepository.listAssignmentsByWorkstream(record.workstreamId);
     const roleAssignments = buildRoleAssignmentsMap(assignments);
-    const rounds = isGateKey(stageKey) ? workstream.gates[stageKey] ?? [] : [];
+    const gateKey = getGateKeyForStage(stageKey);
+    const rounds = gateKey ? workstream.gates[gateKey] ?? [] : [];
     if (!rounds.length) {
       const approvedRecord = await this.finalizeStage(record, stageKey, stageStateEntry.roundIndex);
       return toResponse(approvedRecord);
@@ -672,7 +679,8 @@ export class InitiativesService {
       }
       roleTotals.set(entry.role, bucket);
     }
-    const currentRound = isGateKey(stageKey) ? workstream.gates[stageKey]?.[approval.roundIndex] : null;
+    const gateKey = getGateKeyForStage(stageKey);
+    const currentRound = gateKey ? workstream.gates[gateKey]?.[approval.roundIndex] : null;
     if (!currentRound) {
       const updated = await this.finalizeStage(record, stageKey, approval.roundIndex);
       return toResponse(updated);
@@ -701,7 +709,7 @@ export class InitiativesService {
       return toResponse(updated ?? record);
     }
     const nextRoundIndex = approval.roundIndex + 1;
-    const rounds = isGateKey(stageKey) ? workstream.gates[stageKey] ?? [] : [];
+    const rounds = gateKey ? workstream.gates[gateKey] ?? [] : [];
     if (nextRoundIndex >= rounds.length) {
       const updated = await this.finalizeStage(record, stageKey, approval.roundIndex);
       return toResponse(updated);

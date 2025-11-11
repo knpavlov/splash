@@ -114,7 +114,17 @@ const createDefaultStageState = () =>
     {} as Initiative['stageState']
   );
 
-const isGateStage = (key: InitiativeStageKey): key is WorkstreamGateKey => key !== 'l0';
+const getGateKeyForStage = (key: InitiativeStageKey): WorkstreamGateKey | null => {
+  const index = initiativeStageKeys.indexOf(key);
+  if (index === -1) {
+    return null;
+  }
+  const next = initiativeStageKeys[index + 1];
+  if (!next || next === 'l0') {
+    return null;
+  }
+  return next as WorkstreamGateKey;
+};
 
 const createEmptyInitiative = (workstreamId?: string): Initiative => {
   const now = new Date().toISOString();
@@ -147,7 +157,7 @@ const formatImpact = (value: number) =>
 
 const formatDate = (value: string | null) => {
   if (!value) {
-    return 'вЂ”';
+    return '—';
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -170,7 +180,7 @@ const logFieldLabels: Record<string, string> = {
 
 const formatLogValue = (field: string, value: unknown): string => {
   if (value === null || value === undefined) {
-    return 'вЂ”';
+    return '—';
   }
   if (field === 'recurringImpact') {
     const numeric = typeof value === 'number' ? value : Number(value);
@@ -306,8 +316,8 @@ export const InitiativeProfile = ({
     draft.stageState[selectedStage] ??
     { status: 'draft', roundIndex: 0, comment: null };
   const selectedWorkstream = workstreams.find((ws) => ws.id === draft.workstreamId) ?? null;
-  const stageRounds =
-    selectedWorkstream && isGateStage(selectedStage) ? selectedWorkstream.gates[selectedStage]?.length ?? 0 : 0;
+  const stageGateKey = getGateKeyForStage(selectedStage);
+  const stageRounds = stageGateKey && selectedWorkstream ? selectedWorkstream.gates[stageGateKey]?.length ?? 0 : 0;
   const canSubmitStage = isStageEditable && currentStageState.status !== 'pending';
   const stageStatusLabel = (() => {
     switch (currentStageState.status) {
@@ -320,7 +330,7 @@ export const InitiativeProfile = ({
       case 'rejected':
         return 'Rejected';
       default:
-        return 'Draft';
+        return 'Not started';
     }
   })();
   const stageStatusDetails = (() => {
@@ -479,11 +489,11 @@ export const InitiativeProfile = ({
 
   const handleSaveClick = async (closeAfterSave: boolean) => {
     if (!validateDraft()) {
-      setBanner({ type: 'error', text: 'Р—Р°РїРѕР»РЅРёС‚Рµ РѕР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР»СЏ.' });
+      setBanner({ type: 'error', text: 'Заполните обязательные поля.' });
       return;
     }
     if (!hasWorkstreams) {
-      setBanner({ type: 'error', text: 'РЎРѕР·РґР°Р№С‚Рµ workstream, РїСЂРµР¶РґРµ С‡РµРј РґРѕР±Р°РІР»СЏС‚СЊ РёРЅРёС†РёР°С‚РёРІС‹.' });
+      setBanner({ type: 'error', text: 'Создайте workstream, прежде чем добавлять инициативы.' });
       return;
     }
     setIsSaving(true);
@@ -590,7 +600,7 @@ export const InitiativeProfile = ({
     });
     return calculateRunRate(monthKeys, netTotals);
   }, [draft]);
-  const commentButtonLabel = isLoadingComments ? 'Loading commentsвЂ¦' : `Comments${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
+  const commentButtonLabel = isLoadingComments ? 'Loading comments…' : `Comments${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
   const profileContentClass = `${styles.profileContent}${hideBackLink ? ` ${styles.profileContentNoBack}` : ''}`;
   const buildProfileAnchor = (key: string, label?: string) => createCommentAnchor(`profile.${key}`, label);
   const buildStageAnchor = (key: string, label?: string) => createCommentAnchor(`stage.${selectedStage}.${key}`, label);
@@ -698,6 +708,7 @@ export const InitiativeProfile = ({
         selectedStage={selectedStage}
         stages={draft.stages}
         stageState={draft.stageState}
+        initiativeName={draft.name}
         onSelectStage={handleStageChange}
         workstream={selectedWorkstream}
         compact={isCommentMode}

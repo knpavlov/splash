@@ -14,10 +14,27 @@ interface StageGatePanelProps {
   stageState: InitiativeStageStateMap;
   activeStage: InitiativeStageKey;
   selectedStage: InitiativeStageKey;
+  initiativeName: string;
   onSelectStage: (stage: InitiativeStageKey) => void;
   workstream: Workstream | null;
   compact?: boolean;
 }
+
+const getNextStageKey = (stageKey: InitiativeStageKey): InitiativeStageKey | null => {
+  const index = initiativeStageKeys.indexOf(stageKey);
+  if (index === -1 || index >= initiativeStageKeys.length - 1) {
+    return null;
+  }
+  return initiativeStageKeys[index + 1];
+};
+
+const getStageKeyForGate = (gateKey: WorkstreamGateKey): InitiativeStageKey | null => {
+  const index = initiativeStageKeys.indexOf(gateKey);
+  if (index <= 0) {
+    return null;
+  }
+  return initiativeStageKeys[index - 1];
+};
 
 const stageStatusLabel = (status: InitiativeStageStateMap[InitiativeStageKey]['status'] | undefined) => {
   switch (status) {
@@ -30,7 +47,7 @@ const stageStatusLabel = (status: InitiativeStageStateMap[InitiativeStageKey]['s
     case 'rejected':
       return 'Rejected';
     default:
-      return 'Draft';
+      return 'Not started';
   }
 };
 
@@ -91,6 +108,7 @@ export const StageGatePanel = ({
   stageState,
   activeStage,
   selectedStage,
+  initiativeName,
   onSelectStage,
   workstream,
   compact = false
@@ -98,6 +116,7 @@ export const StageGatePanel = ({
   const activeIndex = initiativeStageKeys.indexOf(activeStage);
   const [hoveredGate, setHoveredGate] = useState<WorkstreamGateKey | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const normalizedInitiativeName = initiativeName.trim().toLowerCase();
 
   const roleLabelMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -128,7 +147,8 @@ export const StageGatePanel = ({
     if (!hoveredGate || !tooltipPos) {
       return null;
     }
-    const gateState = stageState[hoveredGate];
+    const parentStageKey = getStageKeyForGate(hoveredGate);
+    const gateState = parentStageKey ? stageState[parentStageKey] : undefined;
     const rounds = workstream?.gates[hoveredGate] ?? [];
     return (
       <div className={styles.gateTooltip} style={{ left: tooltipPos.x, top: tooltipPos.y }}>
@@ -167,8 +187,10 @@ export const StageGatePanel = ({
           const status = index < activeIndex ? 'complete' : index === activeIndex ? 'current' : 'upcoming';
           const state = stageState[key] ?? { status: 'draft' };
           const stage = stages[key];
-          const nextStage = initiativeStageKeys[index + 1];
-          const displayName = stage.name || 'Not started';
+          const nextStage = getNextStageKey(key);
+          const rawStageName = stage.name?.trim() ?? '';
+          const shouldShowStageName =
+            Boolean(rawStageName) && rawStageName.toLowerCase() !== normalizedInitiativeName;
           const stageClassNames = [
             styles.stage,
             styles.chevron,
@@ -183,7 +205,7 @@ export const StageGatePanel = ({
             <div key={key} className={styles.trackItem}>
               <button type="button" className={stageClassNames} onClick={() => onSelectStage(key)} {...stageAnchor}>
                 <span className={styles.stageLabel}>{key.toUpperCase()}</span>
-                <span className={styles.stageName}>{displayName}</span>
+                {shouldShowStageName ? <span className={styles.stageName}>{rawStageName}</span> : null}
                 <span className={styles.stageStatus}>{stageStatusLabel(state.status)}</span>
               </button>
               {nextStage && isGateKey(nextStage) && (
@@ -195,12 +217,12 @@ export const StageGatePanel = ({
                 >
                   <button
                     type="button"
-                    className={[styles.gate, styles.chevron, styles[`gate-${(stageState[nextStage]?.status ?? 'draft')}`]].join(' ')}
+                    className={[styles.gate, styles.chevron, styles[`gate-${state.status}`]].join(' ')}
                     {...createCommentAnchor(`stage-track.${nextStage}`, `${nextStage.toUpperCase()} gate`)}
                   >
                     <span className={styles.gateName}>{nextStage.toUpperCase()}</span>
                     <span className={styles.gateLabel}>Gate</span>
-                    <span className={styles.gateStatus}>{stageStatusLabel(stageState[nextStage]?.status)}</span>
+                    <span className={styles.gateStatus}>{stageStatusLabel(state.status)}</span>
                   </button>
                 </div>
               )}

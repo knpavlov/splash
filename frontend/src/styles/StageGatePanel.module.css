@@ -4,6 +4,7 @@
   gap: 16px;
   position: relative;
   z-index: 2;
+  width: 100%;
 }
 
 .wrapperCompact {
@@ -12,66 +13,77 @@
 
 .track {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding: 12px 0;
+  flex-wrap: wrap;
+  align-items: stretch;
+  column-gap: 0;
+  row-gap: 16px;
+  width: 100%;
+  padding: 0;
 }
 
 .trackCompact {
-  flex-wrap: wrap;
-  overflow-x: visible;
-}
-
-.trackCompact .trackItem {
-  flex: 1 1 220px;
-}
-
-.trackCompact .stage,
-.trackCompact .gate {
-  min-width: auto;
-  width: 100%;
-}
-
-.trackCompact .gateWrapper {
-  width: 100%;
-}
-
-.track::-webkit-scrollbar {
-  height: 6px;
-}
-
-.track::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.5);
-  border-radius: 999px;
+  row-gap: 12px;
 }
 
 .trackItem {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  flex: 1 1 360px;
+  min-width: 260px;
+}
+
+@media (max-width: 1280px) {
+  .trackItem {
+    flex: 1 1 320px;
+    min-width: 240px;
+  }
+}
+
+@media (max-width: 960px) {
+  .trackItem {
+    flex: 1 1 280px;
+    min-width: 200px;
+  }
+}
+
+.trackCompact .trackItem {
+  flex: 1 1 100%;
+  min-width: 0;
+  flex-direction: column;
   gap: 12px;
-  flex: 0 0 auto;
+}
+
+.trackCompact .gateWrapper {
+  margin-left: 0;
+  width: 100%;
+  flex: 1 1 100%;
+}
+
+.trackCompact .stage,
+.trackCompact .gate {
+  clip-path: inherit;
+  border-radius: 18px;
 }
 
 .stage {
-  min-width: 160px;
-  padding: 16px 20px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: rgba(248, 250, 252, 0.95);
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 14px 22px;
+  border: 2px solid rgba(148, 163, 184, 0.7);
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(237, 242, 255, 0.9));
   color: #0f172a;
   text-align: left;
   cursor: pointer;
-  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%, 22px 50%);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  height: 96px;
+  height: 88px;
 }
 
 .chevron {
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 
 .stageStart {
@@ -84,7 +96,7 @@
 
 .stageLabel {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #475569;
@@ -92,21 +104,22 @@
 
 .stageName {
   display: block;
-  margin-top: 4px;
+  margin-top: 2px;
   font-weight: 600;
   color: #0f172a;
+  font-size: 15px;
 }
 
 .stageStatus {
   display: inline-flex;
   margin-top: 8px;
-  padding: 4px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: rgba(148, 163, 184, 0.2);
-  color: #475569;
+  letter-spacing: 0.04em;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
 }
 
 .current {
@@ -142,23 +155,27 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  justify-content: center;
+  flex: 0 0 clamp(90px, 10vw, 140px);
+  min-width: 90px;
+  margin-left: -20px;
 }
 
 .gate {
-  min-width: 160px;
-  padding: 16px 20px;
-  border: 1px dashed rgba(148, 163, 184, 0.8);
-  background: rgba(248, 250, 252, 0.85);
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px dashed rgba(148, 163, 184, 0.8);
+  background: rgba(241, 245, 249, 0.85);
   color: #0f172a;
   text-transform: uppercase;
   font-size: 11px;
   font-weight: 600;
   clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%);
-  height: 96px;
+  height: 88px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  align-items: center;
 }
 
 .gateName {
@@ -171,10 +188,14 @@
 }
 
 .gateStatus {
-  display: block;
+  display: inline-flex;
   margin-top: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
   font-size: 10px;
+  letter-spacing: 0.04em;
   color: #475569;
+  background: rgba(148, 163, 184, 0.2);
 }
 
 .gateTooltip {
@@ -245,9 +266,17 @@
   color: #047857;
 }
 
+.stage-returned {
+  border-color: rgba(251, 146, 60, 0.7);
+}
+
 .stage-returned .stageStatus {
   background: rgba(251, 146, 60, 0.2);
   color: #92400e;
+}
+
+.stage-rejected {
+  border-color: rgba(239, 68, 68, 0.6);
 }
 
 .stage-rejected .stageStatus {
@@ -259,11 +288,34 @@
   border-color: rgba(37, 99, 235, 0.6);
 }
 
+.gate-pending .gateStatus {
+  background: rgba(37, 99, 235, 0.15);
+  color: #1d4ed8;
+}
+
 .gate-approved {
   border-color: rgba(34, 197, 94, 0.6);
 }
 
-.gate-returned,
-.gate-rejected {
+.gate-approved .gateStatus {
+  background: rgba(34, 197, 94, 0.2);
+  color: #047857;
+}
+
+.gate-returned {
   border-color: rgba(251, 146, 60, 0.7);
+}
+
+.gate-returned .gateStatus {
+  background: rgba(251, 146, 60, 0.2);
+  color: #92400e;
+}
+
+.gate-rejected {
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+.gate-rejected .gateStatus {
+  background: rgba(239, 68, 68, 0.2);
+  color: #b91c1c;
 }
