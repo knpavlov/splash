@@ -140,7 +140,7 @@ const normalizeStageMap = (value: unknown): InitiativeStageMap => {
 const createDefaultStageState = (): InitiativeStageStateMap =>
   initiativeStageKeys.reduce(
     (acc, key) => {
-      acc[key] = { status: key === 'l0' ? 'approved' : 'draft', roundIndex: 0, comment: null };
+      acc[key] = { status: 'draft', roundIndex: 0, comment: null };
       return acc;
     },
     {} as InitiativeStageStateMap
@@ -162,8 +162,9 @@ const normalizeStageState = (value: unknown): InitiativeStageStateMap => {
       entry.status === 'pending' ||
       entry.status === 'approved' ||
       entry.status === 'returned' ||
-      entry.status === 'rejected'
-        ? entry.status
+      entry.status === 'rejected' ||
+      entry.status === 'draft'
+        ? (entry.status as InitiativeStageStateMap[InitiativeStageKey]['status'])
         : base[key].status;
     const roundIndex = typeof entry.roundIndex === 'number' ? entry.roundIndex : base[key].roundIndex;
     const comment = typeof entry.comment === 'string' ? entry.comment : null;
