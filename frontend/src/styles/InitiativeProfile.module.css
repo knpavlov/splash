@@ -69,39 +69,6 @@
   }
 }
 
-.inlineField {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-  color: #475569;
-}
-
-.inlineField select {
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 12px;
-  padding: 10px;
-  min-width: 220px;
-  max-width: 320px;
-  width: 100%;
-}
-
-.primaryFields {
-  flex: 1 1 100%;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  width: 100%;
-}
-
-.primaryFields label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-  color: #475569;
-}
-
 .quickLabel {
   margin: 0;
   text-transform: uppercase;
@@ -114,6 +81,13 @@
   margin: 8px 0 0 0;
   font-size: 32px;
   color: #0f172a;
+}
+
+.stageMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .fieldBlock {
@@ -133,9 +107,8 @@
   background: rgba(248, 113, 113, 0.08);
 }
 
-.primaryFields input,
-.primaryFields select,
-.inlineField select,
+.stageMetaGrid input,
+.stageMetaGrid select,
 .fieldBlock input,
 .fieldBlock textarea,
 .periodRow select,
