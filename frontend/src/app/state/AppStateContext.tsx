@@ -345,7 +345,7 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
   const sanitizedStageState = initiativeStageKeys.reduce((acc, key) => {
     const state = initiative.stageState[key];
     acc[key] = {
-      status: state?.status ?? (key === 'l0' ? 'approved' : 'draft'),
+      status: state?.status ?? 'draft',
       roundIndex: Number.isFinite(state?.roundIndex) ? Number(state?.roundIndex) : 0,
       comment: state?.comment?.trim() || null
     };
