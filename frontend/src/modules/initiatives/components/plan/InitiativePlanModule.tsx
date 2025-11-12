@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styles from '../../../../styles/InitiativePlanModule.module.css';
 import {
   InitiativePlanCapacitySegment,
@@ -44,24 +45,13 @@ const diffInDays = (start: Date, end: Date) => Math.round((end.getTime() - start
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-const stringToColor = (value: string) => {
-  if (!value) {
-    return '#5b21b6';
-  }
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = value.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 65%, 55%)`;
-};
+const TASK_COLOR_PALETTE = ['#5b21b6', '#2563eb', '#0ea5e9', '#10b981', '#f97316', '#ea580c', '#e11d48', '#6d28d9', '#0f172a'];
+const DEFAULT_BAR_COLOR = TASK_COLOR_PALETTE[0];
 
 type DragMode = 'move' | 'resize-start' | 'resize-end';
 
 interface CapacityEditorState {
   taskId: string;
-  anchorX: number;
-  anchorY: number;
 }
 
 interface TimelineMonthSegment {
@@ -380,12 +370,6 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           }
           return { ...taskToUpdate, endDate: formatDateInput(candidate) };
         });
-        dragStateRef.current = {
-          ...state,
-          startDate: dragStateRef.current?.startDate ?? task.startDate!,
-          endDate: dragStateRef.current?.endDate ?? task.endDate!,
-          startX: moveEvent.clientX
-        };
       };
       const handleUp = () => {
         dragStateRef.current = null;
@@ -448,18 +432,13 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       if (readOnly) {
         return;
       }
+      event.preventDefault();
+      event.stopPropagation();
       if (!task.startDate || !task.endDate) {
         setInfoMessage('Set start and end dates before configuring capacity periods.');
         return;
       }
-      const container = timelineRef.current;
-      if (!container) {
-        return;
-      }
-      const rect = container.getBoundingClientRect();
-      const anchorX = event.clientX - rect.left;
-      const anchorY = event.clientY - rect.top;
-      setCapacityEditor({ taskId: task.id, anchorX, anchorY });
+      setCapacityEditor({ taskId: task.id });
     },
     [readOnly]
   );
@@ -473,6 +452,16 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
         requiredCapacity: segments.length ? null : task.requiredCapacity
       }));
       setCapacityEditor(null);
+    },
+    [updateTask]
+  );
+
+  const handleColorChange = useCallback(
+    (taskId: string, color: string | null) => {
+      updateTask(taskId, (task) => ({
+        ...task,
+        color
+      }));
     },
     [updateTask]
   );
@@ -698,7 +687,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
               const duration = startDate && endDate ? diffInDays(startDate, endDate) + 1 : 1;
               const width = Math.max(duration * pxPerDay, 6);
               const left = rowOffset * pxPerDay;
-              const color = task.color ?? stringToColor(task.responsible || task.name);
+              const color = task.color ?? DEFAULT_BAR_COLOR;
               return (
                 <div
                   key={`timeline-${task.id}`}
@@ -740,8 +729,8 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
             <CapacityEditorPopover
               task={normalizedPlan.tasks.find((task) => task.id === capacityEditor.taskId) ?? null}
               onClose={() => setCapacityEditor(null)}
-              anchor={capacityEditor}
               onSubmit={applyCapacitySegments}
+              onColorChange={handleColorChange}
             />
           )}
         </div>
@@ -752,17 +741,21 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
 
 interface CapacityEditorProps {
   task: InitiativePlanTask | null;
-  anchor: CapacityEditorState;
   onClose: () => void;
   onSubmit: (taskId: string, segments: InitiativePlanCapacitySegment[]) => void;
+  onColorChange: (taskId: string, color: string | null) => void;
 }
 
-const CapacityEditorPopover = ({ task, anchor, onClose, onSubmit }: CapacityEditorProps) => {
+const CapacityEditorPopover = ({ task, onClose, onSubmit, onColorChange }: CapacityEditorProps) => {
   const [segments, setSegments] = useState<InitiativePlanCapacitySegment[]>(task?.capacitySegments ?? []);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSegments(task?.capacitySegments ?? []);
+    if (!task) {
+      return;
+    }
+    setSegments(task.capacitySegments);
+    setError(null);
   }, [task]);
 
   if (!task || !task.startDate || !task.endDate) {
@@ -842,63 +835,119 @@ const CapacityEditorPopover = ({ task, anchor, onClose, onSubmit }: CapacityEdit
     onSubmit(task.id, validated);
   };
 
-  return (
+  const selectedColor = task.color ?? DEFAULT_BAR_COLOR;
+
+  return createPortal(
     <div
-      className={styles.capacityPopover}
-      style={{ left: anchor.anchorX, top: anchor.anchorY }}
+      className={styles.capacityOverlay}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Timeline settings"
+      onClick={onClose}
     >
-      <header>
-        <strong>Capacity periods</strong>
-        <button type="button" onClick={onClose}>
-          ×
-        </button>
-      </header>
-      {segments.length === 0 ? (
-        <p className={styles.emptyState}>No custom periods. Add one to make this capacity variable.</p>
-      ) : (
-        <div className={styles.capacityList}>
-          {segments.map((segment) => (
-            <div key={segment.id} className={styles.capacityRow}>
-              <input
-                type="date"
-                value={segment.startDate}
-                min={task.startDate ?? undefined}
-                max={segment.endDate}
-                onChange={(event) => handleFieldChange(segment.id, 'startDate', event.target.value)}
-              />
-              <input
-                type="date"
-                value={segment.endDate}
-                min={segment.startDate}
-                max={task.endDate ?? undefined}
-                onChange={(event) => handleFieldChange(segment.id, 'endDate', event.target.value)}
-              />
-              <input
-                type="number"
-                value={segment.capacity}
-                min={0}
-                onChange={(event) => handleFieldChange(segment.id, 'capacity', event.target.value)}
-              />
-              <button type="button" onClick={() => handleDelete(segment.id)}>
-                Remove
+      <div
+        className={styles.capacityPopover}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className={styles.capacityHeader}>
+          <div>
+            <strong>Timeline settings</strong>
+            <p>Pick a bar color and fine-tune capacity periods.</p>
+          </div>
+          <button type="button" onClick={onClose} className={styles.closeButton}>
+            Close
+          </button>
+        </header>
+
+        <section className={styles.colorSection}>
+          <div className={styles.sectionHeader}>
+            <span>Bar color</span>
+            <button
+              type="button"
+              className={styles.resetButton}
+              onClick={() => onColorChange(task.id, null)}
+              disabled={!task.color}
+            >
+              Reset to default
+            </button>
+          </div>
+          <div className={styles.colorPalette}>
+            {TASK_COLOR_PALETTE.map((paletteColor) => (
+              <button
+                key={paletteColor}
+                type="button"
+                className={`${styles.colorSwatch} ${selectedColor === paletteColor ? styles.swatchSelected : ''}`}
+                style={{ backgroundColor: paletteColor }}
+                onClick={() => onColorChange(task.id, paletteColor)}
+              >
+                {selectedColor === paletteColor && <span className={styles.swatchIndicator} />}
               </button>
+            ))}
+            <label className={styles.customColor}>
+              <input
+                type="color"
+                value={selectedColor}
+                onChange={(event) => onColorChange(task.id, event.target.value)}
+              />
+              <span>Custom</span>
+            </label>
+          </div>
+        </section>
+
+        <section className={styles.capacitySection}>
+          <div className={styles.sectionHeader}>
+            <span>Variable capacity periods</span>
+            <span className={styles.sectionHelp}>Optional: split workload inside task dates</span>
+          </div>
+          {segments.length === 0 ? (
+            <p className={styles.emptyState}>No custom periods. Add one to make this capacity variable.</p>
+          ) : (
+            <div className={styles.capacityList}>
+              {segments.map((segment) => (
+                <div key={segment.id} className={styles.capacityRow}>
+                  <input
+                    type="date"
+                    value={segment.startDate}
+                    min={task.startDate ?? undefined}
+                    max={segment.endDate}
+                    onChange={(event) => handleFieldChange(segment.id, 'startDate', event.target.value)}
+                  />
+                  <input
+                    type="date"
+                    value={segment.endDate}
+                    min={segment.startDate}
+                    max={task.endDate ?? undefined}
+                    onChange={(event) => handleFieldChange(segment.id, 'endDate', event.target.value)}
+                  />
+                  <input
+                    type="number"
+                    value={segment.capacity}
+                    min={0}
+                    onChange={(event) => handleFieldChange(segment.id, 'capacity', event.target.value)}
+                  />
+                  <button type="button" onClick={() => handleDelete(segment.id)}>
+                    Remove
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
-      {error && <p className={styles.error}>{error}</p>}
-      <footer>
-        <button type="button" className={styles.linkButton} onClick={handleAdd}>
-          + Period
-        </button>
-        <div className={styles.footerSpacer} />
-        <button type="button" className={styles.secondaryButton} onClick={onClose}>
-          Cancel
-        </button>
-        <button type="button" className={styles.primaryButton} onClick={handleSubmit}>
-          Apply
-        </button>
-      </footer>
-    </div>
+          )}
+          {error && <p className={styles.error}>{error}</p>}
+          <footer>
+            <button type="button" className={styles.linkButton} onClick={handleAdd}>
+              + Period
+            </button>
+            <div className={styles.footerSpacer} />
+            <button type="button" className={styles.secondaryButton} onClick={onClose}>
+              Cancel
+            </button>
+            <button type="button" className={styles.primaryButton} onClick={handleSubmit}>
+              Apply
+            </button>
+          </footer>
+        </section>
+      </div>
+    </div>,
+    document.body
   );
 };

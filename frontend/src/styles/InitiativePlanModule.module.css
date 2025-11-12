@@ -285,30 +285,50 @@
   border-top: 1px dashed rgba(59, 130, 246, 0.5);
 }
 
+.capacityOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  padding: 24px;
+}
+
 .capacityPopover {
-  position: absolute;
-  min-width: 280px;
-  max-width: 320px;
+  position: relative;
+  width: min(640px, 100%);
   background: #fff;
   border: 1px solid rgba(148, 163, 184, 0.5);
   border-radius: 16px;
-  padding: 12px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.2);
-  z-index: 5;
-  transform: translate(0, -100%);
 }
 
-.capacityPopover header {
+.capacityHeader {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+  align-items: flex-start;
+  gap: 16px;
 }
 
-.capacityPopover header button {
+.capacityHeader p {
+  margin: 4px 0 0;
+  color: #475569;
+}
+
+.closeButton {
   border: none;
-  background: none;
-  font-size: 16px;
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -316,7 +336,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 220px;
+  max-height: 260px;
   overflow-y: auto;
   margin-bottom: 8px;
 }
@@ -402,4 +422,89 @@
   .resizer {
     display: none;
   }
+}
+.colorSection,
+.capacitySection {
+  background: rgba(241, 245, 249, 0.6);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  font-weight: 600;
+}
+
+.sectionHelp {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.resetButton {
+  border: none;
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.resetButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.colorPalette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.colorSwatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  position: relative;
+  padding: 0;
+}
+
+.swatchSelected {
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+}
+
+.swatchIndicator {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.customColor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.customColor input[type='color'] {
+  width: 42px;
+  height: 36px;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
 }
