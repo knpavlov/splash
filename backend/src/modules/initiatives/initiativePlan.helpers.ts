@@ -6,6 +6,7 @@ import {
 } from './initiatives.types.js';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const PLAN_MAX_INDENT_LEVEL = 2;
 
 const sanitizeNumber = (value: unknown): number | null => {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -57,7 +58,7 @@ const sanitizeIndent = (value: unknown) => {
   if (numeric === null) {
     return 0;
   }
-  return clamp(Math.trunc(numeric), 0, 8);
+  return clamp(Math.trunc(numeric), 0, PLAN_MAX_INDENT_LEVEL);
 };
 
 const sanitizeColor = (value: unknown) => {
@@ -146,6 +147,7 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     id: randomUUID(),
     name: '',
     startDate: null,
+    description: '',
     endDate: null,
     responsible: '',
     progress: 0,
@@ -161,6 +163,7 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
   const payload = value as {
     id?: unknown;
     name?: unknown;
+    description?: unknown;
     startDate?: unknown;
     endDate?: unknown;
     responsible?: unknown;
@@ -186,6 +189,7 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
   return {
     id,
     name: typeof payload.name === 'string' ? payload.name.trim() : '',
+    description: typeof payload.description === 'string' ? payload.description.trim() : '',
     startDate,
     endDate,
     responsible: typeof payload.responsible === 'string' ? payload.responsible.trim() : '',

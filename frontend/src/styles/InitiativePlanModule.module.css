@@ -94,9 +94,24 @@
   background: rgba(249, 250, 251, 0.9);
 }
 
+.tableScroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-x: auto;
+}
+
 .tableHeader {
   display: grid;
-  grid-template-columns: 36px 2fr repeat(5, 1fr);
+  grid-template-columns:
+    36px
+    minmax(160px, 2fr)
+    minmax(200px, 2fr)
+    minmax(140px, 1.1fr)
+    minmax(140px, 1.1fr)
+    minmax(180px, 1.4fr)
+    minmax(120px, 1fr)
+    minmax(150px, 1.2fr);
   gap: 8px;
   padding: 12px;
   font-size: 13px;
@@ -104,16 +119,26 @@
   letter-spacing: 0.08em;
   color: #94a3b8;
   border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+  min-width: 980px;
 }
 
 .tableRows {
   overflow-y: auto;
   max-height: 460px;
+  min-width: 980px;
 }
 
 .tableRow {
   display: grid;
-  grid-template-columns: 36px 2fr repeat(5, 1fr);
+  grid-template-columns:
+    36px
+    minmax(160px, 2fr)
+    minmax(200px, 2fr)
+    minmax(140px, 1.1fr)
+    minmax(140px, 1.1fr)
+    minmax(180px, 1.4fr)
+    minmax(120px, 1fr)
+    minmax(150px, 1.2fr);
   gap: 8px;
   padding: 8px 12px;
   align-items: center;
@@ -123,6 +148,14 @@
 
 .tableRow:last-child {
   border-bottom: none;
+}
+
+.rowDepth1 {
+  background: rgba(226, 232, 255, 0.65);
+}
+
+.rowDepth2 {
+  background: rgba(199, 210, 254, 0.7);
 }
 
 .rowSelected {
@@ -170,6 +203,20 @@
 
 .cell input:disabled {
   background: rgba(248, 250, 252, 0.8);
+}
+
+.cell select {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
+  padding: 6px 32px 6px 8px;
+  background: rgba(255, 255, 255, 0.9);
+  appearance: none;
+}
+
+.cell select:disabled {
+  background: rgba(248, 250, 252, 0.8);
+  color: #94a3b8;
 }
 
 .resizer {
@@ -251,6 +298,26 @@
   overflow: hidden;
 }
 
+.timelineBar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.barDepth1::after {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.barDepth2::after {
+  opacity: 1;
+  background: rgba(15, 23, 42, 0.25);
+}
+
 .barSelected {
   outline: 2px solid rgba(59, 130, 246, 0.6);
 }
@@ -261,7 +328,7 @@
   top: 0;
   bottom: 0;
   cursor: ew-resize;
-  z-index: 3;
+  z-index: 4;
 }
 
 .handleLeft {
@@ -277,7 +344,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   position: relative;
-  z-index: 2;
+  z-index: 3;
 }
 
 .timelinePlaceholder {
@@ -295,7 +362,7 @@
   font-weight: 600;
   color: #fff;
   background: rgba(15, 23, 42, 0.12);
-  z-index: 1;
+  z-index: 2;
 }
 
 .capacityOverlaySingle {

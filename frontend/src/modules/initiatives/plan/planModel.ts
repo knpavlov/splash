@@ -9,6 +9,7 @@ export const PLAN_ZOOM_MIN = 0;
 export const PLAN_ZOOM_MAX = 6;
 export const PLAN_SPLIT_MIN = 0.2;
 export const PLAN_SPLIT_MAX = 0.8;
+export const PLAN_MAX_INDENT_LEVEL = 2;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -85,6 +86,7 @@ const normalizePlanSegment = (
 export const createEmptyPlanTask = (): InitiativePlanTask => ({
   id: generateId(),
   name: '',
+  description: '',
   startDate: null,
   endDate: null,
   responsible: '',
@@ -106,6 +108,7 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
     name?: unknown;
     startDate?: unknown;
     endDate?: unknown;
+    description?: unknown;
     responsible?: unknown;
     progress?: unknown;
     requiredCapacity?: unknown;
@@ -142,12 +145,13 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
     name: typeof payload.name === 'string' ? payload.name.trim() : '',
     startDate,
     endDate,
+    description: typeof payload.description === 'string' ? payload.description.trim() : '',
     responsible: typeof payload.responsible === 'string' ? payload.responsible.trim() : '',
     progress: clamp(Math.round(normalizeNumber(payload.progress) ?? 0), 0, 100),
     requiredCapacity,
     capacityMode,
     capacitySegments: segments,
-    indent: clamp(Math.trunc(normalizeNumber(payload.indent) ?? 0), 0, 8),
+    indent: clamp(Math.trunc(normalizeNumber(payload.indent) ?? 0), 0, PLAN_MAX_INDENT_LEVEL),
     color: typeof payload.color === 'string' ? payload.color.trim() || null : null
   };
 };

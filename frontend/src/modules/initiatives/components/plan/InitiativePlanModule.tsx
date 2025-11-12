@@ -11,6 +11,7 @@ import {
   PLAN_SPLIT_MIN,
   PLAN_ZOOM_MAX,
   PLAN_ZOOM_MIN,
+  PLAN_MAX_INDENT_LEVEL,
   createEmptyPlanTask,
   sanitizePlanModel
 } from '../../plan/planModel';
@@ -47,6 +48,29 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 const TASK_COLOR_PALETTE = ['#5b21b6', '#2563eb', '#0ea5e9', '#10b981', '#f97316', '#ea580c', '#e11d48', '#6d28d9', '#0f172a'];
 const DEFAULT_BAR_COLOR = TASK_COLOR_PALETTE[0];
+const RESPONSIBLE_PLACEHOLDERS = [
+  'Amelia Carter',
+  'Noah Patel',
+  'Sophia Marin',
+  'Leo Fernandez',
+  'Isabella Chen',
+  'Mason Rivera',
+  'Harper Lewis',
+  'Ethan Novak',
+  'Ava Dimitriou',
+  'Lucas Romero',
+  'Mila Anders',
+  'Jackson Reid',
+  'Layla Moretti',
+  'Oliver Van Dijk',
+  'Chloe Martins',
+  'Mateo Silva',
+  'Zoe Thompson',
+  'Aria Mehta',
+  'Benjamin Clarke',
+  'Nora Satou'
+];
+const RESPONSIBLE_PLACEHOLDER_SET = new Set(RESPONSIBLE_PLACEHOLDERS);
 
 type DragMode = 'move' | 'resize-start' | 'resize-end';
 
@@ -218,10 +242,31 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       setInfoMessage('Indent requires a preceding task.');
       return;
     }
-    const previousIndent = normalizedPlan.tasks[index - 1].indent;
+    const currentIndent = normalizedPlan.tasks[index].indent;
+    if (currentIndent >= PLAN_MAX_INDENT_LEVEL) {
+      setInfoMessage('Task is already at the deepest level.');
+      return;
+    }
+    let parentIndent: number | null = null;
+    for (let i = index - 1; i >= 0; i -= 1) {
+      const candidate = normalizedPlan.tasks[i];
+      if (candidate.indent <= currentIndent) {
+        parentIndent = candidate.indent;
+        break;
+      }
+    }
+    if (parentIndent === null) {
+      setInfoMessage('Indent requires a shallower parent above.');
+      return;
+    }
+    const nextIndent = Math.min(parentIndent + 1, PLAN_MAX_INDENT_LEVEL);
+    if (nextIndent <= currentIndent) {
+      setInfoMessage('No valid parent to indent under.');
+      return;
+    }
     updateTask(selectedTaskId, (task) => ({
       ...task,
-      indent: Math.min(previousIndent + 1, task.indent + 1)
+      indent: nextIndent
     }));
   }, [normalizedPlan.tasks, readOnly, selectedTaskId, updateTask]);
 
@@ -622,9 +667,11 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           className={styles.tablePanel}
           style={{ width: `${normalizedPlan.settings.splitRatio * 100}%` }}
         >
+          <div className={styles.tableScroll}>
           <div className={styles.tableHeader}>
             <span />
             <span>Task name</span>
+            <span>Description</span>
             <span>Start</span>
             <span>End</span>
             <span>Responsible</span>
@@ -632,10 +679,17 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
             <span>Required capacity</span>
           </div>
           <div className={styles.tableRows}>
-            {normalizedPlan.tasks.map((task) => (
-              <div
+            {normalizedPlan.tasks.map((task) => {
+              const rowDepthClass =
+                task.indent === 0 ? '' : task.indent === 1 ? styles.rowDepth1 : styles.rowDepth2;
+              const hasCustomResponsible =
+                !!task.responsible && !RESPONSIBLE_PLACEHOLDER_SET.has(task.responsible);
+              return (
+                <div
                 key={task.id}
-                className={`${styles.tableRow} ${selectedTaskId === task.id ? styles.rowSelected : ''}`}
+                className={`${styles.tableRow} ${rowDepthClass} ${
+                  selectedTaskId === task.id ? styles.rowSelected : ''
+                }`}
             style={{ height: `${ROW_HEIGHT}px` }}
             onClick={() => setSelectedTaskId(task.id)}
             onDragOver={(event) => {
@@ -680,6 +734,15 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 </div>
                 <div className={styles.cell}>
                   <input
+                    type="text"
+                    value={task.description}
+                    disabled={readOnly}
+                    placeholder="Short summary"
+                    onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
+                  />
+                </div>
+                <div className={styles.cell}>
+                  <input
                     type="date"
                     value={task.startDate ?? ''}
                     disabled={readOnly}
@@ -695,12 +758,21 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                   />
                 </div>
                 <div className={styles.cell}>
-                  <input
-                    type="text"
+                  <select
                     value={task.responsible}
                     disabled={readOnly}
                     onChange={(event) => handleTaskFieldChange(task, 'responsible', event.target.value)}
-                  />
+                  >
+                    <option value="">Unassigned</option>
+                    {RESPONSIBLE_PLACEHOLDERS.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                    {hasCustomResponsible && (
+                      <option value={task.responsible}>{task.responsible}</option>
+                    )}
+                  </select>
                 </div>
                 <div className={styles.cell}>
                   <input
@@ -726,7 +798,8 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                   />
                 </div>
               </div>
-            ))}
+              );
+            })}
             {dragTaskId && (
               <div
                 className={styles.dropZone}
@@ -744,6 +817,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
               </div>
             )}
           </div>
+        </div>
         </div>
         <div
           className={styles.resizer}
@@ -796,6 +870,8 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
               const left = rowOffset * pxPerDay;
               const color = task.color ?? DEFAULT_BAR_COLOR;
               const capacityOverlay = hasDates ? renderCapacityOverlay(task) : null;
+              const barDepthClass =
+                task.indent === 0 ? '' : task.indent === 1 ? styles.barDepth1 : styles.barDepth2;
               return (
                 <div
                   key={`timeline-${task.id}`}
@@ -805,7 +881,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 >
                   {hasDates ? (
                     <div
-                      className={`${styles.timelineBar} ${
+                      className={`${styles.timelineBar} ${barDepthClass} ${
                         selectedTaskId === task.id ? styles.barSelected : ''
                       }`}
                       style={{ left, width, backgroundColor: color }}
