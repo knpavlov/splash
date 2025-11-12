@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAuth } from '../../../auth/AuthContext';
 import styles from '../../../../styles/InitiativePlanModule.module.css';
 import {
   InitiativePlanCapacitySegment,
@@ -72,6 +73,36 @@ const RESPONSIBLE_PLACEHOLDERS = [
 ];
 const RESPONSIBLE_PLACEHOLDER_SET = new Set(RESPONSIBLE_PLACEHOLDERS);
 
+type TableColumnId = 'drag' | 'name' | 'description' | 'start' | 'end' | 'responsible' | 'progress' | 'capacity';
+
+interface TableColumnConfig {
+  id: TableColumnId;
+  label: string;
+  defaultWidth: number;
+  minWidth: number;
+  maxWidth: number;
+  resizable: boolean;
+}
+
+const TABLE_COLUMNS: TableColumnConfig[] = [
+  { id: 'drag', label: '', defaultWidth: 36, minWidth: 36, maxWidth: 36, resizable: false },
+  { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 160, maxWidth: 480, resizable: true },
+  { id: 'description', label: 'Description', defaultWidth: 240, minWidth: 180, maxWidth: 520, resizable: true },
+  { id: 'start', label: 'Start', defaultWidth: 150, minWidth: 120, maxWidth: 260, resizable: true },
+  { id: 'end', label: 'End', defaultWidth: 150, minWidth: 120, maxWidth: 260, resizable: true },
+  { id: 'responsible', label: 'Responsible', defaultWidth: 200, minWidth: 160, maxWidth: 320, resizable: true },
+  { id: 'progress', label: 'Status %', defaultWidth: 140, minWidth: 110, maxWidth: 220, resizable: true },
+  { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 140, maxWidth: 280, resizable: true }
+] as const;
+
+const buildDefaultColumnWidths = () =>
+  TABLE_COLUMNS.reduce<Record<TableColumnId, number>>((acc, column) => {
+    acc[column.id] = column.defaultWidth;
+    return acc;
+  }, {} as Record<TableColumnId, number>);
+
+const COLUMN_STORAGE_NAMESPACE = 'initiative-plan:columns';
+
 type DragMode = 'move' | 'resize-start' | 'resize-end';
 
 interface CapacityEditorState {
@@ -86,11 +117,14 @@ interface TimelineMonthSegment {
 
 export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: InitiativePlanModuleProps) => {
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
+  const { session } = useAuth();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(normalizedPlan.tasks[0]?.id ?? null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [capacityEditor, setCapacityEditor] = useState<CapacityEditorState | null>(null);
   const [showCapacityOverlay, setShowCapacityOverlay] = useState(false);
+  const [columnWidths, setColumnWidths] = useState<Record<TableColumnId, number>>(() => buildDefaultColumnWidths());
+  const [columnPrefsLoaded, setColumnPrefsLoaded] = useState(false);
   const dragStateRef = useRef<{
     taskId: string;
     mode: DragMode;
@@ -101,6 +135,18 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const resizeStateRef = useRef<{
+    columnId: TableColumnId;
+    startX: number;
+    startWidth: number;
+    minWidth: number;
+    maxWidth: number;
+  } | null>(null);
+
+  const columnStorageKey = useMemo(
+    () => `${COLUMN_STORAGE_NAMESPACE}:${session?.accountId ?? 'guest'}`,
+    [session?.accountId]
+  );
 
   useEffect(() => {
     if (!selectedTaskId && normalizedPlan.tasks.length) {
@@ -112,6 +158,45 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       }
     }
   }, [normalizedPlan.tasks, selectedTaskId]);
+
+  useEffect(() => {
+    setColumnPrefsLoaded(false);
+    if (typeof window === 'undefined') {
+      setColumnPrefsLoaded(true);
+      return;
+    }
+    const defaults = buildDefaultColumnWidths();
+    const raw = window.localStorage.getItem(columnStorageKey);
+    if (!raw) {
+      setColumnWidths(defaults);
+      setColumnPrefsLoaded(true);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as Partial<Record<TableColumnId, number>> | null;
+      const sanitized = { ...defaults };
+      if (parsed) {
+        for (const column of TABLE_COLUMNS) {
+          const value = parsed[column.id];
+          if (typeof value === 'number' && Number.isFinite(value)) {
+            sanitized[column.id] = clamp(value, column.minWidth, column.maxWidth);
+          }
+        }
+      }
+      setColumnWidths(sanitized);
+    } catch {
+      setColumnWidths(defaults);
+    } finally {
+      setColumnPrefsLoaded(true);
+    }
+  }, [columnStorageKey]);
+
+  useEffect(() => {
+    if (!columnPrefsLoaded || typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem(columnStorageKey, JSON.stringify(columnWidths));
+  }, [columnPrefsLoaded, columnStorageKey, columnWidths]);
 
   const pxPerDay = useMemo(
     () => ZOOM_SCALE[clamp(normalizedPlan.settings.zoomLevel, PLAN_ZOOM_MIN, PLAN_ZOOM_MAX)],
@@ -164,6 +249,15 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       width: totalDays * pxPerDay
     };
   }, [normalizedPlan.tasks, pxPerDay]);
+
+  const tableGridTemplate = useMemo(
+    () =>
+      TABLE_COLUMNS.map((column) => {
+        const width = columnWidths[column.id] ?? column.defaultWidth;
+        return `${width}px`;
+      }).join(' '),
+    [columnWidths]
+  );
 
   const selectedTask = useMemo(
     () => normalizedPlan.tasks.find((task) => task.id === selectedTaskId) ?? null,
@@ -332,6 +426,54 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       });
     },
     [emitChange, normalizedPlan, readOnly]
+  );
+
+  const startColumnResize = useCallback(
+    (event: React.PointerEvent<HTMLSpanElement>, columnId: TableColumnId) => {
+      if (readOnly) {
+        return;
+      }
+      const column = TABLE_COLUMNS.find((item) => item.id === columnId);
+      if (!column || !column.resizable) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const startWidth = columnWidths[columnId] ?? column.defaultWidth;
+      const startX = event.clientX;
+      resizeStateRef.current = {
+        columnId,
+        startX,
+        startWidth,
+        minWidth: column.minWidth,
+        maxWidth: column.maxWidth
+      };
+      const handleMove = (moveEvent: PointerEvent) => {
+        const state = resizeStateRef.current;
+        if (!state) {
+          return;
+        }
+        const delta = moveEvent.clientX - state.startX;
+        const nextWidth = clamp(state.startWidth + delta, state.minWidth, state.maxWidth);
+        setColumnWidths((prev) => {
+          if (prev[state.columnId] === nextWidth) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [state.columnId]: nextWidth
+          };
+        });
+      };
+      const handleUp = () => {
+        resizeStateRef.current = null;
+        window.removeEventListener('pointermove', handleMove);
+        window.removeEventListener('pointerup', handleUp);
+      };
+      window.addEventListener('pointermove', handleMove);
+      window.addEventListener('pointerup', handleUp);
+    },
+    [columnWidths, readOnly]
   );
 
   useEffect(() => {
@@ -668,52 +810,58 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           style={{ width: `${normalizedPlan.settings.splitRatio * 100}%` }}
         >
           <div className={styles.tableScroll}>
-          <div className={styles.tableHeader}>
-            <span />
-            <span>Task name</span>
-            <span>Description</span>
-            <span>Start</span>
-            <span>End</span>
-            <span>Responsible</span>
-            <span>Status %</span>
-            <span>Required capacity</span>
-          </div>
-          <div className={styles.tableRows}>
-            {normalizedPlan.tasks.map((task) => {
+            <div
+              className={styles.tableHeader}
+              style={{ gridTemplateColumns: tableGridTemplate }}
+            >
+              {TABLE_COLUMNS.map((column) => (
+                <div key={`header-${column.id}`} className={styles.columnHeader}>
+                  {column.label && <span>{column.label}</span>}
+                  {column.resizable && (
+                    <span
+                      className={styles.columnResizer}
+                      onPointerDown={(event) => startColumnResize(event, column.id)}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className={styles.tableRows}>
+              {normalizedPlan.tasks.map((task) => {
               const rowDepthClass =
                 task.indent === 0 ? '' : task.indent === 1 ? styles.rowDepth1 : styles.rowDepth2;
               const hasCustomResponsible =
                 !!task.responsible && !RESPONSIBLE_PLACEHOLDER_SET.has(task.responsible);
-              return (
+                return (
                 <div
-                key={task.id}
-                className={`${styles.tableRow} ${rowDepthClass} ${
-                  selectedTaskId === task.id ? styles.rowSelected : ''
-                }`}
-            style={{ height: `${ROW_HEIGHT}px` }}
-            onClick={() => setSelectedTaskId(task.id)}
-            onDragOver={(event) => {
-              if (readOnly || !dragTaskId || dragTaskId === task.id) {
-                return;
-              }
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'move';
-            }}
-            onDrop={(event) => {
-              if (readOnly) {
-                return;
-              }
-              event.preventDefault();
-              if (dragTaskId) {
-                moveTaskBlock(dragTaskId, task.id);
-                setDragTaskId(null);
-              }
-            }}
-          >
-            <button
-              type="button"
-              className={styles.dragHandle}
-              draggable={!readOnly}
+                  key={task.id}
+                  className={`${styles.tableRow} ${rowDepthClass} ${
+                    selectedTaskId === task.id ? styles.rowSelected : ''
+                  }`}
+                  style={{ gridTemplateColumns: tableGridTemplate, height: `${ROW_HEIGHT}px` }}
+                  onClick={() => setSelectedTaskId(task.id)}
+                  onDragOver={(event) => {
+                    if (readOnly || !dragTaskId || dragTaskId === task.id) {
+                      return;
+                    }
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(event) => {
+                    if (readOnly) {
+                      return;
+                    }
+                    event.preventDefault();
+                    if (dragTaskId) {
+                      moveTaskBlock(dragTaskId, task.id);
+                      setDragTaskId(null);
+                    }
+                  }}
+                >
+                  <button
+                    type="button"
+                    className={styles.dragHandle}
+                    draggable={!readOnly}
                   onDragStart={(event) => {
                     setDragTaskId(task.id);
                     event.dataTransfer.setData('text/plain', task.id);
@@ -797,10 +945,10 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                     onChange={(event) => handleTaskFieldChange(task, 'requiredCapacity', event.target.value)}
                   />
                 </div>
-              </div>
-              );
-            })}
-            {dragTaskId && (
+                </div>
+                );
+              })}
+              {dragTaskId && (
               <div
                 className={styles.dropZone}
                 onDragOver={(event) => {
@@ -815,9 +963,9 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
               >
                 Drop here to move to end
               </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
         </div>
         <div
           className={styles.resizer}
@@ -871,7 +1019,11 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
               const color = task.color ?? DEFAULT_BAR_COLOR;
               const capacityOverlay = hasDates ? renderCapacityOverlay(task) : null;
               const barDepthClass =
-                task.indent === 0 ? '' : task.indent === 1 ? styles.barDepth1 : styles.barDepth2;
+                task.indent === 0
+                  ? styles.barRoot
+                  : task.indent === 1
+                    ? styles.barChild
+                    : styles.barGrandchild;
               return (
                 <div
                   key={`timeline-${task.id}`}

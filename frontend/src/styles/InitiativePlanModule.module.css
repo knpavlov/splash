@@ -103,42 +103,20 @@
 
 .tableHeader {
   display: grid;
-  grid-template-columns:
-    36px
-    minmax(160px, 2fr)
-    minmax(200px, 2fr)
-    minmax(140px, 1.1fr)
-    minmax(140px, 1.1fr)
-    minmax(180px, 1.4fr)
-    minmax(120px, 1fr)
-    minmax(150px, 1.2fr);
   gap: 8px;
   padding: 12px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #94a3b8;
   border-bottom: 1px solid rgba(148, 163, 184, 0.3);
-  min-width: 980px;
+  min-width: max-content;
 }
 
 .tableRows {
   overflow-y: auto;
   max-height: 460px;
-  min-width: 980px;
+  min-width: max-content;
 }
 
 .tableRow {
   display: grid;
-  grid-template-columns:
-    36px
-    minmax(160px, 2fr)
-    minmax(200px, 2fr)
-    minmax(140px, 1.1fr)
-    minmax(140px, 1.1fr)
-    minmax(180px, 1.4fr)
-    minmax(120px, 1fr)
-    minmax(150px, 1.2fr);
   gap: 8px;
   padding: 8px 12px;
   align-items: center;
@@ -160,6 +138,43 @@
 
 .rowSelected {
   background: rgba(219, 234, 254, 0.8);
+}
+
+.columnHeader {
+  position: relative;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  font-weight: 600;
+  padding-right: 6px;
+}
+
+.columnHeader span {
+  white-space: nowrap;
+}
+
+.columnResizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.columnResizer::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: rgba(148, 163, 184, 0.5);
+  border-radius: 2px;
 }
 
 .dragHandle {
@@ -296,6 +311,8 @@
   padding: 0 12px;
   cursor: pointer;
   overflow: hidden;
+  box-sizing: border-box;
+  border: 2px solid transparent;
 }
 
 .timelineBar::after {
@@ -308,12 +325,17 @@
   transition: opacity 0.2s ease;
 }
 
-.barDepth1::after {
+.barRoot {
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.35);
+}
+
+.barChild::after {
   opacity: 1;
   background: rgba(255, 255, 255, 0.15);
 }
 
-.barDepth2::after {
+.barGrandchild::after {
   opacity: 1;
   background: rgba(15, 23, 42, 0.25);
 }
