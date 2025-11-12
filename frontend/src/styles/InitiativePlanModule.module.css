@@ -474,6 +474,15 @@
   z-index: 70;
 }
 
+.fullscreenInner {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 .fullscreenContainer {
   width: min(1400px, 100%);
   height: min(95vh, 980px);

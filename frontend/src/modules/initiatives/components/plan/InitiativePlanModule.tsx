@@ -1106,11 +1106,13 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
             </div>
           </div>
         </div>
-        <div
-          className={styles.resizer}
-          onPointerDown={handleSplitDrag}
-          role="presentation"
-        />
+        {!isFullscreen && (
+          <div
+            className={styles.resizer}
+            onPointerDown={handleSplitDrag}
+            role="presentation"
+          />
+        )}
         <div
           className={styles.timelinePanel}
           ref={timelineRef}
@@ -1222,7 +1224,12 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   return (
     <>
       {isFullscreen
-        ? createPortal(<div className={styles.fullscreenOverlay}>{planSection}</div>, document.body)
+        ? createPortal(
+            <div className={styles.fullscreenOverlay}>
+              <div className={styles.fullscreenInner}>{planSection}</div>
+            </div>,
+            document.body
+          )
         : planSection}
       {descriptionTooltip &&
         createPortal(
