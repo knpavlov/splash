@@ -234,6 +234,20 @@
   color: #94a3b8;
 }
 
+.descriptionTooltip {
+  position: fixed;
+  max-width: 360px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #f8fafc;
+  padding: 10px 12px;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
+  font-size: 13px;
+  line-height: 1.4;
+  z-index: 60;
+  pointer-events: none;
+}
+
 .resizer {
   width: 6px;
   cursor: col-resize;
@@ -330,14 +344,29 @@
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.35);
 }
 
+.barChild {
+  height: 22px;
+  margin-top: 3px;
+  margin-bottom: 3px;
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
 .barChild::after {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.barGrandchild {
+  height: 18px;
+  margin-top: 5px;
+  margin-bottom: 5px;
+  border-color: rgba(15, 23, 42, 0.6);
+  border-style: dashed;
 }
 
 .barGrandchild::after {
   opacity: 1;
-  background: rgba(15, 23, 42, 0.25);
+  background: rgba(15, 23, 42, 0.32);
 }
 
 .barSelected {

@@ -86,13 +86,13 @@ interface TableColumnConfig {
 
 const TABLE_COLUMNS: TableColumnConfig[] = [
   { id: 'drag', label: '', defaultWidth: 36, minWidth: 36, maxWidth: 36, resizable: false },
-  { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 160, maxWidth: 480, resizable: true },
-  { id: 'description', label: 'Description', defaultWidth: 240, minWidth: 180, maxWidth: 520, resizable: true },
-  { id: 'start', label: 'Start', defaultWidth: 150, minWidth: 120, maxWidth: 260, resizable: true },
-  { id: 'end', label: 'End', defaultWidth: 150, minWidth: 120, maxWidth: 260, resizable: true },
-  { id: 'responsible', label: 'Responsible', defaultWidth: 200, minWidth: 160, maxWidth: 320, resizable: true },
-  { id: 'progress', label: 'Status %', defaultWidth: 140, minWidth: 110, maxWidth: 220, resizable: true },
-  { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 140, maxWidth: 280, resizable: true }
+  { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 110, maxWidth: 480, resizable: true },
+  { id: 'description', label: 'Description', defaultWidth: 240, minWidth: 130, maxWidth: 520, resizable: true },
+  { id: 'start', label: 'Start', defaultWidth: 150, minWidth: 90, maxWidth: 260, resizable: true },
+  { id: 'end', label: 'End', defaultWidth: 150, minWidth: 90, maxWidth: 260, resizable: true },
+  { id: 'responsible', label: 'Responsible', defaultWidth: 200, minWidth: 130, maxWidth: 320, resizable: true },
+  { id: 'progress', label: 'Status %', defaultWidth: 140, minWidth: 80, maxWidth: 220, resizable: true },
+  { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 110, maxWidth: 280, resizable: true }
 ] as const;
 
 const buildDefaultColumnWidths = () =>
@@ -125,6 +125,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   const [showCapacityOverlay, setShowCapacityOverlay] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<TableColumnId, number>>(() => buildDefaultColumnWidths());
   const [columnPrefsLoaded, setColumnPrefsLoaded] = useState(false);
+  const [descriptionTooltip, setDescriptionTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const dragStateRef = useRef<{
     taskId: string;
     mode: DragMode;
@@ -476,6 +477,35 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     [columnWidths, readOnly]
   );
 
+  const hideDescriptionTooltip = useCallback(() => {
+    setDescriptionTooltip(null);
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      hideDescriptionTooltip();
+    };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [hideDescriptionTooltip]);
+
+  const showDescriptionTooltip = useCallback(
+    (text: string, target: HTMLElement) => {
+      if (!text.trim()) {
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      setDescriptionTooltip({
+        text,
+        x: rect.left,
+        y: rect.bottom + 6
+      });
+    },
+    []
+  );
+
   useEffect(() => {
     if (readOnly) {
       return;
@@ -752,6 +782,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   );
 
   return (
+    <>
     <section className={styles.planContainer} ref={containerRef}>
       <header className={styles.planHeader}>
         <div>
@@ -826,7 +857,11 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 </div>
               ))}
             </div>
-            <div className={styles.tableRows}>
+            <div
+              className={styles.tableRows}
+              onScroll={hideDescriptionTooltip}
+              onMouseLeave={hideDescriptionTooltip}
+            >
               {normalizedPlan.tasks.map((task) => {
               const rowDepthClass =
                 task.indent === 0 ? '' : task.indent === 1 ? styles.rowDepth1 : styles.rowDepth2;
@@ -878,9 +913,14 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                     value={task.name}
                     disabled={readOnly}
                     onChange={(event) => handleTaskFieldChange(task, 'name', event.target.value)}
+                    onFocus={hideDescriptionTooltip}
                   />
                 </div>
-                <div className={styles.cell}>
+                <div
+                  className={styles.cell}
+                  onMouseEnter={(event) => showDescriptionTooltip(task.description, event.currentTarget)}
+                  onMouseLeave={hideDescriptionTooltip}
+                >
                   <input
                     type="text"
                     value={task.description}
@@ -1018,6 +1058,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
               const left = rowOffset * pxPerDay;
               const color = task.color ?? DEFAULT_BAR_COLOR;
               const capacityOverlay = hasDates ? renderCapacityOverlay(task) : null;
+              const shouldShowBarLabel = !showCapacityOverlay;
               const barDepthClass =
                 task.indent === 0
                   ? styles.barRoot
@@ -1053,7 +1094,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                           />
                         </>
                       )}
-                      <span className={styles.barLabel}>{task.name}</span>
+                      {shouldShowBarLabel && <span className={styles.barLabel}>{task.name}</span>}
                     </div>
                   ) : (
                     <span className={styles.timelinePlaceholder}>Set start & end dates</span>
@@ -1073,6 +1114,17 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
         </div>
       </div>
     </section>
+    {descriptionTooltip &&
+      createPortal(
+        <div
+          className={styles.descriptionTooltip}
+          style={{ left: `${descriptionTooltip.x}px`, top: `${descriptionTooltip.y}px` }}
+        >
+          {descriptionTooltip.text}
+        </div>,
+        document.body
+      )}
+    </>
   );
 };
 
