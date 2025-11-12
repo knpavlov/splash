@@ -43,6 +43,12 @@
   cursor: pointer;
 }
 
+.toggleActive {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.8);
+  color: #1d4ed8;
+}
+
 .toolbar button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -242,6 +248,7 @@
   align-items: center;
   padding: 0 12px;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .barSelected {
@@ -254,6 +261,7 @@
   top: 0;
   bottom: 0;
   cursor: ew-resize;
+  z-index: 3;
 }
 
 .handleLeft {
@@ -268,12 +276,49 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: relative;
+  z-index: 2;
 }
 
 .timelinePlaceholder {
   color: #94a3b8;
   font-size: 12px;
   font-style: italic;
+}
+
+.capacityOverlayTrack {
+  position: absolute;
+  inset: 4px;
+  border-radius: 8px;
+  pointer-events: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.12);
+  z-index: 1;
+}
+
+.capacityOverlaySingle {
+  background: rgba(15, 23, 42, 0.25);
+}
+
+.capacityOverlaySegment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(15, 23, 42, 0.35);
+  padding: 0 4px;
+  min-width: 28px;
+}
+
+.capacityOverlaySegment span {
+  position: relative;
+  z-index: 1;
 }
 
 .dropZone {

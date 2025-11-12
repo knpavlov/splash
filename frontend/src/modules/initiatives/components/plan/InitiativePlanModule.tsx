@@ -66,6 +66,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [capacityEditor, setCapacityEditor] = useState<CapacityEditorState | null>(null);
+  const [showCapacityOverlay, setShowCapacityOverlay] = useState(false);
   const dragStateRef = useRef<{
     taskId: string;
     mode: DragMode;
@@ -288,6 +289,35 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     [emitChange, normalizedPlan, readOnly]
   );
 
+  useEffect(() => {
+    if (readOnly) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tagName = target.tagName.toLowerCase();
+        if (tagName === 'input' || tagName === 'textarea' || target.isContentEditable) {
+          return;
+        }
+      }
+      if (event.key === '=' || event.key === '+') {
+        event.preventDefault();
+        handleZoom(1);
+      } else if (event.key === '-' || event.key === '_') {
+        event.preventDefault();
+        handleZoom(-1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleZoom, readOnly]);
+
   const handleSplitDrag = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (readOnly) {
@@ -466,6 +496,74 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     [updateTask]
   );
 
+  const handleTimelineWheel = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      if (readOnly) {
+        return;
+      }
+      if (!(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+      event.preventDefault();
+      if (event.deltaY === 0) {
+        return;
+      }
+      handleZoom(event.deltaY < 0 ? 1 : -1);
+    },
+    [handleZoom, readOnly]
+  );
+
+  const renderCapacityOverlay = useCallback(
+    (task: InitiativePlanTask) => {
+      if (!showCapacityOverlay || !task.startDate || !task.endDate) {
+        return null;
+      }
+      const taskStart = parseDate(task.startDate);
+      const taskEnd = parseDate(task.endDate);
+      if (!taskStart || !taskEnd) {
+        return null;
+      }
+      const totalDays = Math.max(diffInDays(taskStart, taskEnd) + 1, 1);
+      if (task.capacityMode === 'variable' && task.capacitySegments.length) {
+        return (
+          <div className={styles.capacityOverlayTrack} aria-hidden="true">
+            {task.capacitySegments.map((segment) => {
+              const segmentStart = parseDate(segment.startDate);
+              const segmentEnd = parseDate(segment.endDate);
+              if (!segmentStart || !segmentEnd) {
+                return null;
+              }
+              const offset = Math.max(diffInDays(taskStart, segmentStart), 0);
+              const span = Math.max(diffInDays(segmentStart, segmentEnd) + 1, 1);
+              const left = (offset / totalDays) * 100;
+              const width = (span / totalDays) * 100;
+              return (
+                <div
+                  key={segment.id}
+                  className={styles.capacityOverlaySegment}
+                  style={{ left: `${left}%`, width: `${width}%` }}
+                >
+                  <span>{segment.capacity}</span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+      if (task.requiredCapacity !== null) {
+        return (
+          <div className={`${styles.capacityOverlayTrack} ${styles.capacityOverlaySingle}`} aria-hidden="true">
+            <div className={styles.capacityOverlaySegment} style={{ left: 0, width: '100%' }}>
+              <span>{task.requiredCapacity}</span>
+            </div>
+          </div>
+        );
+      }
+      return null;
+    },
+    [showCapacityOverlay]
+  );
+
   return (
     <section className={styles.planContainer} ref={containerRef}>
       <header className={styles.planHeader}>
@@ -500,6 +598,14 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
             disabled={readOnly || normalizedPlan.settings.zoomLevel <= PLAN_ZOOM_MIN}
           >
             Zoom out
+          </button>
+          <button
+            type="button"
+            className={showCapacityOverlay ? styles.toggleActive : undefined}
+            onClick={() => setShowCapacityOverlay((value) => !value)}
+            aria-pressed={showCapacityOverlay}
+          >
+            {showCapacityOverlay ? 'Hide capacity' : 'Show capacity'}
           </button>
         </div>
       </header>
@@ -647,6 +753,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
         <div
           className={styles.timelinePanel}
           ref={timelineRef}
+          onWheel={handleTimelineWheel}
         >
           <div className={styles.timelineHeader}>
             <div className={styles.monthRow}>
@@ -688,6 +795,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
               const width = Math.max(duration * pxPerDay, 6);
               const left = rowOffset * pxPerDay;
               const color = task.color ?? DEFAULT_BAR_COLOR;
+              const capacityOverlay = hasDates ? renderCapacityOverlay(task) : null;
               return (
                 <div
                   key={`timeline-${task.id}`}
@@ -704,6 +812,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                       onDoubleClick={(event) => handleCapacityMenu(event, task)}
                       onPointerDown={(event) => startBarDrag(event, task, 'move')}
                     >
+                      {capacityOverlay}
                       {!readOnly && (
                         <>
                           <span

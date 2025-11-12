@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { ApprovalTaskRow, InitiativesRepository } from './initiatives.repository.js';
 import { WorkstreamsRepository } from '../workstreams/workstreams.repository.js';
 import {
@@ -43,6 +43,8 @@ const sanitizeOptionalString = (value: unknown) => {
   }
   return null;
 };
+
+const hashPayload = (value: string) => createHash('sha1').update(value).digest('hex');
 
 const normalizeStageKey = (value: unknown): InitiativeStageKey => {
   if (typeof value === 'string') {
@@ -1071,8 +1073,8 @@ export class InitiativesService {
     if (previousPlan !== nextPlan) {
       trackedFields.push({
         field: 'execution-plan',
-        previousValue: null,
-        nextValue: null
+        previousValue: { digest: hashPayload(previousPlan) },
+        nextValue: { digest: hashPayload(nextPlan) }
       });
     }
 

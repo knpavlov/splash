@@ -178,6 +178,7 @@ const logFieldLabels: Record<string, string> = {
   recurringImpact: 'Recurring impact',
   created: 'Created',
   'stage-content': 'Stage details',
+  'execution-plan': 'Timeline',
   updated: 'Update'
 };
 
@@ -866,6 +867,9 @@ export const InitiativeProfile = ({
                   }
                   if (change.field === 'stage-content') {
                     return 'Stage content updated';
+                  }
+                  if (change.field === 'execution-plan') {
+                    return 'Timeline updated';
                   }
                   if (change.field === 'updated') {
                     return 'Details updated';
