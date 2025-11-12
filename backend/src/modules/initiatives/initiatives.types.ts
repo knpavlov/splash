@@ -51,6 +51,7 @@ export interface InitiativePlanCapacitySegment {
 export interface InitiativePlanTask {
   id: string;
   name: string;
+  description: string;
   startDate: string | null;
   endDate: string | null;
   responsible: string;

@@ -145,6 +145,7 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
   const base: InitiativePlanTask = {
     id: randomUUID(),
     name: '',
+    description: '',
     startDate: null,
     endDate: null,
     responsible: '',
@@ -186,6 +187,7 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
   return {
     id,
     name: typeof payload.name === 'string' ? payload.name.trim() : '',
+    description: typeof payload.description === 'string' ? payload.description.trim() : '',
     startDate,
     endDate,
     responsible: typeof payload.responsible === 'string' ? payload.responsible.trim() : '',

@@ -85,6 +85,7 @@ const normalizePlanSegment = (
 export const createEmptyPlanTask = (): InitiativePlanTask => ({
   id: generateId(),
   name: '',
+  description: '',
   startDate: null,
   endDate: null,
   responsible: '',
@@ -104,6 +105,7 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
   const payload = value as {
     id?: unknown;
     name?: unknown;
+    description?: unknown;
     startDate?: unknown;
     endDate?: unknown;
     responsible?: unknown;
@@ -140,6 +142,7 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
   return {
     id,
     name: typeof payload.name === 'string' ? payload.name.trim() : '',
+    description: typeof payload.description === 'string' ? payload.description.trim() : '',
     startDate,
     endDate,
     responsible: typeof payload.responsible === 'string' ? payload.responsible.trim() : '',
