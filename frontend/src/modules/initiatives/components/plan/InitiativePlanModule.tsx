@@ -27,6 +27,9 @@ interface InitiativePlanModuleProps {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const ROW_HEIGHT = 44;
 const ZOOM_SCALE = [6, 8, 10, 14, 18, 24, 32];
+const PLAN_HEIGHT_MIN = 320;
+const PLAN_HEIGHT_MAX = 900;
+const PLAN_HEIGHT_DEFAULT = 440;
 
 const formatDateInput = (value: Date) => value.toISOString().slice(0, 10);
 
@@ -126,6 +129,9 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   const [columnWidths, setColumnWidths] = useState<Record<TableColumnId, number>>(() => buildDefaultColumnWidths());
   const [columnPrefsLoaded, setColumnPrefsLoaded] = useState(false);
   const [descriptionTooltip, setDescriptionTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [planHeight, setPlanHeight] = useState(PLAN_HEIGHT_DEFAULT);
+  const [planHeightLoaded, setPlanHeightLoaded] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const dragStateRef = useRef<{
     taskId: string;
     mode: DragMode;
@@ -144,10 +150,9 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     maxWidth: number;
   } | null>(null);
 
-  const columnStorageKey = useMemo(
-    () => `${COLUMN_STORAGE_NAMESPACE}:${session?.accountId ?? 'guest'}`,
-    [session?.accountId]
-  );
+  const userKey = session?.accountId ?? 'guest';
+  const columnStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:${userKey}`, [userKey]);
+  const heightStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:height:${userKey}`, [userKey]);
 
   useEffect(() => {
     if (!selectedTaskId && normalizedPlan.tasks.length) {
@@ -198,6 +203,28 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     }
     window.localStorage.setItem(columnStorageKey, JSON.stringify(columnWidths));
   }, [columnPrefsLoaded, columnStorageKey, columnWidths]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      setPlanHeightLoaded(true);
+      return;
+    }
+    const raw = window.localStorage.getItem(heightStorageKey);
+    if (raw) {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) {
+        setPlanHeight(clamp(parsed, PLAN_HEIGHT_MIN, PLAN_HEIGHT_MAX));
+      }
+    }
+    setPlanHeightLoaded(true);
+  }, [heightStorageKey]);
+
+  useEffect(() => {
+    if (!planHeightLoaded || typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem(heightStorageKey, String(planHeight));
+  }, [planHeightLoaded, heightStorageKey, planHeight]);
 
   const pxPerDay = useMemo(
     () => ZOOM_SCALE[clamp(normalizedPlan.settings.zoomLevel, PLAN_ZOOM_MIN, PLAN_ZOOM_MAX)],
@@ -477,6 +504,29 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     [columnWidths, readOnly]
   );
 
+  const startHeightResize = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!planHeightLoaded) {
+        return;
+      }
+      event.preventDefault();
+      hideDescriptionTooltip();
+      const startY = event.clientY;
+      const startHeight = planHeight;
+      const handleMove = (moveEvent: PointerEvent) => {
+        const delta = moveEvent.clientY - startY;
+        setPlanHeight(clamp(startHeight + delta, PLAN_HEIGHT_MIN, PLAN_HEIGHT_MAX));
+      };
+      const handleUp = () => {
+        window.removeEventListener('pointermove', handleMove);
+        window.removeEventListener('pointerup', handleUp);
+      };
+      window.addEventListener('pointermove', handleMove);
+      window.addEventListener('pointerup', handleUp);
+    },
+    [planHeight, planHeightLoaded]
+  );
+
   const hideDescriptionTooltip = useCallback(() => {
     setDescriptionTooltip(null);
   }, []);
@@ -490,6 +540,21 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       window.removeEventListener('scroll', handleScroll, true);
     };
   }, [hideDescriptionTooltip]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    const previousOverflow = document.body.style.overflow;
+    if (isFullscreen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isFullscreen]);
 
   const showDescriptionTooltip = useCallback(
     (text: string, target: HTMLElement) => {
@@ -602,7 +667,27 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           if (state.mode === 'move') {
             const newStart = formatDateInput(addDays(start, deltaDays));
             const newEnd = formatDateInput(addDays(end, deltaDays));
-            return { ...taskToUpdate, startDate: newStart, endDate: newEnd };
+            const nextSegments =
+              taskToUpdate.capacitySegments.length === 0
+                ? taskToUpdate.capacitySegments
+                : taskToUpdate.capacitySegments.map((segment) => {
+                    const segmentStart = parseDate(segment.startDate);
+                    const segmentEnd = parseDate(segment.endDate);
+                    if (!segmentStart || !segmentEnd) {
+                      return segment;
+                    }
+                    return {
+                      ...segment,
+                      startDate: formatDateInput(addDays(segmentStart, deltaDays)),
+                      endDate: formatDateInput(addDays(segmentEnd, deltaDays))
+                    };
+                  });
+            return {
+              ...taskToUpdate,
+              startDate: newStart,
+              endDate: newEnd,
+              capacitySegments: nextSegments
+            };
           }
           if (state.mode === 'resize-start') {
             const candidate = addDays(start, deltaDays);
@@ -781,9 +866,11 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     [showCapacityOverlay]
   );
 
-  return (
-    <>
-    <section className={styles.planContainer} ref={containerRef}>
+  const planSection = (
+    <section
+      className={`${styles.planContainer} ${isFullscreen ? styles.fullscreenContainer : ''}`}
+      ref={containerRef}
+    >
       <header className={styles.planHeader}>
         <div>
           <h3>Implementation plan</h3>
@@ -825,6 +912,15 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           >
             {showCapacityOverlay ? 'Hide capacity' : 'Show capacity'}
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              hideDescriptionTooltip();
+              setIsFullscreen((value) => !value);
+            }}
+          >
+            {isFullscreen ? 'Exit full screen' : 'Full screen'}
+          </button>
         </div>
       </header>
       {infoMessage && (
@@ -835,12 +931,19 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           </button>
         </div>
       )}
-      <div className={styles.planBody}>
+      <div
+        className={styles.planBody}
+        style={{ height: `${planHeight}px` }}
+      >
         <div
           className={styles.tablePanel}
           style={{ width: `${normalizedPlan.settings.splitRatio * 100}%` }}
         >
-          <div className={styles.tableScroll}>
+          <div
+            className={styles.tableScroll}
+            onScroll={hideDescriptionTooltip}
+            onMouseLeave={hideDescriptionTooltip}
+          >
             <div
               className={styles.tableHeader}
               style={{ gridTemplateColumns: tableGridTemplate }}
@@ -857,11 +960,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 </div>
               ))}
             </div>
-            <div
-              className={styles.tableRows}
-              onScroll={hideDescriptionTooltip}
-              onMouseLeave={hideDescriptionTooltip}
-            >
+            <div className={styles.tableRows}>
               {normalizedPlan.tasks.map((task) => {
               const rowDepthClass =
                 task.indent === 0 ? '' : task.indent === 1 ? styles.rowDepth1 : styles.rowDepth2;
@@ -1113,17 +1212,28 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           )}
         </div>
       </div>
+      <div
+        className={styles.heightResizer}
+        onPointerDown={startHeightResize}
+      />
     </section>
-    {descriptionTooltip &&
-      createPortal(
-        <div
-          className={styles.descriptionTooltip}
-          style={{ left: `${descriptionTooltip.x}px`, top: `${descriptionTooltip.y}px` }}
-        >
-          {descriptionTooltip.text}
-        </div>,
-        document.body
-      )}
+  );
+
+  return (
+    <>
+      {isFullscreen
+        ? createPortal(<div className={styles.fullscreenOverlay}>{planSection}</div>, document.body)
+        : planSection}
+      {descriptionTooltip &&
+        createPortal(
+          <div
+            className={styles.descriptionTooltip}
+            style={{ left: `${descriptionTooltip.x}px`, top: `${descriptionTooltip.y}px` }}
+          >
+            {descriptionTooltip.text}
+          </div>,
+          document.body
+        )}
     </>
   );
 };

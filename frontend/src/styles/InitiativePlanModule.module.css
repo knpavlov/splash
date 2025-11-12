@@ -81,7 +81,7 @@
 
 .planBody {
   display: flex;
-  min-height: 360px;
+  min-height: 320px;
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid rgba(148, 163, 184, 0.3);
@@ -92,6 +92,7 @@
   display: flex;
   flex-direction: column;
   background: rgba(249, 250, 251, 0.9);
+  height: 100%;
 }
 
 .tableScroll {
@@ -99,6 +100,7 @@
   flex-direction: column;
   flex: 1;
   overflow-x: auto;
+  height: 100%;
 }
 
 .tableHeader {
@@ -107,12 +109,14 @@
   padding: 12px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.3);
   min-width: max-content;
+  min-height: 56px;
+  align-items: flex-end;
 }
 
 .tableRows {
   overflow-y: auto;
-  max-height: 460px;
   min-width: max-content;
+  flex: 1;
 }
 
 .tableRow {
@@ -244,7 +248,7 @@
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.35);
   font-size: 13px;
   line-height: 1.4;
-  z-index: 60;
+  z-index: 80;
   pointer-events: none;
 }
 
@@ -254,11 +258,29 @@
   background: linear-gradient(180deg, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.4));
 }
 
+.heightResizer {
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  margin-top: 8px;
+}
+
+.heightResizer::before {
+  content: '';
+  width: 60px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.5);
+}
+
 .timelinePanel {
   flex: 1;
-  overflow: auto;
-  position: relative;
   padding: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .timelineHeader {
@@ -304,6 +326,8 @@
       rgba(148, 163, 184, 0.1) 1px,
       transparent 1px
     );
+  flex: 1;
+  overflow: auto;
 }
 
 .timelineRow {
@@ -437,6 +461,23 @@
 .capacityOverlaySegment span {
   position: relative;
   z-index: 1;
+}
+
+.fullscreenOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 70;
+}
+
+.fullscreenContainer {
+  width: min(1400px, 100%);
+  height: min(95vh, 980px);
+  overflow: hidden;
 }
 
 .dropZone {
