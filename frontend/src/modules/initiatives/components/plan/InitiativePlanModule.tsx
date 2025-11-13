@@ -364,14 +364,6 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     [columnWidths, orderedColumns]
   );
 
-  const columnPositions = useMemo(() => {
-    const positions = {} as Record<TableColumnId, number>;
-    orderedColumns.forEach((column, index) => {
-      positions[column.id] = index + 1;
-    });
-    return positions;
-  }, [orderedColumns]);
-
   const selectedTask = useMemo(
     () => normalizedPlan.tasks.find((task) => task.id === selectedTaskId) ?? null,
     [normalizedPlan.tasks, selectedTaskId]
@@ -1387,214 +1379,231 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 };
                 const inputDisplayValue =
                   draftValue !== undefined ? draftValue : String(Number.isFinite(baseProgressValue) ? baseProgressValue : 0);
-                const dragColumnStyle = columnPositions.drag ? { gridColumn: columnPositions.drag } : undefined;
-                const nameColumnStyle = columnPositions.name ? { gridColumn: columnPositions.name } : undefined;
-                const descriptionColumnStyle = columnPositions.description
-                  ? { gridColumn: columnPositions.description }
-                  : undefined;
-                const startColumnStyle = columnPositions.start ? { gridColumn: columnPositions.start } : undefined;
-                const endColumnStyle = columnPositions.end ? { gridColumn: columnPositions.end } : undefined;
-                const responsibleColumnStyle = columnPositions.responsible
-                  ? { gridColumn: columnPositions.responsible }
-                  : undefined;
-                const progressColumnStyle = columnPositions.progress
-                  ? { gridColumn: columnPositions.progress }
-                  : undefined;
-                const capacityColumnStyle = columnPositions.capacity
-                  ? { gridColumn: columnPositions.capacity }
-                  : undefined;
                 return (
-                <div
-                  key={task.id}
-                  className={`${styles.tableRow} ${rowDepthClass} ${
-                    selectedTaskId === task.id ? styles.rowSelected : ''
-                  }`}
-                  style={{ gridTemplateColumns: tableGridTemplate, height: `${ROW_HEIGHT}px` }}
-                  onClick={() => setSelectedTaskId(task.id)}
-                  onDragOver={(event) => {
-                    if (readOnly || !dragTaskId || dragTaskId === task.id) {
-                      return;
-                    }
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = 'move';
-                  }}
-                  onDrop={(event) => {
-                    if (readOnly) {
-                      return;
-                    }
-                    event.preventDefault();
-                    if (dragTaskId) {
-                      moveTaskBlock(dragTaskId, task.id);
-                      setDragTaskId(null);
-                    }
-                  }}
-                >
-                  <button
-                    type="button"
-                    className={styles.dragHandle}
-                    draggable={!readOnly}
-                    style={dragColumnStyle}
-                  onDragStart={(event) => {
-                    setDragTaskId(task.id);
-                    event.dataTransfer.setData('text/plain', task.id);
-                    event.dataTransfer.effectAllowed = 'move';
-                  }}
-                  onDragEnd={() => setDragTaskId(null)}
-                >
-                  ⋮⋮
-                </button>
-                <div className={styles.taskNameCell} style={nameColumnStyle}>
-                  {hasChildren ? (
-                    <button
-                      type="button"
-                      className={`${styles.collapseToggle} ${isCollapsed ? styles.collapseToggleCollapsed : ''}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleTaskCollapse(task.id);
-                      }}
-                      aria-label={isCollapsed ? 'Expand task children' : 'Collapse task children'}
-                      aria-expanded={!isCollapsed}
-                    >
-                      <span className={styles.collapseIcon} />
-                    </button>
-                  ) : (
-                    <span className={styles.collapseSpacer} />
-                  )}
-                  <span style={{ marginLeft: task.indent * 16 }} className={styles.indentGuide} />
-                  <input
-                    type="text"
-                    value={task.name}
-                    disabled={readOnly}
-                    onChange={(event) => handleTaskFieldChange(task, 'name', event.target.value)}
-                    onFocus={hideDescriptionTooltip}
-                  />
-                </div>
-                <div
-                  className={styles.cell}
-                  style={descriptionColumnStyle}
-                  onMouseEnter={(event) => showDescriptionTooltip(task.description, event.currentTarget)}
-                  onMouseLeave={hideDescriptionTooltip}
-                >
-                  <input
-                    type="text"
-                    value={task.description}
-                    disabled={readOnly}
-                    placeholder="Short summary"
-                    onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
-                  />
-                </div>
-                <div className={styles.cell} style={startColumnStyle}>
-                  <input
-                    type="date"
-                    value={task.startDate ?? ''}
-                    disabled={readOnly}
-                    onChange={(event) => handleTaskFieldChange(task, 'startDate', event.target.value)}
-                  />
-                </div>
-                <div className={styles.cell} style={endColumnStyle}>
-                  <input
-                    type="date"
-                    value={task.endDate ?? ''}
-                    disabled={readOnly}
-                    onChange={(event) => handleTaskFieldChange(task, 'endDate', event.target.value)}
-                  />
-                </div>
-                <div className={styles.cell} style={responsibleColumnStyle}>
-                  <select
-                    value={task.responsible}
-                    disabled={readOnly}
-                    onChange={(event) => handleTaskFieldChange(task, 'responsible', event.target.value)}
-                  >
-                    <option value="">Unassigned</option>
-                    {RESPONSIBLE_PLACEHOLDERS.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                    {hasCustomResponsible && (
-                      <option value={task.responsible}>{task.responsible}</option>
-                    )}
-                  </select>
-                </div>
-                <div className={`${styles.cell} ${styles.progressCell}`} style={progressColumnStyle}>
                   <div
-                    className={`${styles.progressDial} ${isAutoProgress ? styles.progressDialAuto : ''}`}
-                    style={progressDialStyle}
-                    title={
-                      isAutoProgress
-                        ? 'Completion % is calculated from child tasks'
-                        : 'Edit completion percentage'
-                    }
+                    key={task.id}
+                    className={`${styles.tableRow} ${rowDepthClass} ${
+                      selectedTaskId === task.id ? styles.rowSelected : ''
+                    }`}
+                    style={{ gridTemplateColumns: tableGridTemplate, height: `${ROW_HEIGHT}px` }}
+                    onClick={() => setSelectedTaskId(task.id)}
+                    onDragOver={(event) => {
+                      if (readOnly || !dragTaskId || dragTaskId === task.id) {
+                        return;
+                      }
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(event) => {
+                      if (readOnly) {
+                        return;
+                      }
+                      event.preventDefault();
+                      if (dragTaskId) {
+                        moveTaskBlock(dragTaskId, task.id);
+                        setDragTaskId(null);
+                      }
+                    }}
                   >
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      className={styles.progressInput}
-                      value={inputDisplayValue}
-                      disabled={readOnly || isAutoProgress}
-                      onFocus={(event) => {
-                        if (readOnly || isAutoProgress) {
-                          return;
-                        }
-                        event.currentTarget.select();
-                        if (baseProgressValue === 0) {
-                          setProgressDrafts((prev) => ({
-                            ...prev,
-                            [task.id]: ''
-                          }));
-                        }
-                      }}
-                      onChange={(event) => {
-                        if (readOnly || isAutoProgress) {
-                          return;
-                        }
-                        const digitsOnly = event.target.value.replace(/[^0-9]/g, '');
-                        if (task.id in progressDrafts || baseProgressValue === 0) {
-                          setProgressDrafts((prev) => ({
-                            ...prev,
-                            [task.id]: digitsOnly
-                          }));
-                        }
-                        if (!digitsOnly) {
-                          return;
-                        }
-                        handleTaskFieldChange(task, 'progress', digitsOnly);
-                      }}
-                      onBlur={(event) => {
-                        if (readOnly || isAutoProgress) {
-                          return;
-                        }
-                        const digitsOnly = event.target.value.replace(/[^0-9]/g, '');
-                        handleTaskFieldChange(task, 'progress', digitsOnly ? digitsOnly : '0');
-                        if (task.id in progressDrafts || baseProgressValue === 0) {
-                          setProgressDrafts((prev) => {
-                            if (!(task.id in prev)) {
-                              return prev;
-                            }
-                            const next = { ...prev };
-                            delete next[task.id];
-                            return next;
-                          });
-                        }
-                      }}
-                    />
+                    {orderedColumns.map((column) => {
+                      switch (column.id) {
+                        case 'drag':
+                          return (
+                            <button
+                              key={`${task.id}-drag`}
+                              type="button"
+                              className={styles.dragHandle}
+                              draggable={!readOnly}
+                              onDragStart={(event) => {
+                                setDragTaskId(task.id);
+                                event.dataTransfer.setData('text/plain', task.id);
+                                event.dataTransfer.effectAllowed = 'move';
+                              }}
+                              onDragEnd={() => setDragTaskId(null)}
+                              aria-label="Drag to reorder"
+                            >
+                              <span aria-hidden="true">??</span>
+                            </button>
+                          );
+                        case 'name':
+                          return (
+                            <div key={`${task.id}-name`} className={styles.taskNameCell}>
+                              {hasChildren ? (
+                                <button
+                                  type="button"
+                                  className={`${styles.collapseToggle} ${
+                                    isCollapsed ? styles.collapseToggleCollapsed : ''
+                                  }`}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    toggleTaskCollapse(task.id);
+                                  }}
+                                  aria-label={isCollapsed ? 'Expand task children' : 'Collapse task children'}
+                                  aria-expanded={!isCollapsed}
+                                >
+                                  <span className={styles.collapseIcon} />
+                                </button>
+                              ) : (
+                                <span className={styles.collapseSpacer} />
+                              )}
+                              <span style={{ marginLeft: task.indent * 16 }} className={styles.indentGuide} />
+                              <input
+                                type="text"
+                                value={task.name}
+                                disabled={readOnly}
+                                onChange={(event) => handleTaskFieldChange(task, 'name', event.target.value)}
+                                onFocus={hideDescriptionTooltip}
+                              />
+                            </div>
+                          );
+                        case 'description':
+                          return (
+                            <div
+                              key={`${task.id}-description`}
+                              className={styles.cell}
+                              onMouseEnter={(event) => showDescriptionTooltip(task.description, event.currentTarget)}
+                              onMouseLeave={hideDescriptionTooltip}
+                            >
+                              <input
+                                type="text"
+                                value={task.description}
+                                disabled={readOnly}
+                                placeholder="Short summary"
+                                onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
+                              />
+                            </div>
+                          );
+                        case 'start':
+                          return (
+                            <div key={`${task.id}-start`} className={styles.cell}>
+                              <input
+                                type="date"
+                                value={task.startDate ?? ''}
+                                disabled={readOnly}
+                                onChange={(event) => handleTaskFieldChange(task, 'startDate', event.target.value)}
+                              />
+                            </div>
+                          );
+                        case 'end':
+                          return (
+                            <div key={`${task.id}-end`} className={styles.cell}>
+                              <input
+                                type="date"
+                                value={task.endDate ?? ''}
+                                disabled={readOnly}
+                                onChange={(event) => handleTaskFieldChange(task, 'endDate', event.target.value)}
+                              />
+                            </div>
+                          );
+                        case 'responsible':
+                          return (
+                            <div key={`${task.id}-responsible`} className={styles.cell}>
+                              <select
+                                value={task.responsible}
+                                disabled={readOnly}
+                                onChange={(event) => handleTaskFieldChange(task, 'responsible', event.target.value)}
+                              >
+                                <option value="">Unassigned</option>
+                                {RESPONSIBLE_PLACEHOLDERS.map((name) => (
+                                  <option key={name} value={name}>
+                                    {name}
+                                  </option>
+                                ))}
+                                {hasCustomResponsible && (
+                                  <option value={task.responsible}>{task.responsible}</option>
+                                )}
+                              </select>
+                            </div>
+                          );
+                        case 'progress':
+                          return (
+                            <div key={`${task.id}-progress`} className={`${styles.cell} ${styles.progressCell}`}>
+                              <div
+                                className={`${styles.progressDial} ${isAutoProgress ? styles.progressDialAuto : ''}`}
+                                style={progressDialStyle}
+                                title={
+                                  isAutoProgress
+                                    ? 'Completion % is calculated from child tasks'
+                                    : 'Edit completion percentage'
+                                }
+                              >
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  className={styles.progressInput}
+                                  value={inputDisplayValue}
+                                  disabled={readOnly || isAutoProgress}
+                                  onFocus={(event) => {
+                                    if (readOnly || isAutoProgress) {
+                                      return;
+                                    }
+                                    event.currentTarget.select();
+                                    if (baseProgressValue === 0) {
+                                      setProgressDrafts((prev) => ({
+                                        ...prev,
+                                        [task.id]: ''
+                                      }));
+                                    }
+                                  }}
+                                  onChange={(event) => {
+                                    if (readOnly || isAutoProgress) {
+                                      return;
+                                    }
+                                    const digitsOnly = event.target.value.replace(/[^0-9]/g, '');
+                                    if (task.id in progressDrafts || baseProgressValue === 0) {
+                                      setProgressDrafts((prev) => ({
+                                        ...prev,
+                                        [task.id]: digitsOnly
+                                      }));
+                                    }
+                                    if (!digitsOnly) {
+                                      return;
+                                    }
+                                    handleTaskFieldChange(task, 'progress', digitsOnly);
+                                  }}
+                                  onBlur={(event) => {
+                                    if (readOnly || isAutoProgress) {
+                                      return;
+                                    }
+                                    const digitsOnly = event.target.value.replace(/[^0-9]/g, '');
+                                    handleTaskFieldChange(task, 'progress', digitsOnly ? digitsOnly : '0');
+                                    if (task.id in progressDrafts || baseProgressValue === 0) {
+                                      setProgressDrafts((prev) => {
+                                        if (!(task.id in prev)) {
+                                          return prev;
+                                        }
+                                        const nextDrafts = { ...prev };
+                                        delete nextDrafts[task.id];
+                                        return nextDrafts;
+                                      });
+                                    }
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        case 'capacity':
+                          return (
+                            <div key={`${task.id}-capacity`} className={styles.cell}>
+                              <input
+                                type="number"
+                                value={
+                                  task.capacityMode === 'variable'
+                                    ? ''
+                                    : task.requiredCapacity ?? ''
+                                }
+                                placeholder={task.capacityMode === 'variable' ? 'Variable' : '0'}
+                                disabled={readOnly}
+                                onChange={(event) => handleTaskFieldChange(task, 'requiredCapacity', event.target.value)}
+                              />
+                            </div>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
                   </div>
-                </div>
-                <div className={styles.cell} style={capacityColumnStyle}>
-                  <input
-                    type="number"
-                    value={
-                      task.capacityMode === 'variable'
-                        ? ''
-                        : task.requiredCapacity ?? ''
-                    }
-                    placeholder={task.capacityMode === 'variable' ? 'Variable' : '0'}
-                    disabled={readOnly}
-                    onChange={(event) => handleTaskFieldChange(task, 'requiredCapacity', event.target.value)}
-                  />
-                </div>
-                </div>
                 );
               })}
               {dragTaskId && (
@@ -1997,3 +2006,4 @@ const CapacityEditorPopover = ({ task, onClose, onSubmit, onColorChange }: Capac
     document.body
   );
 };
+
