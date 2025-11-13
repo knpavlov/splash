@@ -107,10 +107,10 @@
 .tableHeader {
   display: grid;
   gap: 8px;
-  padding: 12px;
+  padding: 16px 12px 12px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.3);
   min-width: max-content;
-  min-height: 48px;
+  min-height: 53px;
   align-items: flex-end;
 }
 
@@ -239,6 +239,83 @@
 .cell select:disabled {
   background: rgba(248, 250, 252, 0.8);
   color: #94a3b8;
+}
+
+.progressCell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.progressDial {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  background-color: rgba(148, 163, 184, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.progressDial::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.15);
+  pointer-events: none;
+}
+
+.progressDial:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.15);
+}
+
+.progressDialAuto {
+  box-shadow:
+    inset 0 0 0 1px rgba(148, 163, 184, 0.25),
+    inset 0 0 0 4px rgba(124, 58, 237, 0.18);
+}
+
+.progressCell .progressInput {
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+  width: 32px;
+  position: relative;
+  z-index: 1;
+  color: #0f172a;
+  padding: 0;
+  -moz-appearance: textfield;
+.progressCell .progressInput:focus {
+  outline: none;
+}
+
+.progressCell .progressInput:disabled {
+  color: #475569;
+  cursor: default;
+}
+
+.progressCell .progressInput::-webkit-outer-spin-button,
+.progressCell .progressInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.progressSuffix {
+  font-size: 11px;
+  color: #94a3b8;
+  position: relative;
+  z-index: 1;
+  margin-top: 2px;
 }
 
 .descriptionTooltip {

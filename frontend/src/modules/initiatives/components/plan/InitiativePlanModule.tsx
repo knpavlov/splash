@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../auth/AuthContext';
 import styles from '../../../../styles/InitiativePlanModule.module.css';
@@ -793,6 +793,9 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           return { ...current, startDate: nextStart, endDate: nextEnd };
         }
         if (field === 'progress') {
+          if (autoProgressTaskIds.has(task.id)) {
+            return current;
+          }
           const numeric = clamp(Number(value) || 0, 0, 100);
           return { ...current, progress: numeric };
         }
@@ -811,7 +814,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
         return { ...current, [field]: value };
       });
     },
-    [readOnly, updateTask]
+    [autoProgressTaskIds, readOnly, updateTask]
   );
 
   const handleCapacityMenu = useCallback(
@@ -921,6 +924,83 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     [showCapacityOverlay]
   );
 
+  const progressMeta = useMemo(() => {
+    const result = new Map<string, { value: number; isAuto: boolean }>();
+    const tasks = normalizedPlan.tasks;
+    const clampProgress = (value: number | null | undefined) => {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return 0;
+      }
+      return clamp(Math.round(Number(value)), 0, 100);
+    };
+
+    const walk = (startIndex: number): { nextIndex: number; value: number } => {
+      const task = tasks[startIndex];
+      const baseProgress = clampProgress(task.progress);
+      let cursor = startIndex + 1;
+      let childSum = 0;
+      let childCount = 0;
+
+      while (cursor < tasks.length && tasks[cursor].indent > task.indent) {
+        const childIndex = cursor;
+        const childTask = tasks[childIndex];
+        const childResult = walk(childIndex);
+        if (childTask.indent === task.indent + 1) {
+          childSum += childResult.value;
+          childCount += 1;
+        }
+        cursor = childResult.nextIndex;
+      }
+
+      const hasChildren = childCount > 0;
+      const value = hasChildren ? Math.round(childSum / Math.max(childCount, 1)) : baseProgress;
+      result.set(task.id, { value, isAuto: hasChildren });
+      return { nextIndex: Math.max(cursor, startIndex + 1), value };
+    };
+
+    let index = 0;
+    while (index < tasks.length) {
+      const { nextIndex } = walk(index);
+      index = nextIndex;
+    }
+
+    return result;
+  }, [normalizedPlan.tasks]);
+
+  const autoProgressTaskIds = useMemo(() => {
+    const set = new Set<string>();
+    progressMeta.forEach((meta, taskId) => {
+      if (meta.isAuto) {
+        set.add(taskId);
+      }
+    });
+    return set;
+  }, [progressMeta]);
+
+  useEffect(() => {
+    if (readOnly) {
+      return;
+    }
+    if (!progressMeta.size) {
+      return;
+    }
+    let changed = false;
+    const nextTasks = normalizedPlan.tasks.map((task) => {
+      const meta = progressMeta.get(task.id);
+      if (meta?.isAuto && task.progress !== meta.value) {
+        changed = true;
+        return {
+          ...task,
+          progress: meta.value
+        };
+      }
+      return task;
+    });
+    if (changed) {
+      setTasks(nextTasks);
+    }
+  }, [normalizedPlan.tasks, progressMeta, readOnly, setTasks]);
+
   const planSection = (
     <section
       className={`${styles.planContainer} ${isFullscreen ? styles.fullscreenContainer : ''}`}
@@ -1017,10 +1097,18 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
             </div>
             <div className={styles.tableRows} ref={tableRowsRef}>
               {normalizedPlan.tasks.map((task) => {
-              const rowDepthClass =
-                task.indent === 0 ? '' : task.indent === 1 ? styles.rowDepth1 : styles.rowDepth2;
-              const hasCustomResponsible =
-                !!task.responsible && !RESPONSIBLE_PLACEHOLDER_SET.has(task.responsible);
+                const rowDepthClass =
+                  task.indent === 0 ? '' : task.indent === 1 ? styles.rowDepth1 : styles.rowDepth2;
+                const hasCustomResponsible =
+                  !!task.responsible && !RESPONSIBLE_PLACEHOLDER_SET.has(task.responsible);
+                const progressInfo = progressMeta.get(task.id);
+                const progressValue = progressInfo ? progressInfo.value : clamp(task.progress ?? 0, 0, 100);
+                const isAutoProgress = progressInfo?.isAuto ?? false;
+                const progressAngle = (progressValue / 100) * 360;
+                const dialColor = isAutoProgress ? '#7c3aed' : '#2563eb';
+                const progressDialStyle: CSSProperties = {
+                  backgroundImage: `conic-gradient(${dialColor} 0deg ${progressAngle}deg, rgba(148, 163, 184, 0.25) ${progressAngle}deg 360deg)`
+                };
                 return (
                 <div
                   key={task.id}
@@ -1116,15 +1204,27 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                     )}
                   </select>
                 </div>
-                <div className={styles.cell}>
-                  <input
-                    type="number"
-                    value={task.progress}
-                    min={0}
-                    max={100}
-                    disabled={readOnly}
-                    onChange={(event) => handleTaskFieldChange(task, 'progress', event.target.value)}
-                  />
+                <div className={`${styles.cell} ${styles.progressCell}`}>
+                  <div
+                    className={`${styles.progressDial} ${isAutoProgress ? styles.progressDialAuto : ''}`}
+                    style={progressDialStyle}
+                    title={
+                      isAutoProgress
+                        ? 'Completion % is calculated from child tasks'
+                        : 'Edit completion percentage'
+                    }
+                  >
+                    <input
+                      type="number"
+                      className={styles.progressInput}
+                      value={progressValue}
+                      min={0}
+                      max={100}
+                      disabled={readOnly || isAutoProgress}
+                      onChange={(event) => handleTaskFieldChange(task, 'progress', event.target.value)}
+                    />
+                    <span className={styles.progressSuffix}>%</span>
+                  </div>
                 </div>
                 <div className={styles.cell}>
                   <input
@@ -1161,13 +1261,11 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
             </div>
           </div>
         </div>
-        {!isFullscreen && (
-          <div
-            className={styles.resizer}
-            onPointerDown={handleSplitDrag}
-            role="presentation"
-          />
-        )}
+        <div
+          className={styles.resizer}
+          onPointerDown={handleSplitDrag}
+          role="presentation"
+        />
         <div
           className={styles.timelinePanel}
           ref={timelineRef}
