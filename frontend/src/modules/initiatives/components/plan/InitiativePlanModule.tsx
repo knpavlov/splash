@@ -1,4 +1,4 @@
-import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CSSProperties, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../auth/AuthContext';
 import styles from '../../../../styles/InitiativePlanModule.module.css';
@@ -89,13 +89,13 @@ interface TableColumnConfig {
 
 const TABLE_COLUMNS: TableColumnConfig[] = [
   { id: 'drag', label: '', defaultWidth: 36, minWidth: 36, maxWidth: 36, resizable: false },
-  { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 110, maxWidth: 480, resizable: true },
-  { id: 'description', label: 'Description', defaultWidth: 240, minWidth: 130, maxWidth: 520, resizable: true },
-  { id: 'start', label: 'Start', defaultWidth: 150, minWidth: 90, maxWidth: 260, resizable: true },
-  { id: 'end', label: 'End', defaultWidth: 150, minWidth: 90, maxWidth: 260, resizable: true },
-  { id: 'responsible', label: 'Responsible', defaultWidth: 200, minWidth: 130, maxWidth: 320, resizable: true },
-  { id: 'progress', label: 'Status %', defaultWidth: 140, minWidth: 80, maxWidth: 220, resizable: true },
-  { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 110, maxWidth: 280, resizable: true }
+  { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 60, maxWidth: 480, resizable: true },
+  { id: 'description', label: 'Description', defaultWidth: 240, minWidth: 70, maxWidth: 520, resizable: true },
+  { id: 'start', label: 'Start', defaultWidth: 150, minWidth: 50, maxWidth: 260, resizable: true },
+  { id: 'end', label: 'End', defaultWidth: 150, minWidth: 50, maxWidth: 260, resizable: true },
+  { id: 'responsible', label: 'Responsible', defaultWidth: 200, minWidth: 70, maxWidth: 320, resizable: true },
+  { id: 'progress', label: 'Status %', defaultWidth: 140, minWidth: 45, maxWidth: 220, resizable: true },
+  { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 60, maxWidth: 280, resizable: true }
 ] as const;
 
 const buildDefaultColumnWidths = () =>
@@ -103,6 +103,13 @@ const buildDefaultColumnWidths = () =>
     acc[column.id] = column.defaultWidth;
     return acc;
   }, {} as Record<TableColumnId, number>);
+
+const TABLE_COLUMN_MAP = TABLE_COLUMNS.reduce<Record<TableColumnId, TableColumnConfig>>((acc, column) => {
+  acc[column.id] = column;
+  return acc;
+}, {} as Record<TableColumnId, TableColumnConfig>);
+
+const DEFAULT_COLUMN_ORDER = TABLE_COLUMNS.map((column) => column.id);
 
 const COLUMN_STORAGE_NAMESPACE = 'initiative-plan:columns';
 
@@ -128,10 +135,12 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   const [showCapacityOverlay, setShowCapacityOverlay] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<TableColumnId, number>>(() => buildDefaultColumnWidths());
   const [columnPrefsLoaded, setColumnPrefsLoaded] = useState(false);
+  const [columnOrder, setColumnOrder] = useState<TableColumnId[]>(DEFAULT_COLUMN_ORDER);
   const [descriptionTooltip, setDescriptionTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [planHeight, setPlanHeight] = useState(PLAN_HEIGHT_DEFAULT);
   const [planHeightLoaded, setPlanHeightLoaded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(new Set());
   const [timelineTooltip, setTimelineTooltip] = useState<{
     taskId: string;
     name: string;
@@ -143,6 +152,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     y: number;
   } | null>(null);
   const [progressDrafts, setProgressDrafts] = useState<Record<string, string>>({});
+  const [dragColumnId, setDragColumnId] = useState<TableColumnId | null>(null);
   const dragStateRef = useRef<{
     taskId: string;
     mode: DragMode;
@@ -167,6 +177,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   const userKey = session?.accountId ?? 'guest';
   const columnStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:${userKey}`, [userKey]);
   const heightStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:height:${userKey}`, [userKey]);
+  const columnOrderStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:order:${userKey}`, [userKey]);
 
   useEffect(() => {
     if (!selectedTaskId && normalizedPlan.tasks.length) {
@@ -217,6 +228,35 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     }
     window.localStorage.setItem(columnStorageKey, JSON.stringify(columnWidths));
   }, [columnPrefsLoaded, columnStorageKey, columnWidths]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const raw = window.localStorage.getItem(columnOrderStorageKey);
+    if (!raw) {
+      setColumnOrder(DEFAULT_COLUMN_ORDER);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as TableColumnId[];
+      if (Array.isArray(parsed)) {
+        const filtered = parsed.filter((id): id is TableColumnId => Boolean(TABLE_COLUMN_MAP[id]));
+        const seen = new Set<TableColumnId>(filtered);
+        const merged = [...filtered, ...DEFAULT_COLUMN_ORDER.filter((id) => !seen.has(id))];
+        setColumnOrder(merged);
+      }
+    } catch {
+      setColumnOrder(DEFAULT_COLUMN_ORDER);
+    }
+  }, [columnOrderStorageKey]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem(columnOrderStorageKey, JSON.stringify(columnOrder));
+  }, [columnOrder, columnOrderStorageKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -292,19 +332,103 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     };
   }, [normalizedPlan.tasks, pxPerDay]);
 
+  const orderedColumns = useMemo(() => {
+    const seen = new Set<TableColumnId>();
+    const sequence: TableColumnConfig[] = [];
+    columnOrder.forEach((columnId) => {
+      if (seen.has(columnId)) {
+        return;
+      }
+      const column = TABLE_COLUMN_MAP[columnId];
+      if (column) {
+        sequence.push(column);
+        seen.add(columnId);
+      }
+    });
+    TABLE_COLUMNS.forEach((column) => {
+      if (!seen.has(column.id)) {
+        sequence.push(column);
+      }
+    });
+    return sequence;
+  }, [columnOrder]);
+
   const tableGridTemplate = useMemo(
     () =>
-      TABLE_COLUMNS.map((column) => {
-        const width = columnWidths[column.id] ?? column.defaultWidth;
-        return `${width}px`;
-      }).join(' '),
-    [columnWidths]
+      orderedColumns
+        .map((column) => {
+          const width = columnWidths[column.id] ?? column.defaultWidth;
+          return `${width}px`;
+        })
+        .join(' '),
+    [columnWidths, orderedColumns]
   );
+
+  const columnPositions = useMemo(() => {
+    const positions = {} as Record<TableColumnId, number>;
+    orderedColumns.forEach((column, index) => {
+      positions[column.id] = index + 1;
+    });
+    return positions;
+  }, [orderedColumns]);
 
   const selectedTask = useMemo(
     () => normalizedPlan.tasks.find((task) => task.id === selectedTaskId) ?? null,
     [normalizedPlan.tasks, selectedTaskId]
   );
+
+  const taskHasChildren = useMemo(() => {
+    const map = new Map<string, boolean>();
+    normalizedPlan.tasks.forEach((task, index) => {
+      const next = normalizedPlan.tasks[index + 1];
+      map.set(task.id, Boolean(next && next.indent > task.indent));
+    });
+    return map;
+  }, [normalizedPlan.tasks]);
+
+  const visibleTasks = useMemo(() => {
+    const hiddenStack: number[] = [];
+    const collapsed = collapsedTaskIds;
+    const result: InitiativePlanTask[] = [];
+    normalizedPlan.tasks.forEach((task) => {
+      while (hiddenStack.length && task.indent <= hiddenStack[hiddenStack.length - 1]) {
+        hiddenStack.pop();
+      }
+      if (hiddenStack.length) {
+        return;
+      }
+      result.push(task);
+      if (collapsed.has(task.id)) {
+        hiddenStack.push(task.indent);
+      }
+    });
+    return result;
+  }, [collapsedTaskIds, normalizedPlan.tasks]);
+
+  useEffect(() => {
+    setCollapsedTaskIds((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((taskId) => {
+        const exists = normalizedPlan.tasks.some((task) => task.id === taskId);
+        if (exists && taskHasChildren.get(taskId)) {
+          next.add(taskId);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [normalizedPlan.tasks, taskHasChildren]);
+
+  useEffect(() => {
+    if (!selectedTaskId) {
+      return;
+    }
+    if (!visibleTasks.some((task) => task.id === selectedTaskId)) {
+      setSelectedTaskId(visibleTasks[0]?.id ?? null);
+    }
+  }, [selectedTaskId, visibleTasks]);
 
   const emitChange = useCallback(
     (next: InitiativePlanModel) => {
@@ -879,6 +1003,66 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     setTimelineTooltip(null);
   }, []);
 
+  const toggleTaskCollapse = useCallback(
+    (taskId: string) => {
+      if (!taskHasChildren.get(taskId)) {
+        return;
+      }
+      setCollapsedTaskIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(taskId)) {
+          next.delete(taskId);
+        } else {
+          next.add(taskId);
+        }
+        return next;
+      });
+    },
+    [taskHasChildren]
+  );
+
+  const handleColumnDragStart = useCallback(
+    (event: DragEvent<HTMLDivElement>, columnId: TableColumnId) => {
+      if (readOnly) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target?.dataset?.resizer === 'true') {
+        event.preventDefault();
+        return;
+      }
+      setDragColumnId(columnId);
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', columnId);
+    },
+    [readOnly]
+  );
+
+  const handleColumnDragOver = useCallback(
+    (event: DragEvent<HTMLDivElement>, targetId: TableColumnId) => {
+      if (!dragColumnId || dragColumnId === targetId) {
+        return;
+      }
+      event.preventDefault();
+      setColumnOrder((prev) => {
+        const sourceIndex = prev.indexOf(dragColumnId);
+        const targetIndex = prev.indexOf(targetId);
+        if (sourceIndex === -1 || targetIndex === -1) {
+          return prev;
+        }
+        const next = [...prev];
+        next.splice(sourceIndex, 1);
+        next.splice(targetIndex, 0, dragColumnId);
+        return next;
+      });
+    },
+    [dragColumnId]
+  );
+
+  const handleColumnDragEnd = useCallback(() => {
+    setDragColumnId(null);
+  }, []);
+
   useEffect(() => {
     const handleScroll = () => {
       hideDescriptionTooltip();
@@ -1159,12 +1343,23 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
               className={styles.tableHeader}
               style={{ gridTemplateColumns: tableGridTemplate }}
             >
-              {TABLE_COLUMNS.map((column) => (
-                <div key={`header-${column.id}`} className={styles.columnHeader}>
+              {orderedColumns.map((column) => (
+                <div
+                  key={`header-${column.id}`}
+                  className={`${styles.columnHeader} ${
+                    dragColumnId === column.id ? styles.columnHeaderDragging : ''
+                  }`}
+                  draggable={!readOnly}
+                  onDragStart={(event) => handleColumnDragStart(event, column.id)}
+                  onDragOver={(event) => handleColumnDragOver(event, column.id)}
+                  onDrop={(event) => handleColumnDragOver(event, column.id)}
+                  onDragEnd={handleColumnDragEnd}
+                >
                   {column.label && <span>{column.label}</span>}
                   {column.resizable && (
                     <span
                       className={styles.columnResizer}
+                      data-resizer="true"
                       onPointerDown={(event) => startColumnResize(event, column.id)}
                     />
                   )}
@@ -1172,11 +1367,13 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
               ))}
             </div>
             <div className={styles.tableRows} ref={tableRowsRef}>
-              {normalizedPlan.tasks.map((task) => {
+              {visibleTasks.map((task) => {
                 const rowDepthClass =
                   task.indent === 0 ? '' : task.indent === 1 ? styles.rowDepth1 : styles.rowDepth2;
                 const hasCustomResponsible =
                   !!task.responsible && !RESPONSIBLE_PLACEHOLDER_SET.has(task.responsible);
+                const hasChildren = taskHasChildren.get(task.id);
+                const isCollapsed = collapsedTaskIds.has(task.id);
                 const progressInfo = progressMeta.get(task.id);
                 const baseProgressValue = progressInfo ? progressInfo.value : clamp(task.progress ?? 0, 0, 100);
                 const isAutoProgress = progressInfo?.isAuto ?? false;
@@ -1190,6 +1387,22 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 };
                 const inputDisplayValue =
                   draftValue !== undefined ? draftValue : String(Number.isFinite(baseProgressValue) ? baseProgressValue : 0);
+                const dragColumnStyle = columnPositions.drag ? { gridColumn: columnPositions.drag } : undefined;
+                const nameColumnStyle = columnPositions.name ? { gridColumn: columnPositions.name } : undefined;
+                const descriptionColumnStyle = columnPositions.description
+                  ? { gridColumn: columnPositions.description }
+                  : undefined;
+                const startColumnStyle = columnPositions.start ? { gridColumn: columnPositions.start } : undefined;
+                const endColumnStyle = columnPositions.end ? { gridColumn: columnPositions.end } : undefined;
+                const responsibleColumnStyle = columnPositions.responsible
+                  ? { gridColumn: columnPositions.responsible }
+                  : undefined;
+                const progressColumnStyle = columnPositions.progress
+                  ? { gridColumn: columnPositions.progress }
+                  : undefined;
+                const capacityColumnStyle = columnPositions.capacity
+                  ? { gridColumn: columnPositions.capacity }
+                  : undefined;
                 return (
                 <div
                   key={task.id}
@@ -1220,6 +1433,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                     type="button"
                     className={styles.dragHandle}
                     draggable={!readOnly}
+                    style={dragColumnStyle}
                   onDragStart={(event) => {
                     setDragTaskId(task.id);
                     event.dataTransfer.setData('text/plain', task.id);
@@ -1229,7 +1443,23 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 >
                   ⋮⋮
                 </button>
-                <div className={styles.taskNameCell}>
+                <div className={styles.taskNameCell} style={nameColumnStyle}>
+                  {hasChildren ? (
+                    <button
+                      type="button"
+                      className={`${styles.collapseToggle} ${isCollapsed ? styles.collapseToggleCollapsed : ''}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleTaskCollapse(task.id);
+                      }}
+                      aria-label={isCollapsed ? 'Expand task children' : 'Collapse task children'}
+                      aria-expanded={!isCollapsed}
+                    >
+                      <span className={styles.collapseIcon} />
+                    </button>
+                  ) : (
+                    <span className={styles.collapseSpacer} />
+                  )}
                   <span style={{ marginLeft: task.indent * 16 }} className={styles.indentGuide} />
                   <input
                     type="text"
@@ -1241,6 +1471,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 </div>
                 <div
                   className={styles.cell}
+                  style={descriptionColumnStyle}
                   onMouseEnter={(event) => showDescriptionTooltip(task.description, event.currentTarget)}
                   onMouseLeave={hideDescriptionTooltip}
                 >
@@ -1252,7 +1483,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                     onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
                   />
                 </div>
-                <div className={styles.cell}>
+                <div className={styles.cell} style={startColumnStyle}>
                   <input
                     type="date"
                     value={task.startDate ?? ''}
@@ -1260,7 +1491,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                     onChange={(event) => handleTaskFieldChange(task, 'startDate', event.target.value)}
                   />
                 </div>
-                <div className={styles.cell}>
+                <div className={styles.cell} style={endColumnStyle}>
                   <input
                     type="date"
                     value={task.endDate ?? ''}
@@ -1268,7 +1499,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                     onChange={(event) => handleTaskFieldChange(task, 'endDate', event.target.value)}
                   />
                 </div>
-                <div className={styles.cell}>
+                <div className={styles.cell} style={responsibleColumnStyle}>
                   <select
                     value={task.responsible}
                     disabled={readOnly}
@@ -1285,7 +1516,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                     )}
                   </select>
                 </div>
-                <div className={`${styles.cell} ${styles.progressCell}`}>
+                <div className={`${styles.cell} ${styles.progressCell}`} style={progressColumnStyle}>
                   <div
                     className={`${styles.progressDial} ${isAutoProgress ? styles.progressDialAuto : ''}`}
                     style={progressDialStyle}
@@ -1350,7 +1581,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                     />
                   </div>
                 </div>
-                <div className={styles.cell}>
+                <div className={styles.cell} style={capacityColumnStyle}>
                   <input
                     type="number"
                     value={
@@ -1426,7 +1657,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
               backgroundSize: `${pxPerDay}px ${ROW_HEIGHT}px`
             }}
           >
-            {normalizedPlan.tasks.map((task) => {
+            {visibleTasks.map((task) => {
               const hasDates = task.startDate && task.endDate;
               const startDate = hasDates ? parseDate(task.startDate!) : null;
               const rowOffset = startDate ? diffInDays(timelineRange.start, startDate) : 0;

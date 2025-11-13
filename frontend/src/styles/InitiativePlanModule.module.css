@@ -131,6 +131,10 @@
   box-sizing: border-box;
 }
 
+.tableRow > * {
+  min-width: 0;
+}
+
 .tableRow:last-child {
   border-bottom: none;
 }
@@ -157,6 +161,15 @@
   color: #94a3b8;
   font-weight: 600;
   padding-right: 6px;
+  cursor: grab;
+}
+
+.columnHeader[draggable='false'] {
+  cursor: default;
+}
+
+.columnHeaderDragging {
+  opacity: 0.6;
 }
 
 .columnHeader span {
@@ -190,6 +203,8 @@
   cursor: grab;
   color: #94a3b8;
   font-size: 14px;
+  position: relative;
+  font-size: 0;
 }
 
 .dragHandle:disabled {
@@ -197,9 +212,21 @@
   color: #cbd5f5;
 }
 
+.dragHandle::after {
+  content: '⋮⋮';
+  font-size: 14px;
+  color: currentColor;
+}
+
+.dragHandle:disabled::after {
+  color: #cbd5f5;
+}
+
 .taskNameCell {
   display: flex;
   align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .taskNameCell input {
@@ -208,6 +235,9 @@
   border-radius: 8px;
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .indentGuide {
@@ -221,6 +251,9 @@
   border-radius: 8px;
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cell input:disabled {
@@ -234,11 +267,52 @@
   padding: 6px 32px 6px 8px;
   background: rgba(255, 255, 255, 0.9);
   appearance: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cell select:disabled {
   background: rgba(248, 250, 252, 0.8);
   color: #94a3b8;
+}
+
+.collapseToggle {
+  border: none;
+  background: rgba(148, 163, 184, 0.16);
+  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+  color: #475569;
+}
+
+.collapseToggle:hover {
+  background: rgba(59, 130, 246, 0.2);
+  color: #1d4ed8;
+}
+
+.collapseToggleCollapsed .collapseIcon {
+  transform: rotate(-90deg);
+}
+
+.collapseIcon {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 8px solid currentColor;
+  transition: transform 0.2s ease;
+}
+
+.collapseSpacer {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
 }
 
 .progressCell {
