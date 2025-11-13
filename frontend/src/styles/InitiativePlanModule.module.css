@@ -295,6 +295,8 @@
   color: #0f172a;
   padding: 0;
   -moz-appearance: textfield;
+}
+
 .progressCell .progressInput:focus {
   outline: none;
 }

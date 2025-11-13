@@ -769,6 +769,83 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     [pxPerDay, readOnly, updateTask]
   );
 
+  const progressMeta = useMemo(() => {
+    const result = new Map<string, { value: number; isAuto: boolean }>();
+    const tasks = normalizedPlan.tasks;
+    const clampProgress = (value: number | null | undefined) => {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return 0;
+      }
+      return clamp(Math.round(Number(value)), 0, 100);
+    };
+
+    const walk = (startIndex: number): { nextIndex: number; value: number } => {
+      const task = tasks[startIndex];
+      const baseProgress = clampProgress(task.progress);
+      let cursor = startIndex + 1;
+      let childSum = 0;
+      let childCount = 0;
+
+      while (cursor < tasks.length && tasks[cursor].indent > task.indent) {
+        const childIndex = cursor;
+        const childTask = tasks[childIndex];
+        const childResult = walk(childIndex);
+        if (childTask.indent === task.indent + 1) {
+          childSum += childResult.value;
+          childCount += 1;
+        }
+        cursor = childResult.nextIndex;
+      }
+
+      const hasChildren = childCount > 0;
+      const value = hasChildren ? Math.round(childSum / Math.max(childCount, 1)) : baseProgress;
+      result.set(task.id, { value, isAuto: hasChildren });
+      return { nextIndex: Math.max(cursor, startIndex + 1), value };
+    };
+
+    let index = 0;
+    while (index < tasks.length) {
+      const { nextIndex } = walk(index);
+      index = nextIndex;
+    }
+
+    return result;
+  }, [normalizedPlan.tasks]);
+
+  const autoProgressTaskIds = useMemo(() => {
+    const set = new Set<string>();
+    progressMeta.forEach((meta, taskId) => {
+      if (meta.isAuto) {
+        set.add(taskId);
+      }
+    });
+    return set;
+  }, [progressMeta]);
+
+  useEffect(() => {
+    if (readOnly) {
+      return;
+    }
+    if (!progressMeta.size) {
+      return;
+    }
+    let changed = false;
+    const nextTasks = normalizedPlan.tasks.map((task) => {
+      const meta = progressMeta.get(task.id);
+      if (meta?.isAuto && task.progress !== meta.value) {
+        changed = true;
+        return {
+          ...task,
+          progress: meta.value
+        };
+      }
+      return task;
+    });
+    if (changed) {
+      setTasks(nextTasks);
+    }
+  }, [normalizedPlan.tasks, progressMeta, readOnly, setTasks]);
+
   const handleTaskFieldChange = useCallback(
     (task: InitiativePlanTask, field: keyof InitiativePlanTask, value: string) => {
       if (readOnly) {
@@ -923,83 +1000,6 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     },
     [showCapacityOverlay]
   );
-
-  const progressMeta = useMemo(() => {
-    const result = new Map<string, { value: number; isAuto: boolean }>();
-    const tasks = normalizedPlan.tasks;
-    const clampProgress = (value: number | null | undefined) => {
-      if (value === null || value === undefined || Number.isNaN(Number(value))) {
-        return 0;
-      }
-      return clamp(Math.round(Number(value)), 0, 100);
-    };
-
-    const walk = (startIndex: number): { nextIndex: number; value: number } => {
-      const task = tasks[startIndex];
-      const baseProgress = clampProgress(task.progress);
-      let cursor = startIndex + 1;
-      let childSum = 0;
-      let childCount = 0;
-
-      while (cursor < tasks.length && tasks[cursor].indent > task.indent) {
-        const childIndex = cursor;
-        const childTask = tasks[childIndex];
-        const childResult = walk(childIndex);
-        if (childTask.indent === task.indent + 1) {
-          childSum += childResult.value;
-          childCount += 1;
-        }
-        cursor = childResult.nextIndex;
-      }
-
-      const hasChildren = childCount > 0;
-      const value = hasChildren ? Math.round(childSum / Math.max(childCount, 1)) : baseProgress;
-      result.set(task.id, { value, isAuto: hasChildren });
-      return { nextIndex: Math.max(cursor, startIndex + 1), value };
-    };
-
-    let index = 0;
-    while (index < tasks.length) {
-      const { nextIndex } = walk(index);
-      index = nextIndex;
-    }
-
-    return result;
-  }, [normalizedPlan.tasks]);
-
-  const autoProgressTaskIds = useMemo(() => {
-    const set = new Set<string>();
-    progressMeta.forEach((meta, taskId) => {
-      if (meta.isAuto) {
-        set.add(taskId);
-      }
-    });
-    return set;
-  }, [progressMeta]);
-
-  useEffect(() => {
-    if (readOnly) {
-      return;
-    }
-    if (!progressMeta.size) {
-      return;
-    }
-    let changed = false;
-    const nextTasks = normalizedPlan.tasks.map((task) => {
-      const meta = progressMeta.get(task.id);
-      if (meta?.isAuto && task.progress !== meta.value) {
-        changed = true;
-        return {
-          ...task,
-          progress: meta.value
-        };
-      }
-      return task;
-    });
-    if (changed) {
-      setTasks(nextTasks);
-    }
-  }, [normalizedPlan.tasks, progressMeta, readOnly, setTasks]);
 
   const planSection = (
     <section
