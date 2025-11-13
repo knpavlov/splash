@@ -25,7 +25,7 @@ interface InitiativePlanModuleProps {
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const ROW_HEIGHT = 44;
+const ROW_HEIGHT = 60;
 const ZOOM_SCALE = [6, 8, 10, 14, 18, 24, 32];
 const PLAN_HEIGHT_MIN = 320;
 const PLAN_HEIGHT_MAX = 900;
@@ -142,6 +142,9 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const tableRowsRef = useRef<HTMLDivElement>(null);
+  const timelineGridRef = useRef<HTMLDivElement>(null);
+  const scrollSyncSourceRef = useRef<'table' | 'timeline' | null>(null);
   const resizeStateRef = useRef<{
     columnId: TableColumnId;
     startX: number;
@@ -556,6 +559,58 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     };
   }, [isFullscreen]);
 
+  useEffect(() => {
+    const tableRows = tableRowsRef.current;
+    const timelineGrid = timelineGridRef.current;
+    if (!tableRows || !timelineGrid) {
+      return;
+    }
+
+    let animationFrame: number | null = null;
+    const resetSyncFlag = () => {
+      scrollSyncSourceRef.current = null;
+    };
+    const scheduleFlagReset = () => {
+      if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+      }
+      animationFrame = requestAnimationFrame(() => {
+        resetSyncFlag();
+        animationFrame = null;
+      });
+    };
+
+    const handleTableScroll = () => {
+      if (scrollSyncSourceRef.current === 'timeline') {
+        resetSyncFlag();
+        return;
+      }
+      scrollSyncSourceRef.current = 'table';
+      timelineGrid.scrollTop = tableRows.scrollTop;
+      scheduleFlagReset();
+    };
+
+    const handleTimelineScroll = () => {
+      if (scrollSyncSourceRef.current === 'table') {
+        resetSyncFlag();
+        return;
+      }
+      scrollSyncSourceRef.current = 'timeline';
+      tableRows.scrollTop = timelineGrid.scrollTop;
+      scheduleFlagReset();
+    };
+
+    tableRows.addEventListener('scroll', handleTableScroll);
+    timelineGrid.addEventListener('scroll', handleTimelineScroll);
+    return () => {
+      tableRows.removeEventListener('scroll', handleTableScroll);
+      timelineGrid.removeEventListener('scroll', handleTimelineScroll);
+      if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [isFullscreen]);
+
   const showDescriptionTooltip = useCallback(
     (text: string, target: HTMLElement) => {
       if (!text.trim()) {
@@ -933,7 +988,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       )}
       <div
         className={styles.planBody}
-        style={{ height: `${planHeight}px` }}
+        style={isFullscreen ? undefined : { height: `${planHeight}px` }}
       >
         <div
           className={styles.tablePanel}
@@ -960,7 +1015,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 </div>
               ))}
             </div>
-            <div className={styles.tableRows}>
+            <div className={styles.tableRows} ref={tableRowsRef}>
               {normalizedPlan.tasks.map((task) => {
               const rowDepthClass =
                 task.indent === 0 ? '' : task.indent === 1 ? styles.rowDepth1 : styles.rowDepth2;
@@ -1144,6 +1199,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           </div>
           <div
             className={styles.timelineGrid}
+            ref={timelineGridRef}
             style={{
               width: timelineRange.width,
               backgroundSize: `${pxPerDay}px ${ROW_HEIGHT}px`
@@ -1214,10 +1270,12 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           )}
         </div>
       </div>
-      <div
-        className={styles.heightResizer}
-        onPointerDown={startHeightResize}
-      />
+      {!isFullscreen && (
+        <div
+          className={styles.heightResizer}
+          onPointerDown={startHeightResize}
+        />
+      )}
     </section>
   );
 

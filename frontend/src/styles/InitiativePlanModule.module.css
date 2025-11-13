@@ -128,6 +128,7 @@
   align-items: center;
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   background: rgba(255, 255, 255, 0.7);
+  box-sizing: border-box;
 }
 
 .tableRow:last-child {
@@ -343,6 +344,7 @@
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
   display: flex;
   align-items: center;
+  box-sizing: border-box;
 }
 
 .timelineBar {
@@ -496,6 +498,15 @@
   border-radius: 0;
   border: none;
   box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.fullscreenContainer .planBody {
+  flex: 1;
+  height: auto;
+  min-height: 0;
 }
 
 .dropZone {
