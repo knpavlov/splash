@@ -188,7 +188,7 @@ export const StageGatePanel = ({
     return (
       <div className={styles.gateTooltip} style={{ left: tooltipPos.x, top: tooltipPos.y }}>
         <p>
-          <strong>{hoveredGate.toUpperCase()} gate</strong> · {formatGateStatusLabel(gateState?.status)}
+          <strong>{hoveredGate.toUpperCase()}</strong> · {formatGateStatusLabel(gateState?.status)}
         </p>
         {rounds.length === 0 ? (
           <span>No approvers configured.</span>
@@ -252,10 +252,10 @@ export const StageGatePanel = ({
                 >
                   <button
                     type="button"
-                    className={[styles.gate, styles.chevron, styles[`gate-${state.status}`]].join(' ')}
-                    {...createCommentAnchor(`stage-track.${nextStage}`, `${nextStage.toUpperCase()} gate`)}
+                  className={[styles.gate, styles.chevron, styles[`gate-${state.status}`]].join(' ')}
+                    {...createCommentAnchor(`stage-track.${nextStage}`, `${nextStage.toUpperCase()}`)}
                   >
-                    <span className={styles.gateName}>{`${nextStage.toUpperCase()} Gate`}</span>
+                    <span className={styles.gateName}>{nextStage.toUpperCase()}</span>
                     <span className={styles.gateStatus}>{formatGateStatusLabel(state.status)}</span>
                   </button>
                 </div>

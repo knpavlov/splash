@@ -663,15 +663,23 @@ export const InitiativeProfile = ({
           </div>
         </div>
 
-      <StageGatePanel
-        activeStage={draft.activeStage}
-        selectedStage={selectedStage}
-        stages={draft.stages}
-        stageState={draft.stageState}
-        initiativeName={draft.name}
-        onSelectStage={handleStageChange}
-        workstream={selectedWorkstream}
-      />
+      <section className={styles.cardSection} {...buildProfileAnchor('stage-gates', 'Stage progression')}>
+        <header className={styles.cardHeader}>
+          <div>
+            <h3>Stage progression</h3>
+            <p>Track each L gate and review status in one place.</p>
+          </div>
+        </header>
+        <StageGatePanel
+          activeStage={draft.activeStage}
+          selectedStage={selectedStage}
+          stages={draft.stages}
+          stageState={draft.stageState}
+          initiativeName={draft.name}
+          onSelectStage={handleStageChange}
+          workstream={selectedWorkstream}
+        />
+      </section>
 
       {banner && (
         <div className={banner.type === 'info' ? styles.bannerInfo : styles.bannerError}>{banner.text}</div>
@@ -838,12 +846,20 @@ export const InitiativeProfile = ({
           )}
         </div>
 
-        <FinancialEditor
-          stage={currentStage}
-          disabled={!isStageEditable}
-          onChange={(nextStage) => updateStage(selectedStage, nextStage)}
-          commentScope={selectedStage}
-        />
+        <section className={styles.cardSection} {...buildProfileAnchor('financial-outlook', 'Financial outlook')}>
+          <header className={styles.cardHeader}>
+            <div>
+              <h3>Financial outlook</h3>
+              <p>Balance recurring and one-off impacts for this stage.</p>
+            </div>
+          </header>
+          <FinancialEditor
+            stage={currentStage}
+            disabled={!isStageEditable}
+            onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+            commentScope={selectedStage}
+          />
+        </section>
       </div>
 
       <InitiativePlanModule plan={draft.plan} onChange={handlePlanChange} readOnly={isReadOnlyMode} />

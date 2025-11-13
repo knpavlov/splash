@@ -134,6 +134,33 @@
   gap: 16px;
 }
 
+.cardSection {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 24px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cardHeader h3 {
+  margin: 0;
+}
+
+.cardHeader p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 14px;
+}
+
 .stageHeader {
   display: flex;
   justify-content: space-between;
