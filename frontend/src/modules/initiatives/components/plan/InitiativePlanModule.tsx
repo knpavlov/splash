@@ -132,6 +132,17 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   const [planHeight, setPlanHeight] = useState(PLAN_HEIGHT_DEFAULT);
   const [planHeightLoaded, setPlanHeightLoaded] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [timelineTooltip, setTimelineTooltip] = useState<{
+    taskId: string;
+    name: string;
+    startLabel: string;
+    endLabel: string;
+    duration: number | null;
+    progress: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [progressDrafts, setProgressDrafts] = useState<Record<string, string>>({});
   const dragStateRef = useRef<{
     taskId: string;
     mode: DragMode;
@@ -535,16 +546,6 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   }, []);
 
   useEffect(() => {
-    const handleScroll = () => {
-      hideDescriptionTooltip();
-    };
-    window.addEventListener('scroll', handleScroll, true);
-    return () => {
-      window.removeEventListener('scroll', handleScroll, true);
-    };
-  }, [hideDescriptionTooltip]);
-
-  useEffect(() => {
     if (typeof document === 'undefined') {
       return;
     }
@@ -823,6 +824,73 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   }, [progressMeta]);
 
   useEffect(() => {
+    setProgressDrafts((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      Object.keys(next).forEach((taskId) => {
+        const exists = normalizedPlan.tasks.some((task) => task.id === taskId);
+        if (!exists) {
+          delete next[taskId];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [normalizedPlan.tasks]);
+
+  const formatTimelineDate = useCallback((value: string | null) => {
+    if (!value) {
+      return 'Not scheduled';
+    }
+    const parsed = parseDate(value);
+    if (!parsed) {
+      return 'Not scheduled';
+    }
+    return parsed.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  }, []);
+
+  const showTimelineTooltip = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>, task: InitiativePlanTask) => {
+      const elementRect = event.currentTarget.getBoundingClientRect();
+      const startDate = task.startDate ? parseDate(task.startDate) : null;
+      const endDate = task.endDate ? parseDate(task.endDate) : null;
+      const duration = startDate && endDate ? diffInDays(startDate, endDate) + 1 : null;
+      const progressInfo = progressMeta.get(task.id);
+      const progressValue = progressInfo ? progressInfo.value : clamp(task.progress ?? 0, 0, 100);
+      setTimelineTooltip({
+        taskId: task.id,
+        name: task.name || 'Untitled task',
+        startLabel: formatTimelineDate(task.startDate),
+        endLabel: formatTimelineDate(task.endDate),
+        duration,
+        progress: progressValue,
+        x: elementRect.left + elementRect.width / 2,
+        y: elementRect.top - 12
+      });
+    },
+    [formatTimelineDate, progressMeta]
+  );
+
+  const hideTimelineTooltip = useCallback(() => {
+    setTimelineTooltip(null);
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      hideDescriptionTooltip();
+      hideTimelineTooltip();
+    };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [hideDescriptionTooltip, hideTimelineTooltip]);
+
+  useEffect(() => {
     if (readOnly) {
       return;
     }
@@ -933,22 +1001,30 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     [updateTask]
   );
 
-  const handleTimelineWheel = useCallback(
-    (event: React.WheelEvent<HTMLDivElement>) => {
-      if (readOnly) {
-        return;
-      }
-      if (!(event.ctrlKey || event.metaKey)) {
+  useEffect(() => {
+    if (readOnly) {
+      return;
+    }
+    const timeline = timelineRef.current;
+    if (!timeline) {
+      return;
+    }
+    const handleWheel = (event: WheelEvent) => {
+      if (!(event.ctrlKey || event.metaKey || event.altKey || event.shiftKey)) {
         return;
       }
       event.preventDefault();
+      event.stopPropagation();
       if (event.deltaY === 0) {
         return;
       }
       handleZoom(event.deltaY < 0 ? 1 : -1);
-    },
-    [handleZoom, readOnly]
-  );
+    };
+    timeline.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      timeline.removeEventListener('wheel', handleWheel);
+    };
+  }, [handleZoom, readOnly]);
 
   const renderCapacityOverlay = useCallback(
     (task: InitiativePlanTask) => {
@@ -1102,13 +1178,18 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 const hasCustomResponsible =
                   !!task.responsible && !RESPONSIBLE_PLACEHOLDER_SET.has(task.responsible);
                 const progressInfo = progressMeta.get(task.id);
-                const progressValue = progressInfo ? progressInfo.value : clamp(task.progress ?? 0, 0, 100);
+                const baseProgressValue = progressInfo ? progressInfo.value : clamp(task.progress ?? 0, 0, 100);
                 const isAutoProgress = progressInfo?.isAuto ?? false;
-                const progressAngle = (progressValue / 100) * 360;
+                const draftValue = progressDrafts[task.id];
+                const effectiveProgress =
+                  draftValue !== undefined ? clamp(Number(draftValue) || 0, 0, 100) : baseProgressValue;
+                const progressAngle = (effectiveProgress / 100) * 360;
                 const dialColor = isAutoProgress ? '#7c3aed' : '#2563eb';
                 const progressDialStyle: CSSProperties = {
                   backgroundImage: `conic-gradient(${dialColor} 0deg ${progressAngle}deg, rgba(148, 163, 184, 0.25) ${progressAngle}deg 360deg)`
                 };
+                const inputDisplayValue =
+                  draftValue !== undefined ? draftValue : String(Number.isFinite(baseProgressValue) ? baseProgressValue : 0);
                 return (
                 <div
                   key={task.id}
@@ -1215,15 +1296,58 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                     }
                   >
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       className={styles.progressInput}
-                      value={progressValue}
-                      min={0}
-                      max={100}
+                      value={inputDisplayValue}
                       disabled={readOnly || isAutoProgress}
-                      onChange={(event) => handleTaskFieldChange(task, 'progress', event.target.value)}
+                      onFocus={(event) => {
+                        if (readOnly || isAutoProgress) {
+                          return;
+                        }
+                        event.currentTarget.select();
+                        if (baseProgressValue === 0) {
+                          setProgressDrafts((prev) => ({
+                            ...prev,
+                            [task.id]: ''
+                          }));
+                        }
+                      }}
+                      onChange={(event) => {
+                        if (readOnly || isAutoProgress) {
+                          return;
+                        }
+                        const digitsOnly = event.target.value.replace(/[^0-9]/g, '');
+                        if (task.id in progressDrafts || baseProgressValue === 0) {
+                          setProgressDrafts((prev) => ({
+                            ...prev,
+                            [task.id]: digitsOnly
+                          }));
+                        }
+                        if (!digitsOnly) {
+                          return;
+                        }
+                        handleTaskFieldChange(task, 'progress', digitsOnly);
+                      }}
+                      onBlur={(event) => {
+                        if (readOnly || isAutoProgress) {
+                          return;
+                        }
+                        const digitsOnly = event.target.value.replace(/[^0-9]/g, '');
+                        handleTaskFieldChange(task, 'progress', digitsOnly ? digitsOnly : '0');
+                        if (task.id in progressDrafts || baseProgressValue === 0) {
+                          setProgressDrafts((prev) => {
+                            if (!(task.id in prev)) {
+                              return prev;
+                            }
+                            const next = { ...prev };
+                            delete next[task.id];
+                            return next;
+                          });
+                        }
+                      }}
                     />
-                    <span className={styles.progressSuffix}>%</span>
                   </div>
                 </div>
                 <div className={styles.cell}>
@@ -1269,7 +1393,6 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
         <div
           className={styles.timelinePanel}
           ref={timelineRef}
-          onWheel={handleTimelineWheel}
         >
           <div className={styles.timelineHeader}>
             <div className={styles.monthRow}>
@@ -1335,6 +1458,9 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                       style={{ left, width, backgroundColor: color }}
                       onDoubleClick={(event) => handleCapacityMenu(event, task)}
                       onPointerDown={(event) => startBarDrag(event, task, 'move')}
+                      onPointerEnter={(event) => showTimelineTooltip(event, task)}
+                      onPointerMove={(event) => showTimelineTooltip(event, task)}
+                      onPointerLeave={hideTimelineTooltip}
                     >
                       {capacityOverlay}
                       {!readOnly && (
@@ -1387,6 +1513,33 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
             document.body
           )
         : planSection}
+      {timelineTooltip &&
+        createPortal(
+          <div
+            className={styles.timelineTooltip}
+            style={{ left: `${timelineTooltip.x}px`, top: `${timelineTooltip.y}px` }}
+          >
+            <strong>{timelineTooltip.name}</strong>
+            <div>
+              <span>Start:</span> <em>{timelineTooltip.startLabel}</em>
+            </div>
+            <div>
+              <span>End:</span> <em>{timelineTooltip.endLabel}</em>
+            </div>
+            <div>
+              <span>Duration:</span>{' '}
+              <em>
+                {timelineTooltip.duration !== null
+                  ? `${timelineTooltip.duration} day${timelineTooltip.duration === 1 ? '' : 's'}`
+                  : 'Not available'}
+              </em>
+            </div>
+            <div>
+              <span>Completion:</span> <em>{timelineTooltip.progress}%</em>
+            </div>
+          </div>,
+          document.body
+        )}
       {descriptionTooltip &&
         createPortal(
           <div
