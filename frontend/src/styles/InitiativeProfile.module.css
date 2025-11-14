@@ -361,6 +361,10 @@
   background: rgba(255, 255, 255, 0.95);
 }
 
+.financialCard {
+  margin-top: 24px;
+}
+
 .changeLogHeader {
   display: flex;
   align-items: center;

@@ -623,6 +623,7 @@ export const InitiativeProfile = ({
   const stageDetailsCollapsed = collapsedSections['stage-details'] ?? false;
   const financialCollapsed = collapsedSections['financial'] ?? false;
   const changeLogCollapsed = collapsedSections['change-log'] ?? false;
+  const stageTitle = initiativeStageLabels[selectedStage].replace(/\s+Gate$/i, '');
 
   return (
     <section className={`${styles.profileWrapper} ${isCommentMode ? styles.profileWithComments : ''}`}>
@@ -722,7 +723,7 @@ export const InitiativeProfile = ({
               <ChevronIcon direction={stageDetailsCollapsed ? 'right' : 'down'} size={16} />
             </button>
             <div>
-              <h3>{initiativeStageLabels[selectedStage]}</h3>
+              <h3>{stageTitle}</h3>
               {!isStageEditable && <p className={styles.stageHint}>Fields are read-only for this gate.</p>}
             </div>
           </div>
@@ -914,6 +915,34 @@ export const InitiativeProfile = ({
         )}
       </div>
 
+      <section className={`${styles.cardSection} ${styles.financialCard}`} {...buildProfileAnchor('financial-outlook', 'Financial outlook')}>
+        <header className={styles.cardHeader}>
+          <div className={styles.cardHeaderTitle}>
+            <button
+              className={styles.sectionToggle}
+              type="button"
+              onClick={() => handleSectionToggle('financial')}
+              aria-expanded={!financialCollapsed}
+              aria-label={financialCollapsed ? 'Expand financial outlook' : 'Collapse financial outlook'}
+            >
+              <ChevronIcon direction={financialCollapsed ? 'right' : 'down'} size={16} />
+            </button>
+            <div>
+              <h3>Financial outlook</h3>
+              <p>Balance recurring and one-off impacts for this stage.</p>
+            </div>
+          </div>
+        </header>
+        {!financialCollapsed && (
+          <FinancialEditor
+            stage={currentStage}
+            disabled={!isStageEditable}
+            onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+            commentScope={selectedStage}
+          />
+        )}
+      </section>
+
       <InitiativePlanModule
         plan={draft.plan}
         initiativeId={draft.id}
@@ -1037,6 +1066,9 @@ export const InitiativeProfile = ({
       </section>
   );
 };
+
+
+
 
 
 

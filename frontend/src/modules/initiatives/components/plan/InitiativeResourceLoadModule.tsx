@@ -238,7 +238,11 @@ export const InitiativeResourceLoadModule = ({
   };
 
   return (
-    <section className={styles.resourceModule} aria-label="Resource load overview">
+    <section
+      className={styles.resourceModule}
+      aria-label="Resource load overview"
+      style={height === null ? { flex: 1, minHeight: 0 } : undefined}
+    >
       <header className={styles.moduleHeader}>
         <div className={styles.headerLeft}>
           <button
@@ -292,22 +296,6 @@ export const InitiativeResourceLoadModule = ({
                 </div>
               </div>
               <div className={styles.timelineColumn}>
-                <div className={styles.timelineHeader}>
-                  <div className={styles.monthRow}>
-                    {timelineRange.months.map((month) => (
-                      <span key={`${month.label}-${month.offset}`} style={{ width: `${month.span * pxPerDay}px` }}>
-                        {month.label}
-                      </span>
-                    ))}
-                  </div>
-                  <div className={styles.dayRow}>
-                    {timelineRange.days.map((day) => (
-                      <span key={day.key} style={{ width: `${pxPerDay}px` }}>
-                        {day.label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
                 <div className={styles.timelineScroll} ref={scrollRef}>
                   <div
                     className={styles.timelineRows}
