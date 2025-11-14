@@ -13,6 +13,7 @@ import { demoRouter } from '../modules/demo/demo.router.js';
 import { workstreamsRouter } from '../modules/workstreams/workstreams.router.js';
 import { initiativesRouter } from '../modules/initiatives/initiatives.router.js';
 import { approvalsRouter } from '../modules/approvals/approvals.router.js';
+import { participantsRouter } from '../modules/participants/participants.router.js';
 
 export const registerAppRoutes = (app: Application) => {
   // TODO: add middleware for authentication and request logging
@@ -29,5 +30,6 @@ export const registerAppRoutes = (app: Application) => {
   app.use('/workstreams', workstreamsRouter);
   app.use('/initiatives', initiativesRouter);
   app.use('/approvals', approvalsRouter);
+  app.use('/participants', participantsRouter);
   app.use('/demo', demoRouter);
 };

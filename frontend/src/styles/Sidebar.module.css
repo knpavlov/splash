@@ -47,6 +47,14 @@
   flex: 1;
 }
 
+.sectionHeading {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(226, 232, 240, 0.65);
+  margin: 12px 0 4px;
+}
+
 .menuItem,
 .activeItem {
   border: none;
@@ -66,6 +74,11 @@
 .activeItem {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(59, 130, 246, 0.45));
   color: #e0f2fe;
+}
+
+.childItem {
+  padding-left: 32px;
+  font-size: 14px;
 }
 
 .logoutBlock {

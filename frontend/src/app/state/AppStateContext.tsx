@@ -25,6 +25,16 @@ import { sanitizePlanModel } from '../../modules/initiatives/plan/planModel';
 import { workstreamsApi } from '../../modules/workstreams/services/workstreamsApi';
 import { ApiError } from '../../shared/api/httpClient';
 import { useAuth } from '../../modules/auth/AuthContext';
+import { Participant, ParticipantPayload, ParticipantUpdatePayload } from '../../shared/types/participant';
+import { participantsApi } from '../../modules/participants/services/participantsApi';
+
+const normalizeParticipantOptional = (value: string | null | undefined): string | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed || null;
+};
 
 interface AppStateContextValue {
   cases: {
@@ -130,6 +140,11 @@ interface AppStateContextValue {
     removeAccount: (id: string) => Promise<DomainResult<string>>;
     updateRole: (id: string, role: 'admin' | 'user') => Promise<DomainResult<AccountRecord>>;
   };
+  participants: {
+    list: Participant[];
+    createParticipant: (participant: ParticipantPayload) => Promise<DomainResult<Participant>>;
+    updateParticipant: (id: string, changes: ParticipantUpdatePayload) => Promise<DomainResult<Participant>>;
+  };
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -146,6 +161,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [evaluations, setEvaluations] = useState<EvaluationConfig[]>([]);
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [caseCriteria, setCaseCriteria] = useState<CaseCriterion[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const { session } = useAuth();
 
   const syncFolders = useCallback(async (): Promise<CaseFolder[] | null> => {
@@ -181,6 +197,22 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
       }
     };
     void loadAccounts();
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
+      setParticipants([]);
+      return;
+    }
+    const loadParticipants = async () => {
+      try {
+        const remote = await participantsApi.list();
+        setParticipants(remote);
+      } catch (error) {
+        console.error('Failed to load participants:', error);
+      }
+    };
+    void loadParticipants();
   }, [session]);
 
   useEffect(() => {
@@ -1196,6 +1228,89 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
           return { ok: false, error: 'unknown' };
         }
       }
+    },
+    participants: {
+      list: participants,
+      createParticipant: async (input) => {
+        const normalizedName = typeof input.displayName === 'string' ? input.displayName.trim() : '';
+        if (!normalizedName) {
+          return { ok: false, error: 'invalid-input' };
+        }
+        const payload: ParticipantPayload = {
+          displayName: normalizedName,
+          email: normalizeParticipantOptional(input.email),
+          role: normalizeParticipantOptional(input.role),
+          hierarchyLevel1: normalizeParticipantOptional(input.hierarchyLevel1),
+          hierarchyLevel2: normalizeParticipantOptional(input.hierarchyLevel2),
+          hierarchyLevel3: normalizeParticipantOptional(input.hierarchyLevel3)
+        };
+        try {
+          const participant = await participantsApi.create(payload);
+          setParticipants((prev) => {
+            const next = [...prev, participant];
+            next.sort((a, b) => a.displayName.localeCompare(b.displayName));
+            return next;
+          });
+          return { ok: true, data: participant };
+        } catch (error) {
+          if (error instanceof ApiError) {
+            if (error.code === 'invalid-input' || error.status === 400) {
+              return { ok: false, error: 'invalid-input' };
+            }
+          }
+          console.error('Failed to create participant:', error);
+          return { ok: false, error: 'unknown' };
+        }
+      },
+      updateParticipant: async (id, changes) => {
+        const participant = participants.find((item) => item.id === id);
+        if (!participant) {
+          return { ok: false, error: 'not-found' };
+        }
+        const payload: ParticipantUpdatePayload = {};
+        if (changes.displayName !== undefined) {
+          const normalized = typeof changes.displayName === 'string' ? changes.displayName.trim() : '';
+          if (!normalized) {
+            return { ok: false, error: 'invalid-input' };
+          }
+          payload.displayName = normalized;
+        }
+        if (changes.email !== undefined) {
+          payload.email = normalizeParticipantOptional(changes.email);
+        }
+        if (changes.role !== undefined) {
+          payload.role = normalizeParticipantOptional(changes.role);
+        }
+        if (changes.hierarchyLevel1 !== undefined) {
+          payload.hierarchyLevel1 = normalizeParticipantOptional(changes.hierarchyLevel1);
+        }
+        if (changes.hierarchyLevel2 !== undefined) {
+          payload.hierarchyLevel2 = normalizeParticipantOptional(changes.hierarchyLevel2);
+        }
+        if (changes.hierarchyLevel3 !== undefined) {
+          payload.hierarchyLevel3 = normalizeParticipantOptional(changes.hierarchyLevel3);
+        }
+        try {
+          const updated = await participantsApi.update(id, payload);
+          setParticipants((prev) => {
+            const next = prev.map((item) => (item.id === id ? updated : item));
+            next.sort((a, b) => a.displayName.localeCompare(b.displayName));
+            return next;
+          });
+          return { ok: true, data: updated };
+        } catch (error) {
+          if (error instanceof ApiError) {
+            if (error.code === 'not-found' || error.status === 404) {
+              return { ok: false, error: 'not-found' };
+            }
+            if (error.code === 'invalid-input' || error.status === 400) {
+              return { ok: false, error: 'invalid-input' };
+            }
+          }
+          console.error('Failed to update participant:', error);
+          return { ok: false, error: 'unknown' };
+        }
+      }
     }
   }), [
     folders,
@@ -1207,6 +1322,7 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     candidates,
     evaluations,
     accounts,
+    participants,
     syncFolders
   ]);
 
@@ -1229,3 +1345,4 @@ export const useInitiativesState = () => useAppState().initiatives;
 export const useCandidatesState = () => useAppState().candidates;
 export const useEvaluationsState = () => useAppState().evaluations;
 export const useAccountsState = () => useAppState().accounts;
+export const useParticipantsState = () => useAppState().participants;

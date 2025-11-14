@@ -3,6 +3,7 @@ import styles from '../../../../styles/InitiativeResourceLoadModule.module.css';
 import { Initiative, InitiativePlanModel, InitiativePlanTask } from '../../../../shared/types/initiative';
 import { PLAN_SPLIT_MAX, PLAN_SPLIT_MIN, sanitizePlanModel } from '../../plan/planModel';
 import { addDays, diffInDays, PlanTimelineRange, parseDate } from '../../plan/planTimeline';
+import { collectCapacitySlices } from '../../plan/capacityUtils';
 import { ChevronIcon } from '../../../../components/icons/ChevronIcon';
 
 interface InitiativeResourceLoadModuleProps {
@@ -40,37 +41,6 @@ const shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numer
 const formatRange = (start: Date, end: Date) => `${shortDate.format(start)} – ${shortDate.format(end)}`;
 
 const loadToPercent = (value: number) => (Math.min(Math.max(value, 0), MAX_DISPLAY_LOAD) / MAX_DISPLAY_LOAD) * 100;
-
-const collectSlices = (task: InitiativePlanTask) => {
-  const start = task.startDate ? parseDate(task.startDate) : null;
-  const end = task.endDate ? parseDate(task.endDate) : null;
-  if (!start || !end) {
-    return [];
-  }
-  if (task.capacityMode === 'variable' && task.capacitySegments.length) {
-    return task.capacitySegments
-      .map((segment) => {
-        const segmentStart = parseDate(segment.startDate);
-        const segmentEnd = parseDate(segment.endDate);
-        if (!segmentStart || !segmentEnd || segmentEnd < segmentStart) {
-          return null;
-        }
-        return {
-          start: segmentStart,
-          end: segmentEnd,
-          capacity: segment.capacity
-        };
-      })
-      .filter((segment): segment is { start: Date; end: Date; capacity: number } => Boolean(segment));
-  }
-  return [
-    {
-      start,
-      end,
-      capacity: task.requiredCapacity ?? 0
-    }
-  ];
-};
 
 export const InitiativeResourceLoadModule = ({
   plan,
@@ -153,7 +123,7 @@ export const InitiativeResourceLoadModule = ({
           return;
         }
         const entry = map.get(person)!;
-        const slices = collectSlices(task);
+        const slices = collectCapacitySlices(task);
         slices.forEach((slice) => {
           const sliceStart = slice.start < windowStart ? windowStart : slice.start;
           const sliceEnd = slice.end > windowEnd ? windowEnd : slice.end;

@@ -17,6 +17,8 @@ import { useHasInterviewerAssignments } from './app/hooks/useHasInterviewerAssig
 import { AnalyticsScreen } from './modules/analytics/AnalyticsScreen';
 import { InitiativesScreen, InitiativesViewRoute } from './modules/initiatives/InitiativesScreen';
 import { ApprovalsScreen } from './modules/approvals/ApprovalsScreen';
+import { ParticipantsScreen } from './modules/participants/ParticipantsScreen';
+import { CapacityHeatmapScreen } from './modules/dashboards/CapacityHeatmapScreen';
 
 interface AppRoute {
   page: NavigationKey;
@@ -257,6 +259,8 @@ const AppContent = () => {
         return <ApprovalsScreen />;
       case 'candidates':
         return <CandidatesScreen />;
+      case 'participants':
+        return <ParticipantsScreen />;
       case 'evaluation':
         return (
           <EvaluationScreen
@@ -268,6 +272,8 @@ const AppContent = () => {
         return <InterviewerScreen />;
       case 'stats':
         return <AnalyticsScreen />;
+      case 'capacity-heatmap':
+        return <CapacityHeatmapScreen />;
       case 'accounts':
         return <AccountsScreen />;
       default:

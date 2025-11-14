@@ -849,6 +849,20 @@ const createTables = async () => {
       ADD COLUMN IF NOT EXISTS rating_4 TEXT,
       ADD COLUMN IF NOT EXISTS rating_5 TEXT;
   `);
+
+  await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS participants (
+      id UUID PRIMARY KEY,
+      display_name TEXT NOT NULL,
+      email TEXT,
+      role TEXT,
+      hierarchy_level1 TEXT,
+      hierarchy_level2 TEXT,
+      hierarchy_level3 TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 };
 
 const syncSuperAdmin = async () => {
@@ -914,9 +928,53 @@ const syncSuperAdmin = async () => {
   }
 };
 
+const PARTICIPANT_PLACEHOLDERS = [
+  'Noah Patel',
+  'Sophia Marin',
+  'Leo Fernandez',
+  'Isabella Chen',
+  'Mason Rivera',
+  'Harper Lewis',
+  'Ethan Novak',
+  'Ava Dimitriou',
+  'Lucas Romero',
+  'Mila Anders',
+  'Jackson Reid',
+  'Layla Moretti',
+  'Oliver Van Dijk',
+  'Chloe Martins',
+  'Mateo Silva',
+  'Zoe Thompson',
+  'Aria Mehta',
+  'Benjamin Clarke',
+  'Nora Satou'
+];
+
+const seedParticipants = async () => {
+  const existing = await postgresPool.query<{ display_name: string }>(
+    `SELECT LOWER(TRIM(display_name)) AS display_name FROM participants;`
+  );
+  const existingNames = new Set(
+    (existing.rows ?? []).map((row) => (typeof row.display_name === 'string' ? row.display_name : ''))
+  );
+
+  for (const placeholder of PARTICIPANT_PLACEHOLDERS) {
+    const normalized = placeholder.toLowerCase();
+    if (existingNames.has(normalized)) {
+      continue;
+    }
+    await postgresPool.query(
+      `INSERT INTO participants (id, display_name, created_at, updated_at)
+       VALUES ($1, $2, NOW(), NOW());`,
+      [randomUUID(), placeholder]
+    );
+  }
+};
+
 export const runMigrations = async () => {
   await ensurePostgresConnection({ logger: console.log });
   // In this lightweight version we run migrations sequentially during server startup
   await createTables();
+  await seedParticipants();
   await syncSuperAdmin();
 };

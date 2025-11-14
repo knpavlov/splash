@@ -1,6 +1,7 @@
 import { CSSProperties, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../auth/AuthContext';
+import { useParticipantsState } from '../../../../app/state/AppStateContext';
 import styles from '../../../../styles/InitiativePlanModule.module.css';
 import {
   Initiative,
@@ -45,30 +46,6 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 const TASK_COLOR_PALETTE = ['#5b21b6', '#2563eb', '#0ea5e9', '#10b981', '#f97316', '#ea580c', '#e11d48', '#6d28d9', '#0f172a'];
 const DEFAULT_BAR_COLOR = TASK_COLOR_PALETTE[0];
-const RESPONSIBLE_PLACEHOLDERS = [
-  'Amelia Carter',
-  'Noah Patel',
-  'Sophia Marin',
-  'Leo Fernandez',
-  'Isabella Chen',
-  'Mason Rivera',
-  'Harper Lewis',
-  'Ethan Novak',
-  'Ava Dimitriou',
-  'Lucas Romero',
-  'Mila Anders',
-  'Jackson Reid',
-  'Layla Moretti',
-  'Oliver Van Dijk',
-  'Chloe Martins',
-  'Mateo Silva',
-  'Zoe Thompson',
-  'Aria Mehta',
-  'Benjamin Clarke',
-  'Nora Satou'
-];
-const RESPONSIBLE_PLACEHOLDER_SET = new Set(RESPONSIBLE_PLACEHOLDERS);
-
 type TableColumnId = 'drag' | 'name' | 'description' | 'start' | 'end' | 'responsible' | 'progress' | 'capacity';
 
 interface TableColumnConfig {
@@ -119,6 +96,7 @@ export const InitiativePlanModule = ({
   onChange,
   readOnly = false
 }: InitiativePlanModuleProps) => {
+  const { list: participants } = useParticipantsState();
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
   const { session } = useAuth();
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(
@@ -389,6 +367,19 @@ export const InitiativePlanModule = ({
     () => normalizedPlan.tasks.find((task) => task.id === selectedTaskId) ?? null,
     [normalizedPlan.tasks, selectedTaskId]
   );
+  const participantOptions = useMemo(
+    () =>
+      participants
+        .map((participant) => participant.displayName?.trim())
+        .filter((name): name is string => Boolean(name))
+        .sort((a, b) => a.localeCompare(b)),
+    [participants]
+  );
+  const participantNameSet = useMemo(() => {
+    const set = new Set<string>();
+    participantOptions.forEach((name) => set.add(name.toLowerCase()));
+    return set;
+  }, [participantOptions]);
 
   const taskHasChildren = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -1632,7 +1623,8 @@ export const InitiativePlanModule = ({
                 const rowDepthClass =
                   task.indent === 0 ? '' : task.indent === 1 ? styles.rowDepth1 : styles.rowDepth2;
                 const hasCustomResponsible =
-                  !!task.responsible && !RESPONSIBLE_PLACEHOLDER_SET.has(task.responsible);
+                  !!task.responsible &&
+                  !participantNameSet.has(task.responsible.trim().toLowerCase());
                 const hasChildren = taskHasChildren.get(task.id);
                 const isCollapsed = collapsedTaskIds.has(task.id);
                 const progressInfo = progressMeta.get(task.id);
@@ -1764,7 +1756,10 @@ export const InitiativePlanModule = ({
                               />
                             </div>
                           );
-                        case 'responsible':
+                        case 'responsible': {
+                          const hasCustomResponsible =
+                            !!task.responsible &&
+                            !participantNameSet.has(task.responsible.trim().toLowerCase());
                           return (
                             <div key={`${task.id}-responsible`} className={styles.cell}>
                               <select
@@ -1773,7 +1768,7 @@ export const InitiativePlanModule = ({
                                 onChange={(event) => handleTaskFieldChange(task, 'responsible', event.target.value)}
                               >
                                 <option value="">Unassigned</option>
-                                {RESPONSIBLE_PLACEHOLDERS.map((name) => (
+                                {participantOptions.map((name) => (
                                   <option key={name} value={name}>
                                     {name}
                                   </option>
@@ -1784,6 +1779,7 @@ export const InitiativePlanModule = ({
                               </select>
                             </div>
                           );
+                        }
                         case 'progress':
                           return (
                             <div key={`${task.id}-progress`} className={`${styles.cell} ${styles.progressCell}`}>

@@ -19,6 +19,18 @@ const roleLabels: Record<AccountRole, string> = {
 
 export const Sidebar = ({ navigationItems, activeItem, onNavigate }: SidebarProps) => {
   const { session, logout } = useAuth();
+  const sections = navigationItems.reduce<
+    { label: string | null; items: NavigationItem[] }[]
+  >((acc, item) => {
+    const label = item.groupLabel ?? null;
+    const last = acc[acc.length - 1];
+    if (!last || last.label !== label) {
+      acc.push({ label, items: [item] });
+    } else {
+      last.items.push(item);
+    }
+    return acc;
+  }, []);
 
   return (
     <aside className={styles.sidebar}>
@@ -30,14 +42,21 @@ export const Sidebar = ({ navigationItems, activeItem, onNavigate }: SidebarProp
         </div>
       </div>
       <nav className={styles.menu}>
-        {navigationItems.map((item) => (
-          <button
-            key={item.key}
-            className={item.key === activeItem ? styles.activeItem : styles.menuItem}
-            onClick={() => onNavigate(item.key)}
-          >
-            {item.label}
-          </button>
+        {sections.map((section, index) => (
+          <div key={section.label ?? `section-${index}`}>
+            {section.label && <p className={styles.sectionHeading}>{section.label}</p>}
+            {section.items.map((item) => (
+              <button
+                key={item.key}
+                className={`${item.key === activeItem ? styles.activeItem : styles.menuItem} ${
+                  section.label ? styles.childItem : ''
+                }`}
+                onClick={() => onNavigate(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         ))}
       </nav>
       <div className={styles.logoutBlock}>
