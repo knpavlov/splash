@@ -1839,7 +1839,14 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                       }`}
                       style={{ left, width, backgroundColor: color }}
                       onDoubleClick={(event) => handleCapacityMenu(event, task)}
-                      onPointerDown={(event) => startBarDrag(event, task, 'move')}
+                      onPointerDown={(event) => {
+                        if (event.ctrlKey || event.metaKey) {
+                          event.preventDefault();
+                          handleTaskSelect(task.id, event);
+                          return;
+                        }
+                        startBarDrag(event, task, 'move');
+                      }}
                       onPointerEnter={(event) => showTimelineTooltip(event, task)}
                       onPointerMove={(event) => showTimelineTooltip(event, task)}
                       onPointerLeave={hideTimelineTooltip}
