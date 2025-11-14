@@ -884,33 +884,6 @@ export const InitiativeProfile = ({
           )}
         </div>
 
-        <section className={styles.cardSection} {...buildProfileAnchor('financial-outlook', 'Financial outlook')}>
-          <header className={styles.cardHeader}>
-            <div className={styles.cardHeaderTitle}>
-              <button
-                className={styles.sectionToggle}
-                type="button"
-                onClick={() => handleSectionToggle('financial')}
-                aria-expanded={!financialCollapsed}
-                aria-label={financialCollapsed ? 'Expand financial outlook' : 'Collapse financial outlook'}
-              >
-                <ChevronIcon direction={financialCollapsed ? 'right' : 'down'} size={16} />
-              </button>
-              <div>
-                <h3>Financial outlook</h3>
-                <p>Balance recurring and one-off impacts for this stage.</p>
-              </div>
-            </div>
-          </header>
-          {!financialCollapsed && (
-            <FinancialEditor
-              stage={currentStage}
-              disabled={!isStageEditable}
-              onChange={(nextStage) => updateStage(selectedStage, nextStage)}
-              commentScope={selectedStage}
-            />
-          )}
-        </section>
           </>
         )}
       </div>
@@ -1066,6 +1039,9 @@ export const InitiativeProfile = ({
       </section>
   );
 };
+
+
+
 
 
 
