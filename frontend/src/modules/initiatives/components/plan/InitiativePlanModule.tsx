@@ -1994,14 +1994,16 @@ export const InitiativePlanModule = ({
               );
             })}
           </div>
-          {capacityEditor && (
-            <CapacityEditorPopover
-              task={normalizedPlan.tasks.find((task) => task.id === capacityEditor.taskId) ?? null}
-              onClose={() => setCapacityEditor(null)}
-              onSubmit={applyCapacitySegments}
-              onColorChange={handleColorChange}
-            />
-          )}
+          {capacityEditor &&
+            createPortal(
+              <CapacityEditorPopover
+                task={normalizedPlan.tasks.find((task) => task.id === capacityEditor.taskId) ?? null}
+                onClose={() => setCapacityEditor(null)}
+                onSubmit={applyCapacitySegments}
+                onColorChange={handleColorChange}
+              />,
+              document.body
+            )}
         </div>
       </div>
       </div>
