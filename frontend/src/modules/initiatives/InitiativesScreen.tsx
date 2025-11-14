@@ -98,6 +98,7 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
       <InitiativeProfile
         mode="view"
         initiative={initiative}
+        allInitiatives={list}
         workstreams={workstreams}
         accounts={accounts}
         onBack={handleBackToList}
@@ -113,6 +114,7 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
       <InitiativeProfile
         mode="create"
         initiative={null}
+        allInitiatives={list}
         workstreams={workstreams}
         accounts={accounts}
         initialWorkstreamId={view.workstreamId ?? selectedWorkstreamId ?? undefined}

@@ -29,10 +29,12 @@ import { useInitiativeComments } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../auth/AuthContext';
 import { createEmptyPlanModel } from '../plan/planModel';
 import { InitiativePlanModule } from './plan/InitiativePlanModule';
+import { InitiativeResourceLoadModule } from './plan/InitiativeResourceLoadModule';
 
 interface InitiativeProfileProps {
   mode: 'create' | 'view';
   initiative: Initiative | null;
+  allInitiatives: Initiative[];
   workstreams: Workstream[];
   accounts: AccountRecord[];
   initialWorkstreamId?: string;
@@ -210,6 +212,7 @@ const formatLogValue = (field: string, value: unknown): string => {
 export const InitiativeProfile = ({
   mode,
   initiative,
+  allInitiatives = [],
   workstreams,
   accounts,
   initialWorkstreamId,
@@ -251,12 +254,16 @@ export const InitiativeProfile = ({
   const [isCommentMode, setIsCommentMode] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<CommentSelectionDraft | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [timelineScrollLeft, setTimelineScrollLeft] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const commentAnchors = useCommentAnchors(commentThreads, contentRef);
   const changeLogLoadedKeyRef = useRef<string | null>(null);
   const initiativeId = initiative?.id ?? null;
   const initiativeUpdatedAt = initiative?.updatedAt ?? null;
+  const handleTimelineScrollSync = useCallback((position: number) => {
+    setTimelineScrollLeft((previous) => (Math.abs(previous - position) > 0.5 ? position : previous));
+  }, []);
 
   useEffect(() => {
     if (initiative) {
@@ -862,7 +869,21 @@ export const InitiativeProfile = ({
         </section>
       </div>
 
-      <InitiativePlanModule plan={draft.plan} onChange={handlePlanChange} readOnly={isReadOnlyMode} />
+      <InitiativePlanModule
+        plan={draft.plan}
+        onChange={handlePlanChange}
+        readOnly={isReadOnlyMode}
+        onTimelineScroll={handleTimelineScrollSync}
+        timelineScrollLeft={timelineScrollLeft}
+      />
+
+      <InitiativeResourceLoadModule
+        plan={draft.plan}
+        initiativeId={draft.id}
+        initiatives={allInitiatives}
+        onTimelineScroll={handleTimelineScrollSync}
+        timelineScrollLeft={timelineScrollLeft}
+      />
 
       <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
         <header>

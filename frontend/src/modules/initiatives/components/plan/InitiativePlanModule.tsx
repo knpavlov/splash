@@ -16,37 +16,22 @@ import {
   createEmptyPlanTask,
   sanitizePlanModel
 } from '../../plan/planModel';
+import { addDays, buildTimelineRange, diffInDays, getZoomScale, parseDate } from '../../plan/planTimeline';
 import { generateId } from '../../../../shared/ui/generateId';
 
 interface InitiativePlanModuleProps {
   plan: InitiativePlanModel;
   onChange: (next: InitiativePlanModel) => void;
   readOnly?: boolean;
+  onTimelineScroll?: (scrollLeft: number) => void;
+  timelineScrollLeft?: number;
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const ROW_HEIGHT = 60;
-const ZOOM_SCALE = [6, 8, 10, 14, 18, 24, 32];
 const PLAN_HEIGHT_MIN = 320;
 const PLAN_HEIGHT_MAX = 900;
 const PLAN_HEIGHT_DEFAULT = 440;
-
 const formatDateInput = (value: Date) => value.toISOString().slice(0, 10);
-
-const parseDate = (value: string | null) => {
-  if (!value) {
-    return null;
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return parsed;
-};
-
-const addDays = (date: Date, days: number) => new Date(date.getTime() + days * MS_PER_DAY);
-
-const diffInDays = (start: Date, end: Date) => Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -119,13 +104,13 @@ interface CapacityEditorState {
   taskId: string;
 }
 
-interface TimelineMonthSegment {
-  label: string;
-  offset: number;
-  span: number;
-}
-
-export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: InitiativePlanModuleProps) => {
+export const InitiativePlanModule = ({
+  plan,
+  onChange,
+  readOnly = false,
+  onTimelineScroll,
+  timelineScrollLeft
+}: InitiativePlanModuleProps) => {
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
   const { session } = useAuth();
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(
@@ -310,57 +295,9 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     window.localStorage.setItem(heightStorageKey, String(planHeight));
   }, [planHeightLoaded, heightStorageKey, planHeight]);
 
-  const pxPerDay = useMemo(
-    () => ZOOM_SCALE[clamp(normalizedPlan.settings.zoomLevel, PLAN_ZOOM_MIN, PLAN_ZOOM_MAX)],
-    [normalizedPlan.settings.zoomLevel]
-  );
+  const pxPerDay = useMemo(() => getZoomScale(normalizedPlan.settings.zoomLevel), [normalizedPlan.settings.zoomLevel]);
 
-  const timelineRange = useMemo(() => {
-    const datedTasks = normalizedPlan.tasks.filter((task) => task.startDate && task.endDate);
-    let start = new Date();
-    let end = addDays(start, 14);
-    if (datedTasks.length) {
-      start = datedTasks
-        .map((task) => parseDate(task.startDate)!)
-        .reduce((acc, date) => (date < acc ? date : acc));
-      end = datedTasks
-        .map((task) => parseDate(task.endDate)!)
-        .reduce((acc, date) => (date > acc ? date : acc));
-      start = addDays(start, -3);
-      end = addDays(end, 3);
-    }
-    const totalDays = Math.max(diffInDays(start, end), 0) + 1;
-    const months: TimelineMonthSegment[] = [];
-    let cursor = new Date(start);
-    let monthStartIndex = 0;
-    let currentLabel = `${cursor.toLocaleString('en-US', { month: 'short' })} ${cursor.getFullYear()}`;
-    for (let dayIndex = 0; dayIndex < totalDays; dayIndex += 1) {
-      const next = addDays(start, dayIndex);
-      const label = `${next.toLocaleString('en-US', { month: 'short' })} ${next.getFullYear()}`;
-      if (label !== currentLabel) {
-        months.push({ label: currentLabel, offset: monthStartIndex, span: dayIndex - monthStartIndex });
-        monthStartIndex = dayIndex;
-        currentLabel = label;
-      }
-      cursor = next;
-    }
-    months.push({ label: currentLabel, offset: monthStartIndex, span: totalDays - monthStartIndex });
-    const days = Array.from({ length: totalDays }, (_, index) => {
-      const date = addDays(start, index);
-      return {
-        label: date.getDate().toString(),
-        key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
-      };
-    });
-    return {
-      start,
-      end,
-      totalDays,
-      months,
-      days,
-      width: totalDays * pxPerDay
-    };
-  }, [normalizedPlan.tasks, pxPerDay]);
+  const timelineRange = useMemo(() => buildTimelineRange(normalizedPlan, pxPerDay), [normalizedPlan, pxPerDay]);
 
   const orderedColumns = useMemo(() => {
     const seen = new Set<TableColumnId>();
@@ -752,6 +689,9 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       }
       scrollSyncSourceRef.current = 'timeline';
       tableRows.scrollTop = timelineScroll.scrollTop;
+      if (onTimelineScroll) {
+        onTimelineScroll(timelineScroll.scrollLeft);
+      }
       scheduleFlagReset();
     };
 
@@ -764,7 +704,20 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
         cancelAnimationFrame(animationFrame);
       }
     };
-  }, [isFullscreen]);
+  }, [isFullscreen, onTimelineScroll]);
+
+  useEffect(() => {
+    if (timelineScrollLeft === null || timelineScrollLeft === undefined) {
+      return;
+    }
+    const timelineScroll = timelineScrollRef.current;
+    if (!timelineScroll) {
+      return;
+    }
+    if (Math.abs(timelineScroll.scrollLeft - timelineScrollLeft) > 1) {
+      timelineScroll.scrollLeft = timelineScrollLeft;
+    }
+  }, [timelineScrollLeft]);
 
   const showDescriptionTooltip = useCallback(
     (text: string, target: HTMLElement) => {

@@ -17,7 +17,7 @@ export const ApprovalsScreen = () => {
   const { session } = useAuth();
   const { list: workstreams } = useWorkstreamsState();
   const { list: accounts } = useAccountsState();
-  const { saveInitiative, removeInitiative, submitStage } = useInitiativesState();
+  const { list: initiativesList, saveInitiative, removeInitiative, submitStage } = useInitiativesState();
 
   const [tasks, setTasks] = useState<ApprovalTask[]>([]);
   const [isQueueLoading, setIsQueueLoading] = useState(true);
@@ -186,6 +186,7 @@ export const ApprovalsScreen = () => {
           <InitiativeProfile
             mode="view"
             initiative={selectedInitiative}
+            allInitiatives={initiativesList}
             workstreams={workstreams}
             accounts={accounts}
             onBack={() => handleBackToQueue()}
