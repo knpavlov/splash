@@ -1842,7 +1842,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                       onPointerDown={(event) => {
                         if (event.ctrlKey || event.metaKey) {
                           event.preventDefault();
-                          handleTaskSelect(task.id, event);
+                          event.stopPropagation();
                           return;
                         }
                         startBarDrag(event, task, 'move');
