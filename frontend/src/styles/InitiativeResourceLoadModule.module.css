@@ -73,11 +73,11 @@
 }
 
 .baselineSwatch {
-  background: linear-gradient(135deg, #bbf7d0, #4ade80);
+  background: linear-gradient(135deg, #e2e8f0, #94a3b8);
 }
 
 .currentSwatch {
-  background: linear-gradient(135deg, #a5b4fc, #6366f1);
+  background: linear-gradient(135deg, #86efac, #22c55e);
 }
 
 .overloadSwatch {
@@ -88,6 +88,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow: hidden;
 }
 
 .emptyState {
@@ -107,16 +108,31 @@
 
 .matrix {
   display: grid;
-  grid-template-columns: 160px 1fr;
   border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 14px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.85);
+  height: 100%;
 }
 
 .namesColumn {
   background: rgba(248, 250, 252, 0.9);
   border-right: 1px solid rgba(226, 232, 240, 0.9);
+  overflow: hidden;
+}
+
+.namesScroll {
+  overflow-y: auto;
+  height: 100%;
+}
+
+.namesScroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.namesScroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 999px;
 }
 
 .nameRow {
@@ -136,19 +152,63 @@
 
 .timelineColumn {
   background: #fff;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
+.timelineHeader {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.monthRow {
+  display: flex;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.monthRow span {
+  padding: 6px 0;
+  text-align: center;
+  border-right: 1px solid rgba(226, 232, 240, 0.5);
+}
+
+.monthRow span:last-child {
+  border-right: none;
+}
+
+.dayRow {
+  display: flex;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+.dayRow span {
+  padding: 4px 0;
+  text-align: center;
+  border-right: 1px solid rgba(226, 232, 240, 0.5);
+}
+
+.dayRow span:last-child {
+  border-right: none;
+}
+
 .timelineScroll {
-  overflow-x: auto;
+  overflow: auto;
+  flex: 1;
 }
 
 .timelineScroll::-webkit-scrollbar {
+  width: 10px;
   height: 10px;
 }
 
 .timelineScroll::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.5);
+  background: rgba(148, 163, 184, 0.45);
   border-radius: 999px;
 }
 
@@ -215,11 +275,11 @@
 
 .baselineBar {
   bottom: 0;
-  background: linear-gradient(180deg, #bbf7d0 0%, #4ade80 100%);
+  background: linear-gradient(180deg, #e2e8f0 0%, #94a3b8 100%);
 }
 
 .initiativeBar {
-  background: linear-gradient(180deg, #c7d2fe 0%, #6366f1 100%);
+  background: linear-gradient(180deg, #bbf7d0 0%, #22c55e 100%);
 }
 
 .overloadBar {

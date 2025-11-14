@@ -1,7 +1,7 @@
 import { RefObject, useMemo } from 'react';
 import styles from '../../../../styles/InitiativeResourceLoadModule.module.css';
 import { Initiative, InitiativePlanModel, InitiativePlanTask } from '../../../../shared/types/initiative';
-import { sanitizePlanModel } from '../../plan/planModel';
+import { PLAN_SPLIT_MAX, PLAN_SPLIT_MIN, sanitizePlanModel } from '../../plan/planModel';
 import { addDays, diffInDays, PlanTimelineRange, parseDate } from '../../plan/planTimeline';
 import { ChevronIcon } from '../../../../components/icons/ChevronIcon';
 
@@ -12,6 +12,9 @@ interface InitiativeResourceLoadModuleProps {
   timelineRange: PlanTimelineRange;
   pxPerDay: number;
   scrollRef: RefObject<HTMLDivElement>;
+  namesScrollRef: RefObject<HTMLDivElement>;
+  splitRatio: number;
+  height: number | null;
   isCollapsed: boolean;
   onToggle: () => void;
 }
@@ -76,10 +79,14 @@ export const InitiativeResourceLoadModule = ({
   timelineRange,
   pxPerDay,
   scrollRef,
+  namesScrollRef,
+  splitRatio,
+  height,
   isCollapsed,
   onToggle
 }: InitiativeResourceLoadModuleProps) => {
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
+  const clampedSplit = Math.min(Math.max(splitRatio, PLAN_SPLIT_MIN), PLAN_SPLIT_MAX);
   const weekBuckets = useMemo<WeekBucket[]>(() => {
     if (isCollapsed) {
       return [];
@@ -264,24 +271,48 @@ export const InitiativeResourceLoadModule = ({
         </div>
       </header>
       {!isCollapsed && (
-        <div className={styles.body}>
+        <div className={styles.body} style={height === null ? { flex: 1 } : { height: `${height}px` }}>
           {!responsiblePeople.length ? (
             <div className={styles.emptyState}>
               <strong>Assign responsible owners to tasks to see their workload.</strong>
               <p>We combine this initiative with any other plan that schedules the same person.</p>
             </div>
           ) : (
-            <div className={styles.matrix}>
+            <div
+              className={styles.matrix}
+              style={{ gridTemplateColumns: `${clampedSplit * 100}% ${100 - clampedSplit * 100}%` }}
+            >
               <div className={styles.namesColumn}>
-                {responsiblePeople.map((person) => (
-                  <div key={person} className={styles.nameRow}>
-                    {person}
-                  </div>
-                ))}
+                <div className={styles.namesScroll} ref={namesScrollRef}>
+                  {responsiblePeople.map((person) => (
+                    <div key={person} className={styles.nameRow}>
+                      {person}
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className={styles.timelineColumn}>
+                <div className={styles.timelineHeader}>
+                  <div className={styles.monthRow}>
+                    {timelineRange.months.map((month) => (
+                      <span key={`${month.label}-${month.offset}`} style={{ width: `${month.span * pxPerDay}px` }}>
+                        {month.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className={styles.dayRow}>
+                    {timelineRange.days.map((day) => (
+                      <span key={day.key} style={{ width: `${pxPerDay}px` }}>
+                        {day.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
                 <div className={styles.timelineScroll} ref={scrollRef}>
-                  <div className={styles.timelineRows} style={{ width: `${timelineRange.width}px` }}>
+                  <div
+                    className={styles.timelineRows}
+                    style={{ width: `${timelineRange.width}px` }}
+                  >
                     {responsiblePeople.map((person) => renderRow(person))}
                   </div>
                 </div>

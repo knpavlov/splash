@@ -490,6 +490,23 @@
   background: rgba(148, 163, 184, 0.5);
 }
 
+.resourceHeightResizer {
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  margin-top: 10px;
+}
+
+.resourceHeightResizer::before {
+  content: '';
+  width: 60px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.5);
+}
+
 .timelinePanel {
   flex: 1;
   padding: 12px;
@@ -731,6 +748,44 @@
   flex: 1;
   height: auto;
   min-height: 0;
+}
+
+.fullscreenStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.fullscreenPane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreenPaneInner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreenDivider {
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+}
+
+.fullscreenDivider::before {
+  content: '';
+  width: 70px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.5);
 }
 
 .dropZone {
