@@ -2041,9 +2041,10 @@ export const InitiativePlanModule = ({
     );
   }
 
+  const isCapacityEditorOpen = Boolean(capacityEditor);
   const planSection = (
     <section
-      className={`${styles.planContainer} ${isFullscreen ? styles.fullscreenContainer : ''}`}
+      className={`${styles.planContainer} ${isFullscreen ? styles.fullscreenContainer : ''} ${isCapacityEditorOpen ? styles.contentFrozen : ''}`}
       ref={containerRef}
     >
       <header className={styles.planHeader}>
@@ -2264,7 +2265,7 @@ const CapacityEditorPopover = ({ task, onClose, onSubmit, onColorChange }: Capac
 
   const selectedColor = task.color ?? DEFAULT_BAR_COLOR;
 
-  return createPortal(
+  return (
     <div
       className={styles.capacityOverlay}
       role="dialog"
@@ -2374,8 +2375,7 @@ const CapacityEditorPopover = ({ task, onClose, onSubmit, onColorChange }: Capac
           </footer>
         </section>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };
 
