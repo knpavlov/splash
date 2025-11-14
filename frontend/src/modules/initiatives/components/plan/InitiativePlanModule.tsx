@@ -129,6 +129,7 @@ export const InitiativePlanModule = ({
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [capacityEditor, setCapacityEditor] = useState<CapacityEditorState | null>(null);
+  const isCapacityEditorActive = capacityEditor !== null;
   const [showCapacityOverlay, setShowCapacityOverlay] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<TableColumnId, number>>(() => buildDefaultColumnWidths());
   const [columnPrefsLoaded, setColumnPrefsLoaded] = useState(false);
@@ -616,7 +617,7 @@ export const InitiativePlanModule = ({
 
   const startColumnResize = useCallback(
     (event: React.PointerEvent<HTMLSpanElement>, columnId: TableColumnId) => {
-      if (readOnly) {
+      if (readOnly || isCapacityEditorActive) {
         return;
       }
       const column = TABLE_COLUMNS.find((item) => item.id === columnId);
@@ -659,12 +660,12 @@ export const InitiativePlanModule = ({
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [columnWidths, readOnly]
+    [columnWidths, isCapacityEditorActive, readOnly]
   );
 
   const startHeightResize = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!planHeightLoaded) {
+      if (!planHeightLoaded || isCapacityEditorActive) {
         return;
       }
       event.preventDefault();
@@ -682,12 +683,12 @@ export const InitiativePlanModule = ({
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [planHeight, planHeightLoaded]
+    [isCapacityEditorActive, planHeight, planHeightLoaded]
   );
 
   const startResourceHeightResize = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (isFullscreen || resourceCollapsed || !resourceHeightLoaded) {
+      if (isFullscreen || resourceCollapsed || !resourceHeightLoaded || isCapacityEditorActive) {
         return;
       }
       event.preventDefault();
@@ -704,12 +705,12 @@ export const InitiativePlanModule = ({
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [isFullscreen, resourceCollapsed, resourceHeight, resourceHeightLoaded]
+    [isCapacityEditorActive, isFullscreen, resourceCollapsed, resourceHeight, resourceHeightLoaded]
   );
 
   const startFullscreenSplitDrag = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!isFullscreen || resourceCollapsed) {
+      if (!isFullscreen || resourceCollapsed || isCapacityEditorActive) {
         return;
       }
       const stack = fullscreenStackRef.current;
@@ -744,7 +745,7 @@ export const InitiativePlanModule = ({
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [fullscreenResourceRatio, isFullscreen, resourceCollapsed]
+    [fullscreenResourceRatio, isCapacityEditorActive, isFullscreen, resourceCollapsed]
   );
 
   const hideDescriptionTooltip = useCallback(() => {
@@ -966,7 +967,7 @@ export const InitiativePlanModule = ({
 
   const handleSplitDrag = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (readOnly) {
+      if (readOnly || isCapacityEditorActive) {
         return;
       }
       const container = containerRef.current;
@@ -994,12 +995,12 @@ export const InitiativePlanModule = ({
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [emitChange, normalizedPlan, readOnly]
+    [emitChange, isCapacityEditorActive, normalizedPlan, readOnly]
   );
 
   const startBarDrag = useCallback(
     (event: React.PointerEvent<HTMLElement>, task: InitiativePlanTask, mode: DragMode) => {
-      if (readOnly || !task.startDate || !task.endDate) {
+      if (readOnly || !task.startDate || !task.endDate || isCapacityEditorActive) {
         return;
       }
       event.preventDefault();
@@ -1128,7 +1129,16 @@ export const InitiativePlanModule = ({
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [normalizedPlan.tasks, pxPerDay, readOnly, selectedTaskIds, selectedTaskIdsSet, setSelectedTaskId, setTasks]
+    [
+      normalizedPlan.tasks,
+      pxPerDay,
+      readOnly,
+      selectedTaskIds,
+      selectedTaskIdsSet,
+      setSelectedTaskId,
+      setTasks,
+      isCapacityEditorActive
+    ]
   );
 
   const progressMeta = useMemo(() => {
@@ -1260,7 +1270,7 @@ export const InitiativePlanModule = ({
 
   const handleColumnDragStart = useCallback(
     (event: DragEvent<HTMLDivElement>, columnId: TableColumnId) => {
-      if (readOnly) {
+      if (readOnly || isCapacityEditorActive) {
         return;
       }
       const target = event.target as HTMLElement | null;
@@ -1272,7 +1282,7 @@ export const InitiativePlanModule = ({
       event.dataTransfer.effectAllowed = 'move';
       event.dataTransfer.setData('text/plain', columnId);
     },
-    [readOnly]
+    [isCapacityEditorActive, readOnly]
   );
 
   const handleColumnDragOver = useCallback(
@@ -1449,6 +1459,9 @@ export const InitiativePlanModule = ({
 
   const handleTimelinePanStart = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      if (isCapacityEditorActive) {
+        return;
+      }
       if (event.button !== 0) {
         return;
       }
@@ -1491,7 +1504,7 @@ export const InitiativePlanModule = ({
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    []
+    [isCapacityEditorActive]
   );
 
   const renderCapacityOverlay = useCallback(
@@ -2044,7 +2057,7 @@ export const InitiativePlanModule = ({
   const isCapacityEditorOpen = Boolean(capacityEditor);
   const planSection = (
     <section
-      className={`${styles.planContainer} ${isFullscreen ? styles.fullscreenContainer : ''} ${isCapacityEditorOpen ? styles.contentFrozen : ''}`}
+      className={`${styles.planContainer} ${isFullscreen ? styles.fullscreenContainer : ''}`}
       ref={containerRef}
     >
       <header className={styles.planHeader}>

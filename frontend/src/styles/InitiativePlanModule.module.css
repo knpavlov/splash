@@ -10,10 +10,6 @@
   position: relative;
 }
 
-.contentFrozen {
-  pointer-events: none;
-}
-
 .planHeader {
   display: flex;
   justify-content: space-between;
