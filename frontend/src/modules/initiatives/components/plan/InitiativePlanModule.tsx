@@ -128,7 +128,9 @@ interface TimelineMonthSegment {
 export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: InitiativePlanModuleProps) => {
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
   const { session } = useAuth();
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(normalizedPlan.tasks[0]?.id ?? null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(
+    () => (normalizedPlan.tasks[0]?.id ? [normalizedPlan.tasks[0].id] : [])
+  );
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [capacityEditor, setCapacityEditor] = useState<CapacityEditorState | null>(null);
@@ -152,20 +154,59 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     y: number;
   } | null>(null);
   const [progressDrafts, setProgressDrafts] = useState<Record<string, string>>({});
+  const selectedTaskId = selectedTaskIds[0] ?? null;
+  const selectedTaskIdsSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
   const [dragColumnId, setDragColumnId] = useState<TableColumnId | null>(null);
+  const setSelectedTaskId = useCallback((taskId: string | null) => {
+    setSelectedTaskIds(taskId ? [taskId] : []);
+  }, []);
+
+  const handleTaskSelect = useCallback(
+    (taskId: string, event?: React.MouseEvent | React.PointerEvent) => {
+      const isToggle = !!event && (event.metaKey || event.ctrlKey);
+      setSelectedTaskIds((prev) => {
+        if (isToggle) {
+          if (prev.includes(taskId)) {
+            const next = prev.filter((id) => id !== taskId);
+            return next.length ? next : [taskId];
+          }
+          return [...prev, taskId];
+        }
+        if (prev.length === 1 && prev[0] === taskId) {
+          return prev;
+        }
+        return [taskId];
+      });
+    },
+    []
+  );
+
   const dragStateRef = useRef<{
-    taskId: string;
+    taskIds: string[];
     mode: DragMode;
     startX: number;
-    startDate: string;
-    endDate: string;
     pxPerDay: number;
+    taskSnapshots: Record<
+      string,
+      {
+        startDate: string;
+        endDate: string;
+        capacitySegments: InitiativePlanCapacitySegment[];
+      }
+    >;
+    baseTasks: InitiativePlanTask[];
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const tableRowsRef = useRef<HTMLDivElement>(null);
-  const timelineGridRef = useRef<HTMLDivElement>(null);
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
   const scrollSyncSourceRef = useRef<'table' | 'timeline' | null>(null);
+  const timelinePanStateRef = useRef<{
+    startX: number;
+    startY: number;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
   const resizeStateRef = useRef<{
     columnId: TableColumnId;
     startX: number;
@@ -178,17 +219,6 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   const columnStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:${userKey}`, [userKey]);
   const heightStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:height:${userKey}`, [userKey]);
   const columnOrderStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:order:${userKey}`, [userKey]);
-
-  useEffect(() => {
-    if (!selectedTaskId && normalizedPlan.tasks.length) {
-      setSelectedTaskId(normalizedPlan.tasks[0].id);
-    } else if (selectedTaskId) {
-      const exists = normalizedPlan.tasks.some((task) => task.id === selectedTaskId);
-      if (!exists) {
-        setSelectedTaskId(normalizedPlan.tasks[0]?.id ?? null);
-      }
-    }
-  }, [normalizedPlan.tasks, selectedTaskId]);
 
   useEffect(() => {
     setColumnPrefsLoaded(false);
@@ -398,6 +428,23 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
   }, [collapsedTaskIds, normalizedPlan.tasks]);
 
   useEffect(() => {
+    setSelectedTaskIds((prev) => {
+      if (!visibleTasks.length) {
+        return [];
+      }
+      const visibleSet = new Set(visibleTasks.map((task) => task.id));
+      const filtered = prev.filter((id) => visibleSet.has(id));
+      if (filtered.length === prev.length) {
+        if (!filtered.length) {
+          return [visibleTasks[0].id];
+        }
+        return prev;
+      }
+      return filtered.length ? filtered : [visibleTasks[0].id];
+    });
+  }, [visibleTasks]);
+
+  useEffect(() => {
     setCollapsedTaskIds((prev) => {
       let changed = false;
       const next = new Set<string>();
@@ -412,15 +459,6 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       return changed ? next : prev;
     });
   }, [normalizedPlan.tasks, taskHasChildren]);
-
-  useEffect(() => {
-    if (!selectedTaskId) {
-      return;
-    }
-    if (!visibleTasks.some((task) => task.id === selectedTaskId)) {
-      setSelectedTaskId(visibleTasks[0]?.id ?? null);
-    }
-  }, [selectedTaskId, visibleTasks]);
 
   const emitChange = useCallback(
     (next: InitiativePlanModel) => {
@@ -678,8 +716,8 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
 
   useEffect(() => {
     const tableRows = tableRowsRef.current;
-    const timelineGrid = timelineGridRef.current;
-    if (!tableRows || !timelineGrid) {
+    const timelineScroll = timelineScrollRef.current;
+    if (!tableRows || !timelineScroll) {
       return;
     }
 
@@ -703,7 +741,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
         return;
       }
       scrollSyncSourceRef.current = 'table';
-      timelineGrid.scrollTop = tableRows.scrollTop;
+      timelineScroll.scrollTop = tableRows.scrollTop;
       scheduleFlagReset();
     };
 
@@ -713,15 +751,15 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
         return;
       }
       scrollSyncSourceRef.current = 'timeline';
-      tableRows.scrollTop = timelineGrid.scrollTop;
+      tableRows.scrollTop = timelineScroll.scrollTop;
       scheduleFlagReset();
     };
 
     tableRows.addEventListener('scroll', handleTableScroll);
-    timelineGrid.addEventListener('scroll', handleTimelineScroll);
+    timelineScroll.addEventListener('scroll', handleTimelineScroll);
     return () => {
       tableRows.removeEventListener('scroll', handleTableScroll);
-      timelineGrid.removeEventListener('scroll', handleTimelineScroll);
+      timelineScroll.removeEventListener('scroll', handleTimelineScroll);
       if (animationFrame !== null) {
         cancelAnimationFrame(animationFrame);
       }
@@ -812,13 +850,44 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       }
       event.preventDefault();
       event.stopPropagation();
+      const selectionForDrag =
+        mode === 'move'
+          ? selectedTaskIdsSet.has(task.id)
+            ? selectedTaskIds
+            : [task.id]
+          : [task.id];
+      if (!selectedTaskIdsSet.has(task.id)) {
+        setSelectedTaskId(task.id);
+      }
+      const snapshots: Record<
+        string,
+        {
+          startDate: string;
+          endDate: string;
+          capacitySegments: InitiativePlanCapacitySegment[];
+        }
+      > = {};
+      selectionForDrag.forEach((taskId) => {
+        const sourceTask = normalizedPlan.tasks.find((item) => item.id === taskId);
+        if (sourceTask?.startDate && sourceTask?.endDate) {
+          snapshots[taskId] = {
+            startDate: sourceTask.startDate,
+            endDate: sourceTask.endDate,
+            capacitySegments: sourceTask.capacitySegments.map((segment) => ({ ...segment }))
+          };
+        }
+      });
+      const applicableTaskIds = mode === 'move' ? Object.keys(snapshots) : [task.id];
+      if (!applicableTaskIds.length) {
+        return;
+      }
       dragStateRef.current = {
-        taskId: task.id,
+        taskIds: applicableTaskIds,
         mode,
         startX: event.clientX,
-        startDate: task.startDate!,
-        endDate: task.endDate!,
-        pxPerDay
+        pxPerDay,
+        taskSnapshots: snapshots,
+        baseTasks: normalizedPlan.tasks
       };
       const handleMove = (moveEvent: PointerEvent) => {
         const state = dragStateRef.current;
@@ -833,47 +902,69 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
         if (deltaDays === 0) {
           return;
         }
-        updateTask(state.taskId, (taskToUpdate) => {
-          const start = parseDate(state.startDate)!;
-          const end = parseDate(state.endDate)!;
-          if (state.mode === 'move') {
+        if (state.mode === 'move') {
+          const updatedTasks = state.baseTasks.map((taskToUpdate) => {
+            const snapshot = state.taskSnapshots[taskToUpdate.id];
+            if (!snapshot) {
+              return taskToUpdate;
+            }
+            const start = parseDate(snapshot.startDate);
+            const end = parseDate(snapshot.endDate);
+            if (!start || !end) {
+              return taskToUpdate;
+            }
             const newStart = formatDateInput(addDays(start, deltaDays));
             const newEnd = formatDateInput(addDays(end, deltaDays));
-            const nextSegments =
-              taskToUpdate.capacitySegments.length === 0
-                ? taskToUpdate.capacitySegments
-                : taskToUpdate.capacitySegments.map((segment) => {
-                    const segmentStart = parseDate(segment.startDate);
-                    const segmentEnd = parseDate(segment.endDate);
-                    if (!segmentStart || !segmentEnd) {
-                      return segment;
-                    }
-                    return {
-                      ...segment,
-                      startDate: formatDateInput(addDays(segmentStart, deltaDays)),
-                      endDate: formatDateInput(addDays(segmentEnd, deltaDays))
-                    };
-                  });
+            const nextSegments = snapshot.capacitySegments.length
+              ? snapshot.capacitySegments.map((segment) => {
+                  const segmentStart = parseDate(segment.startDate);
+                  const segmentEnd = parseDate(segment.endDate);
+                  if (!segmentStart || !segmentEnd) {
+                    return segment;
+                  }
+                  return {
+                    ...segment,
+                    startDate: formatDateInput(addDays(segmentStart, deltaDays)),
+                    endDate: formatDateInput(addDays(segmentEnd, deltaDays))
+                  };
+                })
+              : snapshot.capacitySegments;
             return {
               ...taskToUpdate,
               startDate: newStart,
               endDate: newEnd,
               capacitySegments: nextSegments
             };
+          });
+          setTasks(updatedTasks);
+          return;
+        }
+        const targetId = state.taskIds[0];
+        const snapshot = state.taskSnapshots[targetId];
+        if (!snapshot) {
+          return;
+        }
+        const start = parseDate(snapshot.startDate)!;
+        const end = parseDate(snapshot.endDate)!;
+        if (state.mode === 'resize-start') {
+          const candidate = addDays(start, deltaDays);
+          if (candidate > end) {
+            return;
           }
-          if (state.mode === 'resize-start') {
-            const candidate = addDays(start, deltaDays);
-            if (candidate > end) {
-              return taskToUpdate;
-            }
-            return { ...taskToUpdate, startDate: formatDateInput(candidate) };
-          }
-          const candidate = addDays(end, deltaDays);
-          if (candidate < start) {
-            return taskToUpdate;
-          }
-          return { ...taskToUpdate, endDate: formatDateInput(candidate) };
-        });
+          const updatedTasks = state.baseTasks.map((taskToUpdate) =>
+            taskToUpdate.id === targetId ? { ...taskToUpdate, startDate: formatDateInput(candidate) } : taskToUpdate
+          );
+          setTasks(updatedTasks);
+          return;
+        }
+        const candidate = addDays(end, deltaDays);
+        if (candidate < start) {
+          return;
+        }
+        const updatedTasks = state.baseTasks.map((taskToUpdate) =>
+          taskToUpdate.id === targetId ? { ...taskToUpdate, endDate: formatDateInput(candidate) } : taskToUpdate
+        );
+        setTasks(updatedTasks);
       };
       const handleUp = () => {
         dragStateRef.current = null;
@@ -883,7 +974,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [pxPerDay, readOnly, updateTask]
+    [normalizedPlan.tasks, pxPerDay, readOnly, selectedTaskIds, selectedTaskIdsSet, setSelectedTaskId, setTasks]
   );
 
   const progressMeta = useMemo(() => {
@@ -1202,6 +1293,53 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
     };
   }, [handleZoom, readOnly]);
 
+  const handleTimelinePanStart = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+      const scrollEl = timelineScrollRef.current;
+      if (!scrollEl) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target && target.closest('[data-timeline-interactive="true"]')) {
+        return;
+      }
+      event.preventDefault();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startScrollLeft = scrollEl.scrollLeft;
+      const startScrollTop = scrollEl.scrollTop;
+      scrollEl.classList.add(styles.timelinePanning);
+      timelinePanStateRef.current = {
+        startX,
+        startY,
+        scrollLeft: startScrollLeft,
+        scrollTop: startScrollTop
+      };
+      const handleMove = (moveEvent: PointerEvent) => {
+        const state = timelinePanStateRef.current;
+        if (!state) {
+          return;
+        }
+        const dx = moveEvent.clientX - state.startX;
+        const dy = moveEvent.clientY - state.startY;
+        scrollEl.scrollLeft = state.scrollLeft - dx;
+        scrollEl.scrollTop = state.scrollTop - dy;
+      };
+      const handleUp = () => {
+        timelinePanStateRef.current = null;
+        scrollEl.classList.remove(styles.timelinePanning);
+        window.removeEventListener('pointermove', handleMove);
+        window.removeEventListener('pointerup', handleUp);
+      };
+      window.addEventListener('pointermove', handleMove);
+      window.addEventListener('pointerup', handleUp);
+    },
+    []
+  );
+
   const renderCapacityOverlay = useCallback(
     (task: InitiativePlanTask) => {
       if (!showCapacityOverlay || !task.startDate || !task.endDate) {
@@ -1383,10 +1521,10 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                   <div
                     key={task.id}
                     className={`${styles.tableRow} ${rowDepthClass} ${
-                      selectedTaskId === task.id ? styles.rowSelected : ''
+                      selectedTaskIdsSet.has(task.id) ? styles.rowSelected : ''
                     }`}
                     style={{ gridTemplateColumns: tableGridTemplate, height: `${ROW_HEIGHT}px` }}
-                    onClick={() => setSelectedTaskId(task.id)}
+                    onClick={(event) => handleTaskSelect(task.id, event)}
                     onDragOver={(event) => {
                       if (readOnly || !dragTaskId || dragTaskId === task.id) {
                         return;
@@ -1607,20 +1745,20 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                 );
               })}
               {dragTaskId && (
-              <div
-                className={styles.dropZone}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = 'move';
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  moveTaskBlock(dragTaskId, null);
-                  setDragTaskId(null);
-                }}
-              >
-                Drop here to move to end
-              </div>
+                <div
+                  className={styles.dropZone}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    moveTaskBlock(dragTaskId, null);
+                    setDragTaskId(null);
+                  }}
+                >
+                  Drop here to move to end
+                </div>
               )}
             </div>
           </div>
@@ -1634,38 +1772,42 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
           className={styles.timelinePanel}
           ref={timelineRef}
         >
-          <div className={styles.timelineHeader}>
-            <div className={styles.monthRow}>
-              {timelineRange.months.map((month) => (
-                <div
-                  key={`${month.label}-${month.offset}`}
-                  className={styles.monthCell}
-                  style={{ width: month.span * pxPerDay }}
-                >
-                  {month.label}
-                </div>
-              ))}
-            </div>
-            <div className={styles.dayRow}>
-              {timelineRange.days.map((day) => (
-                <div
-                  key={day.key}
-                  className={styles.dayCell}
-                  style={{ width: pxPerDay }}
-                >
-                  {day.label}
-                </div>
-              ))}
-            </div>
-          </div>
           <div
-            className={styles.timelineGrid}
-            ref={timelineGridRef}
-            style={{
-              width: timelineRange.width,
-              backgroundSize: `${pxPerDay}px ${ROW_HEIGHT}px`
-            }}
+            className={styles.timelineScroll}
+            ref={timelineScrollRef}
+            onPointerDown={handleTimelinePanStart}
           >
+            <div className={styles.timelineHeader}>
+              <div className={styles.monthRow}>
+                {timelineRange.months.map((month) => (
+                  <div
+                    key={`${month.label}-${month.offset}`}
+                    className={styles.monthCell}
+                    style={{ width: month.span * pxPerDay }}
+                  >
+                    {month.label}
+                  </div>
+                ))}
+              </div>
+              <div className={styles.dayRow}>
+                {timelineRange.days.map((day) => (
+                  <div
+                    key={day.key}
+                    className={styles.dayCell}
+                    style={{ width: pxPerDay }}
+                  >
+                    {day.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div
+              className={styles.timelineGrid}
+              style={{
+                width: timelineRange.width,
+                backgroundSize: `${pxPerDay}px ${ROW_HEIGHT}px`
+              }}
+            >
             {visibleTasks.map((task) => {
               const hasDates = task.startDate && task.endDate;
               const startDate = hasDates ? parseDate(task.startDate!) : null;
@@ -1688,12 +1830,12 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                   key={`timeline-${task.id}`}
                   className={styles.timelineRow}
                   style={{ height: `${ROW_HEIGHT}px` }}
-                  onClick={() => setSelectedTaskId(task.id)}
+                  onClick={(event) => handleTaskSelect(task.id, event)}
                 >
                   {hasDates ? (
                     <div
                       className={`${styles.timelineBar} ${barDepthClass} ${
-                        selectedTaskId === task.id ? styles.barSelected : ''
+                        selectedTaskIdsSet.has(task.id) ? styles.barSelected : ''
                       }`}
                       style={{ left, width, backgroundColor: color }}
                       onDoubleClick={(event) => handleCapacityMenu(event, task)}
@@ -1701,6 +1843,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                       onPointerEnter={(event) => showTimelineTooltip(event, task)}
                       onPointerMove={(event) => showTimelineTooltip(event, task)}
                       onPointerLeave={hideTimelineTooltip}
+                      data-timeline-interactive="true"
                     >
                       {capacityOverlay}
                       {!readOnly && (
@@ -1708,10 +1851,12 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
                           <span
                             className={`${styles.barHandle} ${styles.handleLeft}`}
                             onPointerDown={(event) => startBarDrag(event, task, 'resize-start')}
+                            data-timeline-interactive="true"
                           />
                           <span
                             className={`${styles.barHandle} ${styles.handleRight}`}
                             onPointerDown={(event) => startBarDrag(event, task, 'resize-end')}
+                            data-timeline-interactive="true"
                           />
                         </>
                       )}
@@ -1733,6 +1878,7 @@ export const InitiativePlanModule = ({ plan, onChange, readOnly = false }: Initi
             />
           )}
         </div>
+      </div>
       </div>
       {!isFullscreen && (
         <div
