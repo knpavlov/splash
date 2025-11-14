@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../../auth/AuthContext';
 import styles from '../../../../styles/InitiativePlanModule.module.css';
 import {
+  Initiative,
   InitiativePlanCapacitySegment,
   InitiativePlanModel,
   InitiativePlanTask
@@ -18,13 +19,15 @@ import {
 } from '../../plan/planModel';
 import { addDays, buildTimelineRange, diffInDays, getZoomScale, parseDate } from '../../plan/planTimeline';
 import { generateId } from '../../../../shared/ui/generateId';
+import { ChevronIcon } from '../../../../components/icons/ChevronIcon';
+import { InitiativeResourceLoadModule } from './InitiativeResourceLoadModule';
 
 interface InitiativePlanModuleProps {
   plan: InitiativePlanModel;
+  initiativeId: string;
+  allInitiatives: Initiative[];
   onChange: (next: InitiativePlanModel) => void;
   readOnly?: boolean;
-  onTimelineScroll?: (scrollLeft: number) => void;
-  timelineScrollLeft?: number;
 }
 
 const ROW_HEIGHT = 60;
@@ -106,16 +109,18 @@ interface CapacityEditorState {
 
 export const InitiativePlanModule = ({
   plan,
+  initiativeId,
+  allInitiatives,
   onChange,
-  readOnly = false,
-  onTimelineScroll,
-  timelineScrollLeft
+  readOnly = false
 }: InitiativePlanModuleProps) => {
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
   const { session } = useAuth();
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(
     () => (normalizedPlan.tasks[0]?.id ? [normalizedPlan.tasks[0].id] : [])
   );
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [resourceCollapsed, setResourceCollapsed] = useState(false);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [capacityEditor, setCapacityEditor] = useState<CapacityEditorState | null>(null);
@@ -185,7 +190,9 @@ export const InitiativePlanModule = ({
   const timelineRef = useRef<HTMLDivElement>(null);
   const tableRowsRef = useRef<HTMLDivElement>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const resourceScrollRef = useRef<HTMLDivElement>(null);
   const scrollSyncSourceRef = useRef<'table' | 'timeline' | null>(null);
+  const horizontalSyncSourceRef = useRef<'plan' | 'resource' | null>(null);
   const timelinePanStateRef = useRef<{
     startX: number;
     startY: number;
@@ -652,6 +659,57 @@ export const InitiativePlanModule = ({
   }, [isFullscreen]);
 
   useEffect(() => {
+    if (resourceCollapsed) {
+      return;
+    }
+    const timelineScroll = timelineScrollRef.current;
+    const resourceScroll = resourceScrollRef.current;
+    if (!timelineScroll || !resourceScroll) {
+      return;
+    }
+    let animationFrame: number | null = null;
+    const resetSyncFlag = () => {
+      horizontalSyncSourceRef.current = null;
+    };
+    const scheduleReset = () => {
+      if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+      }
+      animationFrame = requestAnimationFrame(() => {
+        resetSyncFlag();
+        animationFrame = null;
+      });
+    };
+    const handleTimelineScroll = () => {
+      if (horizontalSyncSourceRef.current === 'resource') {
+        resetSyncFlag();
+        return;
+      }
+      horizontalSyncSourceRef.current = 'plan';
+      resourceScroll.scrollLeft = timelineScroll.scrollLeft;
+      scheduleReset();
+    };
+    const handleResourceScroll = () => {
+      if (horizontalSyncSourceRef.current === 'plan') {
+        resetSyncFlag();
+        return;
+      }
+      horizontalSyncSourceRef.current = 'resource';
+      timelineScroll.scrollLeft = resourceScroll.scrollLeft;
+      scheduleReset();
+    };
+    timelineScroll.addEventListener('scroll', handleTimelineScroll);
+    resourceScroll.addEventListener('scroll', handleResourceScroll);
+    return () => {
+      timelineScroll.removeEventListener('scroll', handleTimelineScroll);
+      resourceScroll.removeEventListener('scroll', handleResourceScroll);
+      if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [isFullscreen, resourceCollapsed]);
+
+  useEffect(() => {
     const tableRows = tableRowsRef.current;
     const timelineScroll = timelineScrollRef.current;
     if (!tableRows || !timelineScroll) {
@@ -689,9 +747,6 @@ export const InitiativePlanModule = ({
       }
       scrollSyncSourceRef.current = 'timeline';
       tableRows.scrollTop = timelineScroll.scrollTop;
-      if (onTimelineScroll) {
-        onTimelineScroll(timelineScroll.scrollLeft);
-      }
       scheduleFlagReset();
     };
 
@@ -704,20 +759,7 @@ export const InitiativePlanModule = ({
         cancelAnimationFrame(animationFrame);
       }
     };
-  }, [isFullscreen, onTimelineScroll]);
-
-  useEffect(() => {
-    if (timelineScrollLeft === null || timelineScrollLeft === undefined) {
-      return;
-    }
-    const timelineScroll = timelineScrollRef.current;
-    if (!timelineScroll) {
-      return;
-    }
-    if (Math.abs(timelineScroll.scrollLeft - timelineScrollLeft) > 1) {
-      timelineScroll.scrollLeft = timelineScrollLeft;
-    }
-  }, [timelineScrollLeft]);
+  }, [isFullscreen]);
 
   const showDescriptionTooltip = useCallback(
     (text: string, target: HTMLElement) => {
@@ -1350,69 +1392,84 @@ export const InitiativePlanModule = ({
       ref={containerRef}
     >
       <header className={styles.planHeader}>
-        <div>
-          <h3>Implementation plan</h3>
-          <p className={styles.planSubtitle}>Build a detailed execution plan with a live Gantt chart.</p>
+        <div className={styles.planHeaderLeft}>
+          <button
+            className={styles.sectionToggle}
+            type="button"
+            onClick={() => setIsCollapsed((prev) => !prev)}
+            aria-expanded={!isCollapsed}
+            aria-label={isCollapsed ? 'Expand implementation plan' : 'Collapse implementation plan'}
+          >
+            <ChevronIcon direction={isCollapsed ? 'right' : 'down'} size={16} />
+          </button>
+          <div>
+            <h3>Implementation plan</h3>
+            <p className={styles.planSubtitle}>Build a detailed execution plan with a live Gantt chart.</p>
+          </div>
         </div>
-        <div className={styles.toolbar}>
-          <button type="button" onClick={handleAddTask} disabled={readOnly}>
-            + Add
-          </button>
-          <button type="button" onClick={handleDeleteTask} disabled={readOnly || !selectedTaskId}>
-            Delete
-          </button>
-          <button type="button" onClick={handleIndent} disabled={readOnly || !selectedTaskId}>
-            Indent
-          </button>
-          <button type="button" onClick={handleOutdent} disabled={readOnly || !selectedTaskId}>
-            Outdent
-          </button>
-          <div className={styles.divider} />
-          <button
-            type="button"
-            onClick={() => handleZoom(1)}
-            disabled={readOnly || normalizedPlan.settings.zoomLevel >= PLAN_ZOOM_MAX}
-          >
-            Zoom in
-          </button>
-          <button
-            type="button"
-            onClick={() => handleZoom(-1)}
-            disabled={readOnly || normalizedPlan.settings.zoomLevel <= PLAN_ZOOM_MIN}
-          >
-            Zoom out
-          </button>
-          <button
-            type="button"
-            className={showCapacityOverlay ? styles.toggleActive : undefined}
-            onClick={() => setShowCapacityOverlay((value) => !value)}
-            aria-pressed={showCapacityOverlay}
-          >
-            {showCapacityOverlay ? 'Hide capacity' : 'Show capacity'}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              hideDescriptionTooltip();
-              setIsFullscreen((value) => !value);
-            }}
-          >
-            {isFullscreen ? 'Exit full screen' : 'Full screen'}
-          </button>
-        </div>
+        {!isCollapsed && (
+          <div className={styles.toolbar}>
+            <button type="button" onClick={handleAddTask} disabled={readOnly}>
+              + Add
+            </button>
+            <button type="button" onClick={handleDeleteTask} disabled={readOnly || !selectedTaskId}>
+              Delete
+            </button>
+            <button type="button" onClick={handleIndent} disabled={readOnly || !selectedTaskId}>
+              Indent
+            </button>
+            <button type="button" onClick={handleOutdent} disabled={readOnly || !selectedTaskId}>
+              Outdent
+            </button>
+            <div className={styles.divider} />
+            <button
+              type="button"
+              onClick={() => handleZoom(1)}
+              disabled={readOnly || normalizedPlan.settings.zoomLevel >= PLAN_ZOOM_MAX}
+            >
+              Zoom in
+            </button>
+            <button
+              type="button"
+              onClick={() => handleZoom(-1)}
+              disabled={readOnly || normalizedPlan.settings.zoomLevel <= PLAN_ZOOM_MIN}
+            >
+              Zoom out
+            </button>
+            <button
+              type="button"
+              className={showCapacityOverlay ? styles.toggleActive : undefined}
+              onClick={() => setShowCapacityOverlay((value) => !value)}
+              aria-pressed={showCapacityOverlay}
+            >
+              {showCapacityOverlay ? 'Hide capacity' : 'Show capacity'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                hideDescriptionTooltip();
+                setIsFullscreen((value) => !value);
+              }}
+            >
+              {isFullscreen ? 'Exit full screen' : 'Full screen'}
+            </button>
+          </div>
+        )}
       </header>
-      {infoMessage && (
-        <div className={styles.infoBanner}>
-          <span>{infoMessage}</span>
-          <button type="button" onClick={() => setInfoMessage(null)}>
-            ×
-          </button>
-        </div>
-      )}
-      <div
-        className={styles.planBody}
-        style={isFullscreen ? undefined : { height: `${planHeight}px` }}
-      >
+      {!isCollapsed && (
+        <>
+          {infoMessage && (
+            <div className={styles.infoBanner}>
+              <span>{infoMessage}</span>
+              <button type="button" onClick={() => setInfoMessage(null)}>
+                ×
+              </button>
+            </div>
+          )}
+          <div
+            className={styles.planBody}
+            style={isFullscreen ? undefined : { height: `${planHeight}px` }}
+          >
         <div
           className={styles.tablePanel}
           style={{ width: `${normalizedPlan.settings.splitRatio * 100}%` }}
@@ -1839,12 +1896,24 @@ export const InitiativePlanModule = ({
           )}
         </div>
       </div>
-      </div>
-      {!isFullscreen && (
-        <div
-          className={styles.heightResizer}
-          onPointerDown={startHeightResize}
-        />
+          </div>
+          {!isFullscreen && (
+            <div
+              className={styles.heightResizer}
+              onPointerDown={startHeightResize}
+            />
+          )}
+          <InitiativeResourceLoadModule
+            plan={normalizedPlan}
+            initiativeId={initiativeId}
+            initiatives={allInitiatives}
+            timelineRange={timelineRange}
+            pxPerDay={pxPerDay}
+            scrollRef={resourceScrollRef}
+            isCollapsed={resourceCollapsed}
+            onToggle={() => setResourceCollapsed((prev) => !prev)}
+          />
+        </>
       )}
     </section>
   );

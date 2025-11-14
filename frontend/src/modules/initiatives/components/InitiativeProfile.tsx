@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/InitiativeProfile.module.css';
+import { ChevronIcon } from '../../../components/icons/ChevronIcon';
 import {
   Initiative,
   InitiativeStageData,
@@ -29,7 +30,6 @@ import { useInitiativeComments } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../auth/AuthContext';
 import { createEmptyPlanModel } from '../plan/planModel';
 import { InitiativePlanModule } from './plan/InitiativePlanModule';
-import { InitiativeResourceLoadModule } from './plan/InitiativeResourceLoadModule';
 
 interface InitiativeProfileProps {
   mode: 'create' | 'view';
@@ -234,6 +234,7 @@ export const InitiativeProfile = ({
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [changeLog, setChangeLog] = useState<InitiativeEventEntry[]>([]);
   const [isLogLoading, setIsLogLoading] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const { session } = useAuth();
   const commentActor = useMemo(
     () => (session ? { accountId: session.accountId, name: session.email } : undefined),
@@ -254,15 +255,14 @@ export const InitiativeProfile = ({
   const [isCommentMode, setIsCommentMode] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<CommentSelectionDraft | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [timelineScrollLeft, setTimelineScrollLeft] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const commentAnchors = useCommentAnchors(commentThreads, contentRef);
   const changeLogLoadedKeyRef = useRef<string | null>(null);
   const initiativeId = initiative?.id ?? null;
   const initiativeUpdatedAt = initiative?.updatedAt ?? null;
-  const handleTimelineScrollSync = useCallback((position: number) => {
-    setTimelineScrollLeft((previous) => (Math.abs(previous - position) > 0.5 ? position : previous));
+  const handleSectionToggle = useCallback((key: string) => {
+    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
   useEffect(() => {
@@ -619,6 +619,10 @@ export const InitiativeProfile = ({
   const profileContentClass = `${styles.profileContent}${hideBackLink ? ` ${styles.profileContentNoBack}` : ''}`;
   const buildProfileAnchor = (key: string, label?: string) => createCommentAnchor(`profile.${key}`, label);
   const buildStageAnchor = (key: string, label?: string) => createCommentAnchor(`stage.${selectedStage}.${key}`, label);
+  const stageProgressCollapsed = collapsedSections['stage-progress'] ?? false;
+  const stageDetailsCollapsed = collapsedSections['stage-details'] ?? false;
+  const financialCollapsed = collapsedSections['financial'] ?? false;
+  const changeLogCollapsed = collapsedSections['change-log'] ?? false;
 
   return (
     <section className={`${styles.profileWrapper} ${isCommentMode ? styles.profileWithComments : ''}`}>
@@ -672,20 +676,33 @@ export const InitiativeProfile = ({
 
       <section className={styles.cardSection} {...buildProfileAnchor('stage-gates', 'Stage progression')}>
         <header className={styles.cardHeader}>
-          <div>
-            <h3>Stage progression</h3>
-            <p>Track each L gate and review status in one place.</p>
+          <div className={styles.cardHeaderTitle}>
+            <button
+              className={styles.sectionToggle}
+              type="button"
+              onClick={() => handleSectionToggle('stage-progress')}
+              aria-expanded={!stageProgressCollapsed}
+              aria-label={stageProgressCollapsed ? 'Expand stage progression' : 'Collapse stage progression'}
+            >
+              <ChevronIcon direction={stageProgressCollapsed ? 'right' : 'down'} size={16} />
+            </button>
+            <div>
+              <h3>Stage progression</h3>
+              <p>Track each L gate and review status in one place.</p>
+            </div>
           </div>
         </header>
-        <StageGatePanel
-          activeStage={draft.activeStage}
-          selectedStage={selectedStage}
-          stages={draft.stages}
-          stageState={draft.stageState}
-          initiativeName={draft.name}
-          onSelectStage={handleStageChange}
-          workstream={selectedWorkstream}
-        />
+        {!stageProgressCollapsed && (
+          <StageGatePanel
+            activeStage={draft.activeStage}
+            selectedStage={selectedStage}
+            stages={draft.stages}
+            stageState={draft.stageState}
+            initiativeName={draft.name}
+            onSelectStage={handleStageChange}
+            workstream={selectedWorkstream}
+          />
+        )}
       </section>
 
       {banner && (
@@ -694,9 +711,20 @@ export const InitiativeProfile = ({
 
       <div className={styles.stagePanel}>
         <header className={styles.stageHeader}>
-          <div>
-            <h3>{initiativeStageLabels[selectedStage]}</h3>
-            {!isStageEditable && <p className={styles.stageHint}>Fields are read-only for this gate.</p>}
+          <div className={styles.stageHeaderLeft}>
+            <button
+              className={styles.sectionToggle}
+              type="button"
+              onClick={() => handleSectionToggle('stage-details')}
+              aria-expanded={!stageDetailsCollapsed}
+              aria-label={stageDetailsCollapsed ? 'Expand stage details' : 'Collapse stage details'}
+            >
+              <ChevronIcon direction={stageDetailsCollapsed ? 'right' : 'down'} size={16} />
+            </button>
+            <div>
+              <h3>{initiativeStageLabels[selectedStage]}</h3>
+              {!isStageEditable && <p className={styles.stageHint}>Fields are read-only for this gate.</p>}
+            </div>
           </div>
           <div className={styles.stageActions}>
             {mode === 'view' && initiative && isStageEditable && !stageLocked && (
@@ -715,6 +743,8 @@ export const InitiativeProfile = ({
             )}
           </div>
         </header>
+        {!stageDetailsCollapsed && (
+          <>
         <div className={styles.stageStatusRow} {...buildStageAnchor('status', 'Stage status')}>
           <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
             {stageStatusLabel}
@@ -734,7 +764,7 @@ export const InitiativeProfile = ({
           className={`${styles.fieldBlock} ${errors.stageName ? styles.fieldError : ''}`}
           {...buildStageAnchor('name', 'Stage name')}
         >
-          <span>Initiative name</span>
+          <span>Stage name</span>
           <input
             type="text"
             className={errors.stageName ? styles.inputError : undefined}
@@ -855,82 +885,98 @@ export const InitiativeProfile = ({
 
         <section className={styles.cardSection} {...buildProfileAnchor('financial-outlook', 'Financial outlook')}>
           <header className={styles.cardHeader}>
-            <div>
-              <h3>Financial outlook</h3>
-              <p>Balance recurring and one-off impacts for this stage.</p>
+            <div className={styles.cardHeaderTitle}>
+              <button
+                className={styles.sectionToggle}
+                type="button"
+                onClick={() => handleSectionToggle('financial')}
+                aria-expanded={!financialCollapsed}
+                aria-label={financialCollapsed ? 'Expand financial outlook' : 'Collapse financial outlook'}
+              >
+                <ChevronIcon direction={financialCollapsed ? 'right' : 'down'} size={16} />
+              </button>
+              <div>
+                <h3>Financial outlook</h3>
+                <p>Balance recurring and one-off impacts for this stage.</p>
+              </div>
             </div>
           </header>
-          <FinancialEditor
-            stage={currentStage}
-            disabled={!isStageEditable}
-            onChange={(nextStage) => updateStage(selectedStage, nextStage)}
-            commentScope={selectedStage}
-          />
+          {!financialCollapsed && (
+            <FinancialEditor
+              stage={currentStage}
+              disabled={!isStageEditable}
+              onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+              commentScope={selectedStage}
+            />
+          )}
         </section>
+          </>
+        )}
       </div>
 
       <InitiativePlanModule
         plan={draft.plan}
+        initiativeId={draft.id}
+        allInitiatives={allInitiatives}
         onChange={handlePlanChange}
         readOnly={isReadOnlyMode}
-        onTimelineScroll={handleTimelineScrollSync}
-        timelineScrollLeft={timelineScrollLeft}
-      />
-
-      <InitiativeResourceLoadModule
-        plan={draft.plan}
-        initiativeId={draft.id}
-        initiatives={allInitiatives}
-        onTimelineScroll={handleTimelineScrollSync}
-        timelineScrollLeft={timelineScrollLeft}
       />
 
       <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
-        <header>
+        <header className={styles.changeLogHeader}>
+          <button
+            className={styles.sectionToggle}
+            type="button"
+            onClick={() => handleSectionToggle('change-log')}
+            aria-expanded={!changeLogCollapsed}
+            aria-label={changeLogCollapsed ? 'Expand change log' : 'Collapse change log'}
+          >
+            <ChevronIcon direction={changeLogCollapsed ? 'right' : 'down'} size={16} />
+          </button>
           <h4>Change log</h4>
         </header>
-        {isLogLoading ? (
-        <p className={styles.placeholder}>Loading change log...</p>
-        ) : changeLog.length === 0 ? (
-          <p className={styles.placeholder}>No changes recorded yet.</p>
-        ) : (
-          <ul className={styles.changeLogList}>
-            {changeLog.map((entry) => {
-              const summaryParts = entry.changes
-                .map((change) => {
-                  const label = logFieldLabels[change.field] ?? change.field;
-                  if (change.field === 'created') {
-                    return 'Initiative created';
-                  }
-                  if (change.field === 'stage-content') {
-                    return 'Stage content updated';
-                  }
-                  if (change.field === 'execution-plan') {
-                    return 'Timeline updated';
-                  }
-                  if (change.field === 'updated') {
-                    return 'Details updated';
-                  }
-                  const previous = formatLogValue(change.field, change.previousValue);
-                  const next = formatLogValue(change.field, change.nextValue);
-                  if (previous === next) {
-                    return null;
-                  }
-                  return `${label}: ${previous} в†’ ${next}`;
-                })
-                .filter((value): value is string => Boolean(value));
-              const summary = summaryParts.length ? summaryParts.join('; ') : 'Updated';
-              return (
-                <li key={entry.id} className={styles.changeLogLine}>
-                  <span className={styles.logTime}>{new Date(entry.createdAt).toLocaleString()}</span>
-                  <span className={styles.logActor}>{entry.actorName ?? 'System'}</span>
-                  <span className={styles.logSummary}>{summary}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+        {!changeLogCollapsed &&
+          (isLogLoading ? (
+            <p className={styles.placeholder}>Loading change log...</p>
+          ) : changeLog.length === 0 ? (
+            <p className={styles.placeholder}>No changes recorded yet.</p>
+          ) : (
+            <ul className={styles.changeLogList}>
+              {changeLog.map((entry) => {
+                const summaryParts = entry.changes
+                  .map((change) => {
+                    const label = logFieldLabels[change.field] ?? change.field;
+                    if (change.field === 'created') {
+                      return 'Initiative created';
+                    }
+                    if (change.field === 'stage-content') {
+                      return 'Stage content updated';
+                    }
+                    if (change.field === 'execution-plan') {
+                      return 'Timeline updated';
+                    }
+                    if (change.field === 'updated') {
+                      return 'Details updated';
+                    }
+                    const previous = formatLogValue(change.field, change.previousValue);
+                    const next = formatLogValue(change.field, change.nextValue);
+                    if (previous === next) {
+                      return null;
+                    }
+                    return `${label}: ${previous} > ${next}`;
+                  })
+                  .filter((value): value is string => Boolean(value));
+                const summary = summaryParts.length ? summaryParts.join('; ') : 'Updated';
+                return (
+                  <li key={entry.id} className={styles.changeLogLine}>
+                    <span className={styles.logTime}>{new Date(entry.createdAt).toLocaleString()}</span>
+                    <span className={styles.logActor}>{entry.actorName ?? 'System'}</span>
+                    <span className={styles.logSummary}>{summary}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ))}      </section>
 
       <footer className={styles.footer}>
         <button className={styles.secondaryButton} onClick={() => onBack(draft.workstreamId)} type="button">
@@ -991,4 +1037,6 @@ export const InitiativeProfile = ({
       </section>
   );
 };
+
+
 

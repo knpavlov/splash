@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { RefObject, useMemo } from 'react';
 import styles from '../../../../styles/InitiativeResourceLoadModule.module.css';
 import { Initiative, InitiativePlanModel, InitiativePlanTask } from '../../../../shared/types/initiative';
 import { sanitizePlanModel } from '../../plan/planModel';
-import { addDays, buildTimelineRange, diffInDays, getZoomScale, parseDate } from '../../plan/planTimeline';
+import { addDays, diffInDays, PlanTimelineRange, parseDate } from '../../plan/planTimeline';
+import { ChevronIcon } from '../../../../components/icons/ChevronIcon';
 
 interface InitiativeResourceLoadModuleProps {
   plan: InitiativePlanModel;
   initiativeId: string;
   initiatives: Initiative[];
-  onTimelineScroll?: (scrollLeft: number) => void;
-  timelineScrollLeft?: number;
+  timelineRange: PlanTimelineRange;
+  pxPerDay: number;
+  scrollRef: RefObject<HTMLDivElement>;
+  isCollapsed: boolean;
+  onToggle: () => void;
 }
 
 interface WeekBucket {
@@ -69,17 +73,17 @@ export const InitiativeResourceLoadModule = ({
   plan,
   initiativeId,
   initiatives,
-  onTimelineScroll,
-  timelineScrollLeft
+  timelineRange,
+  pxPerDay,
+  scrollRef,
+  isCollapsed,
+  onToggle
 }: InitiativeResourceLoadModuleProps) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
-  const pxPerDay = useMemo(
-    () => getZoomScale(normalizedPlan.settings.zoomLevel),
-    [normalizedPlan.settings.zoomLevel]
-  );
-  const timelineRange = useMemo(() => buildTimelineRange(normalizedPlan, pxPerDay), [normalizedPlan, pxPerDay]);
   const weekBuckets = useMemo<WeekBucket[]>(() => {
+    if (isCollapsed) {
+      return [];
+    }
     const buckets: WeekBucket[] = [];
     for (let offset = 0; offset < timelineRange.totalDays; offset += WEEK_DAYS) {
       const start = addDays(timelineRange.start, offset);
@@ -94,9 +98,12 @@ export const InitiativeResourceLoadModule = ({
       });
     }
     return buckets;
-  }, [timelineRange, pxPerDay]);
+  }, [isCollapsed, pxPerDay, timelineRange.start, timelineRange.totalDays]);
 
   const responsiblePeople = useMemo(() => {
+    if (isCollapsed) {
+      return [];
+    }
     const seen = new Set<string>();
     const result: string[] = [];
     normalizedPlan.tasks.forEach((task) => {
@@ -107,15 +114,16 @@ export const InitiativeResourceLoadModule = ({
       }
     });
     return result;
-  }, [normalizedPlan.tasks]);
+  }, [isCollapsed, normalizedPlan.tasks]);
 
-  const otherInitiativePlans = useMemo(
-    () =>
-      initiatives
-        .filter((initiative) => initiative.id && initiative.id !== initiativeId)
-        .map((initiative) => sanitizePlanModel(initiative.plan)),
-    [initiativeId, initiatives]
-  );
+  const otherInitiativePlans = useMemo(() => {
+    if (isCollapsed) {
+      return [];
+    }
+    return initiatives
+      .filter((initiative) => initiative.id && initiative.id !== initiativeId)
+      .map((initiative) => sanitizePlanModel(initiative.plan));
+  }, [initiativeId, initiatives, isCollapsed]);
 
   const loads = useMemo(() => {
     const bucketCount = weekBuckets.length;
@@ -167,54 +175,6 @@ export const InitiativeResourceLoadModule = ({
     otherInitiativePlans.forEach((otherPlan) => distribute(otherPlan.tasks, 'baseline'));
     return map;
   }, [normalizedPlan.tasks, otherInitiativePlans, responsiblePeople, timelineRange.end, timelineRange.start, weekBuckets]);
-
-  const timelineScrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const element = timelineScrollRef.current;
-    if (!element || !onTimelineScroll) {
-      return;
-    }
-    const handleScroll = () => {
-      onTimelineScroll(element.scrollLeft);
-    };
-    element.addEventListener('scroll', handleScroll);
-    return () => {
-      element.removeEventListener('scroll', handleScroll);
-    };
-  }, [onTimelineScroll]);
-
-  useEffect(() => {
-    if (timelineScrollLeft === null || timelineScrollLeft === undefined) {
-      return;
-    }
-    const element = timelineScrollRef.current;
-    if (!element) {
-      return;
-    }
-    if (Math.abs(element.scrollLeft - timelineScrollLeft) > 1) {
-      element.scrollLeft = timelineScrollLeft;
-    }
-  }, [timelineScrollLeft]);
-
-  const renderTimelineHeader = () => (
-    <div className={styles.timelineHeader} style={{ width: `${timelineRange.width}px` }}>
-      <div className={styles.monthRow}>
-        {timelineRange.months.map((month) => (
-          <span key={`${month.label}-${month.offset}`} style={{ width: `${month.span * pxPerDay}px` }}>
-            {month.label}
-          </span>
-        ))}
-      </div>
-      <div className={styles.dayRow}>
-        {timelineRange.days.map((day) => (
-          <span key={day.key} style={{ width: `${pxPerDay}px` }}>
-            {day.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
 
   const renderRow = (person: string) => {
     const entry = loads.get(person);
@@ -273,33 +233,34 @@ export const InitiativeResourceLoadModule = ({
   return (
     <section className={styles.resourceModule} aria-label="Resource load overview">
       <header className={styles.moduleHeader}>
-        <div>
-          <h3>Resource load</h3>
-          <p>Weekly capacity across all initiatives touching these owners.</p>
-        </div>
-        <div className={styles.headerActions}>
-          <div className={styles.legend}>
-            <span className={styles.legendItem}>
-              <i className={`${styles.legendSwatch} ${styles.baselineSwatch}`} />
-              Baseline
-            </span>
-            <span className={styles.legendItem}>
-              <i className={`${styles.legendSwatch} ${styles.currentSwatch}`} />
-              This initiative
-            </span>
-            <span className={styles.legendItem}>
-              <i className={`${styles.legendSwatch} ${styles.overloadSwatch}`} />
-              Above 100%
-            </span>
-          </div>
+        <div className={styles.headerLeft}>
           <button
             className={styles.collapseButton}
             type="button"
-            onClick={() => setIsCollapsed((prev) => !prev)}
+            onClick={onToggle}
             aria-expanded={!isCollapsed}
+            aria-label={isCollapsed ? 'Expand resource load' : 'Collapse resource load'}
           >
-            {isCollapsed ? 'Expand' : 'Collapse'}
+            <ChevronIcon direction={isCollapsed ? 'right' : 'down'} size={16} />
           </button>
+          <div>
+            <h4>Resource load</h4>
+            <p>Weekly capacity across all initiatives touching these owners.</p>
+          </div>
+        </div>
+        <div className={styles.legend}>
+          <span className={styles.legendItem}>
+            <i className={`${styles.legendSwatch} ${styles.baselineSwatch}`} />
+            Baseline
+          </span>
+          <span className={styles.legendItem}>
+            <i className={`${styles.legendSwatch} ${styles.currentSwatch}`} />
+            This initiative
+          </span>
+          <span className={styles.legendItem}>
+            <i className={`${styles.legendSwatch} ${styles.overloadSwatch}`} />
+            Above 100%
+          </span>
         </div>
       </header>
       {!isCollapsed && (
@@ -307,12 +268,11 @@ export const InitiativeResourceLoadModule = ({
           {!responsiblePeople.length ? (
             <div className={styles.emptyState}>
               <strong>Assign responsible owners to tasks to see their workload.</strong>
-              <p>We will combine this initiative with every other plan where the same person is scheduled.</p>
+              <p>We combine this initiative with any other plan that schedules the same person.</p>
             </div>
           ) : (
             <div className={styles.matrix}>
               <div className={styles.namesColumn}>
-                <div className={styles.nameHeader}>People</div>
                 {responsiblePeople.map((person) => (
                   <div key={person} className={styles.nameRow}>
                     {person}
@@ -320,9 +280,10 @@ export const InitiativeResourceLoadModule = ({
                 ))}
               </div>
               <div className={styles.timelineColumn}>
-                <div className={styles.timelineScroll} ref={timelineScrollRef}>
-                  {renderTimelineHeader()}
-                  <div className={styles.timelineRows}>{responsiblePeople.map((person) => renderRow(person))}</div>
+                <div className={styles.timelineScroll} ref={scrollRef}>
+                  <div className={styles.timelineRows} style={{ width: `${timelineRange.width}px` }}>
+                    {responsiblePeople.map((person) => renderRow(person))}
+                  </div>
                 </div>
               </div>
             </div>
