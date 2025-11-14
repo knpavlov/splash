@@ -1556,6 +1556,22 @@ export const InitiativePlanModule = ({
     ) : null;
 
   let stackedContent: React.ReactNode = null;
+  const renderResourceModule = (heightValue: number | null) => (
+    <InitiativeResourceLoadModule
+      plan={normalizedPlan}
+      initiativeId={initiativeId}
+      initiatives={allInitiatives}
+      timelineRange={timelineRange}
+      pxPerDay={pxPerDay}
+      scrollRef={resourceScrollRef}
+      namesScrollRef={resourceNamesRef}
+      splitRatio={normalizedPlan.settings.splitRatio}
+      height={heightValue}
+      isCollapsed={resourceCollapsed}
+      onToggle={() => setResourceCollapsed((prev) => !prev)}
+    />
+  );
+
   if (!isCollapsed) {
     const planBodyElement = (
       <div
@@ -1879,7 +1895,7 @@ export const InitiativePlanModule = ({
             ref={timelineScrollRef}
             onPointerDown={handleTimelinePanStart}
           >
-            <div className={styles.timelineHeader}>
+            <div className={styles.timelineHeader} style={{ width: `${timelineRange.width}px` }}>
               <div className={styles.monthRow}>
                 {timelineRange.months.map((month) => (
                   <div
@@ -1991,32 +2007,22 @@ export const InitiativePlanModule = ({
       </div>
     );
 
-    const resourceModule = (
-      <InitiativeResourceLoadModule
-        plan={normalizedPlan}
-        initiativeId={initiativeId}
-        initiatives={allInitiatives}
-        timelineRange={timelineRange}
-        pxPerDay={pxPerDay}
-        scrollRef={resourceScrollRef}
-        namesScrollRef={resourceNamesRef}
-        splitRatio={normalizedPlan.settings.splitRatio}
-        height={isFullscreen ? null : resourceHeight}
-        isCollapsed={resourceCollapsed}
-        onToggle={() => setResourceCollapsed((prev) => !prev)}
-      />
-    );
-
     stackedContent = isFullscreen ? (
       <>
         {infoBanner}
         <div className={styles.fullscreenStack} ref={fullscreenStackRef}>
-          <div className={styles.fullscreenPane} style={{ height: `${(1 - fullscreenResourceRatio) * 100}%` }}>
+          <div
+            className={styles.fullscreenPane}
+            style={{ flexBasis: `${(1 - fullscreenResourceRatio) * 100}%`, flexGrow: 0, flexShrink: 0 }}
+          >
             <div className={styles.fullscreenPaneInner}>{planBodyElement}</div>
           </div>
-          <div className={styles.fullscreenDivider} onPointerDown={startFullscreenSplitDrag} />
-          <div className={styles.fullscreenPane} style={{ height: `${fullscreenResourceRatio * 100}%` }}>
-            <div className={styles.fullscreenPaneInner}>{resourceModule}</div>
+          <div className={styles.fullscreenDivider} onPointerDown={startFullscreenSplitDrag} role="separator" />
+          <div
+            className={styles.fullscreenPane}
+            style={{ flexBasis: `${fullscreenResourceRatio * 100}%`, flexGrow: 0, flexShrink: 0 }}
+          >
+            <div className={styles.fullscreenPaneInner}>{renderResourceModule(null)}</div>
           </div>
         </div>
       </>
@@ -2025,7 +2031,7 @@ export const InitiativePlanModule = ({
         {infoBanner}
         {planBodyElement}
         <div className={styles.heightResizer} onPointerDown={startHeightResize} />
-        {resourceModule}
+        {renderResourceModule(resourceHeight)}
         {!resourceCollapsed && (
           <div className={styles.resourceHeightResizer} onPointerDown={startResourceHeightResize} />
         )}

@@ -480,6 +480,7 @@
   justify-content: center;
   cursor: row-resize;
   margin-top: 8px;
+  touch-action: none;
 }
 
 .heightResizer::before {
@@ -497,6 +498,7 @@
   justify-content: center;
   cursor: row-resize;
   margin-top: 10px;
+  touch-action: none;
 }
 
 .resourceHeightResizer::before {
@@ -778,6 +780,7 @@
   align-items: center;
   justify-content: center;
   cursor: row-resize;
+  touch-action: none;
 }
 
 .fullscreenDivider::before {
