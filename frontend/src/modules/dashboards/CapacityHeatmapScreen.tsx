@@ -114,7 +114,8 @@ const getTaskSegmentForPeriod = (task: ParticipantTaskInfo, period: PeriodBucket
   const coveredDays = Math.max(1, Math.round((clampedEnd.getTime() - clampedStart.getTime()) / MS_PER_DAY) + 1);
   return {
     leftPercent: (startOffset / totalDays) * 100,
-    widthPercent: (coveredDays / totalDays) * 100
+    widthPercent: (coveredDays / totalDays) * 100,
+    coverageRatio: Math.min(1, coveredDays / totalDays)
   };
 };
 
@@ -228,6 +229,7 @@ export const CapacityHeatmapScreen = () => {
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [expandedParticipants, setExpandedParticipants] = useState<Set<string>>(new Set());
+  const [taskViewMode, setTaskViewMode] = useState<'bars' | 'columns'>('bars');
   const [planOverlay, setPlanOverlay] = useState<PlanOverlayState | null>(null);
   const [planSaving, setPlanSaving] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
@@ -499,7 +501,7 @@ export const CapacityHeatmapScreen = () => {
   return (
     <>
       <section className={styles.heatmapScreen}>
-        <header className={styles.header}>
+      <header className={styles.header}>
         <div>
           <h1>Capacity heatmap</h1>
           <p>Review planned workload across participants and hierarchy levels.</p>
@@ -520,6 +522,25 @@ export const CapacityHeatmapScreen = () => {
             />
             Show all participants
           </label>
+          <div className={styles.modeSwitch}>
+            <span>Task view</span>
+            <div className={styles.modeButtons}>
+              <button
+                type="button"
+                className={`${styles.modeButton} ${taskViewMode === 'bars' ? styles.modeActive : ''}`}
+                onClick={() => setTaskViewMode('bars')}
+              >
+                Strips
+              </button>
+              <button
+                type="button"
+                className={`${styles.modeButton} ${taskViewMode === 'columns' ? styles.modeActive : ''}`}
+                onClick={() => setTaskViewMode('columns')}
+              >
+                Columns
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -591,50 +612,70 @@ export const CapacityHeatmapScreen = () => {
                     </tr>
                     {isExpanded &&
                       (tasks.length ? (
-                        tasks.map((task) => (
-                          <tr key={`${row.participant.id}-${task.id}`} className={styles.taskDetailRow}>
-                            <td className={styles.taskInfoCell}>
-                              <div className={styles.taskTitle}>{task.name}</div>
-                              <div className={styles.taskMeta}>
-                                {task.workstreamName && <span>{task.workstreamName}</span>}
-                                <span>{task.initiativeName}</span>
-                              </div>
-                              <div className={styles.taskActions}>
-                                <a
-                                  className={styles.taskActionButton}
-                                  href={`#/initiatives/view/${task.initiativeId}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  Open initiative
-                                </a>
-                                <button
-                                  type="button"
-                                  className={styles.taskActionButton}
-                                  onClick={() => handleOpenPlanOverlay(task)}
-                                >
-                                  Open plan
-                                </button>
-                              </div>
-                            </td>
-                            {periods.map((period) => {
-                              const segment = getTaskSegmentForPeriod(task, period);
-                              return (
-                                <td key={`${task.id}-${period.id}`} className={styles.taskTimelineCell}>
-                                  {segment && (
-                                    <span
-                                      className={styles.taskTimelineBar}
-                                      style={{
-                                        left: `${segment.leftPercent}%`,
-                                        width: `${segment.widthPercent}%`
-                                      }}
-                                    />
+                        tasks.map((task) => {
+                          const clampedStart = clampDate(task.start, rangeStart, rangeEnd);
+                          const clampedEnd = clampDate(task.end, rangeStart, rangeEnd);
+                          const offsetDays = Math.max(0, diffInDays(rangeStart, clampedStart));
+                          const durationDays = Math.max(1, diffInDays(clampedStart, clampedEnd) + 1);
+                          const leftPercent = (offsetDays / totalDays) * 100;
+                          const widthPercent = (durationDays / totalDays) * 100;
+                          return (
+                            <tr key={`${row.participant.id}-${task.id}`} className={styles.taskDetailRow}>
+                              <td className={styles.taskInfoCell}>
+                                <div className={styles.taskTitle}>{task.name}</div>
+                                <div className={styles.taskMeta}>
+                                  {task.workstreamName && <span>{task.workstreamName}</span>}
+                                  <span>{task.initiativeName}</span>
+                                </div>
+                                <div className={styles.taskActions}>
+                                  <a
+                                    className={styles.taskActionButton}
+                                    href={`#/initiatives/view/${task.initiativeId}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Open initiative
+                                  </a>
+                                  <button
+                                    type="button"
+                                    className={styles.taskActionButton}
+                                    onClick={() => handleOpenPlanOverlay(task)}
+                                  >
+                                    Open plan
+                                  </button>
+                                </div>
+                              </td>
+                              {taskViewMode === 'columns'
+                                ? periods.map((period) => {
+                                    const segment = getTaskSegmentForPeriod(task, period);
+                                    const height = segment ? Math.max(12, segment.coverageRatio * 100) : 0;
+                                    return (
+                                      <td key={`${task.id}-${period.id}`} className={styles.taskTimelineCell}>
+                                        {segment && (
+                                          <span
+                                            className={styles.taskColumnBar}
+                                            style={{ height: `${height}%` }}
+                                          />
+                                        )}
+                                      </td>
+                                    );
+                                  })
+                                : (
+                                    <td className={styles.taskTimelineStripCell} colSpan={periods.length}>
+                                      <div className={styles.taskStripCanvas}>
+                                        <span
+                                          className={styles.taskStripBar}
+                                          style={{
+                                            left: `${leftPercent}%`,
+                                            width: `${widthPercent}%`
+                                          }}
+                                        />
+                                      </div>
+                                    </td>
                                   )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))
+                            </tr>
+                          );
+                        })
                       ) : (
                         <tr key={`${row.participant.id}-details`} className={styles.taskDetailRow}>
                           <td className={styles.taskInfoCell} colSpan={periods.length + 1}>
