@@ -44,6 +44,9 @@ interface InitiativeProfileProps {
   onSubmitStage: (id: string) => Promise<DomainResult<Initiative>>;
   readOnly?: boolean;
   hideBackLink?: boolean;
+  focusPlanTaskId?: string | null;
+  openPlanFullscreen?: boolean;
+  onPlanFocusClear?: () => void;
 }
 
 type Banner = { type: 'info' | 'error'; text: string } | null;
@@ -221,7 +224,10 @@ export const InitiativeProfile = ({
   onDelete,
   onSubmitStage,
   readOnly = false,
-  hideBackLink = false
+  hideBackLink = false,
+  focusPlanTaskId = null,
+  openPlanFullscreen = false,
+  onPlanFocusClear
 }: InitiativeProfileProps) => {
   const [draft, setDraft] = useState<Initiative>(() =>
     initiative ?? createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id)
@@ -922,6 +928,9 @@ export const InitiativeProfile = ({
         allInitiatives={allInitiatives}
         onChange={handlePlanChange}
         readOnly={isReadOnlyMode}
+        focusTaskId={focusPlanTaskId}
+        openFullscreen={openPlanFullscreen}
+        onFocusHandled={onPlanFocusClear}
       />
 
       <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>

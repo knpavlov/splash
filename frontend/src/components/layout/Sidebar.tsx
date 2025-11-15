@@ -1,4 +1,5 @@
-import { NavigationItem, NavigationKey } from '../../app/navigation';
+import { useMemo, useState } from 'react';
+import { NavigationItem, NavigationKey, navigationGroups, NavigationGroupKey } from '../../app/navigation';
 import styles from '../../styles/Sidebar.module.css';
 import { useAuth } from '../../modules/auth/AuthContext';
 import { AccountRole } from '../../shared/types/account';
@@ -19,18 +20,46 @@ const roleLabels: Record<AccountRole, string> = {
 
 export const Sidebar = ({ navigationItems, activeItem, onNavigate }: SidebarProps) => {
   const { session, logout } = useAuth();
-  const sections = navigationItems.reduce<
-    { label: string | null; items: NavigationItem[] }[]
-  >((acc, item) => {
-    const label = item.groupLabel ?? null;
-    const last = acc[acc.length - 1];
-    if (!last || last.label !== label) {
-      acc.push({ label, items: [item] });
-    } else {
-      last.items.push(item);
-    }
-    return acc;
-  }, []);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<NavigationGroupKey, boolean>>(() => {
+    const defaults = {} as Record<NavigationGroupKey, boolean>;
+    navigationGroups.forEach((group) => {
+      defaults[group.id] = group.collapsed ?? false;
+    });
+    return defaults;
+  });
+
+  const ungroupedItems = useMemo(() => navigationItems.filter((item) => !item.group), [navigationItems]);
+  const groupedSections = useMemo(
+    () =>
+      navigationGroups
+        .map((group) => ({
+          ...group,
+          items: navigationItems.filter((item) => item.group === group.id)
+        }))
+        .filter((group) => group.items.length),
+    [navigationItems]
+  );
+
+  const handleGroupToggle = (groupId: NavigationGroupKey) => {
+    setCollapsedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
+  const renderButton = (item: NavigationItem) => (
+    <button
+      key={item.key}
+      className={`${item.key === activeItem ? styles.activeItem : styles.menuItem} ${item.group ? styles.childItem : ''} ${
+        item.disabled ? styles.disabledItem : ''
+      }`}
+      onClick={() => {
+        if (!item.disabled) {
+          onNavigate(item.key);
+        }
+      }}
+      disabled={item.disabled}
+    >
+      {item.label}
+    </button>
+  );
 
   return (
     <aside className={styles.sidebar}>
@@ -42,20 +71,21 @@ export const Sidebar = ({ navigationItems, activeItem, onNavigate }: SidebarProp
         </div>
       </div>
       <nav className={styles.menu}>
-        {sections.map((section, index) => (
-          <div key={section.label ?? `section-${index}`}>
-            {section.label && <p className={styles.sectionHeading}>{section.label}</p>}
-            {section.items.map((item) => (
-              <button
-                key={item.key}
-                className={`${item.key === activeItem ? styles.activeItem : styles.menuItem} ${
-                  section.label ? styles.childItem : ''
-                }`}
-                onClick={() => onNavigate(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
+        {ungroupedItems.map((item) => renderButton(item))}
+        {groupedSections.map((section) => (
+          <div key={section.id} className={styles.groupSection}>
+            <button
+              type="button"
+              className={styles.sectionToggle}
+              onClick={() => handleGroupToggle(section.id)}
+              aria-expanded={!collapsedGroups[section.id]}
+            >
+              <span className={collapsedGroups[section.id] ? styles.chevronRight : styles.chevronDown} />
+              {section.label}
+            </button>
+            {!collapsedGroups[section.id] && (
+              <div className={styles.groupItems}>{section.items.map((item) => renderButton(item))}</div>
+            )}
           </div>
         ))}
       </nav>

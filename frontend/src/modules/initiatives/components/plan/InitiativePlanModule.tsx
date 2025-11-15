@@ -29,6 +29,9 @@ interface InitiativePlanModuleProps {
   allInitiatives: Initiative[];
   onChange: (next: InitiativePlanModel) => void;
   readOnly?: boolean;
+  focusTaskId?: string | null;
+  openFullscreen?: boolean;
+  onFocusHandled?: () => void;
 }
 
 const ROW_HEIGHT = 60;
@@ -94,7 +97,10 @@ export const InitiativePlanModule = ({
   initiativeId,
   allInitiatives,
   onChange,
-  readOnly = false
+  readOnly = false,
+  focusTaskId = null,
+  openFullscreen = false,
+  onFocusHandled
 }: InitiativePlanModuleProps) => {
   const { list: participants } = useParticipantsState();
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
@@ -180,6 +186,7 @@ export const InitiativePlanModule = ({
   const resourceScrollRef = useRef<HTMLDivElement>(null);
   const resourceNamesRef = useRef<HTMLDivElement>(null);
   const fullscreenStackRef = useRef<HTMLDivElement>(null);
+  const focusRequestRef = useRef<string | null>(null);
   const scrollSyncSourceRef = useRef<'table' | 'timeline' | null>(null);
   const horizontalSyncSourceRef = useRef<'plan' | 'resource' | null>(null);
   const resourceVerticalSyncSourceRef = useRef<'names' | 'timeline' | null>(null);
@@ -198,6 +205,7 @@ export const InitiativePlanModule = ({
   } | null>(null);
   const resourceHeightDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
   const fullscreenSplitDragRef = useRef<{ startY: number; height: number; ratio: number } | null>(null);
+  const focusHandledRef = useRef<string | null>(null);
 
   const userKey = session?.accountId ?? 'guest';
   const columnStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:${userKey}`, [userKey]);
@@ -409,6 +417,39 @@ export const InitiativePlanModule = ({
     return result;
   }, [collapsedTaskIds, normalizedPlan.tasks]);
 
+  const ensureTaskAncestorsExpanded = useCallback(
+    (taskId: string) => {
+      const targetIndex = normalizedPlan.tasks.findIndex((task) => task.id === taskId);
+      if (targetIndex === -1) {
+        return;
+      }
+      const ancestors: string[] = [];
+      let currentIndent = normalizedPlan.tasks[targetIndex].indent;
+      for (let index = targetIndex - 1; index >= 0 && currentIndent > 0; index -= 1) {
+        const candidate = normalizedPlan.tasks[index];
+        if (candidate.indent < currentIndent) {
+          ancestors.push(candidate.id);
+          currentIndent = candidate.indent;
+        }
+      }
+      if (!ancestors.length) {
+        return;
+      }
+      setCollapsedTaskIds((prev) => {
+        let changed = false;
+        const next = new Set(prev);
+        ancestors.forEach((ancestorId) => {
+          if (next.has(ancestorId)) {
+            next.delete(ancestorId);
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    },
+    [normalizedPlan.tasks]
+  );
+
   useEffect(() => {
     setSelectedTaskIds((prev) => {
       if (!visibleTasks.length) {
@@ -425,6 +466,28 @@ export const InitiativePlanModule = ({
       return filtered.length ? filtered : [visibleTasks[0].id];
     });
   }, [visibleTasks]);
+
+  useEffect(() => {
+    if (!focusTaskId) {
+      focusRequestRef.current = null;
+      return;
+    }
+    const exists = normalizedPlan.tasks.some((task) => task.id === focusTaskId);
+    if (!exists) {
+      onFocusHandled?.();
+      return;
+    }
+    focusRequestRef.current = focusTaskId;
+    setIsCollapsed(false);
+    ensureTaskAncestorsExpanded(focusTaskId);
+    setSelectedTaskIds([focusTaskId]);
+  }, [ensureTaskAncestorsExpanded, focusTaskId, normalizedPlan.tasks, onFocusHandled]);
+
+  useEffect(() => {
+    if (openFullscreen) {
+      setIsFullscreen(true);
+    }
+  }, [openFullscreen]);
 
   useEffect(() => {
     setCollapsedTaskIds((prev) => {
@@ -911,6 +974,44 @@ export const InitiativePlanModule = ({
       }
     };
   }, [resourceCollapsed]);
+
+  useEffect(() => {
+    const pendingId = focusRequestRef.current;
+    if (!pendingId) {
+      return;
+    }
+    const targetIndex = visibleTasks.findIndex((task) => task.id === pendingId);
+    if (targetIndex === -1) {
+      return;
+    }
+    const tableRows = tableRowsRef.current;
+    if (tableRows) {
+      const targetTop = targetIndex * ROW_HEIGHT;
+      const offset = Math.max(0, targetTop - tableRows.clientHeight / 2 + ROW_HEIGHT / 2);
+      tableRows.scrollTo({ top: offset, behavior: 'smooth' });
+    }
+    const timelineScroll = timelineScrollRef.current;
+    const targetTask = visibleTasks[targetIndex];
+    if (timelineScroll && targetTask?.startDate && targetTask.endDate) {
+      const startDate = parseDate(targetTask.startDate);
+      const endDate = parseDate(targetTask.endDate);
+      if (startDate && endDate) {
+        const startOffset = Math.max(0, diffInDays(timelineRange.start, startDate));
+        const rawEndOffset = diffInDays(timelineRange.start, endDate) + 1;
+        const endOffset = Math.max(startOffset + 1, rawEndOffset);
+        const barLeft = startOffset * pxPerDay;
+        const barRight = endOffset * pxPerDay;
+        const viewStart = timelineScroll.scrollLeft;
+        const viewEnd = viewStart + timelineScroll.clientWidth;
+        if (barLeft < viewStart || barRight > viewEnd) {
+          const desiredScroll = Math.max(0, barLeft - timelineScroll.clientWidth * 0.2);
+          timelineScroll.scrollTo({ left: desiredScroll, behavior: 'smooth' });
+        }
+      }
+    }
+    focusRequestRef.current = null;
+    onFocusHandled?.();
+  }, [onFocusHandled, pxPerDay, timelineRange, visibleTasks]);
 
   const showDescriptionTooltip = useCallback(
     (text: string, target: HTMLElement) => {

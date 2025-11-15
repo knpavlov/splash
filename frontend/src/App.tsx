@@ -45,7 +45,9 @@ const parseHash = (hash: string): AppRoute => {
     return { page: 'cases' };
   }
 
-  const segments = trimmed.split('/').filter(Boolean);
+  const [pathPart, queryString] = trimmed.split('?');
+  const segments = pathPart.split('/').filter(Boolean);
+  const query = new URLSearchParams(queryString ?? '');
   const [rawPage, action, identifier] = segments;
   const page = navigationItems.find((item) => item.key === rawPage)?.key ?? 'cases';
 
@@ -64,7 +66,15 @@ const parseHash = (hash: string): AppRoute => {
       return { page: 'initiatives', initiative: { mode: 'create', workstreamId: identifier || undefined } };
     }
     if (action === 'view' && identifier) {
-      return { page: 'initiatives', initiative: { mode: 'view', initiativeId: identifier } };
+      return {
+        page: 'initiatives',
+        initiative: {
+          mode: 'view',
+          initiativeId: identifier,
+          planTaskId: query.get('planTask') ?? undefined,
+          openPlanFullscreen: query.get('planFullscreen') === '1'
+        }
+      };
     }
     if (action === 'ws' && identifier) {
       return { page: 'initiatives', initiative: { mode: 'list', workstreamId: identifier } };
@@ -96,7 +106,15 @@ const buildHash = (route: AppRoute): string => {
       return '/initiatives/new';
     }
     if (initiativeRoute.mode === 'view') {
-      return `/initiatives/view/${initiativeRoute.initiativeId}`;
+      const params = new URLSearchParams();
+      if (initiativeRoute.planTaskId) {
+        params.set('planTask', initiativeRoute.planTaskId);
+      }
+      if (initiativeRoute.openPlanFullscreen) {
+        params.set('planFullscreen', '1');
+      }
+      const query = params.toString();
+      return `/initiatives/view/${initiativeRoute.initiativeId}${query ? `?${query}` : ''}`;
     }
     if (initiativeRoute.workstreamId) {
       return `/initiatives/ws/${initiativeRoute.workstreamId}`;
@@ -225,6 +243,10 @@ const AppContent = () => {
 
   const handleNavigate = useCallback(
     (key: NavigationKey) => {
+      const target = navigationItems.find((item) => item.key === key);
+      if (target?.disabled) {
+        return;
+      }
       if (key === 'evaluation') {
         updateRoute({ page: 'evaluation', evaluation: { mode: 'list' } });
       } else if (key === 'initiatives') {
@@ -272,6 +294,20 @@ const AppContent = () => {
         return <InterviewerScreen />;
       case 'stats':
         return <AnalyticsScreen />;
+      case 'financials':
+        return (
+          <PlaceholderScreen
+            title="Financials"
+            description="This dashboard will be available soon."
+          />
+        );
+      case 'kpis':
+        return (
+          <PlaceholderScreen
+            title="KPIs"
+            description="This dashboard will be available soon."
+          />
+        );
       case 'capacity-heatmap':
         return <CapacityHeatmapScreen />;
       case 'accounts':

@@ -3,8 +3,9 @@
   flex-direction: column;
   background: #0f172a;
   color: #f8fafc;
-  padding: 32px 24px;
-  gap: 32px;
+  padding: 24px 18px;
+  gap: 24px;
+  width: 210px;
 }
 
 .logoArea {
@@ -47,14 +48,6 @@
   flex: 1;
 }
 
-.sectionHeading {
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: rgba(226, 232, 240, 0.65);
-  margin: 12px 0 4px;
-}
-
 .menuItem,
 .activeItem {
   border: none;
@@ -77,8 +70,55 @@
 }
 
 .childItem {
-  padding-left: 32px;
+  padding-left: 28px;
   font-size: 14px;
+}
+
+.disabledItem {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.groupSection {
+  margin-top: 8px;
+}
+
+.groupItems {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.sectionToggle {
+  width: 100%;
+  border: none;
+  background: none;
+  color: rgba(226, 232, 240, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.chevronRight,
+.chevronDown {
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  display: inline-block;
+}
+
+.chevronRight {
+  transform: rotate(-45deg);
+}
+
+.chevronDown {
+  transform: rotate(45deg);
 }
 
 .logoutBlock {

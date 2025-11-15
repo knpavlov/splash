@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import styles from '../../styles/CapacityHeatmapScreen.module.css';
-import { useParticipantsState, useInitiativesState } from '../../app/state/AppStateContext';
+import { useParticipantsState, useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { Participant } from '../../shared/types/participant';
 import { sanitizePlanModel } from '../initiatives/plan/planModel';
-import { Initiative } from '../../shared/types/initiative';
+import { Initiative, InitiativePlanTask } from '../../shared/types/initiative';
 import { collectCapacitySlices } from '../initiatives/plan/capacityUtils';
+import { parseDate } from '../initiatives/plan/planTimeline';
 
 type ViewMode = 'weekly' | 'monthly';
 
@@ -33,11 +34,24 @@ interface GroupNode {
   children: NodeEntry[];
 }
 
+interface ParticipantTaskInfo {
+  id: string;
+  name: string;
+  start: Date;
+  end: Date;
+  initiativeId: string;
+  initiativeName: string;
+  workstreamName: string | null;
+  planTaskId: string;
+}
+
 type NodeEntry = GroupNode | ParticipantLoadRow;
+
+const DAY_WIDTH = 12;
 
 const startOfWeek = (value: Date) => {
   const date = new Date(value);
-  const day = (date.getDay() + 6) % 7; // Monday as first day
+  const day = (date.getDay() + 6) % 7;
   date.setDate(date.getDate() - day);
   date.setHours(0, 0, 0, 0);
   return date;
@@ -172,7 +186,7 @@ const flattenTree = (nodes: NodeEntry[], collapsed: Set<string>, output: NodeEnt
 const getHeatColor = (value: number) => {
   const clamped = Math.max(0, Math.min(value, 160));
   const ratio = clamped / 160;
-  const hue = 120 - ratio * 120; // from green to red
+  const hue = 120 - ratio * 120;
   const lightness = 88 - ratio * 38;
   return `hsl(${hue}, 70%, ${lightness}%)`;
 };
@@ -180,9 +194,11 @@ const getHeatColor = (value: number) => {
 export const CapacityHeatmapScreen = () => {
   const { list: participants } = useParticipantsState();
   const { list: initiatives } = useInitiativesState();
+  const { list: workstreamsList } = useWorkstreamsState();
   const [viewMode, setViewMode] = useState<ViewMode>('weekly');
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [expandedParticipants, setExpandedParticipants] = useState<Set<string>>(new Set());
 
   const normalizedInitiatives = useMemo(
     () =>
@@ -193,11 +209,28 @@ export const CapacityHeatmapScreen = () => {
     [initiatives]
   );
 
+  const participantNameMap = useMemo(() => {
+    const map = new Map<string, Participant>();
+    participants.forEach((participant) => {
+      const key = participant.displayName?.trim().toLowerCase();
+      if (key) {
+        map.set(key, participant);
+      }
+    });
+    return map;
+  }, [participants]);
+
+  const workstreamMap = useMemo(() => {
+    const map = new Map<string, string>();
+    workstreamsList.forEach((workstream) => map.set(workstream.id, workstream.name));
+    return map;
+  }, [workstreamsList]);
+
   const { periods, rangeStart, rangeEnd } = useMemo(() => {
     const datedTasks: { start: Date; end: Date }[] = [];
     normalizedInitiatives.forEach((initiative) => {
       initiative.plan.tasks.forEach((task) => {
-        if (task.startDate && task.endDate && task.responsible) {
+        if (task.startDate && task.endDate) {
           const start = new Date(task.startDate);
           const end = new Date(task.endDate);
           if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
@@ -217,8 +250,7 @@ export const CapacityHeatmapScreen = () => {
     const start = datedTasks.reduce((min, current) => (current.start < min ? current.start : min), datedTasks[0].start);
     const end = datedTasks.reduce((max, current) => (current.end > max ? current.end : max), datedTasks[0].end);
     const extendedStart = startOfWeek(start);
-    const extendedEnd =
-      viewMode === 'monthly' ? endOfMonth(end) : endOfWeek(end);
+    const extendedEnd = viewMode === 'monthly' ? endOfMonth(end) : endOfWeek(end);
     return {
       periods: buildTimelineBuckets(extendedStart, extendedEnd, viewMode),
       rangeStart: extendedStart,
@@ -226,36 +258,27 @@ export const CapacityHeatmapScreen = () => {
     };
   }, [normalizedInitiatives, viewMode]);
 
+  const totalDays = Math.max(1, diffInDays(rangeStart, rangeEnd) + 1);
+
   const participantLoads = useMemo(() => {
     const map = new Map<string, number[]>();
-    if (!periods.length) {
-      participants.forEach((participant) => map.set(participant.id, []));
-      return map;
-    }
     const template = () => new Array(periods.length).fill(0);
     participants.forEach((participant) => {
       map.set(participant.id, template());
     });
-    const names = new Map<string, Participant>();
-    participants.forEach((participant) => {
-      const key = participant.displayName?.trim().toLowerCase();
-      if (key) {
-        names.set(key, participant);
-      }
-    });
-
-    normalizedInitiatives.forEach((initiative) => {
-      initiative.plan.tasks.forEach((task) => {
+    if (!periods.length) {
+      return map;
+    }
+    const distribute = (tasks: InitiativePlanTask[]) => {
+      tasks.forEach((task) => {
         if (!task.startDate || !task.endDate || !task.responsible) {
           return;
         }
-        const owner = names.get(task.responsible.trim().toLowerCase());
-        if (!owner) {
+        const owner = participantNameMap.get(task.responsible.trim().toLowerCase());
+        if (!owner || !map.has(owner.id)) {
           return;
         }
-        const targetLoads = map.get(owner.id) ?? template();
-        map.set(owner.id, targetLoads);
-
+        const entry = map.get(owner.id)!;
         const slices = collectCapacitySlices(task);
         slices.forEach((slice) => {
           const clampedStart = clampDate(slice.start, rangeStart, rangeEnd);
@@ -274,13 +297,50 @@ export const CapacityHeatmapScreen = () => {
             }
             const overlapDays = diffInDays(overlapStart, overlapEnd) + 1;
             const addition = period.days > 0 ? (slice.capacity * overlapDays) / period.days : 0;
-            targetLoads[index] += addition;
+            entry[index] += addition;
           });
         });
       });
+    };
+
+    normalizedInitiatives.forEach((initiative) => distribute(initiative.plan.tasks));
+    return map;
+  }, [normalizedInitiatives, participantNameMap, participants, periods, rangeEnd, rangeStart]);
+
+  const participantTaskMap = useMemo(() => {
+    const map = new Map<string, ParticipantTaskInfo[]>();
+    normalizedInitiatives.forEach((initiative) => {
+      const initiativeName = initiative.name || 'Untitled initiative';
+      const workstreamName = initiative.workstreamId ? workstreamMap.get(initiative.workstreamId) || null : null;
+      initiative.plan.tasks.forEach((task) => {
+        if (!task.responsible || !task.startDate || !task.endDate) {
+          return;
+        }
+        const owner = participantNameMap.get(task.responsible.trim().toLowerCase());
+        if (!owner) {
+          return;
+        }
+        const start = parseDate(task.startDate);
+        const end = parseDate(task.endDate);
+        if (!start || !end) {
+          return;
+        }
+        const existing = map.get(owner.id) ?? [];
+        existing.push({
+          id: `${initiative.id}-${task.id}`,
+          name: task.name || 'Untitled task',
+          start,
+          end,
+          initiativeId: initiative.id,
+          initiativeName,
+          workstreamName,
+          planTaskId: task.id
+        });
+        map.set(owner.id, existing);
+      });
     });
     return map;
-  }, [normalizedInitiatives, participants, periods, rangeEnd, rangeStart]);
+  }, [normalizedInitiatives, participantNameMap, workstreamMap]);
 
   const rows = useMemo(() => {
     const tree = new Map<string, GroupNode>();
@@ -289,7 +349,7 @@ export const CapacityHeatmapScreen = () => {
 
     const consideredParticipants = participants.filter((participant) => {
       if (showAllParticipants) {
-      return true;
+        return true;
       }
       const loads = participantLoads.get(participant.id);
       if (!loads) {
@@ -329,6 +389,18 @@ export const CapacityHeatmapScreen = () => {
 
   const toggleGroup = (id: string) => {
     setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleParticipant = (id: string) => {
+    setExpandedParticipants((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -403,22 +475,88 @@ export const CapacityHeatmapScreen = () => {
                     </tr>
                   );
                 }
+                const isExpanded = expandedParticipants.has(row.participant.id);
+                const tasks = participantTaskMap.get(row.participant.id) ?? [];
                 return (
-                  <tr key={row.participant.id} className={styles.participantRow}>
-                    <td
-                      className={styles.nameCell}
-                      style={{ paddingLeft: `${Math.max(0, row.indent - 1) * 16}px` }}
-                    >
-                      {row.participant.displayName}
-                    </td>
-                    {row.loads.map((value, index) => (
-                      <td key={`${row.participant.id}-${periods[index].id}`}>
-                        <div className={styles.heatCell} style={{ background: getHeatColor(value) }}>
-                          {value > 1 ? `${Math.round(value)}%` : ''}
-                        </div>
+                  <>
+                    <tr key={row.participant.id} className={styles.participantRow}>
+                      <td
+                        className={`${styles.nameCell} ${styles.nameCellButton}`}
+                        style={{ paddingLeft: `${Math.max(0, row.indent - 1) * 16}px` }}
+                      >
+                        <button type="button" onClick={() => toggleParticipant(row.participant.id)}>
+                          <span className={isExpanded ? styles.chevronDownSmall : styles.chevronRightSmall} />
+                          {row.participant.displayName}
+                        </button>
                       </td>
-                    ))}
-                  </tr>
+                      {row.loads.map((value, index) => {
+                        const isEmpty = value < 0.01;
+                        return (
+                          <td key={`${row.participant.id}-${periods[index].id}`}>
+                            <div
+                              className={`${styles.heatCell} ${isEmpty ? styles.heatCellEmpty : ''}`}
+                              style={{ background: isEmpty ? undefined : getHeatColor(value) }}
+                            >
+                              {value > 1 ? `${Math.round(value)}%` : ''}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${row.participant.id}-details`} className={styles.detailRow}>
+                        <td colSpan={periods.length + 1}>
+                          <div className={styles.timelineWrapper}>
+                            <div className={styles.timelineScroll}>
+                              <div className={styles.timelineCanvas} style={{ width: `${totalDays * DAY_WIDTH}px` }}>
+                                {tasks.map((task) => {
+                                  const clampedStart = clampDate(task.start, rangeStart, rangeEnd);
+                                  const clampedEnd = clampDate(task.end, rangeStart, rangeEnd);
+                                  const offsetDays = Math.max(0, diffInDays(rangeStart, clampedStart));
+                                  const durationDays = Math.max(1, diffInDays(clampedStart, clampedEnd) + 1);
+                                  return (
+                                    <div
+                                      key={task.id}
+                                      className={styles.timelineBar}
+                                      style={{
+                                        left: `${offsetDays * DAY_WIDTH}px`,
+                                        width: `${durationDays * DAY_WIDTH}px`
+                                      }}
+                                    >
+                                      <div className={styles.timelineBarLabel}>
+                                        <strong>{task.name}</strong>
+                                        <span>
+                                          {task.workstreamName ? `${task.workstreamName} · ` : ''}
+                                          {task.initiativeName}
+                                        </span>
+                                      </div>
+                                      <div className={styles.timelineBarActions}>
+                                        <a
+                                          className={styles.timelineActionButton}
+                                          href={`#/initiatives/view/${task.initiativeId}`}
+                                        >
+                                          Open initiative
+                                        </a>
+                                        <a
+                                          className={styles.timelineActionButton}
+                                          href={`#/initiatives/view/${task.initiativeId}?planTask=${task.planTaskId}&planFullscreen=1`}
+                                        >
+                                          Open plan
+                                        </a>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                            {!tasks.length && (
+                              <p className={styles.emptyTimeline}>No tasks planned for this participant.</p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })
             )}

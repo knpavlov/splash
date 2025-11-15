@@ -13,27 +13,41 @@ export type NavigationKey =
   | 'stats'
   | 'accounts'
   | 'participants'
-  | 'capacity-heatmap';
+  | 'capacity-heatmap'
+  | 'financials'
+  | 'kpis';
+
+export type NavigationGroupKey = 'old' | 'program' | 'dashboards' | 'settings';
 
 export interface NavigationItem {
   key: NavigationKey;
   label: string;
   roleAccess: AccountRole[];
-  groupLabel?: string;
+  group?: NavigationGroupKey;
+  disabled?: boolean;
 }
 
+export const navigationGroups: { id: NavigationGroupKey; label: string; collapsed?: boolean }[] = [
+  { id: 'old', label: 'Old', collapsed: true },
+  { id: 'program', label: 'Program setup', collapsed: false },
+  { id: 'dashboards', label: 'Dashboards', collapsed: false },
+  { id: 'settings', label: 'Settings', collapsed: false }
+];
+
 export const navigationItems: NavigationItem[] = [
-  { key: 'cases', label: 'Case library', roleAccess: ['super-admin', 'admin'] },
-  { key: 'case-criteria', label: 'Case criteria', roleAccess: ['super-admin', 'admin'] },
-  { key: 'questions', label: 'Fit questions', roleAccess: ['super-admin', 'admin'] },
-  { key: 'workstreams', label: 'Workstreams', roleAccess: ['super-admin', 'admin'] },
+  { key: 'cases', label: 'Case library', roleAccess: ['super-admin', 'admin'], group: 'old' },
+  { key: 'case-criteria', label: 'Case criteria', roleAccess: ['super-admin', 'admin'], group: 'old' },
+  { key: 'questions', label: 'Fit questions', roleAccess: ['super-admin', 'admin'], group: 'old' },
+  { key: 'candidates', label: 'Candidate database', roleAccess: ['super-admin', 'admin'], group: 'old' },
+  { key: 'stats', label: 'Analytics', roleAccess: ['super-admin', 'admin'], group: 'old' },
+  { key: 'evaluation', label: 'Evaluations', roleAccess: ['super-admin', 'admin'], group: 'old' },
+  { key: 'workstreams', label: 'Workstreams', roleAccess: ['super-admin', 'admin'], group: 'program' },
+  { key: 'participants', label: 'Participants', roleAccess: ['super-admin', 'admin'], group: 'program' },
+  { key: 'financials', label: 'Financials', roleAccess: ['super-admin', 'admin'], group: 'program', disabled: true },
+  { key: 'kpis', label: 'KPIs', roleAccess: ['super-admin', 'admin'], group: 'program', disabled: true },
   { key: 'initiatives', label: 'Initiatives', roleAccess: ['super-admin', 'admin'] },
   { key: 'approvals', label: 'Approvals', roleAccess: ['super-admin', 'admin', 'user'] },
-  { key: 'participants', label: 'Participants', roleAccess: ['super-admin', 'admin'] },
-  { key: 'candidates', label: 'Candidate database', roleAccess: ['super-admin', 'admin'] },
-  { key: 'evaluation', label: 'Evaluations', roleAccess: ['super-admin', 'admin'] },
   { key: 'interviews', label: 'Interviews', roleAccess: ['super-admin', 'admin', 'user'] },
-  { key: 'stats', label: 'Analytics', roleAccess: ['super-admin', 'admin'] },
-  { key: 'capacity-heatmap', label: 'Capacity heatmap', groupLabel: 'Dashboards', roleAccess: ['super-admin', 'admin'] },
-  { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'] }
+  { key: 'capacity-heatmap', label: 'Capacity heatmap', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
+  { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'], group: 'settings' }
 ];

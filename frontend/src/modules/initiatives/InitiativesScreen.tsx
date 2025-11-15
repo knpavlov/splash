@@ -9,7 +9,7 @@ import { AccountRecord } from '../../shared/types/account';
 export type InitiativesViewRoute =
   | { mode: 'list'; workstreamId?: string }
   | { mode: 'create'; workstreamId?: string }
-  | { mode: 'view'; initiativeId: string; workstreamId?: string };
+  | { mode: 'view'; initiativeId: string; workstreamId?: string; planTaskId?: string | null; openPlanFullscreen?: boolean };
 
 interface InitiativesScreenProps {
   view: InitiativesViewRoute;
@@ -92,6 +92,20 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
 
   const handleSubmit = useCallback((id: string) => submitStage(id), [submitStage]);
 
+  const handlePlanFocusClear = useCallback(() => {
+    if (view.mode !== 'view') {
+      return;
+    }
+    if (!view.planTaskId && !view.openPlanFullscreen) {
+      return;
+    }
+    onViewChange({
+      ...view,
+      planTaskId: undefined,
+      openPlanFullscreen: undefined
+    });
+  }, [onViewChange, view]);
+
   if (view.mode === 'view') {
     const initiative = findInitiative(list, view.initiativeId);
     return (
@@ -105,6 +119,9 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
         onSave={handleSave}
         onDelete={handleRemove}
         onSubmitStage={handleSubmit}
+        focusPlanTaskId={view.planTaskId ?? null}
+        openPlanFullscreen={view.openPlanFullscreen}
+        onPlanFocusClear={handlePlanFocusClear}
       />
     );
   }
