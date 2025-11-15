@@ -4,7 +4,7 @@ import { useParticipantsState, useInitiativesState, useWorkstreamsState } from '
 import { Participant } from '../../shared/types/participant';
 import { sanitizePlanModel } from '../initiatives/plan/planModel';
 import { Initiative, InitiativePlanModel, InitiativePlanTask } from '../../shared/types/initiative';
-import { collectCapacitySlices } from '../initiatives/plan/capacityUtils';
+import { collectCapacitySlices, CapacitySlice } from '../initiatives/plan/capacityUtils';
 import { parseDate } from '../initiatives/plan/planTimeline';
 import { InitiativePlanModule } from '../initiatives/components/plan/InitiativePlanModule';
 
@@ -44,6 +44,7 @@ interface ParticipantTaskInfo {
   initiativeName: string;
   workstreamName: string | null;
   planTaskId: string;
+  slices: CapacitySlice[];
 }
 
 type NodeEntry = GroupNode | ParticipantLoadRow;
@@ -55,7 +56,7 @@ interface PlanOverlayState {
 }
 
 const DAY_WIDTH = 12;
-const MS_PER_DAY = 86400000;
+const WEEK_DAYS = 7;
 
 const startOfWeek = (value: Date) => {
   const date = new Date(value);
@@ -100,23 +101,24 @@ const clampDate = (value: Date, min: Date, max: Date) => {
 const clonePlanModel = (plan: InitiativePlanModel): InitiativePlanModel =>
   JSON.parse(JSON.stringify(plan));
 
-const getTaskSegmentForPeriod = (task: ParticipantTaskInfo, period: PeriodBucket) => {
-  if (task.end.getTime() < period.start.getTime() || task.start.getTime() > period.end.getTime()) {
-    return null;
+const calculateTaskLoadForPeriod = (task: ParticipantTaskInfo, period: PeriodBucket) => {
+  if (!task.slices.length) {
+    return 0;
   }
-  const clampedStart = task.start.getTime() < period.start.getTime() ? period.start : task.start;
-  const clampedEnd = task.end.getTime() > period.end.getTime() ? period.end : task.end;
-  if (clampedEnd.getTime() < clampedStart.getTime()) {
-    return null;
-  }
-  const totalDays = period.days || 1;
-  const startOffset = Math.max(0, Math.round((clampedStart.getTime() - period.start.getTime()) / MS_PER_DAY));
-  const coveredDays = Math.max(1, Math.round((clampedEnd.getTime() - clampedStart.getTime()) / MS_PER_DAY) + 1);
-  return {
-    leftPercent: (startOffset / totalDays) * 100,
-    widthPercent: (coveredDays / totalDays) * 100,
-    coverageRatio: Math.min(1, coveredDays / totalDays)
-  };
+  let total = 0;
+  task.slices.forEach((slice) => {
+    const overlapStart = slice.start.getTime() > period.start.getTime() ? slice.start : period.start;
+    const overlapEnd = slice.end.getTime() < period.end.getTime() ? slice.end : period.end;
+    if (overlapEnd.getTime() < overlapStart.getTime()) {
+      return;
+    }
+    const overlapDays = diffInDays(overlapStart, overlapEnd) + 1;
+    if (overlapDays <= 0) {
+      return;
+    }
+    total += (slice.capacity * overlapDays) / WEEK_DAYS;
+  });
+  return total;
 };
 
 const buildTimelineBuckets = (start: Date, end: Date, mode: ViewMode): PeriodBucket[] => {
@@ -346,6 +348,7 @@ export const CapacityHeatmapScreen = () => {
   }, [normalizedInitiatives, viewMode]);
 
   const totalDays = Math.max(1, diffInDays(rangeStart, rangeEnd) + 1);
+  const timelinePixelWidth = totalDays * DAY_WIDTH;
 
   const participantLoads = useMemo(() => {
     const map = new Map<string, number[]>();
@@ -421,7 +424,8 @@ export const CapacityHeatmapScreen = () => {
           initiativeId: initiative.id,
           initiativeName,
           workstreamName,
-          planTaskId: task.id
+          planTaskId: task.id,
+          slices: collectCapacitySlices(task)
         });
         map.set(owner.id, existing);
       });
@@ -496,6 +500,75 @@ export const CapacityHeatmapScreen = () => {
       }
       return next;
     });
+  };
+
+  const renderTaskStrip = (task: ParticipantTaskInfo) => {
+    const hasDates = task.start && task.end;
+    const contentWidth = `${timelinePixelWidth}px`;
+    if (!hasDates) {
+      return <p className={styles.emptyTimeline}>No schedule defined for this task.</p>;
+    }
+    const clampedStart = clampDate(task.start, rangeStart, rangeEnd);
+    const clampedEnd = clampDate(task.end, rangeStart, rangeEnd);
+    const offsetDays = Math.max(0, diffInDays(rangeStart, clampedStart));
+    const durationDays = Math.max(1, diffInDays(clampedStart, clampedEnd) + 1);
+    const leftPx = offsetDays * DAY_WIDTH;
+    const widthPx = durationDays * DAY_WIDTH;
+    const background = `repeating-linear-gradient(to right, rgba(148, 163, 184, 0.25) 0, rgba(148, 163, 184, 0.25) 1px, transparent 1px, transparent ${DAY_WIDTH}px)`;
+    return (
+      <div className={styles.taskTimelineScroller}>
+        <div
+          className={styles.taskStripCanvas}
+          style={{ width: contentWidth, backgroundSize: `${DAY_WIDTH}px 100%`, backgroundImage: background }}
+        >
+          <span className={styles.taskStripBar} style={{ left: `${leftPx}px`, width: `${widthPx}px` }} />
+        </div>
+      </div>
+    );
+  };
+
+  const renderTaskColumns = (task: ParticipantTaskInfo) => {
+    if (!task.slices.length) {
+      return <p className={styles.emptyTimeline}>No capacity data available for this task.</p>;
+    }
+    return (
+      <div className={styles.taskTimelineScroller}>
+        <div className={styles.taskColumnsCanvas} style={{ width: `${timelinePixelWidth}px` }}>
+          <div className={styles.taskColumnsHundred} />
+          <div className={styles.taskColumnsSeries}>
+            {periods.map((period) => {
+              const load = Math.max(0, Math.round(calculateTaskLoadForPeriod(task, period)));
+              const initiativeHeight = Math.min(load, 100);
+              const overloadHeight = Math.max(load - 100, 0);
+              const bucketWidth = period.days * DAY_WIDTH;
+              const tooltip = `${period.label} · ${load}%`;
+              return (
+                <div
+                  key={`${task.id}-${period.id}`}
+                  className={styles.taskColumnsBucket}
+                  style={{ width: `${bucketWidth}px` }}
+                  title={tooltip}
+                  aria-label={tooltip}
+                >
+                  <div className={styles.taskColumnsBar}>
+                    <span
+                      className={styles.taskColumnsInitiative}
+                      style={{ height: `${initiativeHeight}%`, opacity: initiativeHeight > 0 ? 1 : 0 }}
+                    />
+                    {overloadHeight > 0 && (
+                      <span
+                        className={styles.taskColumnsOverload}
+                        style={{ height: `${Math.min(overloadHeight, 100)}%` }}
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -612,70 +685,37 @@ export const CapacityHeatmapScreen = () => {
                     </tr>
                     {isExpanded &&
                       (tasks.length ? (
-                        tasks.map((task) => {
-                          const clampedStart = clampDate(task.start, rangeStart, rangeEnd);
-                          const clampedEnd = clampDate(task.end, rangeStart, rangeEnd);
-                          const offsetDays = Math.max(0, diffInDays(rangeStart, clampedStart));
-                          const durationDays = Math.max(1, diffInDays(clampedStart, clampedEnd) + 1);
-                          const leftPercent = (offsetDays / totalDays) * 100;
-                          const widthPercent = (durationDays / totalDays) * 100;
-                          return (
-                            <tr key={`${row.participant.id}-${task.id}`} className={styles.taskDetailRow}>
-                              <td className={styles.taskInfoCell}>
-                                <div className={styles.taskTitle}>{task.name}</div>
-                                <div className={styles.taskMeta}>
-                                  {task.workstreamName && <span>{task.workstreamName}</span>}
-                                  <span>{task.initiativeName}</span>
-                                </div>
-                                <div className={styles.taskActions}>
-                                  <a
-                                    className={styles.taskActionButton}
-                                    href={`#/initiatives/view/${task.initiativeId}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    Open initiative
-                                  </a>
-                                  <button
-                                    type="button"
-                                    className={styles.taskActionButton}
-                                    onClick={() => handleOpenPlanOverlay(task)}
-                                  >
-                                    Open plan
-                                  </button>
-                                </div>
-                              </td>
-                              {taskViewMode === 'columns'
-                                ? periods.map((period) => {
-                                    const segment = getTaskSegmentForPeriod(task, period);
-                                    const height = segment ? Math.max(12, segment.coverageRatio * 100) : 0;
-                                    return (
-                                      <td key={`${task.id}-${period.id}`} className={styles.taskTimelineCell}>
-                                        {segment && (
-                                          <span
-                                            className={styles.taskColumnBar}
-                                            style={{ height: `${height}%` }}
-                                          />
-                                        )}
-                                      </td>
-                                    );
-                                  })
-                                : (
-                                    <td className={styles.taskTimelineStripCell} colSpan={periods.length}>
-                                      <div className={styles.taskStripCanvas}>
-                                        <span
-                                          className={styles.taskStripBar}
-                                          style={{
-                                            left: `${leftPercent}%`,
-                                            width: `${widthPercent}%`
-                                          }}
-                                        />
-                                      </div>
-                                    </td>
-                                  )}
-                            </tr>
-                          );
-                        })
+                        tasks.map((task) => (
+                          <tr key={`${row.participant.id}-${task.id}`} className={styles.taskDetailRow}>
+                            <td className={styles.taskInfoCell}>
+                              <div className={styles.taskTitle}>{task.name}</div>
+                              <div className={styles.taskMeta}>
+                                {task.workstreamName && <span>{task.workstreamName}</span>}
+                                <span>{task.initiativeName}</span>
+                              </div>
+                              <div className={styles.taskActions}>
+                                <a
+                                  className={styles.taskActionButton}
+                                  href={`#/initiatives/view/${task.initiativeId}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Open initiative
+                                </a>
+                                <button
+                                  type="button"
+                                  className={styles.taskActionButton}
+                                  onClick={() => handleOpenPlanOverlay(task)}
+                                >
+                                  Open plan
+                                </button>
+                              </div>
+                            </td>
+                            <td className={styles.taskTimelineCell} colSpan={periods.length}>
+                              {taskViewMode === 'columns' ? renderTaskColumns(task) : renderTaskStrip(task)}
+                            </td>
+                          </tr>
+                        ))
                       ) : (
                         <tr key={`${row.participant.id}-details`} className={styles.taskDetailRow}>
                           <td className={styles.taskInfoCell} colSpan={periods.length + 1}>

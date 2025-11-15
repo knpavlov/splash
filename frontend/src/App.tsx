@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppLayout } from './app/AppLayout';
 import { NavigationKey, navigationItems } from './app/navigation';
 import { CasesScreen } from './modules/cases/CasesScreen';
@@ -6,7 +6,7 @@ import { CandidatesScreen } from './modules/candidates/CandidatesScreen';
 import { EvaluationScreen, EvaluationViewRoute } from './modules/evaluation/EvaluationScreen';
 import { AccountsScreen } from './modules/accounts/AccountsScreen';
 import { PlaceholderScreen } from './shared/ui/PlaceholderScreen';
-import { AuthProvider, useAuth } from './modules/auth/AuthContext';
+import { AuthProvider, AuthSession, useAuth } from './modules/auth/AuthContext';
 import { AppStateProvider } from './app/state/AppStateContext';
 import { LoginScreen } from './modules/auth/LoginScreen';
 import { FitQuestionsScreen } from './modules/questions/FitQuestionsScreen';
@@ -164,6 +164,7 @@ const AppContent = () => {
   const { session } = useAuth();
   const [route, setRoute] = useState<AppRoute>(() => parseHash(window.location.hash));
   const hasInterviewerAssignments = useHasInterviewerAssignments(session?.email);
+  const previousSessionRef = useRef<AuthSession | null>(null);
 
   const setRouteFromHash = useCallback(() => {
     const next = parseHash(window.location.hash);
@@ -174,6 +175,13 @@ const AppContent = () => {
     window.addEventListener('hashchange', setRouteFromHash);
     return () => window.removeEventListener('hashchange', setRouteFromHash);
   }, [setRouteFromHash]);
+
+  useEffect(() => {
+    if (!window.location.hash && window.location.pathname && window.location.pathname !== '/') {
+      const path = `${window.location.pathname}${window.location.search || ''}`;
+      window.location.hash = path;
+    }
+  }, []);
 
   const updateRoute = useCallback(
     (next: AppRoute) => {
@@ -189,9 +197,10 @@ const AppContent = () => {
   );
 
   useEffect(() => {
-    if (!session) {
+    if (!session && previousSessionRef.current) {
       updateRoute({ page: 'cases' });
     }
+    previousSessionRef.current = session;
   }, [session, updateRoute]);
 
   const accessibleItems = useMemo<NavigationItem[]>(() => {

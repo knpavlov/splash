@@ -273,51 +273,97 @@
 }
 
 .taskTimelineCell {
-  min-width: 80px;
-  height: 42px;
-  position: relative;
-  background-image: linear-gradient(to right, rgba(148, 163, 184, 0.25) 1px, transparent 1px);
-  background-size: 7px 100%;
+  padding: 0;
 }
 
-.taskColumnBar {
-  position: absolute;
-  bottom: 6px;
-  width: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-radius: 8px 8px 4px 4px;
-  background: linear-gradient(180deg, #60a5fa, #2563eb);
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
-}
-
-.taskTimelineStripCell {
+.taskTimelineScroller {
+  overflow-x: auto;
   padding: 10px 0;
 }
 
 .taskStripCanvas {
   position: relative;
-  width: 100%;
   height: 46px;
   border-radius: 12px;
-  background-image: repeating-linear-gradient(
-      to right,
-      rgba(148, 163, 184, 0.25) 0,
-      rgba(148, 163, 184, 0.25) 1px,
-      transparent 1px,
-      transparent 12px
-    ),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.12), rgba(148, 163, 184, 0.12));
+  background-color: rgba(241, 245, 249, 0.8);
+  border: 1px solid rgba(226, 232, 240, 0.7);
   overflow: hidden;
 }
 
 .taskStripBar {
   position: absolute;
-  top: 9px;
-  height: 28px;
+  top: 8px;
+  height: 30px;
   border-radius: 999px;
   background: linear-gradient(135deg, #3b82f6, #1d4ed8);
   box-shadow: 0 10px 18px rgba(30, 64, 175, 0.35);
+}
+
+.taskColumnsCanvas {
+  position: relative;
+  height: 72px;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 12px 0;
+}
+
+.taskColumnsHundred {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: repeating-linear-gradient(to right, rgba(239, 68, 68, 0.5) 0, rgba(239, 68, 68, 0.5) 4px, transparent 4px, transparent 8px);
+  top: 12px;
+  pointer-events: none;
+}
+
+.taskColumnsSeries {
+  display: flex;
+  height: 100%;
+  position: relative;
+}
+
+.taskColumnsBucket {
+  position: relative;
+  height: 100%;
+}
+
+.taskColumnsBucket + .taskColumnsBucket::before {
+  content: '';
+  position: absolute;
+  left: -0.5px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.taskColumnsBar {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  top: 8px;
+}
+
+.taskColumnsInitiative,
+.taskColumnsOverload {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 6px 6px 0 0;
+}
+
+.taskColumnsInitiative {
+  bottom: 0;
+  background: linear-gradient(180deg, #bbf7d0 0%, #22c55e 100%);
+  box-shadow: 0 6px 16px rgba(34, 197, 94, 0.35);
+}
+
+.taskColumnsOverload {
+  bottom: 0;
+  background: rgba(239, 68, 68, 0.85);
 }
 
 .emptyTimeline {
