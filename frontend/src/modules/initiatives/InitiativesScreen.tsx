@@ -5,6 +5,7 @@ import { useInitiativesState, useWorkstreamsState, useAccountsState } from '../.
 import { InitiativesList } from './components/InitiativesList';
 import { InitiativeProfile } from './components/InitiativeProfile';
 import { AccountRecord } from '../../shared/types/account';
+import { initiativesApi } from './services/initiativesApi';
 
 export type InitiativesViewRoute =
   | { mode: 'list'; workstreamId?: string }
@@ -106,8 +107,49 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
     });
   }, [onViewChange, view]);
 
+  const [remoteInitiative, setRemoteInitiative] = useState<Initiative | null>(null);
+  const [isRemoteLoading, setIsRemoteLoading] = useState(false);
+
+  useEffect(() => {
+    if (view.mode !== 'view' || !view.initiativeId) {
+      setRemoteInitiative(null);
+      setIsRemoteLoading(false);
+      return;
+    }
+    const existing = findInitiative(list, view.initiativeId);
+    if (existing) {
+      setRemoteInitiative(null);
+      setIsRemoteLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setIsRemoteLoading(true);
+      try {
+        const fetched = await initiativesApi.get(view.initiativeId!);
+        if (!cancelled) {
+          setRemoteInitiative(fetched);
+        }
+      } catch (error) {
+        console.error('Failed to fetch initiative by id:', error);
+        if (!cancelled) {
+          setRemoteInitiative(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRemoteLoading(false);
+        }
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [list, view]);
+
   if (view.mode === 'view') {
-    const initiative = findInitiative(list, view.initiativeId);
+    const initiative = findInitiative(list, view.initiativeId) ?? remoteInitiative;
+    const dataLoadedFlag = Boolean(initiative) || (initiativesLoaded && !isRemoteLoading);
     return (
       <InitiativeProfile
         mode="view"
@@ -122,7 +164,7 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
         focusPlanTaskId={view.planTaskId ?? null}
         openPlanFullscreen={view.openPlanFullscreen}
         onPlanFocusClear={handlePlanFocusClear}
-        dataLoaded={initiativesLoaded}
+        dataLoaded={dataLoadedFlag}
       />
     );
   }

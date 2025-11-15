@@ -129,11 +129,8 @@ const calculateTaskLoadForRange = (task: ParticipantTaskInfo, rangeStart: Date, 
     if (overlapEnd.getTime() < overlapStart.getTime()) {
       return;
     }
-    const overlapDays = Math.max(0, diffInDays(overlapStart, overlapEnd) + 1);
-    if (overlapDays <= 0) {
-      return;
-    }
-    total += (slice.capacity * overlapDays) / 7;
+    // Each slice capacity represents the expected daily load %, so count it once per overlapping day.
+    total += slice.capacity;
   });
   return total;
 };
