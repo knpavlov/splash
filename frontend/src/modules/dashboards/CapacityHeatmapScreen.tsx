@@ -58,6 +58,7 @@ interface PlanOverlayState {
 }
 
 const DAY_WIDTH = 12;
+const NAME_COLUMN_WIDTH = 260;
 
 const startOfWeek = (value: Date) => {
   const date = new Date(value);
@@ -230,11 +231,16 @@ const flattenTree = (nodes: NodeEntry[], collapsed: Set<string>, output: NodeEnt
 };
 
 const getHeatColor = (value: number) => {
-  const clamped = Math.max(0, Math.min(value, 160));
-  const ratio = clamped / 160;
-  const hue = 120 - ratio * 120;
-  const lightness = 88 - ratio * 38;
-  return `hsl(${hue}, 70%, ${lightness}%)`;
+  if (value >= 100) {
+    return '#f87171';
+  }
+  if (value >= 75) {
+    return '#fb923c';
+  }
+  if (value >= 50) {
+    return '#fde047';
+  }
+  return value >= 25 ? '#86efac' : '#dcfce7';
 };
 
 export const CapacityHeatmapScreen = () => {
@@ -363,6 +369,7 @@ export const CapacityHeatmapScreen = () => {
 
   const dayBuckets = useMemo(() => buildDayBuckets(rangeStart, rangeEnd), [rangeStart, rangeEnd]);
   const timelinePixelWidth = dayBuckets.length * DAY_WIDTH || DAY_WIDTH;
+  const tableWidth = NAME_COLUMN_WIDTH + timelinePixelWidth;
 
   const participantLoads = useMemo(() => {
     const map = new Map<string, number[]>();
@@ -492,6 +499,14 @@ export const CapacityHeatmapScreen = () => {
     return flatten;
   }, [collapsedGroups, participantLoads, participants, periods, showAllParticipants]);
 
+  const visibleParticipantIds = useMemo(
+    () =>
+      rows
+        .filter((node): node is ParticipantLoadRow => node.type === 'participant')
+        .map((node) => node.participant.id),
+    [rows]
+  );
+
   const toggleGroup = (id: string) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev);
@@ -514,6 +529,20 @@ export const CapacityHeatmapScreen = () => {
       }
       return next;
     });
+  };
+
+  const collapseAllParticipants = () => {
+    if (expandedParticipants.size === 0) {
+      return;
+    }
+    setExpandedParticipants(new Set());
+  };
+
+  const expandAllParticipants = () => {
+    if (!visibleParticipantIds.length) {
+      return;
+    }
+    setExpandedParticipants(new Set(visibleParticipantIds));
   };
 
   const renderTaskStrip = (task: ParticipantTaskInfo) => {
@@ -597,14 +626,25 @@ export const CapacityHeatmapScreen = () => {
               <option value="monthly">Monthly</option>
             </select>
           </label>
-          <label className={styles.checkbox}>
-            <input
-              type="checkbox"
-              checked={showAllParticipants}
-              onChange={(event) => setShowAllParticipants(event.target.checked)}
-            />
-            Show all participants
-          </label>
+          <div className={styles.modeSwitch}>
+            <span>Participants</span>
+            <div className={styles.modeButtons}>
+              <button
+                type="button"
+                className={`${styles.modeButton} ${!showAllParticipants ? styles.modeActive : ''}`}
+                onClick={() => setShowAllParticipants(false)}
+              >
+                Active only
+              </button>
+              <button
+                type="button"
+                className={`${styles.modeButton} ${showAllParticipants ? styles.modeActive : ''}`}
+                onClick={() => setShowAllParticipants(true)}
+              >
+                All participants
+              </button>
+            </div>
+          </div>
           <div className={styles.modeSwitch}>
             <span>Task view</span>
             <div className={styles.modeButtons}>
@@ -624,11 +664,29 @@ export const CapacityHeatmapScreen = () => {
               </button>
             </div>
           </div>
+          <div className={styles.expandControls}>
+            <button
+              type="button"
+              className={styles.expandButton}
+              onClick={collapseAllParticipants}
+              disabled={expandedParticipants.size === 0}
+            >
+              Collapse all
+            </button>
+            <button
+              type="button"
+              className={styles.expandButton}
+              onClick={expandAllParticipants}
+              disabled={!visibleParticipantIds.length}
+            >
+              Expand all
+            </button>
+          </div>
         </div>
       </header>
 
       <div className={styles.tableWrapper}>
-        <table className={styles.heatmapTable}>
+        <table className={styles.heatmapTable} style={{ width: `${tableWidth}px` }}>
           <thead>
             <tr>
               <th>Hierarchy</th>
@@ -691,8 +749,7 @@ export const CapacityHeatmapScreen = () => {
                     <div
                       className={`${styles.heatCell} ${isEmpty ? styles.heatCellEmpty : ''}`}
                       style={{
-                        backgroundColor: isEmpty ? undefined : getHeatColor(value),
-                        backgroundImage: `repeating-linear-gradient(to right, rgba(148, 163, 184, 0.3) 0, rgba(148, 163, 184, 0.3) 1px, transparent 1px, transparent ${DAY_WIDTH}px)`
+                        backgroundColor: isEmpty ? undefined : getHeatColor(value)
                       }}
                     >
                       {value > 1 ? `${Math.round(value)}%` : ''}

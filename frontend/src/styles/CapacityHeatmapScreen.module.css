@@ -26,6 +26,28 @@
   align-items: center;
 }
 
+.expandControls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.expandButton {
+  border: 1px solid rgba(148, 163, 184, 0.8);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.expandButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .filters label {
   display: flex;
   flex-direction: column;
@@ -373,7 +395,7 @@
   position: absolute;
   left: 0;
   right: 0;
-  border-radius: 6px 6px 0 0;
+  border-radius: 0;
 }
 
 .taskColumnsInitiative {
