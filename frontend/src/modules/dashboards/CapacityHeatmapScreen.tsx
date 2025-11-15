@@ -232,37 +232,34 @@ const flattenTree = (nodes: NodeEntry[], collapsed: Set<string>, output: NodeEnt
 
 type Rgb = [number, number, number];
 
-const mixColor = (from: Rgb, to: Rgb, t: number) => {
-  const ratio = Math.max(0, Math.min(1, t));
-  const channel = (index: number) => Math.round(from[index] + (to[index] - from[index]) * ratio);
-  const component = (value: number) => value.toString(16).padStart(2, '0');
-  return `#${component(channel(0))}${component(channel(1))}${component(channel(2))}`;
-};
-
-const gradientForRange = (range: { light: Rgb; dark: Rgb }, ratio: number) => {
+const interpolate = (from: Rgb, to: Rgb, ratio: number) => {
   const clamped = Math.max(0, Math.min(1, ratio));
-  const start = mixColor(range.light, range.dark, clamped * 0.5);
-  const end = mixColor(range.light, range.dark, clamped);
-  return `linear-gradient(135deg, ${start} 0%, ${end} 100%)`;
+  const mix = (index: number) => Math.round(from[index] + (to[index] - from[index]) * clamped);
+  return `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`;
 };
 
-const getHeatGradient = (value: number) => {
-  const ranges = {
-    green: { light: [187, 247, 208] as Rgb, dark: [34, 197, 94] as Rgb },
-    yellow: { light: [254, 243, 199] as Rgb, dark: [250, 204, 21] as Rgb },
-    orange: { light: [253, 186, 116] as Rgb, dark: [249, 115, 22] as Rgb },
-    red: { light: [248, 113, 113] as Rgb, dark: [239, 68, 68] as Rgb }
-  };
+const colorStops: { threshold: number; color: Rgb }[] = [
+  { threshold: 0, color: [34, 197, 94] },
+  { threshold: 50, color: [250, 204, 21] },
+  { threshold: 75, color: [249, 115, 22] },
+  { threshold: 100, color: [239, 68, 68] }
+];
+
+const getHeatColor = (value: number) => {
   if (value >= 100) {
-    return gradientForRange(ranges.red, Math.min((value - 100) / 60, 1));
+    return 'rgb(239, 68, 68)';
   }
-  if (value >= 75) {
-    return gradientForRange(ranges.orange, (value - 75) / 25);
+  const clamped = Math.max(0, value);
+  for (let index = 1; index < colorStops.length; index += 1) {
+    const current = colorStops[index];
+    if (clamped <= current.threshold) {
+      const prev = colorStops[index - 1];
+      const span = current.threshold - prev.threshold || 1;
+      const ratio = (clamped - prev.threshold) / span;
+      return interpolate(prev.color, current.color, ratio);
+    }
   }
-  if (value >= 50) {
-    return gradientForRange(ranges.yellow, (value - 50) / 25);
-  }
-  return gradientForRange(ranges.green, value / 50);
+  return interpolate(colorStops[colorStops.length - 2].color, colorStops[colorStops.length - 1].color, 1);
 };
 
 export const CapacityHeatmapScreen = () => {
@@ -771,7 +768,7 @@ export const CapacityHeatmapScreen = () => {
                     <div
                       className={`${styles.heatCell} ${isEmpty ? styles.heatCellEmpty : ''}`}
                       style={{
-                        backgroundImage: isEmpty ? undefined : getHeatGradient(value)
+                        backgroundColor: isEmpty ? undefined : getHeatColor(value)
                       }}
                     >
                       {value > 1 ? `${Math.round(value)}%` : ''}

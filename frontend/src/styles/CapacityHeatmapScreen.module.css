@@ -240,7 +240,7 @@
 }
 
 .taskInfoCell {
-  padding: 10px 12px;
+  padding: 8px 12px;
   min-width: 220px;
   vertical-align: top;
 }
@@ -319,34 +319,34 @@
 
 .taskTimelineScroller {
   overflow-x: auto;
-  padding: 10px 0;
+  padding: 4px 0;
 }
 
 .taskStripCanvas {
   position: relative;
-  height: 46px;
-  border-radius: 12px;
-  background-color: rgba(241, 245, 249, 0.8);
-  border: 1px solid rgba(226, 232, 240, 0.7);
+  height: 34px;
+  border-radius: 4px;
+  background-color: rgba(248, 250, 252, 0.95);
+  border: 1px solid rgba(226, 232, 240, 0.8);
   overflow: hidden;
 }
 
 .taskStripBar {
   position: absolute;
   top: 8px;
-  height: 30px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-  box-shadow: 0 10px 18px rgba(30, 64, 175, 0.35);
+  height: 18px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.25);
 }
 
 .taskColumnsCanvas {
   position: relative;
-  height: 72px;
-  border-radius: 16px;
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  height: 56px;
+  border-radius: 6px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
   background: rgba(255, 255, 255, 0.95);
-  padding: 12px 0;
+  padding: 8px 0;
 }
 
 .taskColumnsHundred {
@@ -376,8 +376,8 @@
   content: '';
   position: absolute;
   left: -0.5px;
-  top: 8px;
-  bottom: 8px;
+  top: 4px;
+  bottom: 4px;
   width: 1px;
   background: rgba(15, 23, 42, 0.08);
 }
@@ -386,8 +386,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 8px;
-  top: 8px;
+  bottom: 4px;
+  top: 4px;
 }
 
 .taskColumnsInitiative,
