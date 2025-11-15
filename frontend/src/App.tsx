@@ -179,7 +179,9 @@ const AppContent = () => {
   useEffect(() => {
     if (!window.location.hash && window.location.pathname && window.location.pathname !== '/') {
       const path = `${window.location.pathname}${window.location.search || ''}`;
-      window.location.hash = path;
+      const normalized = path.startsWith('/') ? path : `/${path}`;
+      window.location.hash = normalized;
+      setRoute(parseHash(normalized));
     }
   }, []);
 

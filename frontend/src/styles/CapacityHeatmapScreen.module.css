@@ -161,7 +161,6 @@
 }
 
 .heatCell {
-  min-width: 80px;
   height: 40px;
   display: flex;
   align-items: center;
@@ -169,10 +168,12 @@
   font-size: 12px;
   font-weight: 600;
   color: rgba(15, 23, 42, 0.8);
+  background-color: rgba(226, 232, 240, 0.6);
+  background-size: 12px 100%;
 }
 
 .heatCellEmpty {
-  background: #e2e8f0;
+  background-color: #e2e8f0;
   color: #94a3b8;
 }
 

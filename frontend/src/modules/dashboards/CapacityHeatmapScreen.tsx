@@ -101,14 +101,30 @@ const clampDate = (value: Date, min: Date, max: Date) => {
 const clonePlanModel = (plan: InitiativePlanModel): InitiativePlanModel =>
   JSON.parse(JSON.stringify(plan));
 
-const calculateTaskLoadForPeriod = (task: ParticipantTaskInfo, period: PeriodBucket) => {
+const buildDayBuckets = (start: Date, end: Date) => {
+  const buckets: { start: Date; end: Date }[] = [];
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  const last = new Date(end);
+  last.setHours(23, 59, 59, 999);
+  while (cursor.getTime() <= last.getTime()) {
+    const bucketStart = new Date(cursor);
+    const bucketEnd = new Date(cursor);
+    bucketEnd.setHours(23, 59, 59, 999);
+    buckets.push({ start: bucketStart, end: bucketEnd });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return buckets;
+};
+
+const calculateTaskLoadForRange = (task: ParticipantTaskInfo, rangeStart: Date, rangeEnd: Date) => {
   if (!task.slices.length) {
     return 0;
   }
   let total = 0;
   task.slices.forEach((slice) => {
-    const overlapStart = slice.start.getTime() > period.start.getTime() ? slice.start : period.start;
-    const overlapEnd = slice.end.getTime() < period.end.getTime() ? slice.end : period.end;
+    const overlapStart = slice.start.getTime() > rangeStart.getTime() ? slice.start : rangeStart;
+    const overlapEnd = slice.end.getTime() < rangeEnd.getTime() ? slice.end : rangeEnd;
     if (overlapEnd.getTime() < overlapStart.getTime()) {
       return;
     }
@@ -347,8 +363,8 @@ export const CapacityHeatmapScreen = () => {
     };
   }, [normalizedInitiatives, viewMode]);
 
-  const totalDays = Math.max(1, diffInDays(rangeStart, rangeEnd) + 1);
-  const timelinePixelWidth = totalDays * DAY_WIDTH;
+  const dayBuckets = useMemo(() => buildDayBuckets(rangeStart, rangeEnd), [rangeStart, rangeEnd]);
+  const timelinePixelWidth = dayBuckets.length * DAY_WIDTH || DAY_WIDTH;
 
   const participantLoads = useMemo(() => {
     const map = new Map<string, number[]>();
@@ -528,25 +544,21 @@ export const CapacityHeatmapScreen = () => {
   };
 
   const renderTaskColumns = (task: ParticipantTaskInfo) => {
-    if (!task.slices.length) {
-      return <p className={styles.emptyTimeline}>No capacity data available for this task.</p>;
-    }
     return (
       <div className={styles.taskTimelineScroller}>
         <div className={styles.taskColumnsCanvas} style={{ width: `${timelinePixelWidth}px` }}>
           <div className={styles.taskColumnsHundred} />
           <div className={styles.taskColumnsSeries}>
-            {periods.map((period) => {
-              const load = Math.max(0, Math.round(calculateTaskLoadForPeriod(task, period)));
+            {dayBuckets.map((bucket, index) => {
+              const load = Math.max(0, Math.round(calculateTaskLoadForRange(task, bucket.start, bucket.end)));
               const initiativeHeight = Math.min(load, 100);
               const overloadHeight = Math.max(load - 100, 0);
-              const bucketWidth = period.days * DAY_WIDTH;
-              const tooltip = `${period.label} · ${load}%`;
+              const tooltip = `${bucket.start.toLocaleDateString()} · ${load}%`;
               return (
                 <div
-                  key={`${task.id}-${period.id}`}
+                  key={`${task.id}-day-${index}`}
                   className={styles.taskColumnsBucket}
-                  style={{ width: `${bucketWidth}px` }}
+                  style={{ width: `${DAY_WIDTH}px` }}
                   title={tooltip}
                   aria-label={tooltip}
                 >
@@ -623,7 +635,9 @@ export const CapacityHeatmapScreen = () => {
             <tr>
               <th>Hierarchy</th>
               {periods.map((period) => (
-                <th key={period.id}>{period.label}</th>
+                <th key={period.id} style={{ width: `${period.days * DAY_WIDTH}px` }}>
+                  {period.label}
+                </th>
               ))}
             </tr>
           </thead>
@@ -669,19 +683,25 @@ export const CapacityHeatmapScreen = () => {
                           {row.participant.displayName}
                         </button>
                       </td>
-                      {row.loads.map((value, index) => {
-                        const isEmpty = value < 0.01;
-                        return (
-                          <td key={`${row.participant.id}-${periods[index].id}`}>
-                            <div
-                              className={`${styles.heatCell} ${isEmpty ? styles.heatCellEmpty : ''}`}
-                              style={{ background: isEmpty ? undefined : getHeatColor(value) }}
-                            >
-                              {value > 1 ? `${Math.round(value)}%` : ''}
-                            </div>
-                          </td>
-                        );
-                      })}
+              {row.loads.map((value, index) => {
+                const isEmpty = value < 0.01;
+                return (
+                  <td
+                    key={`${row.participant.id}-${periods[index].id}`}
+                    style={{ width: `${periods[index].days * DAY_WIDTH}px` }}
+                  >
+                    <div
+                      className={`${styles.heatCell} ${isEmpty ? styles.heatCellEmpty : ''}`}
+                      style={{
+                        backgroundColor: isEmpty ? undefined : getHeatColor(value),
+                        backgroundImage: `repeating-linear-gradient(to right, rgba(148, 163, 184, 0.3) 0, rgba(148, 163, 184, 0.3) 1px, transparent 1px, transparent ${DAY_WIDTH}px)`
+                      }}
+                    >
+                      {value > 1 ? `${Math.round(value)}%` : ''}
+                    </div>
+                  </td>
+                );
+              })}
                     </tr>
                     {isExpanded &&
                       (tasks.length ? (
