@@ -7,6 +7,8 @@ import { Initiative, InitiativePlanModel, InitiativePlanTask } from '../../share
 import { collectCapacitySlices, CapacitySlice } from '../initiatives/plan/capacityUtils';
 import { parseDate } from '../initiatives/plan/planTimeline';
 import { InitiativePlanModule } from '../initiatives/components/plan/InitiativePlanModule';
+import { ExternalLinkIcon } from '../../components/icons/ExternalLinkIcon';
+import { TimelineIcon } from '../../components/icons/TimelineIcon';
 
 type ViewMode = 'weekly' | 'monthly';
 
@@ -56,7 +58,6 @@ interface PlanOverlayState {
 }
 
 const DAY_WIDTH = 12;
-const WEEK_DAYS = 7;
 
 const startOfWeek = (value: Date) => {
   const date = new Date(value);
@@ -128,11 +129,10 @@ const calculateTaskLoadForRange = (task: ParticipantTaskInfo, rangeStart: Date, 
     if (overlapEnd.getTime() < overlapStart.getTime()) {
       return;
     }
-    const overlapDays = diffInDays(overlapStart, overlapEnd) + 1;
-    if (overlapDays <= 0) {
+    if (overlapEnd.getTime() < overlapStart.getTime()) {
       return;
     }
-    total += (slice.capacity * overlapDays) / WEEK_DAYS;
+    total += slice.capacity;
   });
   return total;
 };
@@ -715,19 +715,23 @@ export const CapacityHeatmapScreen = () => {
                               </div>
                               <div className={styles.taskActions}>
                                 <a
-                                  className={styles.taskActionButton}
+                                  className={styles.taskIconButton}
                                   href={`#/initiatives/view/${task.initiativeId}`}
                                   target="_blank"
                                   rel="noreferrer"
+                                  title="Open initiative"
+                                  aria-label="Open initiative"
                                 >
-                                  Open initiative
+                                  <ExternalLinkIcon title="Open initiative" />
                                 </a>
                                 <button
                                   type="button"
-                                  className={styles.taskActionButton}
+                                  className={styles.taskIconButton}
                                   onClick={() => handleOpenPlanOverlay(task)}
+                                  title="Open plan"
+                                  aria-label="Open plan"
                                 >
-                                  Open plan
+                                  <TimelineIcon title="Open plan" />
                                 </button>
                               </div>
                             </td>
