@@ -230,17 +230,39 @@ const flattenTree = (nodes: NodeEntry[], collapsed: Set<string>, output: NodeEnt
   });
 };
 
-const getHeatColor = (value: number) => {
+type Rgb = [number, number, number];
+
+const mixColor = (from: Rgb, to: Rgb, t: number) => {
+  const ratio = Math.max(0, Math.min(1, t));
+  const channel = (index: number) => Math.round(from[index] + (to[index] - from[index]) * ratio);
+  const component = (value: number) => value.toString(16).padStart(2, '0');
+  return `#${component(channel(0))}${component(channel(1))}${component(channel(2))}`;
+};
+
+const gradientForRange = (range: { light: Rgb; dark: Rgb }, ratio: number) => {
+  const clamped = Math.max(0, Math.min(1, ratio));
+  const start = mixColor(range.light, range.dark, clamped * 0.5);
+  const end = mixColor(range.light, range.dark, clamped);
+  return `linear-gradient(135deg, ${start} 0%, ${end} 100%)`;
+};
+
+const getHeatGradient = (value: number) => {
+  const ranges = {
+    green: { light: [187, 247, 208] as Rgb, dark: [34, 197, 94] as Rgb },
+    yellow: { light: [254, 243, 199] as Rgb, dark: [250, 204, 21] as Rgb },
+    orange: { light: [253, 186, 116] as Rgb, dark: [249, 115, 22] as Rgb },
+    red: { light: [248, 113, 113] as Rgb, dark: [239, 68, 68] as Rgb }
+  };
   if (value >= 100) {
-    return '#f87171';
+    return gradientForRange(ranges.red, Math.min((value - 100) / 60, 1));
   }
   if (value >= 75) {
-    return '#fb923c';
+    return gradientForRange(ranges.orange, (value - 75) / 25);
   }
   if (value >= 50) {
-    return '#fde047';
+    return gradientForRange(ranges.yellow, (value - 50) / 25);
   }
-  return value >= 25 ? '#86efac' : '#dcfce7';
+  return gradientForRange(ranges.green, value / 50);
 };
 
 export const CapacityHeatmapScreen = () => {
@@ -749,7 +771,7 @@ export const CapacityHeatmapScreen = () => {
                     <div
                       className={`${styles.heatCell} ${isEmpty ? styles.heatCellEmpty : ''}`}
                       style={{
-                        backgroundColor: isEmpty ? undefined : getHeatColor(value)
+                        backgroundImage: isEmpty ? undefined : getHeatGradient(value)
                       }}
                     >
                       {value > 1 ? `${Math.round(value)}%` : ''}
