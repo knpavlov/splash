@@ -85,6 +85,7 @@ interface AppStateContextValue {
   };
   initiatives: {
     list: Initiative[];
+    loaded: boolean;
     saveInitiative: (
       initiative: Initiative,
       expectedVersion: number | null
@@ -290,9 +291,11 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     void loadRoleOptions();
   }, [session]);
 
+  const [initiativesLoaded, setInitiativesLoaded] = useState(false);
   useEffect(() => {
     if (!session) {
       setInitiatives([]);
+      setInitiativesLoaded(false);
       return;
     }
     const loadInitiatives = async () => {
@@ -301,6 +304,8 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
         setInitiatives(remote);
       } catch (error) {
         console.error('Failed to load initiatives:', error);
+      } finally {
+        setInitiativesLoaded(true);
       }
     };
     void loadInitiatives();
@@ -780,6 +785,7 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
   },
     initiatives: {
       list: initiatives,
+      loaded: initiativesLoaded,
       saveInitiative: async (initiative, expectedVersion) => {
         const sanitized = sanitizeInitiativeForSave(initiative);
         if (!sanitized.id || !sanitized.workstreamId) {

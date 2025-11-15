@@ -47,6 +47,7 @@ interface InitiativeProfileProps {
   focusPlanTaskId?: string | null;
   openPlanFullscreen?: boolean;
   onPlanFocusClear?: () => void;
+  dataLoaded?: boolean;
 }
 
 type Banner = { type: 'info' | 'error'; text: string } | null;
@@ -227,7 +228,8 @@ export const InitiativeProfile = ({
   hideBackLink = false,
   focusPlanTaskId = null,
   openPlanFullscreen = false,
-  onPlanFocusClear
+  onPlanFocusClear,
+  dataLoaded = true
 }: InitiativeProfileProps) => {
   const [draft, setDraft] = useState<Initiative>(() =>
     initiative ?? createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id)
@@ -589,6 +591,13 @@ export const InitiativeProfile = ({
   };
 
   if (mode === 'view' && !initiative) {
+    if (!dataLoaded) {
+      return (
+        <section className={styles.placeholder}>
+          <p>Loading initiative details...</p>
+        </section>
+      );
+    }
     return (
       <section className={styles.placeholder}>
         <h2>Initiative not found</h2>

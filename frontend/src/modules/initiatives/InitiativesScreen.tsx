@@ -20,7 +20,7 @@ const findInitiative = (list: Initiative[], id?: string | null) =>
   id ? list.find((item) => item.id === id) ?? null : null;
 
 export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps) => {
-  const { list, saveInitiative, removeInitiative, submitStage } = useInitiativesState();
+  const { list, saveInitiative, removeInitiative, submitStage, loaded: initiativesLoaded } = useInitiativesState();
   const { list: workstreams } = useWorkstreamsState();
   const { list: accounts } = useAccountsState();
 
@@ -122,6 +122,7 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
         focusPlanTaskId={view.planTaskId ?? null}
         openPlanFullscreen={view.openPlanFullscreen}
         onPlanFocusClear={handlePlanFocusClear}
+        dataLoaded={initiativesLoaded}
       />
     );
   }
@@ -139,6 +140,7 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
         onSave={handleSave}
         onDelete={handleRemove}
         onSubmitStage={handleSubmit}
+        dataLoaded={initiativesLoaded}
       />
     );
   }

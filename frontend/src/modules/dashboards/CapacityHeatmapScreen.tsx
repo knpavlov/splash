@@ -129,10 +129,11 @@ const calculateTaskLoadForRange = (task: ParticipantTaskInfo, rangeStart: Date, 
     if (overlapEnd.getTime() < overlapStart.getTime()) {
       return;
     }
-    if (overlapEnd.getTime() < overlapStart.getTime()) {
+    const overlapDays = Math.max(0, diffInDays(overlapStart, overlapEnd) + 1);
+    if (overlapDays <= 0) {
       return;
     }
-    total += slice.capacity;
+    total += (slice.capacity * overlapDays) / 7;
   });
   return total;
 };
@@ -550,10 +551,10 @@ export const CapacityHeatmapScreen = () => {
           <div className={styles.taskColumnsHundred} />
           <div className={styles.taskColumnsSeries}>
             {dayBuckets.map((bucket, index) => {
-              const load = Math.max(0, Math.round(calculateTaskLoadForRange(task, bucket.start, bucket.end)));
-              const initiativeHeight = Math.min(load, 100);
-              const overloadHeight = Math.max(load - 100, 0);
-              const tooltip = `${bucket.start.toLocaleDateString()} · ${load}%`;
+              const rawLoad = Math.max(0, calculateTaskLoadForRange(task, bucket.start, bucket.end));
+              const initiativeHeight = Math.min(rawLoad, 100);
+              const overloadHeight = Math.max(rawLoad - 100, 0);
+              const tooltip = `${bucket.start.toLocaleDateString()} · ${rawLoad.toFixed(1)}%`;
               return (
                 <div
                   key={`${task.id}-day-${index}`}
@@ -708,31 +709,33 @@ export const CapacityHeatmapScreen = () => {
                         tasks.map((task) => (
                           <tr key={`${row.participant.id}-${task.id}`} className={styles.taskDetailRow}>
                             <td className={styles.taskInfoCell}>
-                              <div className={styles.taskTitle}>{task.name}</div>
+                              <div className={styles.taskTitleRow}>
+                                <div className={styles.taskTitle}>{task.name}</div>
+                                <div className={styles.taskActions}>
+                                  <a
+                                    className={styles.taskIconButton}
+                                    href={`#/initiatives/view/${task.initiativeId}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    title="Open initiative"
+                                    aria-label="Open initiative"
+                                  >
+                                    <ExternalLinkIcon title="Open initiative" />
+                                  </a>
+                                  <button
+                                    type="button"
+                                    className={styles.taskIconButton}
+                                    onClick={() => handleOpenPlanOverlay(task)}
+                                    title="Open plan"
+                                    aria-label="Open plan"
+                                  >
+                                    <TimelineIcon title="Open plan" />
+                                  </button>
+                                </div>
+                              </div>
                               <div className={styles.taskMeta}>
                                 {task.workstreamName && <span>{task.workstreamName}</span>}
                                 <span>{task.initiativeName}</span>
-                              </div>
-                              <div className={styles.taskActions}>
-                                <a
-                                  className={styles.taskIconButton}
-                                  href={`#/initiatives/view/${task.initiativeId}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  title="Open initiative"
-                                  aria-label="Open initiative"
-                                >
-                                  <ExternalLinkIcon title="Open initiative" />
-                                </a>
-                                <button
-                                  type="button"
-                                  className={styles.taskIconButton}
-                                  onClick={() => handleOpenPlanOverlay(task)}
-                                  title="Open plan"
-                                  aria-label="Open plan"
-                                >
-                                  <TimelineIcon title="Open plan" />
-                                </button>
                               </div>
                             </td>
                             <td className={styles.taskTimelineCell} colSpan={periods.length}>
