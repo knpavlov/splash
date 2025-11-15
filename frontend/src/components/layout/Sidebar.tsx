@@ -64,10 +64,10 @@ export const Sidebar = ({ navigationItems, activeItem, onNavigate }: SidebarProp
   return (
     <aside className={styles.sidebar}>
       <div className={styles.logoArea}>
-        <div className={styles.logoMark}>R2</div>
+        <div className={styles.logoMark}>TM</div>
         <div className={styles.logoText}>
-          <span className={styles.companyName}>Recruitment</span>
-          <span className={styles.version}>2.0</span>
+          <span className={styles.companyName}>Transformation</span>
+          <span className={styles.version}>Management</span>
         </div>
       </div>
       <nav className={styles.menu}>

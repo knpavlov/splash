@@ -3,9 +3,10 @@ import styles from '../../styles/CapacityHeatmapScreen.module.css';
 import { useParticipantsState, useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { Participant } from '../../shared/types/participant';
 import { sanitizePlanModel } from '../initiatives/plan/planModel';
-import { Initiative, InitiativePlanTask } from '../../shared/types/initiative';
+import { Initiative, InitiativePlanModel, InitiativePlanTask } from '../../shared/types/initiative';
 import { collectCapacitySlices } from '../initiatives/plan/capacityUtils';
 import { parseDate } from '../initiatives/plan/planTimeline';
+import { InitiativePlanModule } from '../initiatives/components/plan/InitiativePlanModule';
 
 type ViewMode = 'weekly' | 'monthly';
 
@@ -47,7 +48,14 @@ interface ParticipantTaskInfo {
 
 type NodeEntry = GroupNode | ParticipantLoadRow;
 
+interface PlanOverlayState {
+  initiative: Initiative;
+  plan: InitiativePlanModel;
+  focusTaskId: string | null;
+}
+
 const DAY_WIDTH = 12;
+const MS_PER_DAY = 86400000;
 
 const startOfWeek = (value: Date) => {
   const date = new Date(value);
@@ -87,6 +95,27 @@ const clampDate = (value: Date, min: Date, max: Date) => {
     return new Date(max);
   }
   return new Date(value);
+};
+
+const clonePlanModel = (plan: InitiativePlanModel): InitiativePlanModel =>
+  JSON.parse(JSON.stringify(plan));
+
+const getTaskSegmentForPeriod = (task: ParticipantTaskInfo, period: PeriodBucket) => {
+  if (task.end.getTime() < period.start.getTime() || task.start.getTime() > period.end.getTime()) {
+    return null;
+  }
+  const clampedStart = task.start.getTime() < period.start.getTime() ? period.start : task.start;
+  const clampedEnd = task.end.getTime() > period.end.getTime() ? period.end : task.end;
+  if (clampedEnd.getTime() < clampedStart.getTime()) {
+    return null;
+  }
+  const totalDays = period.days || 1;
+  const startOffset = Math.max(0, Math.round((clampedStart.getTime() - period.start.getTime()) / MS_PER_DAY));
+  const coveredDays = Math.max(1, Math.round((clampedEnd.getTime() - clampedStart.getTime()) / MS_PER_DAY) + 1);
+  return {
+    leftPercent: (startOffset / totalDays) * 100,
+    widthPercent: (coveredDays / totalDays) * 100
+  };
 };
 
 const buildTimelineBuckets = (start: Date, end: Date, mode: ViewMode): PeriodBucket[] => {
@@ -193,12 +222,68 @@ const getHeatColor = (value: number) => {
 
 export const CapacityHeatmapScreen = () => {
   const { list: participants } = useParticipantsState();
-  const { list: initiatives } = useInitiativesState();
+  const { list: initiatives, saveInitiative } = useInitiativesState();
   const { list: workstreamsList } = useWorkstreamsState();
   const [viewMode, setViewMode] = useState<ViewMode>('weekly');
   const [showAllParticipants, setShowAllParticipants] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [expandedParticipants, setExpandedParticipants] = useState<Set<string>>(new Set());
+  const [planOverlay, setPlanOverlay] = useState<PlanOverlayState | null>(null);
+  const [planSaving, setPlanSaving] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+
+  const handleOpenPlanOverlay = (task: ParticipantTaskInfo) => {
+    const initiative = initiatives.find((item) => item.id === task.initiativeId);
+    if (!initiative) {
+      return;
+    }
+    setPlanOverlay({
+      initiative,
+      plan: clonePlanModel(initiative.plan),
+      focusTaskId: task.planTaskId
+    });
+    setPlanError(null);
+  };
+
+  const handlePlanChange = (next: InitiativePlanModel) => {
+    setPlanOverlay((current) => (current ? { ...current, plan: next } : current));
+  };
+
+  const handlePlanFocusClear = () => {
+    setPlanOverlay((current) => (current ? { ...current, focusTaskId: null } : current));
+  };
+
+  const handleClosePlanOverlay = () => {
+    if (planSaving) {
+      return;
+    }
+    setPlanOverlay(null);
+    setPlanError(null);
+  };
+
+  const handlePlanSave = async () => {
+    if (!planOverlay) {
+      return;
+    }
+    setPlanSaving(true);
+    setPlanError(null);
+    const payload: Initiative = {
+      ...planOverlay.initiative,
+      plan: planOverlay.plan
+    };
+    const expectedVersion = planOverlay.initiative.version ?? null;
+    const result = await saveInitiative(payload, expectedVersion);
+    setPlanSaving(false);
+    if (result.ok) {
+      setPlanOverlay({
+        initiative: result.data,
+        plan: clonePlanModel(result.data.plan),
+        focusTaskId: null
+      });
+    } else {
+      setPlanError('Unable to save plan changes. Please try again.');
+    }
+  };
 
   const normalizedInitiatives = useMemo(
     () =>
@@ -412,8 +497,9 @@ export const CapacityHeatmapScreen = () => {
   };
 
   return (
-    <section className={styles.heatmapScreen}>
-      <header className={styles.header}>
+    <>
+      <section className={styles.heatmapScreen}>
+        <header className={styles.header}>
         <div>
           <h1>Capacity heatmap</h1>
           <p>Review planned workload across participants and hierarchy levels.</p>
@@ -503,59 +589,59 @@ export const CapacityHeatmapScreen = () => {
                         );
                       })}
                     </tr>
-                    {isExpanded && (
-                      <tr key={`${row.participant.id}-details`} className={styles.detailRow}>
-                        <td colSpan={periods.length + 1}>
-                          <div className={styles.timelineWrapper}>
-                            <div className={styles.timelineScroll}>
-                              <div className={styles.timelineCanvas} style={{ width: `${totalDays * DAY_WIDTH}px` }}>
-                                {tasks.map((task) => {
-                                  const clampedStart = clampDate(task.start, rangeStart, rangeEnd);
-                                  const clampedEnd = clampDate(task.end, rangeStart, rangeEnd);
-                                  const offsetDays = Math.max(0, diffInDays(rangeStart, clampedStart));
-                                  const durationDays = Math.max(1, diffInDays(clampedStart, clampedEnd) + 1);
-                                  return (
-                                    <div
-                                      key={task.id}
-                                      className={styles.timelineBar}
-                                      style={{
-                                        left: `${offsetDays * DAY_WIDTH}px`,
-                                        width: `${durationDays * DAY_WIDTH}px`
-                                      }}
-                                    >
-                                      <div className={styles.timelineBarLabel}>
-                                        <strong>{task.name}</strong>
-                                        <span>
-                                          {task.workstreamName ? `${task.workstreamName} · ` : ''}
-                                          {task.initiativeName}
-                                        </span>
-                                      </div>
-                                      <div className={styles.timelineBarActions}>
-                                        <a
-                                          className={styles.timelineActionButton}
-                                          href={`#/initiatives/view/${task.initiativeId}`}
-                                        >
-                                          Open initiative
-                                        </a>
-                                        <a
-                                          className={styles.timelineActionButton}
-                                          href={`#/initiatives/view/${task.initiativeId}?planTask=${task.planTaskId}&planFullscreen=1`}
-                                        >
-                                          Open plan
-                                        </a>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                    {isExpanded &&
+                      (tasks.length ? (
+                        tasks.map((task) => (
+                          <tr key={`${row.participant.id}-${task.id}`} className={styles.taskDetailRow}>
+                            <td className={styles.taskInfoCell}>
+                              <div className={styles.taskTitle}>{task.name}</div>
+                              <div className={styles.taskMeta}>
+                                {task.workstreamName && <span>{task.workstreamName}</span>}
+                                <span>{task.initiativeName}</span>
                               </div>
-                            </div>
-                            {!tasks.length && (
-                              <p className={styles.emptyTimeline}>No tasks planned for this participant.</p>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
+                              <div className={styles.taskActions}>
+                                <a
+                                  className={styles.taskActionButton}
+                                  href={`#/initiatives/view/${task.initiativeId}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Open initiative
+                                </a>
+                                <button
+                                  type="button"
+                                  className={styles.taskActionButton}
+                                  onClick={() => handleOpenPlanOverlay(task)}
+                                >
+                                  Open plan
+                                </button>
+                              </div>
+                            </td>
+                            {periods.map((period) => {
+                              const segment = getTaskSegmentForPeriod(task, period);
+                              return (
+                                <td key={`${task.id}-${period.id}`} className={styles.taskTimelineCell}>
+                                  {segment && (
+                                    <span
+                                      className={styles.taskTimelineBar}
+                                      style={{
+                                        left: `${segment.leftPercent}%`,
+                                        width: `${segment.widthPercent}%`
+                                      }}
+                                    />
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))
+                      ) : (
+                        <tr key={`${row.participant.id}-details`} className={styles.taskDetailRow}>
+                          <td className={styles.taskInfoCell} colSpan={periods.length + 1}>
+                            <p className={styles.emptyTimeline}>No tasks planned for this participant.</p>
+                          </td>
+                        </tr>
+                      ))}
                   </>
                 );
               })
@@ -563,6 +649,48 @@ export const CapacityHeatmapScreen = () => {
           </tbody>
         </table>
       </div>
-    </section>
+      </section>
+      {planOverlay && (
+        <div className={styles.planOverlay}>
+          <div className={styles.planOverlayCard}>
+            <header className={styles.planOverlayHeader}>
+              <div>
+                <h2>{planOverlay.initiative.name}</h2>
+                <p>Adjust implementation plan without leaving the heatmap.</p>
+              </div>
+              <button type="button" className={styles.planOverlayClose} onClick={handleClosePlanOverlay}>
+                Close
+              </button>
+            </header>
+            <div className={styles.planOverlayContent}>
+              <InitiativePlanModule
+                plan={planOverlay.plan}
+                initiativeId={planOverlay.initiative.id}
+                allInitiatives={initiatives}
+                onChange={handlePlanChange}
+                focusTaskId={planOverlay.focusTaskId}
+                onFocusHandled={handlePlanFocusClear}
+              />
+            </div>
+            <footer className={styles.planOverlayFooter}>
+              {planError && <span className={styles.planOverlayError}>{planError}</span>}
+              <div className={styles.planOverlayActions}>
+                <button type="button" className={styles.taskActionButton} onClick={handleClosePlanOverlay} disabled={planSaving}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={styles.planOverlayPrimary}
+                  onClick={handlePlanSave}
+                  disabled={planSaving}
+                >
+                  {planSaving ? 'Saving...' : 'Save changes'}
+                </button>
+              </div>
+            </footer>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

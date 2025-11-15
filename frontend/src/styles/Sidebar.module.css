@@ -3,48 +3,49 @@
   flex-direction: column;
   background: #0f172a;
   color: #f8fafc;
-  padding: 24px 18px;
-  gap: 24px;
-  width: 210px;
+  padding: 16px 12px;
+  gap: 16px;
+  width: 168px;
 }
 
 .logoArea {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
 }
 
 .logoMark {
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   border-radius: 12px;
   background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
   display: grid;
   place-items: center;
   font-weight: 700;
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .logoText {
   display: flex;
   flex-direction: column;
   line-height: 1.1;
+  font-size: 12px;
 }
 
 .companyName {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
 }
 
 .version {
-  font-size: 14px;
+  font-size: 12px;
   color: #cbd5f5;
 }
 
 .menu {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 5px;
   flex: 1;
 }
 
@@ -54,10 +55,11 @@
   background: transparent;
   color: inherit;
   text-align: left;
-  padding: 12px 16px;
-  border-radius: 12px;
+  padding: 6px 12px;
+  border-radius: 10px;
   transition: background 0.2s ease, color 0.2s ease;
   cursor: pointer;
+  font-size: 12px;
 }
 
 .menuItem:hover {
@@ -70,8 +72,8 @@
 }
 
 .childItem {
-  padding-left: 28px;
-  font-size: 14px;
+  padding-left: 22px;
+  font-size: 11px;
 }
 
 .disabledItem {
@@ -80,14 +82,14 @@
 }
 
 .groupSection {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .groupItems {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 4px;
+  margin-top: 3px;
 }
 
 .sectionToggle {
@@ -97,11 +99,12 @@
   color: rgba(226, 232, 240, 0.8);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-size: 12px;
+  font-size: 10px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
+  padding: 4px 0;
 }
 
 .chevronRight,
@@ -157,13 +160,14 @@
 
 .logoutButton {
   width: 100%;
-  padding: 12px;
-  border-radius: 12px;
+  padding: 8px;
+  border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.4);
   background: rgba(15, 23, 42, 0.7);
   color: inherit;
   cursor: pointer;
   transition: background 0.2s ease;
+  font-size: 12px;
 }
 
 .logoutButton:hover {

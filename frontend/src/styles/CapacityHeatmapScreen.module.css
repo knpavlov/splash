@@ -170,72 +170,89 @@
   transform: rotate(45deg);
 }
 
-.detailRow td {
+.taskDetailRow td {
   background: rgba(248, 250, 252, 0.95);
-  padding: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
 }
 
-.timelineWrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.taskInfoCell {
+  padding: 10px 12px;
+  min-width: 220px;
+  vertical-align: top;
 }
 
-.timelineScroll {
-  overflow-x: auto;
-}
-
-.timelineCanvas {
-  position: relative;
-  height: 80px;
-  background-image: linear-gradient(
-      to right,
-      rgba(148, 163, 184, 0.25) 1px,
-      transparent 1px
-    ),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.15) 1px, transparent 1px);
-  background-size: 7px 40px, 100% 20px;
-  border-radius: 12px;
-}
-
-.timelineBar {
-  position: absolute;
-  top: 10px;
-  height: 60px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #93c5fd, #3b82f6);
+.taskTitle {
+  font-weight: 600;
   color: #0f172a;
-  padding: 8px 12px;
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.2);
+  margin-bottom: 4px;
+}
+
+.taskMeta {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 6px;
-}
-
-.timelineBarLabel span {
-  display: block;
   font-size: 12px;
-  color: rgba(15, 23, 42, 0.7);
+  color: #475569;
+  margin-bottom: 8px;
 }
 
-.timelineBarActions {
+.taskMeta span::after {
+  content: '/';
+  margin-left: 6px;
+  color: rgba(71, 85, 105, 0.5);
+}
+
+.taskMeta span:last-child::after {
+  content: '';
+  margin: 0;
+}
+
+.taskActions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
-.timelineActionButton {
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 6px;
+.taskActionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 8px;
   border: 1px solid rgba(15, 23, 42, 0.2);
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.7);
   color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
   text-decoration: none;
+  cursor: pointer;
 }
 
-.timelineActionButton:hover {
-  border-color: rgba(15, 23, 42, 0.35);
+.taskActionButton:hover {
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #1d4ed8;
+}
+
+.taskActionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.taskTimelineCell {
+  min-width: 80px;
+  height: 42px;
+  position: relative;
+  background-image: linear-gradient(to right, rgba(148, 163, 184, 0.25) 1px, transparent 1px);
+  background-size: 7px 100%;
+}
+
+.taskTimelineBar {
+  position: absolute;
+  top: 8px;
+  height: 26px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 .emptyTimeline {
@@ -243,8 +260,95 @@
   font-size: 13px;
   color: #94a3b8;
 }
+
 .emptyState {
   text-align: center;
   padding: 24px;
   color: #94a3b8;
+}
+
+.planOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 32px 16px;
+}
+
+.planOverlayCard {
+  width: min(1400px, 100%);
+  max-height: 100%;
+  background: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+}
+
+.planOverlayHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.planOverlayHeader h2 {
+  margin: 0;
+}
+
+.planOverlayHeader p {
+  margin: 4px 0 0;
+  color: #475569;
+}
+
+.planOverlayClose {
+  border: none;
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.planOverlayContent {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.planOverlayFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.planOverlayActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.planOverlayPrimary {
+  border: none;
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.planOverlayPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.planOverlayError {
+  color: #dc2626;
+  font-size: 13px;
 }

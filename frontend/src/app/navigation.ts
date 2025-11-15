@@ -47,7 +47,7 @@ export const navigationItems: NavigationItem[] = [
   { key: 'kpis', label: 'KPIs', roleAccess: ['super-admin', 'admin'], group: 'program', disabled: true },
   { key: 'initiatives', label: 'Initiatives', roleAccess: ['super-admin', 'admin'] },
   { key: 'approvals', label: 'Approvals', roleAccess: ['super-admin', 'admin', 'user'] },
-  { key: 'interviews', label: 'Interviews', roleAccess: ['super-admin', 'admin', 'user'] },
+  { key: 'interviews', label: 'Interviews', roleAccess: ['super-admin', 'admin', 'user'], group: 'old' },
   { key: 'capacity-heatmap', label: 'Capacity heatmap', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
   { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'], group: 'settings' }
 ];
