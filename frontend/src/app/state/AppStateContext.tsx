@@ -145,6 +145,7 @@ interface AppStateContextValue {
     list: Participant[];
     createParticipant: (participant: ParticipantPayload) => Promise<DomainResult<Participant>>;
     updateParticipant: (id: string, changes: ParticipantUpdatePayload) => Promise<DomainResult<Participant>>;
+    removeParticipant: (id: string) => Promise<DomainResult<string>>;
   };
 }
 
@@ -1314,6 +1315,25 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
             }
           }
           console.error('Failed to update participant:', error);
+          return { ok: false, error: 'unknown' };
+        }
+      },
+      removeParticipant: async (id) => {
+        const participant = participants.find((item) => item.id === id);
+        if (!participant) {
+          return { ok: false, error: 'not-found' };
+        }
+        try {
+          await participantsApi.remove(id);
+          setParticipants((prev) => prev.filter((item) => item.id !== id));
+          return { ok: true, data: id };
+        } catch (error) {
+          if (error instanceof ApiError) {
+            if (error.code === 'not-found' || error.status === 404) {
+              return { ok: false, error: 'not-found' };
+            }
+          }
+          console.error('Failed to delete participant:', error);
           return { ok: false, error: 'unknown' };
         }
       }

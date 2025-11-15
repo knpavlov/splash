@@ -29,11 +29,22 @@
   font-weight: 600;
 }
 
+.info {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
 .card {
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 16px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.95);
+}
+
+.importCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .quickAddRow {
@@ -65,6 +76,76 @@
   cursor: default;
 }
 
+.dropZone {
+  border: 2px dashed rgba(59, 130, 246, 0.4);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.dropZoneActive {
+  border-color: rgba(59, 130, 246, 0.8);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.dropZone strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.dropZone p {
+  margin: 0;
+  color: #64748b;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.importDetails {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.importDetails li {
+  margin-bottom: 4px;
+}
+
+.filtersCard {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) repeat(4, minmax(140px, 1fr)) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.filtersCard select,
+.searchInput {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.clearFiltersButton {
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  border-radius: 10px;
+  padding: 10px 16px;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.clearFiltersButton:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
 .tableWrapper {
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 16px;
@@ -91,6 +172,15 @@
   border-bottom: 1px solid rgba(148, 163, 184, 0.15);
 }
 
+.actionsHeader {
+  width: 80px;
+  text-align: center;
+}
+
+.actionsCell {
+  text-align: center;
+}
+
 .table input {
   width: 100%;
   border: 1px solid transparent;
@@ -113,6 +203,29 @@
   color: #94a3b8;
 }
 
+.deleteButton {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: #0f172a;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.deleteButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 @media (max-width: 1100px) {
   .quickAddRow {
     grid-template-columns: repeat(3, minmax(160px, 1fr));
@@ -121,5 +234,9 @@
 
   .addButton {
     grid-column: span 3;
+  }
+
+  .filtersCard {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
   }
 }

@@ -89,5 +89,11 @@ export const participantsApi = {
         method: 'PATCH',
         body: payload
       })
-    )
+    ),
+  remove: async (id: string): Promise<string> => {
+    await apiRequest<unknown>(`/participants/${id}`, {
+      method: 'DELETE'
+    });
+    return id;
+  }
 };
