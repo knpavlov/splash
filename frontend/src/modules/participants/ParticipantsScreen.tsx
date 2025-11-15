@@ -35,19 +35,50 @@ export const ParticipantsScreen = () => {
   const { list: initiatives } = useInitiativesState();
   const [form, setForm] = useState(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
-  const [feedback, setFeedback] = useState<Feedback>(null);
+  const [globalFeedback, setGlobalFeedback] = useState<Feedback>(null);
+  const [importFeedback, setImportFeedback] = useState<Feedback>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({ role: 'all', level1: 'all', level2: 'all', level3: 'all' });
   const [removeInProgress, setRemoveInProgress] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{ field: ParticipantField; direction: 'asc' | 'desc' }>({
+    field: 'displayName',
+    direction: 'asc'
+  });
   const dragCounterRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const sortedParticipants = useMemo(
-    () => [...list].sort((a, b) => a.displayName.localeCompare(b.displayName)),
-    [list]
-  );
+  const sortedParticipants = useMemo(() => {
+    const extract = (participant: Participant, field: ParticipantField) => {
+      const value = participant[field];
+      if (typeof value === 'string' && value) {
+        return value.toLowerCase();
+      }
+      return '';
+    };
+    const { field, direction } = sortConfig;
+    return [...list].sort((a, b) => {
+      const left = extract(a, field);
+      const right = extract(b, field);
+      if (left === right) {
+        return 0;
+      }
+      if (left > right) {
+        return direction === 'asc' ? 1 : -1;
+      }
+      return direction === 'asc' ? -1 : 1;
+    });
+  }, [list, sortConfig]);
+
+  const toggleSort = (field: ParticipantField) => {
+    setSortConfig((prev) => {
+      if (prev.field === field) {
+        return { field, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { field, direction: 'asc' };
+    });
+  };
 
   const participantUsageMap = useMemo(() => {
     const usage = new Map<string, ParticipantUsage>();
@@ -135,17 +166,17 @@ export const ParticipantsScreen = () => {
 
   const handleNewInputChange = (field: ParticipantField, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-    setFeedback(null);
+    setGlobalFeedback(null);
   };
 
   const handleCreate = async () => {
     const trimmedName = form.displayName.trim();
     if (!trimmedName) {
-      setFeedback({ kind: 'error', text: 'Enter participant name.' });
+      setGlobalFeedback({ kind: 'error', text: 'Enter participant name.' });
       return;
     }
     setIsSaving(true);
-    setFeedback(null);
+    setGlobalFeedback(null);
     const result = await createParticipant({
       displayName: trimmedName,
       email: form.email,
@@ -157,9 +188,9 @@ export const ParticipantsScreen = () => {
     setIsSaving(false);
     if (result.ok) {
       setForm(emptyForm);
-      setFeedback({ kind: 'success', text: 'Participant added.' });
+      setGlobalFeedback({ kind: 'success', text: 'Participant added.' });
     } else {
-      setFeedback({ kind: 'error', text: 'Failed to add participant.' });
+      setGlobalFeedback({ kind: 'error', text: 'Failed to add participant.' });
     }
   };
 
@@ -202,13 +233,13 @@ export const ParticipantsScreen = () => {
       return;
     }
     setRemoveInProgress(participant.id);
-    setFeedback(null);
+    setGlobalFeedback(null);
     const result = await removeParticipant(participant.id);
     setRemoveInProgress(null);
     if (result.ok) {
-      setFeedback({ kind: 'info', text: `${participant.displayName} removed.` });
+      setGlobalFeedback({ kind: 'info', text: `${participant.displayName} removed.` });
     } else {
-      setFeedback({ kind: 'error', text: 'Failed to remove participant.' });
+      setGlobalFeedback({ kind: 'error', text: 'Failed to remove participant.' });
     }
   };
 
@@ -222,11 +253,11 @@ export const ParticipantsScreen = () => {
 
   const handleExcelImport = async (file: File) => {
     setIsImporting(true);
-    setFeedback(null);
+    setImportFeedback(null);
     try {
       const { rows, skippedRows } = await parseParticipantExcelFile(file);
       if (!rows.length) {
-        setFeedback({
+        setImportFeedback({
           kind: 'error',
           text:
             skippedRows > 0
@@ -249,7 +280,7 @@ export const ParticipantsScreen = () => {
         uniqueRows.push(row);
       });
       if (!uniqueRows.length) {
-        setFeedback({
+        setImportFeedback({
           kind: 'info',
           text: `Import finished: 0 new participants, ${duplicateCount} duplicates skipped${
             skippedRows ? `, ${skippedRows} incomplete rows ignored` : ''
@@ -284,13 +315,13 @@ export const ParticipantsScreen = () => {
       if (failed) {
         messageParts.push(`${failed} row${failed === 1 ? '' : 's'} failed to save`);
       }
-      setFeedback({
+      setImportFeedback({
         kind: failed ? 'info' : 'success',
         text: `Import complete: ${messageParts.join(', ')}.`
       });
     } catch (error) {
       console.error('Failed to import participants:', error);
-      setFeedback({
+      setImportFeedback({
         kind: 'error',
         text: 'Failed to process the Excel file. Make sure it is a .xlsx file saved from Excel or Google Sheets.'
       });
@@ -340,6 +371,24 @@ export const ParticipantsScreen = () => {
   const clearFilters = () => {
     setSearchQuery('');
     setFilters({ role: 'all', level1: 'all', level2: 'all', level3: 'all' });
+  };
+
+  const renderSortableHeader = (label: string, field: ParticipantField) => {
+    const isActive = sortConfig.field === field;
+    const indicator = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕';
+    const ariaSort = isActive ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none';
+    return (
+      <th aria-sort={ariaSort}>
+        <button
+          type="button"
+          className={`${styles.sortButton} ${isActive ? styles.sortButtonActive : ''}`}
+          onClick={() => toggleSort(field)}
+        >
+          {label}
+          <span className={styles.sortIndicator}>{indicator}</span>
+        </button>
+      </th>
+    );
   };
 
   const renderParticipantRow = (participant: Participant) => {
@@ -405,9 +454,10 @@ export const ParticipantsScreen = () => {
             className={styles.deleteButton}
             title={usageTitle}
             disabled={removeInProgress === participant.id}
+            aria-label={`Remove ${participant.displayName}`}
             onClick={() => void handleParticipantRemoval(participant, usage)}
           >
-            ?
+            &times;
           </button>
         </td>
       </tr>
@@ -421,17 +471,17 @@ export const ParticipantsScreen = () => {
           <h1>Participants</h1>
           <p>Manage the people available for initiative plans and resource dashboards.</p>
         </div>
-        {feedback && (
+        {globalFeedback && (
           <span
             className={
-              feedback.kind === 'success'
+              globalFeedback.kind === 'success'
                 ? styles.success
-                : feedback.kind === 'error'
+                : globalFeedback.kind === 'error'
                 ? styles.error
                 : styles.info
             }
           >
-            {feedback.text}
+            {globalFeedback.text}
           </span>
         )}
       </header>
@@ -518,6 +568,19 @@ export const ParticipantsScreen = () => {
           <li>Rows without a name are skipped automatically.</li>
           <li>Full duplicates (same name &amp; email) are ignored and reported after the upload.</li>
         </ul>
+        {importFeedback && (
+          <div
+            className={
+              importFeedback.kind === 'success'
+                ? styles.success
+                : importFeedback.kind === 'error'
+                ? styles.error
+                : styles.info
+            }
+          >
+            {importFeedback.text}
+          </div>
+        )}
       </div>
 
       <div className={`${styles.card} ${styles.filtersCard}`}>
@@ -568,13 +631,13 @@ export const ParticipantsScreen = () => {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Hierarchy level 1</th>
-              <th>Hierarchy level 2</th>
-              <th>Hierarchy level 3</th>
-              <th className={styles.actionsHeader}>Actions</th>
+              {renderSortableHeader('Name', 'displayName')}
+              {renderSortableHeader('Email', 'email')}
+              {renderSortableHeader('Role', 'role')}
+              {renderSortableHeader('Hierarchy level 1', 'hierarchyLevel1')}
+              {renderSortableHeader('Hierarchy level 2', 'hierarchyLevel2')}
+              {renderSortableHeader('Hierarchy level 3', 'hierarchyLevel3')}
+              <th className={styles.actionsHeader}>Delete</th>
             </tr>
           </thead>
           <tbody>
