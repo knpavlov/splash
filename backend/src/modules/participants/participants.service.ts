@@ -75,4 +75,16 @@ export class ParticipantsService {
     }
     return result;
   }
+
+  async deleteParticipant(id: string): Promise<string> {
+    if (typeof id !== 'string' || !id.trim()) {
+      throw new Error('INVALID_INPUT');
+    }
+    const normalizedId = id.trim();
+    const deleted = await this.repository.deleteParticipant(normalizedId);
+    if (!deleted) {
+      throw new Error('NOT_FOUND');
+    }
+    return normalizedId;
+  }
 }

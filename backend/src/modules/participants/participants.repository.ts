@@ -108,4 +108,9 @@ export class ParticipantsRepository {
     }
     return mapRow(result.rows[0]);
   }
+
+  async deleteParticipant(id: string): Promise<boolean> {
+    const result = await postgresPool.query<{ id: string }>('DELETE FROM participants WHERE id = $1 RETURNING id;', [id]);
+    return Boolean(result.rows?.length);
+  }
 }

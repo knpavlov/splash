@@ -54,4 +54,13 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+router.delete('/:id', async (req, res) => {
+  try {
+    await participantsService.deleteParticipant(req.params.id);
+    res.status(204).send();
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 export { router as participantsRouter };
