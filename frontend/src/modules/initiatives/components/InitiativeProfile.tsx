@@ -1,4 +1,4 @@
-п»їimport { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/InitiativeProfile.module.css';
 import { ChevronIcon } from '../../../components/icons/ChevronIcon';
 import {
@@ -166,7 +166,7 @@ const formatImpact = (value: number) =>
 
 const formatDate = (value: string | null) => {
   if (!value) {
-    return 'вЂ”';
+    return '—';
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -190,7 +190,7 @@ const logFieldLabels: Record<string, string> = {
 
 const formatLogValue = (field: string, value: unknown): string => {
   if (value === null || value === undefined) {
-    return 'вЂ”';
+    return '—';
   }
   if (field === 'recurringImpact') {
     const numeric = typeof value === 'number' ? value : Number(value);
@@ -512,11 +512,11 @@ export const InitiativeProfile = ({
 
   const handleSaveClick = async (closeAfterSave: boolean) => {
     if (!validateDraft()) {
-      setBanner({ type: 'error', text: 'Р—Р°РїРѕР»РЅРёС‚Рµ РѕР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР»СЏ.' });
+      setBanner({ type: 'error', text: 'Заполните обязательные поля.' });
       return;
     }
     if (!hasWorkstreams) {
-      setBanner({ type: 'error', text: 'РЎРѕР·РґР°Р№С‚Рµ workstream, РїСЂРµР¶РґРµ С‡РµРј РґРѕР±Р°РІР»СЏС‚СЊ РёРЅРёС†РёР°С‚РёРІС‹.' });
+      setBanner({ type: 'error', text: 'Создайте workstream, прежде чем добавлять инициативы.' });
       return;
     }
     setIsSaving(true);
@@ -590,25 +590,6 @@ export const InitiativeProfile = ({
     }
   };
 
-  if (mode === 'view' && !initiative) {
-    if (!dataLoaded) {
-      return (
-        <section className={styles.placeholder}>
-          <p>Loading initiative details...</p>
-        </section>
-      );
-    }
-    return (
-      <section className={styles.placeholder}>
-        <h2>Initiative not found</h2>
-        <p>The initiative may have been deleted. Refresh the list and try again.</p>
-        <button className={styles.secondaryButton} onClick={() => onBack()} type="button">
-          Back to list
-        </button>
-      </section>
-    );
-  }
-
   const netRunRate = useMemo(() => {
     const stageData = draft.stages[draft.activeStage];
     const months = buildMonthRange(stageData);
@@ -630,7 +611,25 @@ export const InitiativeProfile = ({
     });
     return calculateRunRate(monthKeys, netTotals);
   }, [draft]);
-  const commentButtonLabel = isLoadingComments ? 'Loading commentsвЂ¦' : `Comments${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
+  if (mode === 'view' && !initiative) {
+    if (!dataLoaded) {
+      return (
+        <section className={styles.placeholder}>
+          <p>Loading initiative details...</p>
+        </section>
+      );
+    }
+    return (
+      <section className={styles.placeholder}>
+        <h2>Initiative not found</h2>
+        <p>The initiative may have been deleted. Refresh the list and try again.</p>
+        <button className={styles.secondaryButton} onClick={() => onBack()} type="button">
+          Back to list
+        </button>
+      </section>
+    );
+  }
+  const commentButtonLabel = isLoadingComments ? 'Loading comments…' : `Comments${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
   const profileContentClass = `${styles.profileContent}${hideBackLink ? ` ${styles.profileContentNoBack}` : ''}`;
   const buildProfileAnchor = (key: string, label?: string) => createCommentAnchor(`profile.${key}`, label);
   const buildStageAnchor = (key: string, label?: string) => createCommentAnchor(`stage.${selectedStage}.${key}`, label);
@@ -1057,6 +1056,11 @@ export const InitiativeProfile = ({
       </section>
   );
 };
+
+
+
+
+
 
 
 
