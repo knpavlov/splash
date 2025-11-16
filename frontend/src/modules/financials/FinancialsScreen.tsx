@@ -1,5 +1,5 @@
 ﻿
-import { ChangeEvent, Fragment, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import styles from '../../styles/FinancialsScreen.module.css';
 import {
@@ -227,6 +227,8 @@ export const FinancialsScreen = () => {
   const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [importStatus, setImportStatus] = useState<ImportStatus>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!blueprint) {
@@ -326,24 +328,6 @@ export const FinancialsScreen = () => {
     markDirty();
   };
 
-  const handleMove = (id: string, direction: -1 | 1) => {
-    setLines((current) => {
-      const index = current.findIndex((line) => line.id === id);
-      if (index === -1) {
-        return current;
-      }
-      const targetIndex = index + direction;
-      if (targetIndex < 0 || targetIndex >= current.length) {
-        return current;
-      }
-      const next = [...current];
-      const [line] = next.splice(index, 1);
-      next.splice(targetIndex, 0, line);
-      return next;
-    });
-    markDirty();
-  };
-
   const handleDelete = (id: string) => {
     setLines((current) => current.filter((line) => line.id !== id));
     setCollapsed((prev) => {
@@ -379,6 +363,9 @@ export const FinancialsScreen = () => {
     markDirty();
   };
 
+  const collapseAllSections = () => setCollapsed(new Set(lines.map((line) => line.id)));
+  const expandAllSections = () => setCollapsed(new Set());
+
   const toggleCollapse = (id: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -389,6 +376,49 @@ export const FinancialsScreen = () => {
       }
       return next;
     });
+  };
+
+  const handleRowDragStart = (event: React.DragEvent<HTMLTableRowElement>, id: string) => {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', id);
+    setDraggingId(id);
+    setDragOverId(null);
+  };
+
+  const handleRowDragOver = (event: React.DragEvent<HTMLTableRowElement>, id: string) => {
+    event.preventDefault();
+    if (!draggingId || draggingId === id) {
+      return;
+    }
+    setDragOverId(id);
+  };
+
+  const handleRowDrop = (event: React.DragEvent<HTMLTableRowElement>, id: string) => {
+    event.preventDefault();
+    if (!draggingId || draggingId === id) {
+      setDraggingId(null);
+      setDragOverId(null);
+      return;
+    }
+    setLines((current) => {
+      const sourceIndex = current.findIndex((line) => line.id === draggingId);
+      const targetIndex = current.findIndex((line) => line.id === id);
+      if (sourceIndex === -1 || targetIndex === -1) {
+        return current;
+      }
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+    setDraggingId(null);
+    setDragOverId(null);
+    markDirty();
+  };
+
+  const handleRowDragEnd = () => {
+    setDraggingId(null);
+    setDragOverId(null);
   };
 
   const addLine = () => {
@@ -424,6 +454,14 @@ export const FinancialsScreen = () => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
+    }
+    const shouldConfirmReplace = dirty || lines.length > 0;
+    if (shouldConfirmReplace) {
+      const confirmed = window.confirm('Importing will replace the current blueprint. Continue?');
+      if (!confirmed) {
+        event.target.value = '';
+        return;
+      }
     }
     try {
       const buffer = await file.arrayBuffer();
@@ -663,6 +701,18 @@ export const FinancialsScreen = () => {
     return issues;
   }, [lines, childMap]);
 
+  const blueprintStats = useMemo(() => {
+    const manualRevenue = lines.filter((line) => line.computation === 'manual' && line.nature === 'revenue').length;
+    const manualCosts = lines.filter((line) => line.computation === 'manual' && line.nature === 'cost').length;
+    const summaries = lines.length - manualRevenue - manualCosts;
+    return {
+      total: lines.length,
+      revenue: manualRevenue,
+      costs: manualCosts,
+      summaries
+    };
+  }, [lines]);
+
   const handleSave = async () => {
     if (saving || version === null) {
       return;
@@ -780,6 +830,12 @@ export const FinancialsScreen = () => {
           <button className={styles.ghostButton} onClick={resetToTemplate} type="button">
             Reset to curated template
           </button>
+          <button className={styles.ghostButton} onClick={collapseAllSections} type="button">
+            Collapse all
+          </button>
+          <button className={styles.ghostButton} onClick={expandAllSections} type="button">
+            Expand all
+          </button>
         </div>
       </div>
 
@@ -810,116 +866,123 @@ export const FinancialsScreen = () => {
                     </td>
                   </tr>
                 ) : (
-                  visibleLines.map(({ line, index, hasChildren, isCollapsed, level }) => {
+                  visibleLines.map(({ line, hasChildren, isCollapsed, level }) => {
                     const resolved = valueMap.get(line.id) ?? buildEmptyRecord(monthKeys);
+                    const rowClasses = [
+                      line.computation !== 'manual' ? styles.summaryRow : '',
+                      line.computation === 'cumulative' ? styles.cumulativeRow : '',
+                      draggingId === line.id ? styles.draggingRow : '',
+                      dragOverId === line.id ? styles.dragOverRow : ''
+                    ]
+                      .filter(Boolean)
+                      .join(' ');
                     return (
-                      <Fragment key={line.id}>
-                        <tr className={line.computation !== 'manual' ? styles.summaryRow : undefined}>
-                          <td className={styles.lineColumn}>
-                            <div className={styles.lineCell} style={{ marginLeft: `${line.indent * 16}px` }}>
-                              {hasChildren ? (
-                                <button
-                                  className={styles.collapseButton}
-                                  onClick={() => toggleCollapse(line.id)}
-                                  type="button"
-                                  aria-label={isCollapsed ? 'Expand section' : 'Collapse section'}
-                                >
-                                  {isCollapsed ? '>' : 'v'}
-                                </button>
-                              ) : (
-                                <span className={styles.placeholderIcon} />
-                              )}
-                              <div className={styles.lineInputs}>
+                      <tr
+                        key={line.id}
+                        className={rowClasses || undefined}
+                        draggable
+                        onDragStart={(event) => handleRowDragStart(event, line.id)}
+                        onDragOver={(event) => handleRowDragOver(event, line.id)}
+                        onDrop={(event) => handleRowDrop(event, line.id)}
+                        onDragEnd={handleRowDragEnd}
+                        title={`Line code: ${line.code}`}
+                      >
+                        <td className={styles.lineColumn}>
+                          <div className={styles.lineCell} style={{ marginLeft: `${line.indent * 16}px` }}>
+                            {hasChildren ? (
+                              <button
+                                className={styles.collapseButton}
+                                onClick={() => toggleCollapse(line.id)}
+                                type="button"
+                                aria-label={isCollapsed ? 'Expand section' : 'Collapse section'}
+                              >
+                                {isCollapsed ? '>' : 'v'}
+                              </button>
+                            ) : (
+                              <span className={styles.placeholderIcon} />
+                            )}
+                            <div className={styles.lineInputs}>
+                              <div className={styles.nameRow}>
+                                <span className={styles.dragHandle} aria-hidden="true">
+                                  ::
+                                </span>
                                 <input
                                   className={styles.nameInput}
                                   value={line.name}
                                   onChange={(event) => handleNameChange(line.id, event.target.value)}
                                 />
-                                <div className={styles.metaRow}>
-                                  <span className={styles.codeBadge}>{line.code}</span>
-                                  <div className={styles.rowActions}>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleIndentChange(line.id, -1)}
-                                      disabled={line.indent === 0}
-                                    >
-                                      {'<'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleIndentChange(line.id, 1)}
-                                      disabled={index === 0}
-                                    >
-                                      {'>'}
-                                    </button>
-                                    <button type="button" onClick={() => handleMove(line.id, -1)} disabled={index === 0}>
-                                      {'^'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleMove(line.id, 1)}
-                                      disabled={index === lines.length - 1}
-                                    >
-                                      {'v'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDelete(line.id)}
-                                      className={styles.removeButton}
-                                    >
-                                      x
-                                    </button>
-                                  </div>
-                                </div>
+                              </div>
+                              <div className={styles.rowActions}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleIndentChange(line.id, -1)}
+                                  disabled={line.indent === 0}
+                                  title="Decrease indent"
+                                >
+                                  {'<'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleIndentChange(line.id, 1)}
+                                  title="Increase indent"
+                                >
+                                  {'>'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(line.id)}
+                                  className={styles.removeButton}
+                                  title="Remove line"
+                                >
+                                  Remove
+                                </button>
                               </div>
                             </div>
+                          </div>
+                        </td>
+                        <td className={styles.levelColumn}>{level}</td>
+                        <td className={styles.impactColumn}>
+                          {line.computation === 'manual' ? (line.nature === 'cost' ? '-' : '+') : 'SUM'}
+                        </td>
+                        <td>
+                          <select
+                            value={line.nature}
+                            onChange={(event) => handleNatureChange(line.id, event.target.value as FinancialLineItem['nature'])}
+                            disabled={line.computation !== 'manual'}
+                          >
+                            <option value="revenue">Revenue / gain</option>
+                            <option value="cost">Cost / loss</option>
+                            <option value="summary" disabled>
+                              Summary
+                            </option>
+                          </select>
+                        </td>
+                        <td>
+                          <select
+                            value={line.computation}
+                            onChange={(event) =>
+                              handleComputationChange(line.id, event.target.value as FinancialLineItem['computation'])
+                            }
+                          >
+                            <option value="manual">Manual entry</option>
+                            <option value="children">Roll-up children</option>
+                            <option value="cumulative">Running subtotal</option>
+                          </select>
+                        </td>
+                        {monthColumns.map((month) => (
+                          <td key={`${line.id}-${month.key}`}>
+                            {line.computation === 'manual' ? (
+                              <input
+                                type="number"
+                                value={line.months[month.key] === undefined ? '' : String(line.months[month.key] ?? '')}
+                                onChange={(event) => handleValueChange(line.id, month.key, event.target.value)}
+                              />
+                            ) : (
+                              <span className={styles.valueReadonly}>{formatCurrency(resolved[month.key] ?? 0)}</span>
+                            )}
                           </td>
-                          <td className={styles.levelColumn}>{level}</td>
-                          <td className={styles.impactColumn}>
-                            {line.computation === 'manual' ? (line.nature === 'cost' ? '-' : '+') : 'SUM'}
-                          </td>
-                          <td>
-                            <select
-                              value={line.nature}
-                              onChange={(event) => handleNatureChange(line.id, event.target.value as FinancialLineItem['nature'])}
-                              disabled={line.computation !== 'manual'}
-                            >
-                              <option value="revenue">Revenue / gain</option>
-                              <option value="cost">Cost / loss</option>
-                              <option value="summary" disabled>
-                                Summary
-                              </option>
-                            </select>
-                          </td>
-                          <td>
-                            <select
-                              value={line.computation}
-                              onChange={(event) =>
-                                handleComputationChange(line.id, event.target.value as FinancialLineItem['computation'])
-                              }
-                            >
-                              <option value="manual">Manual entry</option>
-                              <option value="children">Roll-up children</option>
-                              <option value="cumulative">Running subtotal</option>
-                            </select>
-                          </td>
-                          {monthColumns.map((month) => (
-                            <td key={`${line.id}-${month.key}`}>
-                              {line.computation === 'manual' ? (
-                                <input
-                                  type="number"
-                                  value={
-                                    line.months[month.key] === undefined ? '' : String(line.months[month.key] ?? '')
-                                  }
-                                  onChange={(event) => handleValueChange(line.id, month.key, event.target.value)}
-                                />
-                              ) : (
-                                <span className={styles.valueReadonly}>{formatCurrency(resolved[month.key] ?? 0)}</span>
-                              )}
-                            </td>
-                          ))}
-                        </tr>
-                      </Fragment>
+                        ))}
+                      </tr>
                     );
                   })
                 )}
@@ -954,6 +1017,21 @@ export const FinancialsScreen = () => {
               </li>
               <li>Import the updated file. We ignore formulas for computed rows and recalculate them automatically.</li>
             </ol>
+          </div>
+          <div className={styles.sidebarCard}>
+            <h3>Blueprint stats</h3>
+            <p>
+              Total lines: <strong>{blueprintStats.total}</strong>
+            </p>
+            <p>
+              Revenue lines: <strong>{blueprintStats.revenue}</strong>
+            </p>
+            <p>
+              Cost lines: <strong>{blueprintStats.costs}</strong>
+            </p>
+            <p>
+              Summaries: <strong>{blueprintStats.summaries}</strong>
+            </p>
           </div>
           {netSummaryLine && netTotals && (
             <div className={styles.sidebarCard}>

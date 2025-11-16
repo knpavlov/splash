@@ -52,6 +52,7 @@ const createEmptyFinancialEntry = (): InitiativeFinancialEntry => ({
   id: '',
   label: '',
   category: '',
+  lineCode: null,
   distribution: {}
 });
 
@@ -77,14 +78,22 @@ const ensureFinancialEntry = (value: unknown): InitiativeFinancialEntry => {
   if (!value || typeof value !== 'object') {
     return createEmptyFinancialEntry();
   }
-  const payload = value as { id?: unknown; label?: unknown; category?: unknown; distribution?: unknown };
+  const payload = value as {
+    id?: unknown;
+    label?: unknown;
+    category?: unknown;
+    lineCode?: unknown;
+    distribution?: unknown;
+  };
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : '';
   const label = typeof payload.label === 'string' ? payload.label.trim() : '';
   const category = typeof payload.category === 'string' ? payload.category.trim() : '';
+  const lineCode = typeof payload.lineCode === 'string' && payload.lineCode.trim() ? payload.lineCode.trim() : null;
   return {
     id,
     label,
     category,
+    lineCode,
     distribution: ensureDistribution(payload.distribution)
   };
 };

@@ -435,6 +435,7 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
           ...entry,
           label: entry.label.trim(),
           category: entry.category.trim(),
+          lineCode: entry.lineCode ? entry.lineCode.trim() : null,
           distribution: Object.fromEntries(
             Object.entries(entry.distribution).map(([month, amount]) => [month, sanitizeNumber(amount)])
           )

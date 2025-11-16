@@ -4,8 +4,7 @@ import {
   InitiativeFinancialEntry,
   InitiativeStageData,
   InitiativeFinancialKind,
-  initiativeFinancialKinds,
-  pnlCategories
+  initiativeFinancialKinds
 } from '../../../shared/types/initiative';
 import { generateId } from '../../../shared/ui/generateId';
 import {
@@ -16,6 +15,7 @@ import {
   YearSummaryEntry
 } from './financials.helpers';
 import { createCommentAnchor, CommentAnchorAttributes } from '../comments/commentAnchors';
+import { useFinancialsState } from '../../../app/state/AppStateContext';
 
 interface FinancialEditorProps {
   stage: InitiativeStageData;
@@ -243,6 +243,11 @@ const CombinedChart = ({
   );
 };
 
+interface BlueprintLineOption {
+  code: string;
+  name: string;
+}
+
 interface EntryRowProps {
   entry: InitiativeFinancialEntry;
   disabled: boolean;
@@ -250,10 +255,24 @@ interface EntryRowProps {
   gridTemplateColumns: string;
   onChange: (entry: InitiativeFinancialEntry) => void;
   onRemove: () => void;
+  onLineLinkChange: (lineCode: string) => void;
+  lineOptions: BlueprintLineOption[];
+  blueprintLoading: boolean;
   anchorAttributes?: CommentAnchorAttributes;
 }
 
-const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRemove, anchorAttributes }: EntryRowProps) => {
+const EntryRow = ({
+  entry,
+  disabled,
+  months,
+  gridTemplateColumns,
+  onChange,
+  onRemove,
+  onLineLinkChange,
+  lineOptions,
+  blueprintLoading,
+  anchorAttributes
+}: EntryRowProps) => {
   const [monthlyValue, setMonthlyValue] = useState('');
   const [totalValue, setTotalValue] = useState('');
   const [duration, setDuration] = useState(months.length || 1);
@@ -336,30 +355,43 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
   return (
     <div className={styles.sheetRow} style={{ gridTemplateColumns }} {...anchorAttributes}>
       <div className={styles.categoryCell}>
-        <select
-          value={entry.category}
-          onChange={(event) => {
-            const nextCategory = event.target.value;
-            onChange({ ...entry, category: nextCategory, label: nextCategory || entry.label });
-          }}
+        <div className={styles.lineLinkRow}>
+          {lineOptions.length > 0 ? (
+            <select
+              value={entry.lineCode ?? ''}
+              onChange={(event) => onLineLinkChange(event.target.value)}
+              disabled={disabled}
+            >
+              <option value="">Link to blueprint line</option>
+              {lineOptions.map((option) => (
+                <option key={option.code} value={option.code}>
+                  {option.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className={styles.lineLinkPlaceholder}>
+              {blueprintLoading ? 'Loading blueprint...' : 'No blueprint lines available'}
+            </span>
+          )}
+          <button
+            type="button"
+            className={styles.rowMenuButton}
+            onClick={() => setMenuOpen((prev) => !prev)}
+            disabled={disabled}
+            title="Bulk actions"
+          >
+            ...
+          </button>
+        </div>
+        <input
+          className={styles.lineLabelInput}
+          type="text"
+          value={entry.label}
+          onChange={(event) => onChange({ ...entry, label: event.target.value })}
           disabled={disabled}
-        >
-          <option value="">Select P&L category</option>
-          {pnlCategories.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className={styles.rowMenuButton}
-          onClick={() => setMenuOpen((prev) => !prev)}
-          disabled={disabled}
-          title="Actions"
-        >
-          ⋯
-        </button>
+          placeholder="Custom label"
+        />
         {menuOpen && (
           <div className={styles.rowMenu} ref={menuRef}>
             <div className={styles.menuSection}>
@@ -425,20 +457,42 @@ const EntryRow = ({ entry, disabled, months, gridTemplateColumns, onChange, onRe
             disabled={disabled || entry.distribution[month.key] === undefined}
             title="Fill to the right"
           >
-            →
+            {'>>'}
           </button>
         </label>
       ))}
     </div>
   );
 };
-
 export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: FinancialEditorProps) => {
   const months = useMemo<MonthDescriptor[]>(() => buildMonthRange(stage), [stage]);
   const scopeKey = commentScope ?? stage.key ?? 'stage';
   const gridTemplateColumns = useMemo(
     () => `200px repeat(${Math.max(months.length, 1)}, minmax(110px, 1fr))`,
     [months.length]
+  );
+  const { blueprint: financialBlueprint, loading: blueprintLoading } = useFinancialsState();
+  const manualBlueprintLines = useMemo(
+    () => (financialBlueprint?.lines ?? []).filter((line) => line.computation === 'manual'),
+    [financialBlueprint]
+  );
+  const blueprintLineMap = useMemo(
+    () => new Map(manualBlueprintLines.map((line) => [line.code, line])),
+    [manualBlueprintLines]
+  );
+  const revenueLineOptions = useMemo<BlueprintLineOption[]>(
+    () =>
+      manualBlueprintLines
+        .filter((line) => line.nature === 'revenue')
+        .map((line) => ({ code: line.code, name: line.name })),
+    [manualBlueprintLines]
+  );
+  const costLineOptions = useMemo<BlueprintLineOption[]>(
+    () =>
+      manualBlueprintLines
+        .filter((line) => line.nature === 'cost')
+        .map((line) => ({ code: line.code, name: line.name })),
+    [manualBlueprintLines]
   );
   const [includeOneOff, setIncludeOneOff] = useState(true);
   const activeBenefitKinds = useMemo<InitiativeFinancialKind[]>(
@@ -554,6 +608,33 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
     onChange({ ...stage, financials: { ...stage.financials, [kind]: nextEntries } });
   };
 
+  const handleLineLinkChange = (
+    kind: InitiativeFinancialKind,
+    entryId: string,
+    nextCode: string
+  ) => {
+    const trimmed = nextCode.trim();
+    updateEntries(kind, (entries) =>
+      entries.map((entry) => {
+        if (entry.id !== entryId) {
+          return entry;
+        }
+        if (!trimmed) {
+          return { ...entry, lineCode: null, category: '', label: entry.label };
+        }
+        const blueprintLine = blueprintLineMap.get(trimmed);
+        const previousLine = entry.lineCode ? blueprintLineMap.get(entry.lineCode) : null;
+        const shouldReplaceLabel = !entry.label || (previousLine && entry.label === previousLine.name);
+        return {
+          ...entry,
+          lineCode: trimmed,
+          category: trimmed,
+          label: blueprintLine && shouldReplaceLabel ? blueprintLine.name : entry.label
+        };
+      })
+    );
+  };
+
   const addEntry = (kind: InitiativeFinancialKind) => {
     updateEntries(kind, (entries) => [
       ...entries,
@@ -561,6 +642,7 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
         id: generateId(),
         label: '',
         category: '',
+        lineCode: null,
         distribution: {}
       }
     ]);
@@ -665,6 +747,9 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
                     gridTemplateColumns={gridTemplateColumns}
                     onChange={(nextEntry) => handleEntryChange(kind, nextEntry)}
                     onRemove={() => removeEntry(kind, entry.id)}
+                    onLineLinkChange={(lineCode) => handleLineLinkChange(kind, entry.id, lineCode)}
+                    lineOptions={benefitKinds.includes(kind) ? revenueLineOptions : costLineOptions}
+                    blueprintLoading={blueprintLoading}
                     anchorAttributes={createCommentAnchor(
                       `financial.${scopeKey}.entry.${entry.id}`,
                       entry.label || SECTION_LABELS[kind]
@@ -679,3 +764,5 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
     </section>
   );
 };
+
+

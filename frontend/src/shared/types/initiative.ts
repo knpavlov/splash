@@ -22,6 +22,7 @@ export interface InitiativeFinancialEntry {
   id: string;
   label: string;
   category: string;
+  lineCode: string | null;
   distribution: Record<string, number>;
 }
 
@@ -149,14 +150,3 @@ export interface Initiative {
 
 export interface InitiativeDraft extends Initiative {}
 
-export const pnlCategories = [
-  'Revenue',
-  'COGS',
-  'Opex: Rent',
-  'Opex: Payroll',
-  'Opex: Marketing',
-  'Opex: IT',
-  'Other'
-] as const;
-
-export type PnlCategory = (typeof pnlCategories)[number];

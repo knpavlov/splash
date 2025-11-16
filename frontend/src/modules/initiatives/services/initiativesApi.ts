@@ -63,17 +63,25 @@ const normalizeFinancialEntry = (value: unknown): InitiativeFinancialEntry | nul
   if (!value || typeof value !== 'object') {
     return null;
   }
-  const payload = value as { id?: unknown; label?: unknown; category?: unknown; distribution?: unknown };
+  const payload = value as {
+    id?: unknown;
+    label?: unknown;
+    category?: unknown;
+    lineCode?: unknown;
+    distribution?: unknown;
+  };
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : null;
   if (!id) {
     return null;
   }
   const label = typeof payload.label === 'string' ? payload.label.trim() : '';
   const category = typeof payload.category === 'string' ? payload.category.trim() : '';
+  const lineCode = typeof payload.lineCode === 'string' && payload.lineCode.trim() ? payload.lineCode.trim() : null;
   return {
     id,
     label,
     category,
+    lineCode,
     distribution: normalizeDistribution(payload.distribution)
   };
 };

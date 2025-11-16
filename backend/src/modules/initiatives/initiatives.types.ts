@@ -13,6 +13,7 @@ export interface InitiativeFinancialEntry {
   id: string;
   label: string;
   category: string;
+  lineCode: string | null;
   distribution: Record<string, number>;
 }
 
