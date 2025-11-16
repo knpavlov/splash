@@ -19,6 +19,7 @@ import { InitiativesScreen, InitiativesViewRoute } from './modules/initiatives/I
 import { ApprovalsScreen } from './modules/approvals/ApprovalsScreen';
 import { ParticipantsScreen } from './modules/participants/ParticipantsScreen';
 import { CapacityHeatmapScreen } from './modules/dashboards/CapacityHeatmapScreen';
+import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 
 interface AppRoute {
   page: NavigationKey;
@@ -306,12 +307,7 @@ const AppContent = () => {
       case 'stats':
         return <AnalyticsScreen />;
       case 'financials':
-        return (
-          <PlaceholderScreen
-            title="Financials"
-            description="This dashboard will be available soon."
-          />
-        );
+        return <FinancialsScreen />;
       case 'kpis':
         return (
           <PlaceholderScreen

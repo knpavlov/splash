@@ -43,7 +43,7 @@ export const navigationItems: NavigationItem[] = [
   { key: 'evaluation', label: 'Evaluations', roleAccess: ['super-admin', 'admin'], group: 'old' },
   { key: 'workstreams', label: 'Workstreams', roleAccess: ['super-admin', 'admin'], group: 'program' },
   { key: 'participants', label: 'Participants', roleAccess: ['super-admin', 'admin'], group: 'program' },
-  { key: 'financials', label: 'Financials', roleAccess: ['super-admin', 'admin'], group: 'program', disabled: true },
+  { key: 'financials', label: 'Financials', roleAccess: ['super-admin', 'admin'], group: 'program' },
   { key: 'kpis', label: 'KPIs', roleAccess: ['super-admin', 'admin'], group: 'program', disabled: true },
   { key: 'initiatives', label: 'Initiatives', roleAccess: ['super-admin', 'admin'] },
   { key: 'approvals', label: 'Approvals', roleAccess: ['super-admin', 'admin', 'user'] },
