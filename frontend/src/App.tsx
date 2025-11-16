@@ -19,6 +19,7 @@ import { InitiativesScreen, InitiativesViewRoute } from './modules/initiatives/I
 import { ApprovalsScreen } from './modules/approvals/ApprovalsScreen';
 import { ParticipantsScreen } from './modules/participants/ParticipantsScreen';
 import { CapacityHeatmapScreen } from './modules/dashboards/CapacityHeatmapScreen';
+import { FinancialTreeScreen } from './modules/dashboards/FinancialTreeScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 
 interface AppRoute {
@@ -317,6 +318,8 @@ const AppContent = () => {
         );
       case 'capacity-heatmap':
         return <CapacityHeatmapScreen />;
+      case 'financial-tree':
+        return <FinancialTreeScreen />;
       case 'accounts':
         return <AccountsScreen />;
       default:

@@ -14,6 +14,7 @@ export type NavigationKey =
   | 'accounts'
   | 'participants'
   | 'capacity-heatmap'
+  | 'financial-tree'
   | 'financials'
   | 'kpis';
 
@@ -49,5 +50,6 @@ export const navigationItems: NavigationItem[] = [
   { key: 'approvals', label: 'Approvals', roleAccess: ['super-admin', 'admin', 'user'] },
   { key: 'interviews', label: 'Interviews', roleAccess: ['super-admin', 'admin', 'user'], group: 'old' },
   { key: 'capacity-heatmap', label: 'Capacity heatmap', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
+  { key: 'financial-tree', label: 'P&L tree', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
   { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'], group: 'settings' }
 ];
