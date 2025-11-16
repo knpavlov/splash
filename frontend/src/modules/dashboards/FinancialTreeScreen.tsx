@@ -235,10 +235,11 @@ const formatCurrency = (value: number) =>
   );
 
 export const FinancialTreeScreen = () => {
-  const { blueprint, loading, error } = useFinancialsState();
+  const { blueprint, loading, error, refresh } = useFinancialsState();
   const { list: initiatives } = useInitiativesState();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [stageFilter, setStageFilter] = useState<InitiativeStageKey[]>([...initiativeStageKeys]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   const monthList = useMemo(() => (blueprint ? buildMonthIndex(blueprint.lines) : []), [blueprint]);
   const monthKeys = monthList.map((month) => month.key);
@@ -465,32 +466,36 @@ export const FinancialTreeScreen = () => {
               ))}
             </select>
           </label>
-          <label>
-            <span>Initiative stages</span>
-            <div className={styles.stageCheckboxes}>
-              {initiativeStageKeys.map((key) => (
-                <label key={key}>
-                  <input
-                    type="checkbox"
-                    checked={stageFilter.includes(key)}
-                    onChange={() =>
-                      setStageFilter((prev) =>
-                        prev.includes(key) ? prev.filter((entry) => entry !== key) : [...prev, key]
-                      )
-                    }
-                  />
-                  <span>{initiativeStageLabels[key]}</span>
-                </label>
-              ))}
-              <button
-                type="button"
-                className={styles.stageResetButton}
-                onClick={() => setStageFilter([...initiativeStageKeys])}
-              >
-                Select all
-              </button>
-            </div>
-          </label>
+          <div className={styles.dropdown} onMouseLeave={() => setDropdownOpen(false)}>
+            <button
+              type="button"
+              className={styles.dropdownTrigger}
+              onClick={() => setDropdownOpen((prev) => !prev)}
+            >
+              Initiative stages
+            </button>
+            {dropdownOpen && (
+              <div className={styles.dropdownPanel}>
+                {initiativeStageKeys.map((key) => (
+                  <label key={key}>
+                    <input
+                      type="checkbox"
+                      checked={stageFilter.includes(key)}
+                      onChange={() =>
+                        setStageFilter((prev) =>
+                          prev.includes(key) ? prev.filter((entry) => entry !== key) : [...prev, key]
+                        )
+                      }
+                    />
+                    <span>{initiativeStageLabels[key]}</span>
+                  </label>
+                ))}
+                <button type="button" onClick={() => setStageFilter([...initiativeStageKeys])}>
+                  Select all
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
       {error && (
@@ -547,10 +552,6 @@ export const FinancialTreeScreen = () => {
                     <div className={styles.simpleBarFillTotal} style={{ width: barWidth(node.totalValue) }} />
                   </div>
                   <strong>{formatCurrency(node.totalValue)}</strong>
-                </div>
-                <div className={styles.deltaRow}>
-                  <span>Initiatives delta</span>
-                  <strong>{formatCurrency(node.initiativeValue)}</strong>
                 </div>
               </div>
             </div>

@@ -1,3 +1,4 @@
+
 .screen {
   display: flex;
   flex-direction: column;
@@ -18,11 +19,12 @@
 .filters {
   display: flex;
   gap: 16px;
-  align-items: flex-start;
+  align-items: flex-end;
   flex-wrap: wrap;
 }
 
-.filters label {
+.filters label,
+.filters > div {
   display: flex;
   flex-direction: column;
   font-size: 12px;
@@ -37,35 +39,31 @@
   font-size: 14px;
 }
 
-.stageCheckboxes {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
-  background: rgba(226, 232, 240, 0.6);
-  padding: 8px;
-  border-radius: 12px;
+.dropdown {
+  position: relative;
 }
 
-.stageCheckboxes label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.stageResetButton {
-  margin-top: 4px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid #94a3b8;
+.dropdownTrigger {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5f5;
   background: white;
-  font-size: 12px;
   cursor: pointer;
 }
 
-.stageResetButton:hover {
-  border-color: #2563eb;
-  color: #2563eb;
+.dropdownPanel {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  padding: 12px;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
 }
 
 .warningText {
@@ -99,7 +97,7 @@
 
 .connectorPath {
   fill: none;
-  stroke: rgba(148, 163, 184, 0.7);
+  stroke: rgba(148, 163, 184, 0.6);
   stroke-width: 2px;
 }
 
@@ -147,18 +145,19 @@
   overflow: hidden;
 }
 
-.simpleBarFillBase {
-  display: block;
-  height: 100%;
-  background: #0ea5e9;
-  border-radius: 8px;
-}
-
+.simpleBarFillBase,
 .simpleBarFillTotal {
   display: block;
   height: 100%;
-  background: #22d3ee;
   border-radius: 8px;
+}
+
+.simpleBarFillBase {
+  background: #0ea5e9;
+}
+
+.simpleBarFillTotal {
+  background: #22d3ee;
 }
 
 .simpleBarRow strong {
@@ -166,15 +165,9 @@
   text-align: right;
 }
 
-.deltaRow {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #475569;
-  margin-top: 4px;
-}
-
-.deltaRow strong {
-  font-size: 13px;
-  color: #0f172a;
+.treeCanvas::after {
+  content: '';
+  display: block;
+  height: 1px;
+  width: 0;
 }
