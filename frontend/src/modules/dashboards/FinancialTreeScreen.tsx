@@ -80,6 +80,13 @@ const buildChildMap = (lines: FinancialLineItem[]) => {
   return map;
 };
 
+const lineEffect = (line: FinancialLineItem) => {
+  if (line.nature === 'cost') {
+    return -1;
+  }
+  return 1;
+};
+
 const buildManualValueMap = (lines: FinancialLineItem[], monthKeys: string[]) => {
   const map = new Map<string, Record<string, number>>();
   lines.forEach((line) => {
@@ -89,7 +96,7 @@ const buildManualValueMap = (lines: FinancialLineItem[], monthKeys: string[]) =>
     const record: Record<string, number> = {};
     monthKeys.forEach((key) => {
       const raw = Number(line.months[key]);
-      record[key] = Number.isFinite(raw) ? raw : 0;
+      record[key] = Number.isFinite(raw) ? raw * lineEffect(line) : 0;
     });
     map.set(line.id, record);
   });
@@ -324,7 +331,8 @@ export const FinancialTreeScreen = () => {
           if (!total) {
             return;
           }
-          map.set(blueprintLine.id, (map.get(blueprintLine.id) ?? 0) + total);
+          const effect = total * lineEffect(blueprintLine);
+          map.set(blueprintLine.id, (map.get(blueprintLine.id) ?? 0) + effect);
         });
       });
     });
