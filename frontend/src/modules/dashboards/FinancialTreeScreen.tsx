@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/FinancialTreeScreen.module.css';
 import { useFinancialsState, useInitiativesState } from '../../app/state/AppStateContext';
 import { FinancialLineItem } from '../../shared/types/financials';
@@ -8,33 +8,15 @@ import {
   initiativeFinancialKinds,
   InitiativeStageKey
 } from '../../shared/types/initiative';
-
-interface MonthDescriptor {
-  key: string;
-  year: number;
-  month: number;
-}
-
-const parseMonthKey = (key: string): MonthDescriptor | null => {
-  const [yearStr, monthStr] = key.split('-');
-  const year = Number(yearStr);
-  const month = Number(monthStr);
-  if (!Number.isFinite(year) || !Number.isFinite(month)) {
-    return null;
-  }
-  return { key, year, month };
-};
-
-const buildMonthIndex = (lines: FinancialLineItem[]) => {
-  const keys = new Set<string>();
-  lines.forEach((line) => {
-    Object.keys(line.months ?? {}).forEach((key) => keys.add(key));
-  });
-  return Array.from(keys)
-    .map((key) => parseMonthKey(key))
-    .filter((month): month is MonthDescriptor => Boolean(month))
-    .sort((a, b) => (a.year === b.year ? a.month - b.month : a.year - b.year));
-};
+import {
+  buildCumulativeLookup,
+  buildEmptyRecord,
+  buildManualValueMap,
+  buildMonthIndex,
+  buildValueMap,
+  lineEffect,
+  parseMonthKey
+} from '../../shared/utils/financialMath';
 
 const buildIndentParentMap = (lines: FinancialLineItem[]) => {
   const stack: { id: string; indent: number }[] = [];
@@ -80,69 +62,6 @@ const buildChildMap = (lines: FinancialLineItem[]) => {
   return map;
 };
 
-const lineEffect = (line: FinancialLineItem) => {
-  if (line.nature === 'cost') {
-    return -1;
-  }
-  return 1;
-};
-
-const buildManualValueMap = (lines: FinancialLineItem[], monthKeys: string[]) => {
-  const map = new Map<string, Record<string, number>>();
-  lines.forEach((line) => {
-    if (line.computation !== 'manual') {
-      return;
-    }
-    const record: Record<string, number> = {};
-    monthKeys.forEach((key) => {
-      const raw = Number(line.months[key]);
-      record[key] = Number.isFinite(raw) ? raw * lineEffect(line) : 0;
-    });
-    map.set(line.id, record);
-  });
-  return map;
-};
-
-const sumRecords = (records: Record<string, number>[], monthKeys: string[]) => {
-  const total: Record<string, number> = {};
-  monthKeys.forEach((key) => {
-    total[key] = records.reduce((sum, record) => sum + (record[key] ?? 0), 0);
-  });
-  return total;
-};
-
-const buildValueMap = (
-  lines: FinancialLineItem[],
-  monthKeys: string[],
-  childMap: Map<string, string[]>,
-  manualMap: Map<string, Record<string, number>>
-) => {
-  const map = new Map<string, Record<string, number>>();
-  const getValue = (line: FinancialLineItem): Record<string, number> => {
-    if (map.has(line.id)) {
-      return map.get(line.id)!;
-    }
-    let value: Record<string, number>;
-    if (line.computation === 'manual') {
-      value = manualMap.get(line.id) ?? monthKeys.reduce((acc, key) => ({ ...acc, [key]: 0 }), {});
-    } else if (line.computation === 'children') {
-      const children = (childMap.get(line.id) ?? [])
-        .map((childId) => lines.find((candidate) => candidate.id === childId))
-        .filter((child): child is FinancialLineItem => Boolean(child));
-      value = sumRecords(children.map((child) => getValue(child)), monthKeys);
-    } else {
-      // cumulative
-      const index = lines.findIndex((candidate) => candidate.id === line.id);
-      const slice = lines.slice(0, index).filter((candidate) => candidate.computation !== 'cumulative');
-      value = sumRecords(slice.map((candidate) => getValue(candidate)), monthKeys);
-    }
-    map.set(line.id, value);
-    return value;
-  };
-  lines.forEach((line) => getValue(line));
-  return map;
-};
-
 const computeYearTotals = (values: Record<string, number>) => {
   const totals = new Map<number, number>();
   Object.entries(values).forEach(([key, value]) => {
@@ -166,39 +85,17 @@ interface TreeNode {
 const buildTree = (
   lines: FinancialLineItem[],
   parentMap: Map<string, string | null>,
-  childMap: Map<string, string[]>,
   baseValueMap: Map<string, Record<string, number>>,
-  manualEffectMap: Map<string, number>,
+  initiativeValueMap: Map<string, Record<string, number>>,
   selectedYear: number
 ) => {
   const nodeMap = new Map<string, TreeNode>();
-  const effectCache = new Map<string, number>();
-
-  const getEffectValue = (line: FinancialLineItem): number => {
-    if (effectCache.has(line.id)) {
-      return effectCache.get(line.id)!;
-    }
-    let value = 0;
-    if (line.computation === 'manual') {
-      value = manualEffectMap.get(line.id) ?? 0;
-    } else if (line.computation === 'children') {
-      const children = (childMap.get(line.id) ?? [])
-        .map((childId) => lines.find((candidate) => candidate.id === childId))
-        .filter((child): child is FinancialLineItem => Boolean(child));
-      value = children.reduce((sum, child) => sum + getEffectValue(child), 0);
-    } else {
-      const index = lines.findIndex((candidate) => candidate.id === line.id);
-      const scope = lines.slice(0, index).filter((candidate) => candidate.computation !== 'cumulative');
-      value = scope.reduce((sum, candidate) => sum + getEffectValue(candidate), 0);
-    }
-    effectCache.set(line.id, value);
-    return value;
-  };
 
   lines.forEach((line) => {
-    const totals = computeYearTotals(baseValueMap.get(line.id) ?? {});
-    const baseValue = totals.get(selectedYear) ?? 0;
-    const initiativeValue = getEffectValue(line);
+    const baseTotals = computeYearTotals(baseValueMap.get(line.id) ?? {});
+    const initiativeTotals = computeYearTotals(initiativeValueMap.get(line.id) ?? {});
+    const baseValue = baseTotals.get(selectedYear) ?? 0;
+    const initiativeValue = initiativeTotals.get(selectedYear) ?? 0;
     nodeMap.set(line.id, {
       line,
       children: [],
@@ -240,6 +137,14 @@ export const FinancialTreeScreen = () => {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [stageFilter, setStageFilter] = useState<InitiativeStageKey[]>([...initiativeStageKeys]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [refreshRequested, setRefreshRequested] = useState(false);
+
+  useEffect(() => {
+    if (!blueprint && !loading && !refreshRequested) {
+      setRefreshRequested(true);
+      void refresh();
+    }
+  }, [blueprint, loading, refresh, refreshRequested]);
 
   const monthList = useMemo(() => (blueprint ? buildMonthIndex(blueprint.lines) : []), [blueprint]);
   const monthKeys = monthList.map((month) => month.key);
@@ -284,26 +189,40 @@ export const FinancialTreeScreen = () => {
     [blueprint]
   );
 
+  const manualValueMap = useMemo(() => {
+    if (!blueprint || !monthKeys.length) {
+      return new Map<string, Record<string, number>>();
+    }
+    return buildManualValueMap(blueprint.lines, monthKeys);
+  }, [blueprint, monthKeys]);
+
+  const cumulativeLookup = useMemo(() => {
+    if (!blueprint || !monthKeys.length) {
+      return new Map<string, Record<string, number>>();
+    }
+    return buildCumulativeLookup(blueprint.lines, monthKeys, manualValueMap);
+  }, [blueprint, monthKeys, manualValueMap]);
+
   const valueMap = useMemo(() => {
     if (!blueprint || !monthKeys.length) {
       return new Map<string, Record<string, number>>();
     }
-    const manualMap = buildManualValueMap(blueprint.lines, monthKeys);
-    return buildValueMap(blueprint.lines, monthKeys, childMap, manualMap);
-  }, [blueprint, monthKeys, childMap]);
+    return buildValueMap(blueprint.lines, monthKeys, childMap, manualValueMap, cumulativeLookup);
+  }, [blueprint, monthKeys, childMap, manualValueMap, cumulativeLookup]);
 
   const blueprintLineMap = useMemo(() => {
     const map = new Map<string, FinancialLineItem>();
-    (blueprint?.lines ?? []).forEach((line) => map.set(line.code, line));
+    (blueprint?.lines ?? []).forEach((line) => map.set(line.code.toUpperCase(), line));
     return map;
   }, [blueprint]);
 
-  const manualEffectMap = useMemo(() => {
-    if (!blueprint) {
-      return new Map<string, number>();
+  const initiativeManualMap = useMemo(() => {
+    if (!blueprint || !monthKeys.length) {
+      return new Map<string, Record<string, number>>();
     }
-    const map = new Map<string, number>();
+    const map = new Map<string, Record<string, number>>();
     const filterSet = new Set(stageFilter);
+    const monthSet = new Set(monthKeys);
     initiatives.forEach((initiative) => {
       if (filterSet.size > 0 && !filterSet.has(initiative.activeStage)) {
         return;
@@ -314,38 +233,54 @@ export const FinancialTreeScreen = () => {
       }
       initiativeFinancialKinds.forEach((kind) => {
         stage.financials[kind].forEach((entry) => {
-          if (!entry.lineCode) {
+          const normalizedCode = entry.lineCode?.trim().toUpperCase();
+          if (!normalizedCode) {
             return;
           }
-          const blueprintLine = blueprintLineMap.get(entry.lineCode);
-          if (!blueprintLine) {
+          const blueprintLine = blueprintLineMap.get(normalizedCode);
+          if (!blueprintLine || blueprintLine.computation !== 'manual') {
             return;
           }
-          const total = Object.entries(entry.distribution).reduce((sum, [monthKey, raw]) => {
-            const parsed = parseMonthKey(monthKey);
-            if (!parsed || parsed.year !== effectiveYear) {
-              return sum;
+          if (!map.has(blueprintLine.id)) {
+            map.set(blueprintLine.id, buildEmptyRecord(monthKeys));
+          }
+          const record = map.get(blueprintLine.id)!;
+          Object.entries(entry.distribution).forEach(([monthKey, raw]) => {
+            if (!monthSet.has(monthKey)) {
+              return;
             }
             const numeric = Number(raw);
-            return Number.isFinite(numeric) ? sum + numeric : sum;
-          }, 0);
-          if (!total) {
-            return;
-          }
-          const effect = total * lineEffect(blueprintLine);
-          map.set(blueprintLine.id, (map.get(blueprintLine.id) ?? 0) + effect);
+            if (!Number.isFinite(numeric)) {
+              return;
+            }
+            record[monthKey] += numeric * lineEffect(blueprintLine);
+          });
         });
       });
     });
     return map;
-  }, [blueprint, initiatives, stageFilter, blueprintLineMap, effectiveYear]);
+  }, [blueprint, initiatives, stageFilter, blueprintLineMap, monthKeys]);
+
+  const initiativeLookup = useMemo(() => {
+    if (!blueprint || !monthKeys.length) {
+      return new Map<string, Record<string, number>>();
+    }
+    return buildCumulativeLookup(blueprint.lines, monthKeys, initiativeManualMap);
+  }, [blueprint, monthKeys, initiativeManualMap]);
+
+  const initiativeValueMap = useMemo(() => {
+    if (!blueprint || !monthKeys.length) {
+      return new Map<string, Record<string, number>>();
+    }
+    return buildValueMap(blueprint.lines, monthKeys, childMap, initiativeManualMap, initiativeLookup);
+  }, [blueprint, monthKeys, childMap, initiativeManualMap, initiativeLookup]);
 
   const rootNode = useMemo(() => {
     if (!blueprint || !monthKeys.length) {
       return null;
     }
-    return buildTree(blueprint.lines, parentMap, childMap, valueMap, manualEffectMap, effectiveYear);
-  }, [blueprint, parentMap, childMap, valueMap, manualEffectMap, effectiveYear, monthKeys.length]);
+    return buildTree(blueprint.lines, parentMap, valueMap, initiativeValueMap, effectiveYear);
+  }, [blueprint, parentMap, valueMap, initiativeValueMap, effectiveYear, monthKeys.length]);
 
   const maxAbsValue = useMemo(() => {
     if (!rootNode) {
@@ -374,11 +309,11 @@ export const FinancialTreeScreen = () => {
       return null;
     }
     const positions = new Map<string, { depth: number; x: number; y: number }>();
-    const columnWidth = 260;
+    const columnWidth = 250;
     const columnGap = 120;
-    const cardWidth = 220;
-    const cardHeight = 120;
-    const verticalGap = 160;
+    const cardWidth = 230;
+    const cardHeight = 190;
+    const verticalGap = 200;
     let leafIndex = 0;
 
     const compute = (node: TreeNode, depth: number): number => {
@@ -396,7 +331,8 @@ export const FinancialTreeScreen = () => {
 
     compute(rootNode, 0);
     const totalHeight = Math.max(leafIndex - 1, 0) * verticalGap + cardHeight;
-    const maxDepth = Math.max(...Array.from(positions.values()).map((pos) => pos.depth));
+    const depthValues = Array.from(positions.values()).map((pos) => pos.depth);
+    const maxDepth = depthValues.length ? Math.max(...depthValues) : 0;
     const width = (maxDepth + 1) * (columnWidth + columnGap);
 
     const connectors: { id: string; path: string }[] = [];
@@ -472,7 +408,7 @@ export const FinancialTreeScreen = () => {
               className={styles.dropdownTrigger}
               onClick={() => setDropdownOpen((prev) => !prev)}
             >
-              Initiative stages
+              {`Stage gates (${stageFilter.length}/${initiativeStageKeys.length})`}
             </button>
             {dropdownOpen && (
               <div className={styles.dropdownPanel}>
@@ -503,13 +439,14 @@ export const FinancialTreeScreen = () => {
           Unable to refresh blueprint data automatically. The view may be stale.
         </div>
       )}
-      <div className={styles.treeCanvas} style={{ width: layout.width, height: layout.height }}>
-        <svg className={styles.treeSvg} width={layout.width} height={layout.height}>
-          {layout.connectors.map((connector) => (
-            <path key={connector.id} d={connector.path} className={styles.connectorPath} />
-          ))}
-        </svg>
-        {Array.from(layout.positions.entries()).map(([id, pos]) => {
+      <div className={styles.treeWrapper}>
+        <div className={styles.treeCanvas} style={{ width: layout.width, height: layout.height }}>
+          <svg className={styles.treeSvg} width={layout.width} height={layout.height}>
+            {layout.connectors.map((connector) => (
+              <path key={connector.id} d={connector.path} className={styles.connectorPath} />
+            ))}
+          </svg>
+          {Array.from(layout.positions.entries()).map(([id, pos]) => {
           const nodeStack: TreeNode[] = [rootNode];
           let node: TreeNode | null = null;
           while (nodeStack.length && !node) {
@@ -524,7 +461,14 @@ export const FinancialTreeScreen = () => {
             return null;
           }
           const scale = maxAbsValue || 1;
-          const barWidth = (value: number) => `${Math.min(100, Math.abs(value) / scale * 100)}%`;
+          const barHeight = (value: number) => {
+            if (!scale || value === 0) {
+              return '0%';
+            }
+            const ratio = Math.abs(value) / scale;
+            const percentage = Math.max(8, Math.min(100, ratio * 100));
+            return `${percentage}%`;
+          };
           return (
             <div
               key={id}
@@ -538,25 +482,36 @@ export const FinancialTreeScreen = () => {
               <header>
                 <h4>{node.line.name}</h4>
               </header>
-              <div className={styles.simpleBars}>
-                <div className={styles.simpleBarRow}>
+              <div className={styles.barChart}>
+                <div className={styles.barColumn}>
+                  <div className={styles.barValue}>{formatCurrency(node.baseValue)}</div>
+                  <div className={styles.barTrack}>
+                    <div
+                      className={`${styles.barFill} ${styles.barFillBase} ${
+                        node.baseValue < 0 ? styles.barNegative : ''
+                      }`}
+                      style={{ height: barHeight(node.baseValue) }}
+                    />
+                  </div>
                   <span>Base</span>
-                  <div className={styles.simpleBarTrack}>
-                    <div className={styles.simpleBarFillBase} style={{ width: barWidth(node.baseValue) }} />
-                  </div>
-                  <strong>{formatCurrency(node.baseValue)}</strong>
                 </div>
-                <div className={styles.simpleBarRow}>
-                  <span>With initiatives</span>
-                  <div className={styles.simpleBarTrack}>
-                    <div className={styles.simpleBarFillTotal} style={{ width: barWidth(node.totalValue) }} />
+                <div className={styles.barColumn}>
+                  <div className={styles.barValue}>{formatCurrency(node.totalValue)}</div>
+                  <div className={styles.barTrack}>
+                    <div
+                      className={`${styles.barFill} ${styles.barFillTotal} ${
+                        node.totalValue < 0 ? styles.barNegative : ''
+                      }`}
+                      style={{ height: barHeight(node.totalValue) }}
+                    />
                   </div>
-                  <strong>{formatCurrency(node.totalValue)}</strong>
+                  <span>With initiatives</span>
                 </div>
               </div>
             </div>
           );
         })}
+        </div>
       </div>
     </section>
   );

@@ -11,6 +11,14 @@ import {
   MAX_INDENT_LEVEL
 } from './financialModel';
 import { FinancialBlueprintPayload, FinancialLineItem } from '../../shared/types/financials';
+import {
+  addToRecord,
+  buildCumulativeLookup,
+  buildEmptyRecord,
+  buildManualValueMap,
+  buildValueMap,
+  lineEffect
+} from '../../shared/utils/financialMath';
 import { generateId } from '../../shared/ui/generateId';
 import { useFinancialsState } from '../../app/state/AppStateContext';
 
@@ -56,16 +64,6 @@ const ensureUniqueCode = (lines: FinancialLineItem[], seed: string, currentId?: 
 
 const clampIndent = (value: number, maxIndent: number) =>
   Math.max(0, Math.min(maxIndent, Math.floor(value)));
-
-const lineEffect = (line: FinancialLineItem) => {
-  if (line.nature === 'cost') {
-    return -1;
-  }
-  if (line.nature === 'revenue') {
-    return 1;
-  }
-  return 1;
-};
 
 const buildParentMap = (lines: FinancialLineItem[]) => {
   const stack: { id: string; indent: number }[] = [];
@@ -119,94 +117,6 @@ const buildVisibleLines = (
   });
   return result;
 };
-const buildEmptyRecord = (keys: string[]) =>
-  keys.reduce((acc, key) => {
-    acc[key] = 0;
-    return acc;
-  }, {} as Record<string, number>);
-
-const addToRecord = (target: Record<string, number>, source: Record<string, number>) => {
-  Object.keys(target).forEach((key) => {
-    target[key] = (target[key] ?? 0) + (source[key] ?? 0);
-  });
-};
-
-const buildManualValueMap = (lines: FinancialLineItem[], monthKeys: string[]) => {
-  const map = new Map<string, Record<string, number>>();
-  for (const line of lines) {
-    if (line.computation !== 'manual') {
-      continue;
-    }
-    const effect = lineEffect(line);
-    const record = buildEmptyRecord(monthKeys);
-    monthKeys.forEach((key) => {
-      const numeric = Number(line.months[key]);
-      record[key] = Number.isFinite(numeric) ? effect * numeric : 0;
-    });
-    map.set(line.id, record);
-  }
-  return map;
-};
-
-const buildCumulativeLookup = (
-  lines: FinancialLineItem[],
-  monthKeys: string[],
-  manualMap: Map<string, Record<string, number>>
-) => {
-  const running = buildEmptyRecord(monthKeys);
-  const lookup = new Map<string, Record<string, number>>();
-  for (const line of lines) {
-    if (line.computation === 'manual') {
-      const contribution = manualMap.get(line.id) ?? buildEmptyRecord(monthKeys);
-      addToRecord(running, contribution);
-    }
-    if (line.computation === 'cumulative') {
-      lookup.set(line.id, { ...running });
-    }
-  }
-  return lookup;
-};
-
-const buildValueMap = (
-  lines: FinancialLineItem[],
-  monthKeys: string[],
-  childMap: Map<string, string[]>,
-  manualMap: Map<string, Record<string, number>>,
-  cumulativeLookup: Map<string, Record<string, number>>
-) => {
-  const memo = new Map<string, Record<string, number>>();
-  const lineById = new Map(lines.map((line) => [line.id, line]));
-
-  const resolve = (line: FinancialLineItem): Record<string, number> => {
-    if (memo.has(line.id)) {
-      return memo.get(line.id)!;
-    }
-    let computed: Record<string, number>;
-    if (line.computation === 'manual') {
-      computed = manualMap.get(line.id) ?? buildEmptyRecord(monthKeys);
-    } else if (line.computation === 'children') {
-      const totals = buildEmptyRecord(monthKeys);
-      const children = childMap.get(line.id) ?? [];
-      for (const childId of children) {
-        const child = lineById.get(childId);
-        if (!child) {
-          continue;
-        }
-        const childValue = resolve(child);
-        addToRecord(totals, childValue);
-      }
-      computed = totals;
-    } else {
-      computed = cumulativeLookup.get(line.id) ?? buildEmptyRecord(monthKeys);
-    }
-    memo.set(line.id, computed);
-    return computed;
-  };
-
-  lines.forEach((line) => resolve(line));
-  return memo;
-};
-
 const toColumnLetter = (index: number) => {
   let temp = index;
   let letter = '';
