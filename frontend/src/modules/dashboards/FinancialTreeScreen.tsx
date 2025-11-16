@@ -156,11 +156,6 @@ interface TreeNode {
   totalValue: number;
 }
 
-const stageOrder = initiativeStageKeys.reduce<Record<InitiativeStageKey, number>>((acc, key, index) => {
-  acc[key] = index;
-  return acc;
-}, {} as Record<InitiativeStageKey, number>);
-
 const buildTree = (
   lines: FinancialLineItem[],
   parentMap: Map<string, string | null>,
@@ -236,7 +231,7 @@ export const FinancialTreeScreen = () => {
   const { blueprint, loading, error } = useFinancialsState();
   const { list: initiatives } = useInitiativesState();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
-  const [stageFilter, setStageFilter] = useState<'all' | InitiativeStageKey>('all');
+  const [stageFilter, setStageFilter] = useState<InitiativeStageKey[]>([...initiativeStageKeys]);
 
   const monthList = useMemo(() => (blueprint ? buildMonthIndex(blueprint.lines) : []), [blueprint]);
   const monthKeys = monthList.map((month) => month.key);
@@ -300,10 +295,9 @@ export const FinancialTreeScreen = () => {
       return new Map<string, number>();
     }
     const map = new Map<string, number>();
-    const threshold = stageFilter === 'all' ? -1 : stageOrder[stageFilter];
+    const filterSet = new Set(stageFilter);
     initiatives.forEach((initiative) => {
-      const activeIndex = stageOrder[initiative.activeStage];
-      if (threshold >= 0 && activeIndex < threshold) {
+      if (filterSet.size > 0 && !filterSet.has(initiative.activeStage)) {
         return;
       }
       const stage = initiative.stages[initiative.activeStage];
@@ -465,19 +459,29 @@ export const FinancialTreeScreen = () => {
           </label>
           <label>
             <span>Initiative stages</span>
-            <select
-              value={stageFilter}
-              onChange={(event) =>
-                setStageFilter(event.target.value === 'all' ? 'all' : (event.target.value as InitiativeStageKey))
-              }
-            >
-              <option value="all">All stages</option>
+            <div className={styles.stageCheckboxes}>
               {initiativeStageKeys.map((key) => (
-                <option key={key} value={key}>
-                  From {initiativeStageLabels[key]}
-                </option>
+                <label key={key}>
+                  <input
+                    type="checkbox"
+                    checked={stageFilter.includes(key)}
+                    onChange={() =>
+                      setStageFilter((prev) =>
+                        prev.includes(key) ? prev.filter((entry) => entry !== key) : [...prev, key]
+                      )
+                    }
+                  />
+                  <span>{initiativeStageLabels[key]}</span>
+                </label>
               ))}
-            </select>
+              <button
+                type="button"
+                className={styles.stageResetButton}
+                onClick={() => setStageFilter([...initiativeStageKeys])}
+              >
+                Select all
+              </button>
+            </div>
           </label>
         </div>
       </header>
@@ -507,7 +511,7 @@ export const FinancialTreeScreen = () => {
             return null;
           }
           const scale = maxAbsValue || 1;
-          const barHeight = (value: number) => `${Math.min(100, Math.abs(value) / scale * 100)}%`;
+          const barWidth = (value: number) => `${Math.min(100, Math.abs(value) / scale * 100)}%`;
           return (
             <div
               key={id}
@@ -521,20 +525,24 @@ export const FinancialTreeScreen = () => {
               <header>
                 <h4>{node.line.name}</h4>
               </header>
-              <div className={styles.barColumns}>
-                <div className={styles.barColumn}>
-                  <div className={styles.barColumnTrack}>
-                    <div className={`${styles.barColumnFill} ${styles.barBase}`} style={{ height: barHeight(node.baseValue) }} />
+              <div className={styles.simpleBars}>
+                <div className={styles.simpleBarRow}>
+                  <span>Base</span>
+                  <div className={styles.simpleBarTrack}>
+                    <div className={styles.simpleBarFillBase} style={{ width: barWidth(node.baseValue) }} />
                   </div>
-                  <span className={styles.barColumnLabel}>Base</span>
                   <strong>{formatCurrency(node.baseValue)}</strong>
                 </div>
-                <div className={styles.barColumn}>
-                  <div className={styles.barColumnTrack}>
-                    <div className={`${styles.barColumnFill} ${styles.barInitiatives}`} style={{ height: barHeight(node.totalValue) }} />
+                <div className={styles.simpleBarRow}>
+                  <span>With initiatives</span>
+                  <div className={styles.simpleBarTrack}>
+                    <div className={styles.simpleBarFillTotal} style={{ width: barWidth(node.totalValue) }} />
                   </div>
-                  <span className={styles.barColumnLabel}>With initiatives</span>
                   <strong>{formatCurrency(node.totalValue)}</strong>
+                </div>
+                <div className={styles.deltaRow}>
+                  <span>Initiatives delta</span>
+                  <strong>{formatCurrency(node.initiativeValue)}</strong>
                 </div>
               </div>
             </div>
