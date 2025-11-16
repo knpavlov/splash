@@ -209,8 +209,14 @@ const TreeNodeCard = ({
   const sortedChildren = [...node.children].sort(
     (a, b) => Math.abs(b.valueA + b.valueB) - Math.abs(a.valueA + a.valueB)
   );
+  const nodeClasses = [
+    styles.treeNode,
+    sortedChildren.length === 0 ? styles.treeNodeLeaf : styles.treeNodeBranch
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
-    <div className={styles.treeNode}>
+    <div className={nodeClasses}>
       <div className={styles.nodeCard}>
         <header>
           <small>{node.line.code}</small>
@@ -235,9 +241,20 @@ const TreeNodeCard = ({
       </div>
       {sortedChildren.length > 0 && (
         <div className={styles.treeChildren}>
-          {sortedChildren.map((child) => (
-            <TreeNodeCard key={child.line.id} node={child} maxAbsValue={maxAbsValue} />
-          ))}
+          {sortedChildren.map((child, index) => {
+            const branchClasses = [
+              styles.treeBranch,
+              index === 0 ? styles.treeBranchFirst : '',
+              index === sortedChildren.length - 1 ? styles.treeBranchLast : ''
+            ]
+              .filter(Boolean)
+              .join(' ');
+            return (
+              <div key={child.line.id} className={branchClasses}>
+                <TreeNodeCard node={child} maxAbsValue={maxAbsValue} />
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

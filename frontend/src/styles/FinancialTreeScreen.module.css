@@ -36,10 +36,17 @@
 
 .treeNode {
   display: flex;
-  flex-direction: row;
-  gap: 16px;
   align-items: flex-start;
+  gap: 32px;
   margin-bottom: 12px;
+}
+
+.treeNodeBranch {
+  position: relative;
+}
+
+.treeNodeLeaf {
+  gap: 0;
 }
 
 .nodeCard {
@@ -114,7 +121,40 @@
 .treeChildren {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  border-left: 2px dashed rgba(148, 163, 184, 0.5);
-  padding-left: 16px;
+  gap: 12px;
+  padding-left: 32px;
+  position: relative;
+}
+
+.treeBranch {
+  position: relative;
+  padding: 12px 0;
+}
+
+.treeBranch::before {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.treeBranch::after {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: 32px;
+  width: 24px;
+  height: 2px;
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.treeBranchFirst::before {
+  top: 32px;
+}
+
+.treeBranchLast::before {
+  bottom: 32px;
 }
