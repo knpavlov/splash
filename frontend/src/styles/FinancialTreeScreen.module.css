@@ -34,23 +34,25 @@
   padding-bottom: 24px;
 }
 
-.treeNode {
-  display: flex;
-  align-items: flex-start;
-  gap: 32px;
-  margin-bottom: 12px;
-}
-
-.treeNodeBranch {
+.treeCanvas {
   position: relative;
+  margin-top: 12px;
 }
 
-.treeNodeLeaf {
-  gap: 0;
+.treeSvg {
+  position: absolute;
+  inset: 0;
+}
+
+.connectorPath {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.7);
+  stroke-width: 2px;
 }
 
 .nodeCard {
-  min-width: 240px;
+  position: absolute;
+  min-width: 220px;
   background: white;
   border-radius: 16px;
   padding: 16px;

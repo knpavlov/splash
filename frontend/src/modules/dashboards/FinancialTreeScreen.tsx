@@ -196,71 +196,6 @@ const formatCurrency = (value: number) =>
     Math.round(value)
   );
 
-const TreeNodeCard = ({
-  node,
-  maxAbsValue
-}: {
-  node: TreeNode;
-  maxAbsValue: number;
-}) => {
-  const scale = maxAbsValue || 1;
-  const barWidth = (value: number) => `${Math.min(100, Math.abs(value) / scale * 100)}%`;
-  const color = (value: number) => (value >= 0 ? styles.barPositive : styles.barNegative);
-  const sortedChildren = [...node.children].sort(
-    (a, b) => Math.abs(b.valueA + b.valueB) - Math.abs(a.valueA + a.valueB)
-  );
-  const nodeClasses = [
-    styles.treeNode,
-    sortedChildren.length === 0 ? styles.treeNodeLeaf : styles.treeNodeBranch
-  ]
-    .filter(Boolean)
-    .join(' ');
-  return (
-    <div className={nodeClasses}>
-      <div className={styles.nodeCard}>
-        <header>
-          <small>{node.line.code}</small>
-          <h4>{node.line.name}</h4>
-        </header>
-        <div className={styles.bars}>
-          <div className={styles.barRow}>
-            <span className={styles.barLabel}>{node.yearA}</span>
-            <div className={styles.barTrack}>
-              <div className={`${styles.barFill} ${color(node.valueA)}`} style={{ width: barWidth(node.valueA) }} />
-            </div>
-            <span className={styles.barValue}>{formatCurrency(node.valueA)}</span>
-          </div>
-          <div className={styles.barRow}>
-            <span className={styles.barLabel}>{node.yearB}</span>
-            <div className={styles.barTrack}>
-              <div className={`${styles.barFill} ${color(node.valueB)}`} style={{ width: barWidth(node.valueB) }} />
-            </div>
-            <span className={styles.barValue}>{formatCurrency(node.valueB)}</span>
-          </div>
-        </div>
-      </div>
-      {sortedChildren.length > 0 && (
-        <div className={styles.treeChildren}>
-          {sortedChildren.map((child, index) => {
-            const branchClasses = [
-              styles.treeBranch,
-              index === 0 ? styles.treeBranchFirst : '',
-              index === sortedChildren.length - 1 ? styles.treeBranchLast : ''
-            ]
-              .filter(Boolean)
-              .join(' ');
-            return (
-              <div key={child.line.id} className={branchClasses}>
-                <TreeNodeCard node={child} maxAbsValue={maxAbsValue} />
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
 export const FinancialTreeScreen = () => {
   const { blueprint, loading, error } = useFinancialsState();
 
@@ -338,7 +273,73 @@ export const FinancialTreeScreen = () => {
     );
   }
 
-  if (!blueprint || !rootNode) {
+  const layout = useMemo(() => {
+    if (!rootNode) {
+      return null;
+    }
+    const positions = new Map<string, { depth: number; x: number; y: number }>();
+    const columnWidth = 260;
+    const columnGap = 120;
+    const cardWidth = 220;
+    const cardHeight = 120;
+    const verticalGap = 160;
+    let leafIndex = 0;
+
+    const compute = (node: TreeNode, depth: number): number => {
+      if (!node.children.length) {
+        const y = leafIndex * verticalGap;
+        leafIndex += 1;
+        positions.set(node.line.id, { depth, x: depth * (columnWidth + columnGap), y });
+        return y;
+      }
+      const childYs = node.children.map((child) => compute(child, depth + 1));
+      const y = childYs.reduce((sum, value) => sum + value, 0) / childYs.length;
+      positions.set(node.line.id, { depth, x: depth * (columnWidth + columnGap), y });
+      return y;
+    };
+
+    compute(rootNode, 0);
+    const totalHeight = Math.max(leafIndex - 1, 0) * verticalGap + cardHeight;
+    const maxDepth = Math.max(...Array.from(positions.values()).map((pos) => pos.depth));
+    const width = (maxDepth + 1) * (columnWidth + columnGap);
+
+    const connectors: { id: string; path: string }[] = [];
+    const sortedNodes = Array.from(positions.entries());
+    sortedNodes.forEach(([id, position]) => {
+      const node = rootNode;
+      const visit = (current: TreeNode) => {
+        if (current.line.id === id) {
+          current.children.forEach((child) => {
+            const childPos = positions.get(child.line.id);
+            if (!childPos) {
+              return;
+            }
+            const startX = position.x + cardWidth;
+            const startY = position.y + cardHeight / 2;
+            const endX = childPos.x;
+            const endY = childPos.y + cardHeight / 2;
+            const elbowX = (startX + endX) / 2;
+            const path = `M ${startX} ${startY} H ${elbowX} V ${endY} H ${endX}`;
+            connectors.push({ id: `${id}-${child.line.id}`, path });
+          });
+        } else {
+          current.children.forEach(visit);
+        }
+      };
+      visit(node);
+    });
+
+    return {
+      positions,
+      width,
+      height: totalHeight + cardHeight,
+      cardWidth,
+      cardHeight,
+      connectors
+    };
+  }, [rootNode]);
+
+  if (!blueprint || !rootNode || !layout) {
     return (
       <section className={styles.screen}>
         <p className={styles.warningText}>
@@ -364,8 +365,62 @@ export const FinancialTreeScreen = () => {
           Unable to refresh blueprint data automatically. The view may be stale.
         </div>
       )}
-      <div className={styles.treeWrapper}>
-        <TreeNodeCard node={rootNode} maxAbsValue={maxAbsValue} />
+      <div className={styles.treeCanvas} style={{ width: layout.width, height: layout.height }}>
+        <svg className={styles.treeSvg} width={layout.width} height={layout.height}>
+          {layout.connectors.map((connector) => (
+            <path key={connector.id} d={connector.path} className={styles.connectorPath} />
+          ))}
+        </svg>
+        {Array.from(layout.positions.entries()).map(([id, pos]) => {
+          const nodeStack: TreeNode[] = [rootNode];
+          let node: TreeNode | null = null;
+          while (nodeStack.length && !node) {
+            const current = nodeStack.pop()!;
+            if (current.line.id === id) {
+              node = current;
+              break;
+            }
+            nodeStack.push(...current.children);
+          }
+          if (!node) {
+            return null;
+          }
+          const scale = maxAbsValue || 1;
+          const barWidth = (value: number) => `${Math.min(100, Math.abs(value) / scale * 100)}%`;
+          const color = (value: number) => (value >= 0 ? styles.barPositive : styles.barNegative);
+          return (
+            <div
+              key={id}
+              className={styles.nodeCard}
+              style={{
+                width: layout.cardWidth,
+                height: layout.cardHeight,
+                transform: `translate(${pos.x}px, ${pos.y}px)`
+              }}
+            >
+              <header>
+                <small>{node.line.code}</small>
+                <h4>{node.line.name}</h4>
+              </header>
+              <div className={styles.bars}>
+                <div className={styles.barRow}>
+                  <span className={styles.barLabel}>{node.yearA}</span>
+                  <div className={styles.barTrack}>
+                    <div className={`${styles.barFill} ${color(node.valueA)}`} style={{ width: barWidth(node.valueA) }} />
+                  </div>
+                  <span className={styles.barValue}>{formatCurrency(node.valueA)}</span>
+                </div>
+                <div className={styles.barRow}>
+                  <span className={styles.barLabel}>{node.yearB}</span>
+                  <div className={styles.barTrack}>
+                    <div className={`${styles.barFill} ${color(node.valueB)}`} style={{ width: barWidth(node.valueB) }} />
+                  </div>
+                  <span className={styles.barValue}>{formatCurrency(node.valueB)}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
