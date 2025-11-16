@@ -1,7 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import styles from '../../styles/FinancialTreeScreen.module.css';
-import { useFinancialsState } from '../../app/state/AppStateContext';
+import { useFinancialsState, useInitiativesState } from '../../app/state/AppStateContext';
 import { FinancialLineItem } from '../../shared/types/financials';
+import {
+  initiativeStageKeys,
+  initiativeStageLabels,
+  initiativeFinancialKinds,
+  InitiativeStageKey
+} from '../../shared/types/initiative';
 
 interface MonthDescriptor {
   key: string;
@@ -145,32 +151,61 @@ const computeYearTotals = (values: Record<string, number>) => {
 interface TreeNode {
   line: FinancialLineItem;
   children: TreeNode[];
-  yearA: number;
-  yearB: number;
-  valueA: number;
-  valueB: number;
+  baseValue: number;
+  initiativeValue: number;
+  totalValue: number;
 }
+
+const stageOrder = initiativeStageKeys.reduce<Record<InitiativeStageKey, number>>((acc, key, index) => {
+  acc[key] = index;
+  return acc;
+}, {} as Record<InitiativeStageKey, number>);
 
 const buildTree = (
   lines: FinancialLineItem[],
   parentMap: Map<string, string | null>,
-  valueMap: Map<string, Record<string, number>>,
-  yearA: number,
-  yearB: number
+  childMap: Map<string, string[]>,
+  baseValueMap: Map<string, Record<string, number>>,
+  manualEffectMap: Map<string, number>,
+  selectedYear: number
 ) => {
   const nodeMap = new Map<string, TreeNode>();
-  lines.forEach((line) => {
+  const effectCache = new Map<string, number>();
 
-    const totals = computeYearTotals(valueMap.get(line.id) ?? {});
+  const getEffectValue = (line: FinancialLineItem): number => {
+    if (effectCache.has(line.id)) {
+      return effectCache.get(line.id)!;
+    }
+    let value = 0;
+    if (line.computation === 'manual') {
+      value = manualEffectMap.get(line.id) ?? 0;
+    } else if (line.computation === 'children') {
+      const children = (childMap.get(line.id) ?? [])
+        .map((childId) => lines.find((candidate) => candidate.id === childId))
+        .filter((child): child is FinancialLineItem => Boolean(child));
+      value = children.reduce((sum, child) => sum + getEffectValue(child), 0);
+    } else {
+      const index = lines.findIndex((candidate) => candidate.id === line.id);
+      const scope = lines.slice(0, index).filter((candidate) => candidate.computation !== 'cumulative');
+      value = scope.reduce((sum, candidate) => sum + getEffectValue(candidate), 0);
+    }
+    effectCache.set(line.id, value);
+    return value;
+  };
+
+  lines.forEach((line) => {
+    const totals = computeYearTotals(baseValueMap.get(line.id) ?? {});
+    const baseValue = totals.get(selectedYear) ?? 0;
+    const initiativeValue = getEffectValue(line);
     nodeMap.set(line.id, {
       line,
       children: [],
-      yearA,
-      yearB,
-      valueA: totals.get(yearA) ?? 0,
-      valueB: totals.get(yearB) ?? 0
+      baseValue,
+      initiativeValue,
+      totalValue: baseValue + initiativeValue
     });
   });
+
   lines.forEach((line) => {
     const parentId = parentMap.get(line.id);
     if (parentId) {
@@ -181,6 +216,7 @@ const buildTree = (
       }
     }
   });
+
   const roots = lines
     .map((line) => nodeMap.get(line.id))
     .filter((node): node is TreeNode => Boolean(node && !parentMap.get(node.line.id)));
@@ -198,6 +234,9 @@ const formatCurrency = (value: number) =>
 
 export const FinancialTreeScreen = () => {
   const { blueprint, loading, error } = useFinancialsState();
+  const { list: initiatives } = useInitiativesState();
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [stageFilter, setStageFilter] = useState<'all' | InitiativeStageKey>('all');
 
   const monthList = useMemo(() => (blueprint ? buildMonthIndex(blueprint.lines) : []), [blueprint]);
   const monthKeys = monthList.map((month) => month.key);
@@ -206,9 +245,11 @@ export const FinancialTreeScreen = () => {
     [monthList]
   );
   const currentYear = new Date().getFullYear();
-  const baseYear =
-    availableYears.find((year) => year >= currentYear) ?? availableYears[0] ?? currentYear;
-  const nextYear = baseYear + 1;
+  const effectiveYear =
+    selectedYear ??
+    availableYears.find((year) => year >= currentYear) ??
+    availableYears[0] ??
+    currentYear;
 
   const parentMap = useMemo(() => {
     if (!blueprint) {
@@ -235,21 +276,73 @@ export const FinancialTreeScreen = () => {
     return map;
   }, [blueprint]);
 
+  const childMap = useMemo(
+    () => (blueprint ? buildChildMap(blueprint.lines) : new Map<string, string[]>()),
+    [blueprint]
+  );
+
   const valueMap = useMemo(() => {
     if (!blueprint || !monthKeys.length) {
       return new Map<string, Record<string, number>>();
     }
-    const childMap = buildChildMap(blueprint.lines);
     const manualMap = buildManualValueMap(blueprint.lines, monthKeys);
     return buildValueMap(blueprint.lines, monthKeys, childMap, manualMap);
-  }, [blueprint, monthKeys]);
+  }, [blueprint, monthKeys, childMap]);
+
+  const blueprintLineMap = useMemo(() => {
+    const map = new Map<string, FinancialLineItem>();
+    (blueprint?.lines ?? []).forEach((line) => map.set(line.code, line));
+    return map;
+  }, [blueprint]);
+
+  const manualEffectMap = useMemo(() => {
+    if (!blueprint) {
+      return new Map<string, number>();
+    }
+    const map = new Map<string, number>();
+    const threshold = stageFilter === 'all' ? -1 : stageOrder[stageFilter];
+    initiatives.forEach((initiative) => {
+      const activeIndex = stageOrder[initiative.activeStage];
+      if (threshold >= 0 && activeIndex < threshold) {
+        return;
+      }
+      const stage = initiative.stages[initiative.activeStage];
+      if (!stage) {
+        return;
+      }
+      initiativeFinancialKinds.forEach((kind) => {
+        stage.financials[kind].forEach((entry) => {
+          if (!entry.lineCode) {
+            return;
+          }
+          const blueprintLine = blueprintLineMap.get(entry.lineCode);
+          if (!blueprintLine) {
+            return;
+          }
+          const total = Object.entries(entry.distribution).reduce((sum, [monthKey, raw]) => {
+            const parsed = parseMonthKey(monthKey);
+            if (!parsed || parsed.year !== effectiveYear) {
+              return sum;
+            }
+            const numeric = Number(raw);
+            return Number.isFinite(numeric) ? sum + numeric : sum;
+          }, 0);
+          if (!total) {
+            return;
+          }
+          map.set(blueprintLine.id, (map.get(blueprintLine.id) ?? 0) + total);
+        });
+      });
+    });
+    return map;
+  }, [blueprint, initiatives, stageFilter, blueprintLineMap, effectiveYear]);
 
   const rootNode = useMemo(() => {
     if (!blueprint || !monthKeys.length) {
       return null;
     }
-    return buildTree(blueprint.lines, parentMap, valueMap, baseYear, nextYear);
-  }, [blueprint, parentMap, valueMap, baseYear, nextYear, monthKeys.length]);
+    return buildTree(blueprint.lines, parentMap, childMap, valueMap, manualEffectMap, effectiveYear);
+  }, [blueprint, parentMap, childMap, valueMap, manualEffectMap, effectiveYear, monthKeys.length]);
 
   const maxAbsValue = useMemo(() => {
     if (!rootNode) {
@@ -259,7 +352,7 @@ export const FinancialTreeScreen = () => {
     let max = 0;
     while (stack.length) {
       const node = stack.pop()!;
-      max = Math.max(max, Math.abs(node.valueA), Math.abs(node.valueB));
+      max = Math.max(max, Math.abs(node.baseValue), Math.abs(node.totalValue));
       stack.push(...node.children);
     }
     return max;
@@ -354,10 +447,38 @@ export const FinancialTreeScreen = () => {
       <header className={styles.header}>
         <div>
           <h1>P&amp;L tree</h1>
-          <p>
-            Visualize how each line item contributes to net profit. Blocks show annual impact for {baseYear} and{' '}
-            {nextYear}.
-          </p>
+          <p>Visualize how each line item contributes to net profit for a selected year.</p>
+        </div>
+        <div className={styles.filters}>
+          <label>
+            <span>Year</span>
+            <select
+              value={effectiveYear}
+              onChange={(event) => setSelectedYear(Number(event.target.value))}
+            >
+              {availableYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Initiative stages</span>
+            <select
+              value={stageFilter}
+              onChange={(event) =>
+                setStageFilter(event.target.value === 'all' ? 'all' : (event.target.value as InitiativeStageKey))
+              }
+            >
+              <option value="all">All stages</option>
+              {initiativeStageKeys.map((key) => (
+                <option key={key} value={key}>
+                  From {initiativeStageLabels[key]}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </header>
       {error && (
@@ -386,8 +507,7 @@ export const FinancialTreeScreen = () => {
             return null;
           }
           const scale = maxAbsValue || 1;
-          const barWidth = (value: number) => `${Math.min(100, Math.abs(value) / scale * 100)}%`;
-          const color = (value: number) => (value >= 0 ? styles.barPositive : styles.barNegative);
+          const barHeight = (value: number) => `${Math.min(100, Math.abs(value) / scale * 100)}%`;
           return (
             <div
               key={id}
@@ -399,23 +519,22 @@ export const FinancialTreeScreen = () => {
               }}
             >
               <header>
-                <small>{node.line.code}</small>
                 <h4>{node.line.name}</h4>
               </header>
-              <div className={styles.bars}>
-                <div className={styles.barRow}>
-                  <span className={styles.barLabel}>{node.yearA}</span>
-                  <div className={styles.barTrack}>
-                    <div className={`${styles.barFill} ${color(node.valueA)}`} style={{ width: barWidth(node.valueA) }} />
+              <div className={styles.barColumns}>
+                <div className={styles.barColumn}>
+                  <div className={styles.barColumnTrack}>
+                    <div className={`${styles.barColumnFill} ${styles.barBase}`} style={{ height: barHeight(node.baseValue) }} />
                   </div>
-                  <span className={styles.barValue}>{formatCurrency(node.valueA)}</span>
+                  <span className={styles.barColumnLabel}>Base</span>
+                  <strong>{formatCurrency(node.baseValue)}</strong>
                 </div>
-                <div className={styles.barRow}>
-                  <span className={styles.barLabel}>{node.yearB}</span>
-                  <div className={styles.barTrack}>
-                    <div className={`${styles.barFill} ${color(node.valueB)}`} style={{ width: barWidth(node.valueB) }} />
+                <div className={styles.barColumn}>
+                  <div className={styles.barColumnTrack}>
+                    <div className={`${styles.barColumnFill} ${styles.barInitiatives}`} style={{ height: barHeight(node.totalValue) }} />
                   </div>
-                  <span className={styles.barValue}>{formatCurrency(node.valueB)}</span>
+                  <span className={styles.barColumnLabel}>With initiatives</span>
+                  <strong>{formatCurrency(node.totalValue)}</strong>
                 </div>
               </div>
             </div>

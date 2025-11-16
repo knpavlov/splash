@@ -15,6 +15,28 @@
   color: #475569;
 }
 
+.filters {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.filters label {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: #475569;
+  gap: 4px;
+}
+
+.filters select {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5f5;
+  font-size: 14px;
+}
+
 .warningText {
   color: #b45309;
   background: rgba(251, 191, 36, 0.2);
@@ -63,100 +85,55 @@
   margin-bottom: 12px;
 }
 
-.nodeCard small {
-  text-transform: uppercase;
-  font-size: 11px;
-  color: #94a3b8;
-}
-
 .nodeCard h4 {
   margin: 4px 0 0;
   font-size: 16px;
   color: #0f172a;
 }
 
-.bars {
+.barColumns {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  gap: 16px;
+  justify-content: space-between;
 }
 
-.barRow {
-  display: grid;
-  grid-template-columns: 48px 1fr 90px;
-  align-items: center;
-  gap: 8px;
+.barColumn {
+  flex: 1;
+  text-align: center;
 }
 
-.barLabel {
+.barColumnTrack {
+  width: 36px;
+  height: 120px;
+  margin: 0 auto 8px;
+  border-radius: 12px;
+  background: #e2e8f0;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.barColumnFill {
+  width: 100%;
+  border-radius: 12px 12px 0 0;
+}
+
+.barBase {
+  background: #0ea5e9;
+}
+
+.barInitiatives {
+  background: #22d3ee;
+}
+
+.barColumnLabel {
+  display: block;
   font-size: 12px;
   color: #475569;
 }
 
-.barTrack {
-  height: 8px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  overflow: hidden;
-}
-
-.barFill {
-  height: 100%;
-  border-radius: 999px;
-}
-
-.barPositive {
-  background: #0ea5e9;
-}
-
-.barNegative {
-  background: #f87171;
-}
-
-.barValue {
-  font-size: 12px;
+.barColumn strong {
+  display: block;
+  font-size: 13px;
   color: #0f172a;
-  text-align: right;
-  font-weight: 600;
-}
-
-.treeChildren {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-left: 32px;
-  position: relative;
-}
-
-.treeBranch {
-  position: relative;
-  padding: 12px 0;
-}
-
-.treeBranch::before {
-  content: '';
-  position: absolute;
-  left: -24px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: rgba(148, 163, 184, 0.5);
-}
-
-.treeBranch::after {
-  content: '';
-  position: absolute;
-  left: -24px;
-  top: 32px;
-  width: 24px;
-  height: 2px;
-  background: rgba(148, 163, 184, 0.5);
-}
-
-.treeBranchFirst::before {
-  top: 32px;
-}
-
-.treeBranchLast::before {
-  bottom: 32px;
 }
