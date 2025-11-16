@@ -1,17 +1,18 @@
+﻿
 import { ChangeEvent, Fragment, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import styles from '../../styles/FinancialsScreen.module.css';
 import {
   buildMonthColumns,
   createDefaultBlueprint,
-  FinancialAggregationMode,
-  FinancialLineItem,
-  MAX_INDENT_LEVEL,
+  DEFAULT_MONTH_COUNT,
+  MIN_MONTH_COUNT,
   MAX_MONTH_COUNT,
-  MIN_MONTH_COUNT
+  MAX_INDENT_LEVEL
 } from './financialModel';
-import { pnlCategories, type PnlCategory } from '../../shared/types/initiative';
+import { FinancialBlueprintPayload, FinancialLineItem } from '../../shared/types/financials';
 import { generateId } from '../../shared/ui/generateId';
+import { useFinancialsState } from '../../app/state/AppStateContext';
 
 type ImportStatus = { type: 'success' | 'error'; message: string } | null;
 
@@ -20,16 +21,10 @@ interface VisibleLine {
   index: number;
   hasChildren: boolean;
   isCollapsed: boolean;
+  level: number;
 }
 
-const STORAGE_KEY = 'financials.blueprint.v1';
 const MONTH_KEY_PATTERN = /^\d{4}-\d{2}$/;
-
-const aggregationLabels: Record<FinancialAggregationMode, string> = {
-  manual: 'Manual entry',
-  children: 'Roll up direct children',
-  cumulative: 'Running subtotal'
-};
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -39,86 +34,37 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 
 const formatCurrency = (value: number) => currencyFormatter.format(Math.round(value || 0));
 
-const clampIndent = (value: number) => Math.max(0, Math.min(MAX_INDENT_LEVEL, Math.floor(value)));
+const slugifyCode = (value: string) =>
+  value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || `LINE_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 
-const buildEmptyRecord = (monthKeys: string[]) =>
-  monthKeys.reduce((acc, key) => {
-    acc[key] = 0;
-    return acc;
-  }, {} as Record<string, number>);
-
-const normalizeMonths = (value: unknown) => {
-  if (!value || typeof value !== 'object') {
-    return {};
+const ensureUniqueCode = (lines: FinancialLineItem[], seed: string, currentId?: string) => {
+  const normalized = seed || 'LINE';
+  const taken = new Set(lines.filter((line) => line.id !== currentId).map((line) => line.code));
+  if (!taken.has(normalized)) {
+    return normalized;
   }
-  return Object.entries(value as Record<string, unknown>)
-    .filter(([key]) => MONTH_KEY_PATTERN.test(key))
-    .reduce((acc, [key, raw]) => {
-      const numeric = Number(raw);
-      acc[key] = Number.isFinite(numeric) ? numeric : 0;
-      return acc;
-    }, {} as Record<string, number>);
+  let suffix = 2;
+  while (taken.has(`${normalized}_${suffix}`)) {
+    suffix += 1;
+  }
+  return `${normalized}_${suffix}`;
 };
 
-const isPnlCategory = (value: string): value is PnlCategory =>
-  pnlCategories.includes(value as PnlCategory);
+const clampIndent = (value: number, maxIndent: number) =>
+  Math.max(0, Math.min(maxIndent, Math.floor(value)));
 
-const sanitizeLine = (input: Partial<FinancialLineItem>): FinancialLineItem => {
-  const fallback = generateId();
-  const codeSource = typeof input.code === 'string' && input.code.trim() ? input.code : fallback.slice(0, 8);
-  const sanitizedAggregation: FinancialAggregationMode =
-    input.aggregation === 'children' || input.aggregation === 'cumulative' ? input.aggregation : 'manual';
-  const normalizedNature =
-    input.nature === 'cost' ? 'cost' : input.nature === 'summary' ? 'summary' : 'revenue';
-  const derivedNature = sanitizedAggregation === 'manual' ? normalizedNature : 'summary';
-  return {
-    id: typeof input.id === 'string' && input.id.trim() ? input.id : fallback,
-    code: codeSource.trim().replace(/\s+/g, '_').toUpperCase(),
-    name: typeof input.name === 'string' && input.name.trim() ? input.name.trim() : 'Untitled line',
-    indent: clampIndent(Number(input.indent) || 0),
-    nature: derivedNature,
-    aggregation: sanitizedAggregation,
-    category: typeof input.category === 'string' && isPnlCategory(input.category) ? input.category : '',
-    notes: typeof input.notes === 'string' && input.notes.trim() ? input.notes.trim() : undefined,
-    months: normalizeMonths(input.months)
-  };
-};
-
-const sanitizeBlueprint = (source: unknown) => {
-  const fallback = createDefaultBlueprint();
-  if (!source || typeof source !== 'object') {
-    return fallback;
+const lineEffect = (line: FinancialLineItem) => {
+  if (line.nature === 'cost') {
+    return -1;
   }
-  const raw = source as Record<string, unknown>;
-  const start =
-    typeof raw.startMonth === 'string' && MONTH_KEY_PATTERN.test(raw.startMonth)
-      ? raw.startMonth
-      : fallback.startMonth;
-  const countCandidate = Number(raw.monthCount);
-  const count = Number.isFinite(countCandidate) ? countCandidate : fallback.monthCount;
-  const rawLines = Array.isArray(raw.lines) ? raw.lines : fallback.lines;
-  const lines = rawLines.map((line) => sanitizeLine(line));
-  return {
-    startMonth: start,
-    monthCount: Math.max(MIN_MONTH_COUNT, Math.min(MAX_MONTH_COUNT, Math.floor(count))),
-    lines
-  };
-};
-
-const loadStoredBlueprint = () => {
-  if (typeof window === 'undefined') {
-    return createDefaultBlueprint();
+  if (line.nature === 'revenue') {
+    return 1;
   }
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return createDefaultBlueprint();
-    }
-    return sanitizeBlueprint(JSON.parse(raw));
-  } catch (error) {
-    console.error('Unable to parse stored financial blueprint:', error);
-    return createDefaultBlueprint();
-  }
+  return 1;
 };
 
 const buildParentMap = (lines: FinancialLineItem[]) => {
@@ -150,197 +96,219 @@ const buildChildMap = (lines: FinancialLineItem[], parents: Map<string, string |
   return map;
 };
 
-const resolveLineValues = (
+const buildVisibleLines = (
+  lines: FinancialLineItem[],
+  childMap: Map<string, string[]>,
+  collapsed: Set<string>
+): VisibleLine[] => {
+  const result: VisibleLine[] = [];
+  let hiddenLevel: number | null = null;
+  lines.forEach((line, index) => {
+    if (hiddenLevel !== null && line.indent > hiddenLevel) {
+      return;
+    }
+    if (hiddenLevel !== null && line.indent <= hiddenLevel) {
+      hiddenLevel = null;
+    }
+    const hasChildren = (childMap.get(line.id)?.length ?? 0) > 0;
+    const isCollapsed = hasChildren && collapsed.has(line.id);
+    result.push({ line, index, hasChildren, isCollapsed, level: line.indent + 1 });
+    if (isCollapsed) {
+      hiddenLevel = line.indent;
+    }
+  });
+  return result;
+};
+const buildEmptyRecord = (keys: string[]) =>
+  keys.reduce((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {} as Record<string, number>);
+
+const addToRecord = (target: Record<string, number>, source: Record<string, number>) => {
+  Object.keys(target).forEach((key) => {
+    target[key] = (target[key] ?? 0) + (source[key] ?? 0);
+  });
+};
+
+const buildManualValueMap = (lines: FinancialLineItem[], monthKeys: string[]) => {
+  const map = new Map<string, Record<string, number>>();
+  for (const line of lines) {
+    if (line.computation !== 'manual') {
+      continue;
+    }
+    const effect = lineEffect(line);
+    const record = buildEmptyRecord(monthKeys);
+    monthKeys.forEach((key) => {
+      const numeric = Number(line.months[key]);
+      record[key] = Number.isFinite(numeric) ? effect * numeric : 0;
+    });
+    map.set(line.id, record);
+  }
+  return map;
+};
+
+const buildCumulativeLookup = (
+  lines: FinancialLineItem[],
+  monthKeys: string[],
+  manualMap: Map<string, Record<string, number>>
+) => {
+  const running = buildEmptyRecord(monthKeys);
+  const lookup = new Map<string, Record<string, number>>();
+  for (const line of lines) {
+    if (line.computation === 'manual') {
+      const contribution = manualMap.get(line.id) ?? buildEmptyRecord(monthKeys);
+      addToRecord(running, contribution);
+    }
+    if (line.computation === 'cumulative') {
+      lookup.set(line.id, { ...running });
+    }
+  }
+  return lookup;
+};
+
+const buildValueMap = (
   lines: FinancialLineItem[],
   monthKeys: string[],
   childMap: Map<string, string[]>,
-  indexMap: Map<string, number>
+  manualMap: Map<string, Record<string, number>>,
+  cumulativeLookup: Map<string, Record<string, number>>
 ) => {
   const memo = new Map<string, Record<string, number>>();
   const lineById = new Map(lines.map((line) => [line.id, line]));
-
-  const sumRecords = (records: Record<string, number>[]) => {
-    if (!records.length) {
-      return buildEmptyRecord(monthKeys);
-    }
-    const totals = buildEmptyRecord(monthKeys);
-    for (const key of monthKeys) {
-      totals[key] = records.reduce((acc, record) => acc + (record[key] ?? 0), 0);
-    }
-    return totals;
-  };
 
   const resolve = (line: FinancialLineItem): Record<string, number> => {
     if (memo.has(line.id)) {
       return memo.get(line.id)!;
     }
-    let values: Record<string, number>;
-    if (line.aggregation === 'manual') {
-      values = monthKeys.reduce((acc, key) => {
-        const numeric = Number(line.months[key]);
-        acc[key] = Number.isFinite(numeric) ? numeric : 0;
-        return acc;
-      }, {} as Record<string, number>);
-    } else if (line.aggregation === 'children') {
-      const children = (childMap.get(line.id) ?? [])
-        .map((childId) => lineById.get(childId))
-        .filter(Boolean) as FinancialLineItem[];
-      values = children.length ? sumRecords(children.map((child) => resolve(child))) : buildEmptyRecord(monthKeys);
+    let computed: Record<string, number>;
+    if (line.computation === 'manual') {
+      computed = manualMap.get(line.id) ?? buildEmptyRecord(monthKeys);
+    } else if (line.computation === 'children') {
+      const totals = buildEmptyRecord(monthKeys);
+      const children = childMap.get(line.id) ?? [];
+      for (const childId of children) {
+        const child = lineById.get(childId);
+        if (!child) {
+          continue;
+        }
+        const childValue = resolve(child);
+        addToRecord(totals, childValue);
+      }
+      computed = totals;
     } else {
-      const index = indexMap.get(line.id) ?? 0;
-      const scope = lines.slice(0, index).filter((candidate) => candidate.aggregation !== 'cumulative');
-      values = scope.length ? sumRecords(scope.map((candidate) => resolve(candidate))) : buildEmptyRecord(monthKeys);
+      computed = cumulativeLookup.get(line.id) ?? buildEmptyRecord(monthKeys);
     }
-    memo.set(line.id, values);
-    return values;
+    memo.set(line.id, computed);
+    return computed;
   };
 
   lines.forEach((line) => resolve(line));
   return memo;
 };
 
-const buildVisibleLines = (
-  lines: FinancialLineItem[],
-  childMap: Map<string, string[]>,
-  collapsedIds: Set<string>
-): VisibleLine[] => {
-  const visible: VisibleLine[] = [];
-  let hiddenIndent: number | null = null;
-  lines.forEach((line, index) => {
-    if (hiddenIndent !== null) {
-      if (line.indent > hiddenIndent) {
-        return;
-      }
-      hiddenIndent = null;
-    }
-    const hasChildren = (childMap.get(line.id)?.length ?? 0) > 0;
-    const isCollapsed = hasChildren && collapsedIds.has(line.id);
-    visible.push({ line, index, hasChildren, isCollapsed });
-    if (isCollapsed) {
-      hiddenIndent = line.indent;
-    }
-  });
-  return visible;
-};
-
-const guessAggregation = (value: string): FinancialAggregationMode => {
-  const lower = value.toLowerCase();
-  if (lower.includes('child')) {
-    return 'children';
+const toColumnLetter = (index: number) => {
+  let temp = index;
+  let letter = '';
+  while (temp >= 0) {
+    letter = String.fromCharCode((temp % 26) + 65) + letter;
+    temp = Math.floor(temp / 26) - 1;
   }
-  if (lower.includes('cumulative') || lower.includes('subtotal') || lower.includes('rolling')) {
-    return 'cumulative';
-  }
-  return 'manual';
+  return letter;
 };
-
-const guessNature = (value: string) => {
-  const lower = value.toLowerCase();
-  if (lower.includes('cost')) {
-    return 'cost';
-  }
-  if (lower.includes('summary') || lower.includes('subtotal')) {
-    return 'summary';
-  }
-  return 'revenue';
-};
-
-const parseNumber = (value: unknown) => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : undefined;
-};
-
 export const FinancialsScreen = () => {
-  const initialBlueprint = useMemo(() => loadStoredBlueprint(), []);
-  const [lines, setLines] = useState<FinancialLineItem[]>(initialBlueprint.lines);
-  const [startMonth, setStartMonth] = useState(initialBlueprint.startMonth);
-  const [monthCount, setMonthCount] = useState(initialBlueprint.monthCount);
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const { blueprint, loading, error, saveBlueprint, refresh } = useFinancialsState();
+  const [lines, setLines] = useState<FinancialLineItem[]>([]);
+  const [startMonth, setStartMonth] = useState(createDefaultBlueprint().startMonth);
+  const [monthCount, setMonthCount] = useState(DEFAULT_MONTH_COUNT);
+  const [version, setVersion] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [importStatus, setImportStatus] = useState<ImportStatus>(null);
 
-  const monthColumns = useMemo(() => buildMonthColumns(startMonth, monthCount), [startMonth, monthCount]);
-  const monthKeys = monthColumns.map((column) => column.key);
-
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (!blueprint) {
       return;
     }
-    try {
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          startMonth,
-          monthCount,
-          lines
-        })
-      );
-    } catch (error) {
-      console.warn('Unable to persist financial blueprint locally:', error);
-    }
-  }, [startMonth, monthCount, lines]);
+    setLines(blueprint.lines);
+    setStartMonth(blueprint.startMonth);
+    setMonthCount(blueprint.monthCount);
+    setVersion(blueprint.version);
+    setDirty(false);
+  }, [blueprint]);
+
+  const monthColumns = useMemo(() => buildMonthColumns(startMonth, monthCount), [startMonth, monthCount]);
+  const monthKeys = monthColumns.map((month) => month.key);
 
   const parentMap = useMemo(() => buildParentMap(lines), [lines]);
   const childMap = useMemo(() => buildChildMap(lines, parentMap), [lines, parentMap]);
-  const lineIndexMap = useMemo(() => {
-    const map = new Map<string, number>();
-    lines.forEach((line, index) => map.set(line.id, index));
-    return map;
-  }, [lines]);
+  const manualValueMap = useMemo(() => buildManualValueMap(lines, monthKeys), [lines, monthKeys]);
+  const cumulativeLookup = useMemo(
+    () => buildCumulativeLookup(lines, monthKeys, manualValueMap),
+    [lines, monthKeys, manualValueMap]
+  );
   const valueMap = useMemo(
-    () => resolveLineValues(lines, monthKeys, childMap, lineIndexMap),
-    [lines, monthKeys, childMap, lineIndexMap]
+    () => buildValueMap(lines, monthKeys, childMap, manualValueMap, cumulativeLookup),
+    [lines, monthKeys, childMap, manualValueMap, cumulativeLookup]
   );
   const visibleLines = useMemo(() => buildVisibleLines(lines, childMap, collapsed), [lines, childMap, collapsed]);
 
-  const toggleCollapse = (id: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
+  const markDirty = () => {
+    setDirty(true);
+    setSaveFeedback(null);
   };
 
-  const updateLine = (id: string, updater: (line: FinancialLineItem) => FinancialLineItem) => {
-    setLines((current) => current.map((line) => (line.id === id ? updater(line) : line)));
+  const handleNameChange = (id: string, name: string) => {
+    setLines((current) =>
+      current.map((line) => {
+        if (line.id !== id) {
+          return line;
+        }
+        const previousSlug = slugifyCode(line.name);
+        const hasCustomCode = line.code !== previousSlug;
+        const nextName = name;
+        const nextLine: FinancialLineItem = { ...line, name: nextName };
+        if (!hasCustomCode) {
+          const baseCode = slugifyCode(nextName);
+          nextLine.code = ensureUniqueCode(current, baseCode, id);
+        }
+        return nextLine;
+      })
+    );
+    markDirty();
   };
 
-  const handleNameChange = (id: string, value: string) => {
-    updateLine(id, (line) => ({ ...line, name: value }));
+  const handleComputationChange = (id: string, computation: FinancialLineItem['computation']) => {
+    setLines((current) =>
+      current.map((line) => {
+        if (line.id !== id) {
+          return line;
+        }
+        if (computation === 'manual') {
+          const nature = line.nature === 'cost' ? 'cost' : 'revenue';
+          return { ...line, computation, nature };
+        }
+        return { ...line, computation, nature: 'summary', months: {} };
+      })
+    );
+    markDirty();
   };
 
-  const handleCodeChange = (id: string, value: string) => {
-    updateLine(id, (line) => ({ ...line, code: value.trim().replace(/\s+/g, '_').toUpperCase() }));
-  };
-
-  const handleNatureChange = (id: string, value: FinancialLineItem['nature']) => {
-    updateLine(id, (line) => {
-      if (line.aggregation !== 'manual') {
-        return { ...line, nature: 'summary' };
-      }
-      if (value === 'summary') {
-        return { ...line, nature: 'revenue' };
-      }
-      return { ...line, nature: value };
-    });
-  };
-
-  const handleAggregationChange = (id: string, aggregation: FinancialAggregationMode) => {
-    updateLine(id, (line) => {
-      if (aggregation === 'manual') {
-        const fallbackNature = line.nature === 'summary' ? 'revenue' : line.nature;
-        return { ...line, aggregation, nature: fallbackNature };
-      }
-      return { ...line, aggregation, nature: 'summary' };
-    });
-  };
-
-  const handleCategoryChange = (id: string, category: string) => {
-    const normalized = isPnlCategory(category) ? category : '';
-    updateLine(id, (line) => ({ ...line, category: normalized }));
+  const handleNatureChange = (id: string, nature: FinancialLineItem['nature']) => {
+    setLines((current) =>
+      current.map((line) => {
+        if (line.id !== id) {
+          return line;
+        }
+        if (line.computation !== 'manual') {
+          return line;
+        }
+        return { ...line, nature: nature === 'cost' ? 'cost' : 'revenue' };
+      })
+    );
+    markDirty();
   };
 
   const handleIndentChange = (id: string, delta: number) => {
@@ -351,11 +319,11 @@ export const FinancialsScreen = () => {
         return current;
       }
       const prevIndent = index === 0 ? 0 : next[index - 1].indent;
-      const targetIndent =
-        delta > 0 ? Math.min(prevIndent + 1, clampIndent(next[index].indent + delta)) : clampIndent(next[index].indent + delta);
-      next[index] = { ...next[index], indent: targetIndent };
+      const target = delta > 0 ? Math.min(prevIndent + 1, next[index].indent + delta) : next[index].indent + delta;
+      next[index] = { ...next[index], indent: clampIndent(target, MAX_INDENT_LEVEL) };
       return next;
     });
+    markDirty();
   };
 
   const handleMove = (id: string, direction: -1 | 1) => {
@@ -373,202 +341,85 @@ export const FinancialsScreen = () => {
       next.splice(targetIndex, 0, line);
       return next;
     });
+    markDirty();
   };
 
-  const handleRemove = (id: string) => {
+  const handleDelete = (id: string) => {
     setLines((current) => current.filter((line) => line.id !== id));
     setCollapsed((prev) => {
-      if (!prev.has(id)) {
-        return prev;
-      }
       const next = new Set(prev);
       next.delete(id);
       return next;
     });
+    markDirty();
   };
 
-  const handleValueChange = (id: string, monthKey: string, rawValue: string) => {
-    updateLine(id, (line) => {
-      if (line.aggregation !== 'manual') {
-        return line;
-      }
-      const nextMonths = { ...line.months };
-      if (!rawValue.trim()) {
-        delete nextMonths[monthKey];
+  const handleValueChange = (id: string, monthKey: string, raw: string) => {
+    setLines((current) =>
+      current.map((line) => {
+        if (line.id !== id) {
+          return line;
+        }
+        if (line.computation !== 'manual') {
+          return line;
+        }
+        const nextMonths = { ...line.months };
+        if (!raw.trim()) {
+          delete nextMonths[monthKey];
+          return { ...line, months: nextMonths };
+        }
+        const numeric = Number(raw);
+        if (!Number.isFinite(numeric)) {
+          return line;
+        }
+        nextMonths[monthKey] = numeric;
         return { ...line, months: nextMonths };
+      })
+    );
+    markDirty();
+  };
+
+  const toggleCollapse = (id: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
       }
-      const numeric = Number(rawValue);
-      if (!Number.isFinite(numeric)) {
-        return line;
-      }
-      nextMonths[monthKey] = numeric;
-      return { ...line, months: nextMonths };
+      return next;
     });
   };
 
-  const addLine = (nature: 'revenue' | 'cost') => {
-    const seq = lines.length + 1;
-    const codePrefix = nature === 'revenue' ? 'REV' : 'COST';
-    setLines((current) => [
-      ...current,
-      {
-        id: generateId(),
-        code: `${codePrefix}_${seq}`,
-        name: nature === 'revenue' ? 'New revenue line' : 'New cost line',
-        indent: 0,
-        nature,
-        aggregation: 'manual',
-        category: nature === 'revenue' ? pnlCategories[0] : '',
-        months: {}
-      }
-    ]);
+  const addLine = () => {
+    setLines((current) => {
+      const baseName = 'New line item';
+      const baseCode = ensureUniqueCode(current, slugifyCode(baseName));
+      return [
+        ...current,
+        {
+          id: generateId(),
+          code: baseCode,
+          name: baseName,
+          indent: 0,
+          nature: 'revenue',
+          computation: 'manual',
+          months: {}
+        }
+      ];
+    });
+    markDirty();
   };
 
-  const addSubtotal = () => {
-    setLines((current) => [
-      ...current,
-      {
-        id: generateId(),
-        code: `TOTAL_${current.length + 1}`,
-        name: 'New subtotal',
-        indent: 0,
-        nature: 'summary',
-        aggregation: 'cumulative',
-        category: '',
-        months: {}
-      }
-    ]);
-  };
-
-  const resetBlueprint = () => {
+  const resetToTemplate = () => {
     const defaults = createDefaultBlueprint();
     setLines(defaults.lines);
     setStartMonth(defaults.startMonth);
-    setMonthCount(defaults.monthCount);
+    setMonthCount(DEFAULT_MONTH_COUNT);
     setCollapsed(new Set());
-    setImportStatus(null);
+    setDirty(true);
+    setSaveFeedback(null);
   };
-
-  const netSummaryLine = useMemo(
-    () => [...lines].reverse().find((line) => line.aggregation === 'cumulative'),
-    [lines]
-  );
-  const netValues = netSummaryLine ? valueMap.get(netSummaryLine.id) : undefined;
-
-  const netTotals = useMemo(() => {
-    if (!netValues) {
-      return null;
-    }
-    const totals = { horizon: 0, trailing12: 0, lastMonth: 0 };
-    const monthKeysAsc = [...monthKeys];
-    monthKeysAsc.forEach((key, index) => {
-      const value = netValues[key] ?? 0;
-      totals.horizon += value;
-      if (index >= monthKeysAsc.length - 12) {
-        totals.trailing12 += value;
-      }
-      if (index === monthKeysAsc.length - 1) {
-        totals.lastMonth = value;
-      }
-    });
-    return totals;
-  }, [netValues, monthKeys]);
-
-  const warnings = useMemo(() => {
-    const issues: string[] = [];
-    const manualLines = lines.filter((line) => line.aggregation === 'manual');
-    const missingCategories = manualLines.filter((line) => !line.category);
-    if (missingCategories.length) {
-      issues.push(`${missingCategories.length} manual lines do not have a linked P&L category yet.`);
-    }
-    const codeUsage = new Map<string, number>();
-    lines.forEach((line) => {
-      const code = line.code.trim();
-      codeUsage.set(code, (codeUsage.get(code) ?? 0) + 1);
-    });
-    const duplicateCodes = Array.from(codeUsage.entries())
-      .filter(([, count]) => count > 1)
-      .map(([code]) => code);
-    if (duplicateCodes.length) {
-      issues.push(`Duplicate codes detected: ${duplicateCodes.slice(0, 5).join(', ')}.`);
-    }
-    lines.forEach((line, index) => {
-      if (index === 0) {
-        return;
-      }
-      if (line.indent - lines[index - 1].indent > 1) {
-        issues.push(`Line "${line.name}" skips hierarchy levels. Use indent controls to nest gradually.`);
-      }
-    });
-    const orphanRollups = lines.filter(
-      (line) => line.aggregation === 'children' && (childMap.get(line.id)?.length ?? 0) === 0
-    );
-    if (orphanRollups.length) {
-      issues.push(`${orphanRollups.length} roll-up lines have no children and therefore always show zero.`);
-    }
-    return issues;
-  }, [lines, childMap]);
-
-  const mappingStats = useMemo(() => {
-    const manualLines = lines.filter((line) => line.aggregation === 'manual');
-    const linked = manualLines.filter((line) => Boolean(line.category));
-    return {
-      total: manualLines.length,
-      linked: linked.length,
-      coverage: manualLines.length ? Math.round((linked.length / manualLines.length) * 100) : 0
-    };
-  }, [lines]);
-
-  const exportWorkbook = () => {
-    const workbook = XLSX.utils.book_new();
-    const rows = lines.map((line) => {
-      const resolved = valueMap.get(line.id) ?? buildEmptyRecord(monthKeys);
-      const row: Record<string, string | number> = {
-        'Line ID': line.id,
-        Code: line.code,
-        'Line name': line.name,
-        Nature: line.nature,
-        Aggregation: aggregationLabels[line.aggregation],
-        Indent: line.indent,
-        Category: line.category,
-        Notes: line.notes ?? ''
-      };
-      monthKeys.forEach((key) => {
-        row[key] = resolved[key] ?? 0;
-      });
-      return row;
-    });
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Blueprint');
-    XLSX.writeFile(workbook, 'financials-blueprint.xlsx');
-  };
-
-  const downloadTemplate = () => {
-    const defaults = createDefaultBlueprint();
-    const templateMonths = buildMonthColumns(defaults.startMonth, defaults.monthCount).map((column) => column.key);
-    const workbook = XLSX.utils.book_new();
-    const sheet = XLSX.utils.json_to_sheet(
-      defaults.lines.map((line) => {
-        const row: Record<string, string | number> = {
-          'Line ID': line.id,
-          Code: line.code,
-          'Line name': line.name,
-          Nature: line.nature,
-          Aggregation: aggregationLabels[line.aggregation],
-          Indent: line.indent,
-          Category: line.category,
-          Notes: ''
-        };
-        templateMonths.forEach((key) => {
-          row[key] = 0;
-        });
-        return row;
-      })
-    );
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Blueprint');
-    XLSX.writeFile(workbook, 'financials-template.xlsx');
-  };
-
   const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -579,68 +430,269 @@ export const FinancialsScreen = () => {
       const workbook = XLSX.read(buffer, { type: 'array' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       if (!sheet) {
-        throw new Error('No worksheets detected in the file.');
+        throw new Error('Sheet not found.');
       }
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { raw: true, defval: '' });
       if (!rows.length) {
-        throw new Error('The sheet is empty.');
+        throw new Error('Sheet is empty.');
       }
       const columnKeys = Object.keys(rows[0]);
       const monthColumnsInSheet = columnKeys.filter((key) => MONTH_KEY_PATTERN.test(key)).sort();
-      const parsedLines: FinancialLineItem[] = rows.map((row, index) => {
-        const aggregation = guessAggregation(String(row.Aggregation ?? row.aggregation ?? ''));
-        const rawNature = guessNature(String(row.Nature ?? row.nature ?? ''));
-        const sanitizedNature = aggregation === 'manual' ? rawNature : 'summary';
-        const months = monthColumnsInSheet.reduce((acc, key) => {
-          const numeric = parseNumber(row[key]);
-          if (typeof numeric === 'number') {
-            acc[key] = numeric;
-          }
-          return acc;
-        }, {} as Record<string, number>);
-        const rawCategory = typeof row.Category === 'string' ? row.Category.trim() : '';
-        const categoryValue: PnlCategory | '' = isPnlCategory(rawCategory) ? rawCategory : '';
-        return {
-          id:
+      const sanitizedLines: FinancialLineItem[] = rows
+        .map((row, index) => {
+          const computation: FinancialLineItem['computation'] =
+            row.Computation === 'children' || row.Computation === 'cumulative' ? row.Computation : 'manual';
+          const nature: FinancialLineItem['nature'] =
+            computation === 'manual'
+              ? row.Nature === 'cost'
+                ? 'cost'
+                : 'revenue'
+              : 'summary';
+          const indentValue = clampIndent(Number(row.Indent ?? row.indent ?? 0), MAX_INDENT_LEVEL);
+          const id =
             (typeof row['Line ID'] === 'string' && row['Line ID'].trim()) ||
             (typeof row.id === 'string' && row.id.trim()) ||
-            generateId(),
-          code:
-            (typeof row.Code === 'string' && row.Code.trim().replace(/\s+/g, '_').toUpperCase()) ||
-            `LINE_${index + 1}`,
-          name:
+            generateId();
+          const name =
             (typeof row['Line name'] === 'string' && row['Line name'].trim()) ||
             (typeof row.name === 'string' && row.name.trim()) ||
-            `Line ${index + 1}`,
-          indent: clampIndent(Number(row.Indent ?? row.indent) || 0),
-          aggregation,
-          nature: sanitizedNature as FinancialLineItem['nature'],
-          category: categoryValue,
-          notes: typeof row.Notes === 'string' && row.Notes.trim() ? row.Notes.trim() : undefined,
-          months
-        };
-      });
-      setLines(parsedLines);
+            `Line ${index + 1}`;
+          const rawCode =
+            (typeof row.Code === 'string' && row.Code.trim()) ||
+            (typeof row.code === 'string' && row.code.trim()) ||
+            slugifyCode(name);
+          const months: Record<string, number> = {};
+          if (computation === 'manual') {
+            monthColumnsInSheet.forEach((key) => {
+              const numeric = Number(row[key]);
+              if (Number.isFinite(numeric)) {
+                months[key] = numeric;
+              }
+            });
+          }
+          return {
+            id,
+            code: rawCode,
+            name,
+            indent: indentValue,
+            nature,
+            computation,
+            months
+          };
+        })
+        .map((line, _, array) => ({
+          ...line,
+          code: ensureUniqueCode(array, slugifyCode(line.code), line.id),
+          months:
+            line.computation === 'manual'
+              ? Object.fromEntries(
+                  Object.entries(line.months).map(([key, value]) => [
+                    key,
+                    line.nature === 'cost' ? Math.abs(value) : value
+                  ])
+                )
+              : {}
+        }));
+      setLines(sanitizedLines);
       if (monthColumnsInSheet.length) {
         setStartMonth(monthColumnsInSheet[0]);
         setMonthCount(Math.max(MIN_MONTH_COUNT, Math.min(MAX_MONTH_COUNT, monthColumnsInSheet.length)));
       }
       setCollapsed(new Set());
-      setImportStatus({ type: 'success', message: 'Data imported from Excel successfully.' });
-    } catch (error) {
-      console.error('Failed to import blueprint:', error);
+      setDirty(true);
+      setSaveFeedback(null);
+      setImportStatus({ type: 'success', message: 'Excel data imported.' });
+    } catch (importError) {
+      console.error('Failed to import blueprint:', importError);
       setImportStatus({
         type: 'error',
-        message: 'Unable to import the file. Please verify the template structure and try again.'
+        message: 'Unable to import the file. Ensure headers match the template.'
       });
     } finally {
       event.target.value = '';
     }
   };
 
-  const importStatusNode = importStatus && (
-    <p className={importStatus.type === 'success' ? styles.successText : styles.errorText}>{importStatus.message}</p>
+  const exportWorkbook = () => {
+    const workbook = XLSX.utils.book_new();
+    const metaHeaders = [
+      'Line ID',
+      'Code',
+      'Line name',
+      'Nature',
+      'Computation',
+      'Indent',
+      'Level',
+      'Impact'
+    ];
+    const headers = [...metaHeaders, ...monthColumns.map((month) => `${month.label} ${month.year}`)];
+      const rows: (string | number)[][] = [headers];
+    const rowNumberMap = new Map<string, number>();
+    lines.forEach((line, index) => {
+      const rowNumber = index + 2;
+      rowNumberMap.set(line.id, rowNumber);
+      const baseRow: (string | number)[] = [
+        line.id,
+        line.code,
+        line.name,
+        line.nature,
+        line.computation,
+        line.indent,
+        line.indent + 1,
+        line.computation === 'manual' ? lineEffect(line) : 1
+      ];
+      const monthValues = monthColumns.map((month) => {
+        if (line.computation !== 'manual') {
+          return '';
+        }
+        const raw = Number(line.months[month.key]);
+        return Number.isFinite(raw) ? raw : '';
+      });
+      rows.push([...baseRow, ...monthValues]);
+    });
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    const impactColumnLetter = toColumnLetter(metaHeaders.length - 1);
+    const computationColumnLetter = toColumnLetter(metaHeaders.indexOf('Computation'));
+    lines.forEach((line, lineIndex) => {
+      const rowNumber = lineIndex + 2;
+      monthColumns.forEach((month, monthIndex) => {
+        const columnIndex = metaHeaders.length + monthIndex;
+        const columnLetter = toColumnLetter(columnIndex);
+        const cellRef = `${columnLetter}${rowNumber}`;
+        if (line.computation === 'manual') {
+          const raw = Number(line.months[month.key]);
+          sheet[cellRef] = Number.isFinite(raw)
+            ? { t: 'n', v: raw }
+            : { t: 'n', v: '' as unknown as number };
+          return;
+        }
+        if (line.computation === 'children') {
+          const childIds = childMap.get(line.id) ?? [];
+          const terms = childIds
+            .map((childId) => {
+              const childRow = rowNumberMap.get(childId);
+              if (!childRow) {
+                return null;
+              }
+              const childLine = lines.find((candidate) => candidate.id === childId);
+              if (!childLine) {
+                return null;
+              }
+              if (childLine.computation === 'manual') {
+                return `${impactColumnLetter}${childRow}*${columnLetter}${childRow}`;
+              }
+              return `${columnLetter}${childRow}`;
+            })
+            .filter(Boolean);
+          const formula = terms.length ? `=${terms.join('+')}` : '=0';
+          sheet[cellRef] = { t: 'n', f: formula };
+          return;
+        }
+        const rangeEnd = rowNumber - 1;
+        if (rangeEnd <= 1) {
+          sheet[cellRef] = { t: 'n', v: 0 };
+          return;
+        }
+        const formula = `=SUMPRODUCT(--($${computationColumnLetter}$2:$${computationColumnLetter}$${rangeEnd}="manual"), $${impactColumnLetter}$2:$${impactColumnLetter}$${rangeEnd}, ${columnLetter}$2:${columnLetter}$${rangeEnd})`;
+        sheet[cellRef] = { t: 'n', f: formula };
+      });
+    });
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Blueprint');
+    XLSX.writeFile(workbook, 'financials-blueprint.xlsx');
+  };
+
+  const downloadTemplate = () => {
+    const defaults = createDefaultBlueprint();
+    setLines(defaults.lines);
+    setStartMonth(defaults.startMonth);
+    setMonthCount(DEFAULT_MONTH_COUNT);
+    setCollapsed(new Set());
+    setDirty(true);
+    setSaveFeedback(null);
+  };
+  const netSummaryLine = useMemo(
+    () => [...lines].reverse().find((line) => line.computation === 'cumulative'),
+    [lines]
   );
+  const netValues = netSummaryLine ? valueMap.get(netSummaryLine.id) : undefined;
+  const netTotals = useMemo(() => {
+    if (!netValues) {
+      return null;
+    }
+    const totals = { horizon: 0, trailing12: 0, lastMonth: 0 };
+    monthKeys.forEach((key, index) => {
+      const value = netValues[key] ?? 0;
+      totals.horizon += value;
+      if (index >= monthKeys.length - 12) {
+        totals.trailing12 += value;
+      }
+      if (index === monthKeys.length - 1) {
+        totals.lastMonth = value;
+      }
+    });
+    return totals;
+  }, [netValues, monthKeys]);
+
+  const warnings = useMemo(() => {
+    const issues: string[] = [];
+    const codeUsage = new Map<string, number>();
+    lines.forEach((line) => {
+      codeUsage.set(line.code, (codeUsage.get(line.code) ?? 0) + 1);
+    });
+    const duplicateCodes = Array.from(codeUsage.entries())
+      .filter(([, count]) => count > 1)
+      .map(([code]) => code);
+    if (duplicateCodes.length) {
+      issues.push(`Duplicate codes detected: ${duplicateCodes.slice(0, 4).join(', ')}.`);
+    }
+    lines.forEach((line, index) => {
+      if (index === 0) {
+        return;
+      }
+      const previous = lines[index - 1];
+      if (line.indent - previous.indent > 1) {
+        issues.push(`"${line.name}" skips hierarchy levels. Use indent controls to nest gradually.`);
+      }
+    });
+    const orphanRollups = lines.filter(
+      (line) => line.computation === 'children' && (childMap.get(line.id)?.length ?? 0) === 0
+    );
+    if (orphanRollups.length) {
+      issues.push(`${orphanRollups.length} roll-up lines have no children and always show zero.`);
+    }
+    return issues;
+  }, [lines, childMap]);
+
+  const handleSave = async () => {
+    if (saving || version === null) {
+      return;
+    }
+    setSaving(true);
+    setSaveFeedback(null);
+    const payload: FinancialBlueprintPayload = {
+      startMonth,
+      monthCount,
+      lines
+    };
+    const result = await saveBlueprint(payload, version);
+    if (result.ok) {
+      setSaveFeedback('Blueprint saved.');
+      setDirty(false);
+    } else if (result.error === 'version-conflict') {
+      setSaveFeedback('Version conflict. Reloading latest data.');
+    } else {
+      setSaveFeedback('Unable to save. Please retry.');
+    }
+    setSaving(false);
+  };
+
+  if (loading && !blueprint) {
+    return (
+      <section className={styles.screen}>
+        <p>Loading financial blueprint...</p>
+      </section>
+    );
+  }
 
   return (
     <section className={styles.screen}>
@@ -648,15 +700,22 @@ export const FinancialsScreen = () => {
         <div>
           <h1>Financials</h1>
           <p className={styles.subtitle}>
-            Define the P&amp;L blueprint once, control monthly values, and keep dashboards and initiative editors in sync.
+            Define the hierarchy of the company P&L once, reuse it in initiatives, and keep Excel round-trips clean.
           </p>
         </div>
         <div className={styles.headerActions}>
-          <button className={styles.secondaryButton} onClick={downloadTemplate} type="button">
-            Download template
+          <button
+            className={styles.primaryButton}
+            onClick={handleSave}
+            disabled={saving || !dirty || version === null}
+          >
+            {saving ? 'Saving...' : dirty ? 'Save blueprint' : 'Saved'}
+          </button>
+          <button className={styles.secondaryButton} onClick={refresh} type="button" disabled={loading}>
+            Reload
           </button>
           <button className={styles.secondaryButton} onClick={exportWorkbook} type="button">
-            Export current model
+            Export to Excel
           </button>
           <label className={styles.importButton}>
             <input type="file" accept=".xlsx,.xls" onChange={handleImport} />
@@ -664,6 +723,19 @@ export const FinancialsScreen = () => {
           </label>
         </div>
       </header>
+
+      {error && (
+        <div className={styles.errorBanner}>
+          Unable to load the blueprint. Refresh or reload the page and try again.
+        </div>
+      )}
+
+      {saveFeedback && <div className={styles.infoBanner}>{saveFeedback}</div>}
+      {importStatus && (
+        <div className={importStatus.type === 'success' ? styles.infoBanner : styles.errorBanner}>
+          {importStatus.message}
+        </div>
+      )}
 
       <div className={styles.controlsBar}>
         <div className={styles.timelineControls}>
@@ -675,6 +747,7 @@ export const FinancialsScreen = () => {
               onChange={(event) => {
                 if (MONTH_KEY_PATTERN.test(event.target.value)) {
                   setStartMonth(event.target.value);
+                  markDirty();
                 }
               }}
             />
@@ -683,7 +756,10 @@ export const FinancialsScreen = () => {
             <span>Horizon</span>
             <select
               value={monthCount}
-              onChange={(event) => setMonthCount(Math.max(MIN_MONTH_COUNT, Number(event.target.value)))}
+              onChange={(event) => {
+                setMonthCount(Math.max(MIN_MONTH_COUNT, Number(event.target.value)));
+                markDirty();
+              }}
             >
               {[24, 30, 36, 42, 48].map((value) => (
                 <option key={value} value={value}>
@@ -692,18 +768,16 @@ export const FinancialsScreen = () => {
               ))}
             </select>
           </label>
+          <label>
+            <span>Last updated</span>
+            <strong>{blueprint ? new Date(blueprint.updatedAt).toLocaleString() : '-'}</strong>
+          </label>
         </div>
         <div className={styles.lineButtons}>
-          <button className={styles.primaryButton} onClick={() => addLine('revenue')} type="button">
-            + Revenue line
+          <button className={styles.primaryButton} onClick={addLine} type="button">
+            Create line item
           </button>
-          <button className={styles.primaryButton} onClick={() => addLine('cost')} type="button">
-            + Cost line
-          </button>
-          <button className={styles.primaryButton} onClick={addSubtotal} type="button">
-            + Subtotal
-          </button>
-          <button className={styles.ghostButton} onClick={resetBlueprint} type="button">
+          <button className={styles.ghostButton} onClick={resetToTemplate} type="button">
             Reset to curated template
           </button>
         </div>
@@ -716,9 +790,10 @@ export const FinancialsScreen = () => {
               <thead>
                 <tr>
                   <th className={styles.lineColumn}>Line item</th>
+                  <th className={styles.levelColumn}>Level</th>
+                  <th className={styles.impactColumn}>Impact</th>
                   <th className={styles.natureColumn}>Nature</th>
-                  <th className={styles.categoryColumn}>P&amp;L category link</th>
-                  <th className={styles.aggregationColumn}>Aggregation</th>
+                  <th className={styles.aggregationColumn}>Computation</th>
                   {monthColumns.map((month) => (
                     <th key={month.key} className={styles.monthColumn}>
                       <span>{month.label}</span>
@@ -730,29 +805,30 @@ export const FinancialsScreen = () => {
               <tbody>
                 {visibleLines.length === 0 ? (
                   <tr>
-                    <td colSpan={4 + monthColumns.length} className={styles.emptyCell}>
-                      No lines yet. Use the buttons above to add revenue, cost, or subtotal rows.
+                    <td colSpan={5 + monthColumns.length} className={styles.emptyCell}>
+                      No lines yet. Use "Create line item" to start defining the hierarchy.
                     </td>
                   </tr>
                 ) : (
-                  visibleLines.map(({ line, index, hasChildren, isCollapsed }) => {
+                  visibleLines.map(({ line, index, hasChildren, isCollapsed, level }) => {
                     const resolved = valueMap.get(line.id) ?? buildEmptyRecord(monthKeys);
                     return (
                       <Fragment key={line.id}>
-                        <tr className={line.aggregation !== 'manual' ? styles.summaryRow : undefined}>
+                        <tr className={line.computation !== 'manual' ? styles.summaryRow : undefined}>
                           <td className={styles.lineColumn}>
                             <div className={styles.lineCell} style={{ marginLeft: `${line.indent * 16}px` }}>
-                              {hasChildren && (
+                              {hasChildren ? (
                                 <button
                                   className={styles.collapseButton}
                                   onClick={() => toggleCollapse(line.id)}
                                   type="button"
                                   aria-label={isCollapsed ? 'Expand section' : 'Collapse section'}
                                 >
-                                  {isCollapsed ? '▸' : '▾'}
+                                  {isCollapsed ? '>' : 'v'}
                                 </button>
+                              ) : (
+                                <span className={styles.placeholderIcon} />
                               )}
-                              {!hasChildren && line.indent > 0 && <span className={styles.placeholderIcon} />}
                               <div className={styles.lineInputs}>
                                 <input
                                   className={styles.nameInput}
@@ -760,95 +836,81 @@ export const FinancialsScreen = () => {
                                   onChange={(event) => handleNameChange(line.id, event.target.value)}
                                 />
                                 <div className={styles.metaRow}>
-                                  <input
-                                    className={styles.codeInput}
-                                    value={line.code}
-                                    onChange={(event) => handleCodeChange(line.id, event.target.value)}
-                                  />
+                                  <span className={styles.codeBadge}>{line.code}</span>
                                   <div className={styles.rowActions}>
                                     <button
                                       type="button"
                                       onClick={() => handleIndentChange(line.id, -1)}
                                       disabled={line.indent === 0}
                                     >
-                                      ◂
+                                      {'<'}
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => handleIndentChange(line.id, 1)}
                                       disabled={index === 0}
                                     >
-                                      ▸
+                                      {'>'}
                                     </button>
                                     <button type="button" onClick={() => handleMove(line.id, -1)} disabled={index === 0}>
-                                      ↑
+                                      {'^'}
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => handleMove(line.id, 1)}
                                       disabled={index === lines.length - 1}
                                     >
-                                      ↓
+                                      {'v'}
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => handleRemove(line.id)}
+                                      onClick={() => handleDelete(line.id)}
                                       className={styles.removeButton}
                                     >
-                                      ✕
+                                      x
                                     </button>
                                   </div>
                                 </div>
                               </div>
                             </div>
                           </td>
+                          <td className={styles.levelColumn}>{level}</td>
+                          <td className={styles.impactColumn}>
+                            {line.computation === 'manual' ? (line.nature === 'cost' ? '-' : '+') : 'SUM'}
+                          </td>
                           <td>
                             <select
                               value={line.nature}
                               onChange={(event) => handleNatureChange(line.id, event.target.value as FinancialLineItem['nature'])}
-                              disabled={line.aggregation !== 'manual'}
+                              disabled={line.computation !== 'manual'}
                             >
-                              <option value="revenue">Revenue</option>
-                              <option value="cost">Cost</option>
+                              <option value="revenue">Revenue / gain</option>
+                              <option value="cost">Cost / loss</option>
                               <option value="summary" disabled>
-                                Subtotal / summary
+                                Summary
                               </option>
                             </select>
                           </td>
                           <td>
                             <select
-                              value={line.category}
-                              onChange={(event) => handleCategoryChange(line.id, event.target.value)}
-                              disabled={line.aggregation !== 'manual'}
-                            >
-                              <option value="">Not linked</option>
-                              {pnlCategories.map((category) => (
-                                <option key={category} value={category}>
-                                  {category}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <select
-                              value={line.aggregation}
+                              value={line.computation}
                               onChange={(event) =>
-                                handleAggregationChange(line.id, event.target.value as FinancialAggregationMode)
+                                handleComputationChange(line.id, event.target.value as FinancialLineItem['computation'])
                               }
                             >
-                              {Object.entries(aggregationLabels).map(([key, label]) => (
-                                <option key={key} value={key}>
-                                  {label}
-                                </option>
-                              ))}
+                              <option value="manual">Manual entry</option>
+                              <option value="children">Roll-up children</option>
+                              <option value="cumulative">Running subtotal</option>
                             </select>
                           </td>
                           {monthColumns.map((month) => (
                             <td key={`${line.id}-${month.key}`}>
-                              {line.aggregation === 'manual' ? (
+                              {line.computation === 'manual' ? (
                                 <input
                                   type="number"
-                                  value={line.months[month.key] === undefined ? '' : String(line.months[month.key] ?? '')}
+                                  value={
+                                    line.months[month.key] === undefined ? '' : String(line.months[month.key] ?? '')
+                                  }
                                   onChange={(event) => handleValueChange(line.id, month.key, event.target.value)}
                                 />
                               ) : (
@@ -864,7 +926,6 @@ export const FinancialsScreen = () => {
               </tbody>
             </table>
           </div>
-          {importStatusNode}
         </div>
 
         <aside className={styles.sidebar}>
@@ -881,23 +942,17 @@ export const FinancialsScreen = () => {
             )}
           </div>
           <div className={styles.sidebarCard}>
-            <h3>Linking to initiatives</h3>
-            <p>
-              Each revenue/cost line should have a unique code and a mapped P&amp;L category. When a user edits an initiative,
-              these codes become the picker options so that every benefit or cost rolls up into exactly one bucket.
-            </p>
-            <p>
-              Coverage: <strong>{mappingStats.linked}</strong> / {mappingStats.total} manual lines linked (
-              {mappingStats.coverage}%).
-            </p>
-          </div>
-          <div className={styles.sidebarCard}>
             <h3>Excel automation</h3>
             <ol>
-              <li>Download the template and fill in line items, indent (hierarchy), and month values for manual rows.</li>
-              <li>Keep month headers in YYYY-MM format and don&apos;t rename the first columns (Line ID, Code, etc.).</li>
-              <li>Upload the finished file. Subtotals are recalculated automatically; manual rows keep the imported numbers.</li>
-              <li>Use the export button to push the current model back to Excel for bulk edits or sharing.</li>
+              <li>Download the template or export the current blueprint.</li>
+              <li>
+                Each manual line keeps editable values. Cost rows should stay negative once exported so subtotals keep
+                signs.
+              </li>
+              <li>
+                Roll-up rows rely on formulas that reference the hierarchy level column. Avoid deleting metadata columns.
+              </li>
+              <li>Import the updated file. We ignore formulas for computed rows and recalculate them automatically.</li>
             </ol>
           </div>
           {netSummaryLine && netTotals && (

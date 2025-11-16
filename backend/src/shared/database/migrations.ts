@@ -863,6 +863,16 @@ const createTables = async () => {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+
+  await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS financial_blueprints (
+      id TEXT PRIMARY KEY,
+      definition JSONB NOT NULL,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 };
 
 const syncSuperAdmin = async () => {

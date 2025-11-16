@@ -6,7 +6,12 @@ import { AccountRecord, AccountRole, InterviewerSeniority } from '../../shared/t
 import { FitQuestion } from '../../shared/types/fitQuestion';
 import { CaseCriterion } from '../../shared/types/caseCriteria';
 import { DomainResult } from '../../shared/types/results';
-import { Initiative, InitiativeStageKey, initiativeStageKeys, initiativeFinancialKinds } from '../../shared/types/initiative';
+import {
+  Initiative,
+  InitiativeStageKey,
+  initiativeStageKeys,
+  initiativeFinancialKinds
+} from '../../shared/types/initiative';
 import {
   defaultWorkstreamRoleOptions,
   Workstream,
@@ -27,6 +32,8 @@ import { ApiError } from '../../shared/api/httpClient';
 import { useAuth } from '../../modules/auth/AuthContext';
 import { Participant, ParticipantPayload, ParticipantUpdatePayload } from '../../shared/types/participant';
 import { participantsApi } from '../../modules/participants/services/participantsApi';
+import { FinancialBlueprint, FinancialBlueprintPayload } from '../../shared/types/financials';
+import { financialsApi } from '../../modules/financials/services/financialsApi';
 
 const normalizeParticipantOptional = (value: string | null | undefined): string | null => {
   if (value === null || value === undefined) {
@@ -147,6 +154,16 @@ interface AppStateContextValue {
     updateParticipant: (id: string, changes: ParticipantUpdatePayload) => Promise<DomainResult<Participant>>;
     removeParticipant: (id: string) => Promise<DomainResult<string>>;
   };
+  financials: {
+    blueprint: FinancialBlueprint | null;
+    loading: boolean;
+    error: string | null;
+    refresh: () => Promise<void>;
+    saveBlueprint: (
+      blueprint: FinancialBlueprintPayload,
+      expectedVersion: number
+    ) => Promise<DomainResult<FinancialBlueprint>>;
+  };
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -164,6 +181,9 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [accounts, setAccounts] = useState<AccountRecord[]>([]);
   const [caseCriteria, setCaseCriteria] = useState<CaseCriterion[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [financialBlueprint, setFinancialBlueprint] = useState<FinancialBlueprint | null>(null);
+  const [financialBlueprintLoading, setFinancialBlueprintLoading] = useState(false);
+  const [financialBlueprintError, setFinancialBlueprintError] = useState<string | null>(null);
   const { session } = useAuth();
 
   const syncFolders = useCallback(async (): Promise<CaseFolder[] | null> => {
@@ -216,6 +236,49 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     };
     void loadParticipants();
   }, [session]);
+
+  const loadFinancialBlueprint = useCallback(async () => {
+    if (!session) {
+      return;
+    }
+    setFinancialBlueprintLoading(true);
+    try {
+      const remote = await financialsApi.getBlueprint();
+      setFinancialBlueprint(remote);
+      setFinancialBlueprintError(null);
+    } catch (error) {
+      console.error('Failed to load financial blueprint:', error);
+      setFinancialBlueprintError('load_failed');
+    } finally {
+      setFinancialBlueprintLoading(false);
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
+      setFinancialBlueprint(null);
+      setFinancialBlueprintError(null);
+      setFinancialBlueprintLoading(false);
+      return;
+    }
+    void loadFinancialBlueprint();
+  }, [session, loadFinancialBlueprint]);
+
+  const saveFinancialBlueprint = useCallback(
+    async (blueprint: FinancialBlueprintPayload, expectedVersion: number) => {
+      if (!Number.isInteger(expectedVersion)) {
+        return { ok: false, error: 'invalid-input' } as DomainResult<FinancialBlueprint>;
+      }
+      const result = await financialsApi.saveBlueprint(blueprint, expectedVersion);
+      if (result.ok) {
+        setFinancialBlueprint(result.data);
+      } else if (result.error === 'version-conflict') {
+        await loadFinancialBlueprint();
+      }
+      return result;
+    },
+    [loadFinancialBlueprint]
+  );
 
   useEffect(() => {
     if (!session) {
@@ -1337,6 +1400,13 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
           return { ok: false, error: 'unknown' };
         }
       }
+    },
+    financials: {
+      blueprint: financialBlueprint,
+      loading: financialBlueprintLoading,
+      error: financialBlueprintError,
+      refresh: loadFinancialBlueprint,
+      saveBlueprint: saveFinancialBlueprint
     }
   }), [
     folders,
@@ -1349,6 +1419,11 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     evaluations,
     accounts,
     participants,
+    financialBlueprint,
+    financialBlueprintLoading,
+    financialBlueprintError,
+    loadFinancialBlueprint,
+    saveFinancialBlueprint,
     syncFolders
   ]);
 
@@ -1372,3 +1447,4 @@ export const useCandidatesState = () => useAppState().candidates;
 export const useEvaluationsState = () => useAppState().evaluations;
 export const useAccountsState = () => useAppState().accounts;
 export const useParticipantsState = () => useAppState().participants;
+export const useFinancialsState = () => useAppState().financials;
