@@ -284,7 +284,6 @@ const buildWorkbookDocument = (lines: FinancialLineItem[], startMonth: string, m
     ...lines.map((line) => [line.name, line.code, line.id, line.computation, line.nature])
   ];
   const metadataSheet = XLSX.utils.aoa_to_sheet(metadataRows);
-  XLSX.utils.book_append_sheet(workbook, metadataSheet, 'Line metadata');
   return workbook;
 };
 export const FinancialsScreen = () => {
@@ -708,6 +707,12 @@ export const FinancialsScreen = () => {
       }
       const columnKeys = Object.keys(rows[0]);
       const monthColumnsInSheet = columnKeys.filter((key) => MONTH_KEY_PATTERN.test(key)).sort();
+      const monthKeySet = new Set(monthColumnsInSheet);
+      if (monthColumnsInSheet.length === 0) {
+        throw new Error('No month columns detected (YYYY-MM).');
+      }
+      const nameColumn =
+        columnKeys.find((key) => key.toLowerCase() === 'line name' || key.toLowerCase() === 'name') ?? 'Line name';
       const sanitizedLines: FinancialLineItem[] = rows
         .map((row, index) => {
           const computation: FinancialLineItem['computation'] =
@@ -719,7 +724,9 @@ export const FinancialsScreen = () => {
                 : 'revenue'
               : 'summary';
           const indentValue = clampIndent(Number(row.Indent ?? row.indent ?? 0), MAX_INDENT_LEVEL);
+          const nameValue = row[nameColumn];
           const name =
+            (typeof nameValue === 'string' && nameValue.trim()) ||
             (typeof row['Line name'] === 'string' && row['Line name'].trim()) ||
             (typeof row.name === 'string' && row.name.trim()) ||
             `Line ${index + 1}`;
@@ -750,7 +757,10 @@ export const FinancialsScreen = () => {
           const months: Record<string, number> = {};
           if (computation === 'manual') {
             monthColumnsInSheet.forEach((key) => {
-              const numeric = Number(row[key]);
+              if (!monthKeySet.has(key)) {
+                return;
+              }
+              const numeric = Number(row[key as keyof typeof row]);
               if (Number.isFinite(numeric)) {
                 months[key] = numeric;
               }
@@ -779,7 +789,8 @@ export const FinancialsScreen = () => {
                 )
               : {}
         }));
-      setLines(sanitizedLines);
+      const nextLines = sanitizedLines.length ? sanitizedLines : lines;
+      setLines(nextLines);
       if (monthColumnsInSheet.length) {
         setStartMonth(monthColumnsInSheet[0]);
         setMonthCount(Math.max(MIN_MONTH_COUNT, Math.min(MAX_MONTH_COUNT, monthColumnsInSheet.length)));

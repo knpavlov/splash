@@ -81,13 +81,17 @@
 }
 
 .treeWrapper {
-  overflow-x: auto;
-  padding: 0 0 16px;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-bottom: 12px;
 }
 
 .treeCanvas {
   position: relative;
   margin-top: 12px;
+  max-width: min(1400px, 100%);
+  overflow: visible;
 }
 
 .treeSvg {

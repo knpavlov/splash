@@ -146,6 +146,16 @@ export const FinancialTreeScreen = () => {
     }
   }, [blueprint, loading, refresh, refreshRequested]);
 
+  useEffect(() => {
+    if (!blueprint) {
+      return;
+    }
+    const handle = setInterval(() => {
+      void refresh();
+    }, 5 * 60 * 1000);
+    return () => clearInterval(handle);
+  }, [blueprint, refresh]);
+
   const monthList = useMemo(() => (blueprint ? buildMonthIndex(blueprint.lines) : []), [blueprint]);
   const monthKeys = monthList.map((month) => month.key);
   const availableYears = useMemo(
