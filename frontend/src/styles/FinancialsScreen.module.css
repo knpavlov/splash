@@ -503,6 +503,12 @@
   color: #475569;
 }
 
+.sidebarNote {
+  font-size: 12px;
+  color: #64748b;
+  margin: 10px 0 0;
+}
+
 .sidebarButton {
   margin-top: 12px;
   border: none;

@@ -173,12 +173,41 @@ const computeFiscalYearKeys = (keys: string[], fiscalStartMonth: number) => {
   });
 };
 
+const seededRandom = (seed: string, index: number) => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) % 1_000_000;
+  }
+  const x = Math.sin(hash + index * 13.37) * 10000;
+  return x - Math.floor(x);
+};
+
+const buildSampleMonths = (line: FinancialLineItem, monthKeys: string[]) => {
+  if (!monthKeys.length) {
+    return {};
+  }
+  const natureMultiplier = line.nature === 'cost' ? -1 : 1;
+  const base =
+    line.nature === 'revenue'
+      ? 80000 + seededRandom(line.code, 1) * 40000
+      : 40000 + seededRandom(line.code, 2) * 20000;
+  const months: Record<string, number> = {};
+  monthKeys.forEach((key, index) => {
+    const oscillation = 0.25 * Math.sin((index / 12) * Math.PI * 2 + seededRandom(line.code, index));
+    const growth = 1 + 0.015 * index;
+    const noise = 0.1 * (seededRandom(line.code, index + 3) - 0.5);
+    const value = base * growth * (1 + oscillation + noise);
+    months[key] = Math.round(value * natureMultiplier);
+  });
+  return months;
+};
+
 const buildWorkbookDocument = (lines: FinancialLineItem[], startMonth: string, monthCount: number) => {
   const workbook = XLSX.utils.book_new();
   const monthColumns = buildMonthColumns(startMonth, monthCount);
   const parents = buildParentMap(lines);
   const children = buildChildMap(lines, parents);
-  const metaHeaders = ['Line ID', 'Code', 'Line name', 'Nature', 'Computation', 'Indent', 'Level', 'Impact'];
+  const metaHeaders = ['Line name', 'Nature', 'Computation', 'Indent', 'Level', 'Impact'];
   const headers = [...metaHeaders, ...monthColumns.map((month) => `${month.label} ${month.year}`)];
   const rows: (string | number)[][] = [headers];
   const rowNumberMap = new Map<string, number>();
@@ -186,8 +215,6 @@ const buildWorkbookDocument = (lines: FinancialLineItem[], startMonth: string, m
     const rowNumber = index + 2;
     rowNumberMap.set(line.id, rowNumber);
     const baseRow: (string | number)[] = [
-      line.id,
-      line.code,
       line.name,
       line.nature,
       line.computation,
@@ -252,6 +279,12 @@ const buildWorkbookDocument = (lines: FinancialLineItem[], startMonth: string, m
     });
   });
   XLSX.utils.book_append_sheet(workbook, sheet, 'Blueprint');
+  const metadataRows = [
+    ['Line name', 'Code', 'Line ID', 'Computation', 'Nature'],
+    ...lines.map((line) => [line.name, line.code, line.id, line.computation, line.nature])
+  ];
+  const metadataSheet = XLSX.utils.aoa_to_sheet(metadataRows);
+  XLSX.utils.book_append_sheet(workbook, metadataSheet, 'Line metadata');
   return workbook;
 };
 export const FinancialsScreen = () => {
@@ -293,30 +326,32 @@ export const FinancialsScreen = () => {
     if (samplePrefillRef.current === blueprint.id) {
       return;
     }
-    const hasManualValues = blueprint.lines.some(
-      (line) => line.computation === 'manual' && Object.keys(line.months ?? {}).length > 0
-    );
+    const hasManualValues = blueprint.lines.some((line) => {
+      if (line.computation !== 'manual') {
+        return false;
+      }
+      return Object.values(line.months ?? {}).some((value) => Number(value) !== 0);
+    });
     if (hasManualValues) {
       samplePrefillRef.current = blueprint.id;
       return;
     }
-    const defaults = createDefaultBlueprint();
+    const monthKeys = buildMonthColumns(startMonth, monthCount).map((month) => month.key);
     setLines((current) =>
       current.map((line) => {
         if (line.computation !== 'manual') {
           return line;
         }
-        const sampleLine = defaults.lines.find((candidate) => candidate.code === line.code);
-        if (!sampleLine) {
-          return line;
-        }
-        return { ...line, months: { ...sampleLine.months } };
+        return {
+          ...line,
+          months: buildSampleMonths(line, monthKeys)
+        };
       })
     );
     setDirty(true);
-    setSaveFeedback('Sample data applied. Save the blueprint to keep it.');
+    setSaveFeedback('We pre-filled the P&L with sample data. Save the blueprint to persist it.');
     samplePrefillRef.current = blueprint.id;
-  }, [blueprint]);
+  }, [blueprint, startMonth, monthCount]);
 
   const monthColumns = useMemo(() => buildMonthColumns(startMonth, monthCount), [startMonth, monthCount]);
   const monthKeys = monthColumns.map((month) => month.key);
@@ -1300,6 +1335,10 @@ export const FinancialsScreen = () => {
               <li>Enter monthly values only for manual rows. Costs should stay positive; we flip the sign.</li>
               <li>Save as .xlsx, upload it, review changes, and click Save blueprint to publish.</li>
             </ol>
+            <p className={styles.sidebarNote}>
+              The workbook also includes a "Line metadata" tab with reference IDs/codes in case you want to track them
+              externally.
+            </p>
             <button type="button" className={styles.sidebarButton} onClick={downloadTemplateWorkbook}>
               Download template
             </button>
