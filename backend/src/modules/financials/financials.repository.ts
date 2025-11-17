@@ -16,16 +16,19 @@ type BlueprintRow = {
   updated_at: Date;
 };
 
+type RawBlueprintDefinition = {
+  startMonth?: unknown;
+  monthCount?: unknown;
+  lines?: unknown;
+  fiscalYear?: unknown;
+  ratios?: unknown;
+};
+
 const mapRow = (row: BlueprintRow): FinancialBlueprintRecord => {
-  const definition = (typeof row.definition === 'object' && row.definition !== null
-    ? (row.definition as Record<string, unknown>)
-    : {}) as {
-    startMonth?: string;
-    monthCount?: number;
-    lines?: FinancialLineItem[];
-    fiscalYear?: FinancialFiscalYearConfig;
-    ratios?: FinancialRatioDefinition[];
-  };
+  const definition: RawBlueprintDefinition =
+    typeof row.definition === 'object' && row.definition !== null
+      ? (row.definition as RawBlueprintDefinition)
+      : {};
 
   const fiscalYearSource = definition.fiscalYear;
   const fiscalYear: FinancialFiscalYearConfig = (() => {
@@ -48,8 +51,8 @@ const mapRow = (row: BlueprintRow): FinancialBlueprintRecord => {
 
   return {
     id: row.id,
-    startMonth: typeof definition.startMonth === 'string' ? definition.startMonth : '2024-01',
-    monthCount: typeof definition.monthCount === 'number' ? definition.monthCount : 36,
+    startMonth: typeof definition.startMonth === 'string' ? (definition.startMonth as string) : '2024-01',
+    monthCount: typeof definition.monthCount === 'number' ? (definition.monthCount as number) : 36,
     lines: Array.isArray(definition.lines) ? (definition.lines as FinancialLineItem[]) : [],
     fiscalYear,
     ratios,
