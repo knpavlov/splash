@@ -13,6 +13,7 @@ export type NavigationKey =
   | 'stats'
   | 'accounts'
   | 'participants'
+  | 'stage-gate-dashboard'
   | 'capacity-heatmap'
   | 'financial-tree'
   | 'financials'
@@ -49,6 +50,12 @@ export const navigationItems: NavigationItem[] = [
   { key: 'initiatives', label: 'Initiatives', roleAccess: ['super-admin', 'admin'] },
   { key: 'approvals', label: 'Approvals', roleAccess: ['super-admin', 'admin', 'user'] },
   { key: 'interviews', label: 'Interviews', roleAccess: ['super-admin', 'admin', 'user'], group: 'old' },
+  {
+    key: 'stage-gate-dashboard',
+    label: 'Stage-gate pipeline',
+    roleAccess: ['super-admin', 'admin'],
+    group: 'dashboards'
+  },
   { key: 'capacity-heatmap', label: 'Capacity heatmap', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
   { key: 'financial-tree', label: 'P&L tree', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
   { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'], group: 'settings' }

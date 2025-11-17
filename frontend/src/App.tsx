@@ -20,6 +20,7 @@ import { ApprovalsScreen } from './modules/approvals/ApprovalsScreen';
 import { ParticipantsScreen } from './modules/participants/ParticipantsScreen';
 import { CapacityHeatmapScreen } from './modules/dashboards/CapacityHeatmapScreen';
 import { FinancialTreeScreen } from './modules/dashboards/FinancialTreeScreen';
+import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboardScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 
 interface AppRoute {
@@ -320,6 +321,8 @@ const AppContent = () => {
         return <CapacityHeatmapScreen />;
       case 'financial-tree':
         return <FinancialTreeScreen />;
+      case 'stage-gate-dashboard':
+        return <StageGateDashboardScreen />;
       case 'accounts':
         return <AccountsScreen />;
       default:
