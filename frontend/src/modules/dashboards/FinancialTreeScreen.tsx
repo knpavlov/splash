@@ -328,17 +328,30 @@ export const FinancialTreeScreen = () => {
     );
   }
 
+  if (!blueprint && !loading) {
+    return (
+      <section className={styles.screen}>
+        <div className={styles.warningText}>
+          <p>The Financials blueprint is not available yet. Configure it first to unlock this dashboard.</p>
+          <button type="button" onClick={() => void refresh()}>
+            Reload blueprint
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   const layout = useMemo(() => {
     if (!rootNode) {
       return null;
     }
     const positions = new Map<string, { depth: number; x: number; y: number }>();
-    const cardWidth = 210;
+    const cardWidth = 190;
     const columnWidth = cardWidth;
-    const columnGap = 80;
-    const cardHeight = 160;
-    const verticalGap = 140;
-    const horizontalPadding = 80;
+    const columnGap = 70;
+    const cardHeight = 150;
+    const verticalGap = 120;
+    const horizontalPadding = 30;
     const verticalPadding = 30;
     let leafIndex = 0;
 
@@ -403,7 +416,7 @@ export const FinancialTreeScreen = () => {
     };
   }, [rootNode]);
 
-  if (!blueprint || !rootNode || !layout) {
+  if (!rootNode || !layout) {
     return (
       <section className={styles.screen}>
         <p className={styles.warningText}>

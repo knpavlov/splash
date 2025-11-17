@@ -208,7 +208,7 @@ const buildWorkbookDocument = (lines: FinancialLineItem[], startMonth: string, m
   const parents = buildParentMap(lines);
   const children = buildChildMap(lines, parents);
   const metaHeaders = ['Line name', 'Nature', 'Computation', 'Indent', 'Level', 'Impact'];
-  const headers = [...metaHeaders, ...monthColumns.map((month) => `${month.label} ${month.year}`)];
+  const headers = [...metaHeaders, ...monthColumns.map((month) => month.key)];
   const rows: (string | number)[][] = [headers];
   const rowNumberMap = new Map<string, number>();
   lines.forEach((line, index) => {
@@ -820,8 +820,9 @@ export const FinancialsScreen = () => {
     const workbook = buildWorkbookDocument(defaults.lines, defaults.startMonth, defaults.monthCount);
     const instructions = [
       ['Financials template cheat-sheet'],
+      ['1. Month column headers already use YYYY-MM (for example, 2025-07). Do not rename them—just paste your data.'],
       ['1. Paste or type the line names, indentation, nature, and computation. Reorder rows freely.'],
-      ['2. Line ID and Code columns are optional—leave them blank or delete them. We match existing lines by ID/code/name and regenerate stable values automatically.'],
+      ['2. Line ID and Code cells are optional—leave them blank or delete them. We match existing lines by ID/code/name and regenerate stable values automatically.'],
       ['3. Fill months only for manual rows. Enter costs as positive values; the app applies signs.'],
       ['4. Save the file as .xlsx and upload it here. Roll-ups, cumulative subtotals, and margins recalculate on import.'],
       ['Tip: export the current blueprint first if you want to tweak the live structure.']
@@ -1342,14 +1343,11 @@ export const FinancialsScreen = () => {
                 Add/reorder lines freely. Line ID and Code cells are optional—we reuse them when present and regenerate
                 consistent values when they are blank or removed.
               </li>
+              <li>Keep the YYYY-MM month headers intact. They map directly to the timeline on this page.</li>
               <li>Keep the Indent / Nature / Computation columns so the hierarchy and roll-ups stay intact.</li>
               <li>Enter monthly values only for manual rows. Costs should stay positive; we flip the sign.</li>
               <li>Save as .xlsx, upload it, review changes, and click Save blueprint to publish.</li>
             </ol>
-            <p className={styles.sidebarNote}>
-              The workbook also includes a "Line metadata" tab with reference IDs/codes in case you want to track them
-              externally.
-            </p>
             <button type="button" className={styles.sidebarButton} onClick={downloadTemplateWorkbook}>
               Download template
             </button>
