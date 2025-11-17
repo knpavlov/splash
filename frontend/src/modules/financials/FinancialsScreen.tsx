@@ -1,5 +1,5 @@
 ﻿
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import styles from '../../styles/FinancialsScreen.module.css';
 import {
@@ -56,6 +56,8 @@ const slugifyCode = (value: string) =>
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '') || `LINE_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+
+const normalizeLabel = (value: string) => value.trim().toLowerCase();
 
 const ensureUniqueCode = (lines: FinancialLineItem[], seed: string, currentId?: string) => {
   const normalized = seed || 'LINE';
@@ -268,6 +270,7 @@ export const FinancialsScreen = () => {
   const [importStatus, setImportStatus] = useState<ImportStatus>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const samplePrefillRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!blueprint) {
@@ -281,6 +284,39 @@ export const FinancialsScreen = () => {
     setVersion(blueprint.version);
     setDirty(false);
   }, [blueprint, defaultBlueprint]);
+
+  useEffect(() => {
+    if (!blueprint) {
+      samplePrefillRef.current = null;
+      return;
+    }
+    if (samplePrefillRef.current === blueprint.id) {
+      return;
+    }
+    const hasManualValues = blueprint.lines.some(
+      (line) => line.computation === 'manual' && Object.keys(line.months ?? {}).length > 0
+    );
+    if (hasManualValues) {
+      samplePrefillRef.current = blueprint.id;
+      return;
+    }
+    const defaults = createDefaultBlueprint();
+    setLines((current) =>
+      current.map((line) => {
+        if (line.computation !== 'manual') {
+          return line;
+        }
+        const sampleLine = defaults.lines.find((candidate) => candidate.code === line.code);
+        if (!sampleLine) {
+          return line;
+        }
+        return { ...line, months: { ...sampleLine.months } };
+      })
+    );
+    setDirty(true);
+    setSaveFeedback('Sample data applied. Save the blueprint to keep it.');
+    samplePrefillRef.current = blueprint.id;
+  }, [blueprint]);
 
   const monthColumns = useMemo(() => buildMonthColumns(startMonth, monthCount), [startMonth, monthCount]);
   const monthKeys = monthColumns.map((month) => month.key);
@@ -592,6 +628,38 @@ export const FinancialsScreen = () => {
         return;
       }
     }
+    const existingById = new Map(lines.map((line) => [line.id, line]));
+    const existingByCode = new Map(lines.map((line) => [line.code.toUpperCase(), line]));
+    const existingByName = new Map<string, FinancialLineItem[]>();
+    lines.forEach((line) => {
+      const key = normalizeLabel(line.name);
+      if (!key) {
+        return;
+      }
+      if (!existingByName.has(key)) {
+        existingByName.set(key, []);
+      }
+      existingByName.get(key)!.push(line);
+    });
+    const detachFromNameQueue = (line: FinancialLineItem) => {
+      const key = normalizeLabel(line.name);
+      if (!key) {
+        return;
+      }
+      const queue = existingByName.get(key);
+      if (!queue) {
+        return;
+      }
+      const index = queue.findIndex((entry) => entry.id === line.id);
+      if (index >= 0) {
+        queue.splice(index, 1);
+      }
+    };
+    const releaseLine = (line: FinancialLineItem) => {
+      existingById.delete(line.id);
+      existingByCode.delete(line.code.toUpperCase());
+      detachFromNameQueue(line);
+    };
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
@@ -616,18 +684,34 @@ export const FinancialsScreen = () => {
                 : 'revenue'
               : 'summary';
           const indentValue = clampIndent(Number(row.Indent ?? row.indent ?? 0), MAX_INDENT_LEVEL);
-          const id =
-            (typeof row['Line ID'] === 'string' && row['Line ID'].trim()) ||
-            (typeof row.id === 'string' && row.id.trim()) ||
-            generateId();
           const name =
             (typeof row['Line name'] === 'string' && row['Line name'].trim()) ||
             (typeof row.name === 'string' && row.name.trim()) ||
             `Line ${index + 1}`;
-          const rawCode =
-            (typeof row.Code === 'string' && row.Code.trim()) ||
-            (typeof row.code === 'string' && row.code.trim()) ||
-            slugifyCode(name);
+          const providedId =
+            (typeof row['Line ID'] === 'string' && row['Line ID'].trim()) ||
+            (typeof row.id === 'string' && row.id.trim()) ||
+            '';
+          const rawCodeInput =
+            (typeof row.Code === 'string' && row.Code.trim()) || (typeof row.code === 'string' && row.code.trim()) || '';
+          const normalizedCodeInput = rawCodeInput ? slugifyCode(rawCodeInput) : '';
+          const normalizedName = normalizeLabel(name);
+          let matchedLine: FinancialLineItem | undefined;
+          if (providedId && existingById.has(providedId)) {
+            matchedLine = existingById.get(providedId);
+          } else if (normalizedCodeInput && existingByCode.has(normalizedCodeInput)) {
+            matchedLine = existingByCode.get(normalizedCodeInput);
+          } else if (normalizedName && existingByName.has(normalizedName)) {
+            const queue = existingByName.get(normalizedName);
+            if (queue?.length) {
+              matchedLine = queue.shift();
+            }
+          }
+          if (matchedLine) {
+            releaseLine(matchedLine);
+          }
+          const id = providedId || matchedLine?.id || generateId();
+          const codeSeed = rawCodeInput ? normalizedCodeInput : matchedLine?.code ?? slugifyCode(name);
           const months: Record<string, number> = {};
           if (computation === 'manual') {
             monthColumnsInSheet.forEach((key) => {
@@ -639,7 +723,7 @@ export const FinancialsScreen = () => {
           }
           return {
             id,
-            code: rawCode,
+            code: codeSeed,
             name,
             indent: indentValue,
             nature,
@@ -668,7 +752,7 @@ export const FinancialsScreen = () => {
       setCollapsed(new Set());
       setDirty(true);
       setSaveFeedback(null);
-      setImportStatus({ type: 'success', message: 'Excel data imported.' });
+      setImportStatus({ type: 'success', message: 'Excel data imported. IDs and codes were recreated when needed.' });
     } catch (importError) {
       console.error('Failed to import blueprint:', importError);
       setImportStatus({
@@ -689,12 +773,11 @@ export const FinancialsScreen = () => {
     const defaults = createDefaultBlueprint();
     const workbook = buildWorkbookDocument(defaults.lines, defaults.startMonth, defaults.monthCount);
     const instructions = [
-      ['How to use the Financials template'],
-      ['1. Keep the metadata columns (Line ID, Code, Nature, Computation, Indent, Level, Impact).'],
-      ['2. Insert or duplicate manual rows where you need new accounts. Computed rows stay empty.'],
-      ['3. Fill months only for manual rows. Enter costs as positive values—the app applies signs.'],
-      ['4. Export your ERP data into the month columns, then save the file as .xlsx.'],
-      ['5. Import it back on this page. We recalculate roll-ups, cumulative subtotals, and ratios automatically.'],
+      ['Financials template cheat-sheet'],
+      ['1. Paste or type the line names, indentation, nature, and computation. Reorder rows freely.'],
+      ['2. Line ID and Code columns are optional—leave them blank or delete them. We match existing lines by ID/code/name and regenerate stable values automatically.'],
+      ['3. Fill months only for manual rows. Enter costs as positive values; the app applies signs.'],
+      ['4. Save the file as .xlsx and upload it here. Roll-ups, cumulative subtotals, and margins recalculate on import.'],
       ['Tip: export the current blueprint first if you want to tweak the live structure.']
     ];
     const instructionsSheet = XLSX.utils.aoa_to_sheet(instructions);
@@ -1208,11 +1291,14 @@ export const FinancialsScreen = () => {
           <div className={styles.sidebarCard}>
             <h3>Excel automation</h3>
             <ol>
-              <li>Download the curated template (or export the live blueprint) to copy the metadata columns.</li>
-              <li>Add or reorder manual lines in Excel but keep the Line ID + Code columns intact.</li>
-              <li>Fill only manual cells with monthly values. Enter costs as positive numbers; we apply signs.</li>
-              <li>Save as .xlsx and import it. Roll-ups, running subtotals, and ratios are recalculated automatically.</li>
-              <li>Review the preview, adjust ratios/fiscal year if needed, then click Save to publish.</li>
+              <li>Download the template or export the live blueprint as a starting point.</li>
+              <li>
+                Add/reorder lines freely. Line ID and Code cells are optional—we reuse them when present and regenerate
+                consistent values when they are blank or removed.
+              </li>
+              <li>Keep the Indent / Nature / Computation columns so the hierarchy and roll-ups stay intact.</li>
+              <li>Enter monthly values only for manual rows. Costs should stay positive; we flip the sign.</li>
+              <li>Save as .xlsx, upload it, review changes, and click Save blueprint to publish.</li>
             </ol>
             <button type="button" className={styles.sidebarButton} onClick={downloadTemplateWorkbook}>
               Download template
