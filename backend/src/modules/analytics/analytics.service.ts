@@ -15,8 +15,9 @@ import type {
   TimelineResponse
 } from './analytics.types.js';
 import type { OfferDecisionStatus } from '../evaluations/evaluations.types.js';
+import { financialsService } from '../financials/financials.module.js';
+import { DEFAULT_FISCAL_YEAR_START_MONTH } from '../financials/financials.defaults.js';
 
-const FISCAL_YEAR_START_MONTH = 4; // April
 const MIN_TIMELINE_START = new Date(Date.UTC(2025, 8, 1));
 
 const startOfDayUtc = (value: Date) => {
@@ -70,7 +71,7 @@ const startOfQuarterUtc = (value: Date) => {
 
 const isWithinRange = (value: Date, start: Date, end: Date) => value.getTime() >= start.getTime() && value.getTime() <= end.getTime();
 
-const buildSummaryRange = (period: SummaryPeriodKey, reference: Date) => {
+const buildSummaryRange = (period: SummaryPeriodKey, reference: Date, fiscalYearStartMonth: number) => {
   const end = endOfDayUtc(reference);
   let start: Date;
 
@@ -82,7 +83,7 @@ const buildSummaryRange = (period: SummaryPeriodKey, reference: Date) => {
       start = startOfMonthUtc(addMonthsUtc(reference, -11));
       break;
     case 'fytd': {
-      const fiscalStartMonthIndex = FISCAL_YEAR_START_MONTH - 1;
+      const fiscalStartMonthIndex = fiscalYearStartMonth - 1;
       let fiscalYear = reference.getUTCFullYear();
       if (reference.getUTCMonth() < fiscalStartMonthIndex) {
         fiscalYear -= 1;
@@ -97,7 +98,7 @@ const buildSummaryRange = (period: SummaryPeriodKey, reference: Date) => {
   return { start, end };
 };
 
-const buildInterviewerRange = (period: InterviewerPeriodKey, reference: Date) => {
+const buildInterviewerRange = (period: InterviewerPeriodKey, reference: Date, fiscalYearStartMonth: number) => {
   const end = endOfDayUtc(reference);
   switch (period) {
     case 'last_month': {
@@ -107,7 +108,7 @@ const buildInterviewerRange = (period: InterviewerPeriodKey, reference: Date) =>
     case 'rolling_12':
       return { start: startOfMonthUtc(addMonthsUtc(reference, -11)), end };
     case 'fytd': {
-      const fiscalStartMonthIndex = FISCAL_YEAR_START_MONTH - 1;
+      const fiscalStartMonthIndex = fiscalYearStartMonth - 1;
       let fiscalYear = reference.getUTCFullYear();
       if (reference.getUTCMonth() < fiscalStartMonthIndex) {
         fiscalYear -= 1;
@@ -387,11 +388,41 @@ const csvEscape = (value: string) => {
 };
 
 export class AnalyticsService {
+  private fiscalYearStartMonthCache: { value: number; expiresAt: number } | null = null;
+
   constructor(private readonly repository: AnalyticsRepository) {}
+
+  private async resolveFiscalStartMonth(): Promise<number> {
+    const now = Date.now();
+    if (this.fiscalYearStartMonthCache && this.fiscalYearStartMonthCache.expiresAt > now) {
+      return this.fiscalYearStartMonthCache.value;
+    }
+    try {
+      const blueprint = await financialsService.getBlueprint();
+      const raw = blueprint?.fiscalYear?.startMonth;
+      const startMonth =
+        typeof raw === 'number' && Number.isFinite(raw) && raw >= 1 && raw <= 12
+          ? Math.floor(raw)
+          : DEFAULT_FISCAL_YEAR_START_MONTH;
+      this.fiscalYearStartMonthCache = {
+        value: startMonth,
+        expiresAt: now + 5 * 60 * 1000
+      };
+      return startMonth;
+    } catch (error) {
+      console.error('Failed to resolve fiscal year calendar for analytics:', error);
+      this.fiscalYearStartMonthCache = {
+        value: DEFAULT_FISCAL_YEAR_START_MONTH,
+        expiresAt: now + 60 * 1000
+      };
+      return DEFAULT_FISCAL_YEAR_START_MONTH;
+    }
+  }
 
   async getSummary(period: SummaryPeriodKey): Promise<SummaryResponse> {
     const reference = new Date();
-    const range = buildSummaryRange(period, reference);
+    const fiscalStartMonth = await this.resolveFiscalStartMonth();
+    const range = buildSummaryRange(period, reference, fiscalStartMonth);
     const [candidates, evaluations] = await Promise.all([
       this.repository.listCandidates(),
       this.repository.listEvaluations()
@@ -624,7 +655,8 @@ export class AnalyticsService {
   ): Promise<InterviewerStatsResponse> {
     const explicitEnd = options.to ? parseDate(options.to) : null;
     const reference = explicitEnd ?? new Date();
-    const range = buildInterviewerRange(period, reference);
+    const fiscalStartMonth = await this.resolveFiscalStartMonth();
+    const range = buildInterviewerRange(period, reference, fiscalStartMonth);
     const groupBy = options.groupBy ?? 'month';
     const defaultEnd = endOfDayUtc(range.end);
     const defaultStart = startOfDayUtc(range.start);
@@ -800,7 +832,8 @@ export class AnalyticsService {
 
   async exportSummary(period: SummaryPeriodKey): Promise<string> {
     const reference = new Date();
-    const range = buildSummaryRange(period, reference);
+    const fiscalStartMonth = await this.resolveFiscalStartMonth();
+    const range = buildSummaryRange(period, reference, fiscalStartMonth);
     const [candidates, evaluations] = await Promise.all([
       this.repository.listCandidates(),
       this.repository.listEvaluations()

@@ -5,22 +5,30 @@ import styles from '../../styles/FinancialsScreen.module.css';
 import {
   buildMonthColumns,
   createDefaultBlueprint,
+  createDefaultRatios,
   DEFAULT_MONTH_COUNT,
   MIN_MONTH_COUNT,
   MAX_MONTH_COUNT,
   MAX_INDENT_LEVEL
 } from './financialModel';
-import { FinancialBlueprintPayload, FinancialLineItem } from '../../shared/types/financials';
+import {
+  FinancialBlueprintPayload,
+  FinancialFiscalYearConfig,
+  FinancialLineItem,
+  FinancialRatioDefinition
+} from '../../shared/types/financials';
 import {
   addToRecord,
   buildCumulativeLookup,
   buildEmptyRecord,
   buildManualValueMap,
   buildValueMap,
+  parseMonthKey,
   lineEffect
 } from '../../shared/utils/financialMath';
 import { generateId } from '../../shared/ui/generateId';
 import { useFinancialsState } from '../../app/state/AppStateContext';
+import { DEFAULT_FISCAL_YEAR_START_MONTH } from '../../shared/config/finance';
 
 type ImportStatus = { type: 'success' | 'error'; message: string } | null;
 
@@ -126,11 +134,132 @@ const toColumnLetter = (index: number) => {
   }
   return letter;
 };
+const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const clampMonth = (value: number) => Math.min(12, Math.max(1, Math.floor(value || 1)));
+
+const formatFiscalWindow = (startMonth: number) => {
+  const safeStart = clampMonth(startMonth);
+  const endMonth = ((safeStart + 10) % 12) + 1;
+  const startLabel = monthLabels[safeStart - 1];
+  const endLabel = monthLabels[endMonth - 1];
+  return `${startLabel} – ${endLabel}`;
+};
+
+const computeFiscalYearKeys = (keys: string[], fiscalStartMonth: number) => {
+  if (!keys.length) {
+    return [];
+  }
+  const safeStart = clampMonth(fiscalStartMonth);
+  const lastMonth = parseMonthKey(keys[keys.length - 1]);
+  if (!lastMonth) {
+    return [];
+  }
+  let fiscalYear = lastMonth.year;
+  if (lastMonth.month < safeStart) {
+    fiscalYear -= 1;
+  }
+  const fiscalStartIndex = fiscalYear * 12 + (safeStart - 1);
+  const fiscalEndIndex = fiscalStartIndex + 12;
+  return keys.filter((key) => {
+    const parsed = parseMonthKey(key);
+    if (!parsed) {
+      return false;
+    }
+    const index = parsed.year * 12 + (parsed.month - 1);
+    return index >= fiscalStartIndex && index < fiscalEndIndex;
+  });
+};
+
+const buildWorkbookDocument = (lines: FinancialLineItem[], startMonth: string, monthCount: number) => {
+  const workbook = XLSX.utils.book_new();
+  const monthColumns = buildMonthColumns(startMonth, monthCount);
+  const parents = buildParentMap(lines);
+  const children = buildChildMap(lines, parents);
+  const metaHeaders = ['Line ID', 'Code', 'Line name', 'Nature', 'Computation', 'Indent', 'Level', 'Impact'];
+  const headers = [...metaHeaders, ...monthColumns.map((month) => `${month.label} ${month.year}`)];
+  const rows: (string | number)[][] = [headers];
+  const rowNumberMap = new Map<string, number>();
+  lines.forEach((line, index) => {
+    const rowNumber = index + 2;
+    rowNumberMap.set(line.id, rowNumber);
+    const baseRow: (string | number)[] = [
+      line.id,
+      line.code,
+      line.name,
+      line.nature,
+      line.computation,
+      line.indent,
+      line.indent + 1,
+      line.computation === 'manual' ? lineEffect(line) : 1
+    ];
+    const monthValues = monthColumns.map((month) => {
+      if (line.computation !== 'manual') {
+        return '';
+      }
+      const raw = Number(line.months[month.key]);
+      return Number.isFinite(raw) ? raw : '';
+    });
+    rows.push([...baseRow, ...monthValues]);
+  });
+  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  const impactColumnLetter = toColumnLetter(metaHeaders.length - 1);
+  const computationColumnLetter = toColumnLetter(metaHeaders.indexOf('Computation'));
+  lines.forEach((line, lineIndex) => {
+    const rowNumber = lineIndex + 2;
+    monthColumns.forEach((month, monthIndex) => {
+      const columnIndex = metaHeaders.length + monthIndex;
+      const columnLetter = toColumnLetter(columnIndex);
+      const cellRef = `${columnLetter}${rowNumber}`;
+      if (line.computation === 'manual') {
+        const raw = Number(line.months[month.key]);
+        sheet[cellRef] = Number.isFinite(raw)
+          ? { t: 'n', v: raw }
+          : { t: 'n', v: '' as unknown as number };
+        return;
+      }
+      if (line.computation === 'children') {
+        const childIds = children.get(line.id) ?? [];
+        const terms = childIds
+          .map((childId) => {
+            const childRow = rowNumberMap.get(childId);
+            if (!childRow) {
+              return null;
+            }
+            const childLine = lines.find((candidate) => candidate.id === childId);
+            if (!childLine) {
+              return null;
+            }
+            if (childLine.computation === 'manual') {
+              return `${impactColumnLetter}${childRow}*${columnLetter}${childRow}`;
+            }
+            return `${columnLetter}${childRow}`;
+          })
+          .filter(Boolean);
+        const formula = terms.length ? `=${terms.join('+')}` : '=0';
+        sheet[cellRef] = { t: 'n', f: formula };
+        return;
+      }
+      const rangeEnd = rowNumber - 1;
+      if (rangeEnd <= 1) {
+        sheet[cellRef] = { t: 'n', v: 0 };
+        return;
+      }
+      const formula = `=SUMPRODUCT(--($${computationColumnLetter}$2:$${computationColumnLetter}$${rangeEnd}="manual"), $${impactColumnLetter}$2:$${impactColumnLetter}$${rangeEnd}, ${columnLetter}$2:${columnLetter}$${rangeEnd})`;
+      sheet[cellRef] = { t: 'n', f: formula };
+    });
+  });
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Blueprint');
+  return workbook;
+};
 export const FinancialsScreen = () => {
   const { blueprint, loading, error, saveBlueprint, refresh } = useFinancialsState();
+  const defaultBlueprint = useMemo(() => createDefaultBlueprint(), []);
   const [lines, setLines] = useState<FinancialLineItem[]>([]);
-  const [startMonth, setStartMonth] = useState(createDefaultBlueprint().startMonth);
+  const [startMonth, setStartMonth] = useState(defaultBlueprint.startMonth);
   const [monthCount, setMonthCount] = useState(DEFAULT_MONTH_COUNT);
+  const [fiscalYear, setFiscalYear] = useState<FinancialFiscalYearConfig>(defaultBlueprint.fiscalYear);
+  const [ratios, setRatios] = useState<FinancialRatioDefinition[]>(defaultBlueprint.ratios);
   const [version, setVersion] = useState<number | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -147,15 +276,19 @@ export const FinancialsScreen = () => {
     setLines(blueprint.lines);
     setStartMonth(blueprint.startMonth);
     setMonthCount(blueprint.monthCount);
+    setFiscalYear(blueprint.fiscalYear ?? defaultBlueprint.fiscalYear);
+    setRatios(blueprint.ratios ?? defaultBlueprint.ratios);
     setVersion(blueprint.version);
     setDirty(false);
-  }, [blueprint]);
+  }, [blueprint, defaultBlueprint]);
 
   const monthColumns = useMemo(() => buildMonthColumns(startMonth, monthCount), [startMonth, monthCount]);
   const monthKeys = monthColumns.map((month) => month.key);
 
   const parentMap = useMemo(() => buildParentMap(lines), [lines]);
   const childMap = useMemo(() => buildChildMap(lines, parentMap), [lines, parentMap]);
+  const lineByCode = useMemo(() => new Map(lines.map((line) => [line.code, line])), [lines]);
+  const lineOptions = useMemo(() => lines.map((line) => ({ code: line.code, name: line.name })), [lines]);
   const manualValueMap = useMemo(() => buildManualValueMap(lines, monthKeys), [lines, monthKeys]);
   const cumulativeLookup = useMemo(
     () => buildCumulativeLookup(lines, monthKeys, manualValueMap),
@@ -166,6 +299,41 @@ export const FinancialsScreen = () => {
     [lines, monthKeys, childMap, manualValueMap, cumulativeLookup]
   );
   const visibleLines = useMemo(() => buildVisibleLines(lines, childMap, collapsed), [lines, childMap, collapsed]);
+  const fiscalStartMonth = fiscalYear?.startMonth ?? DEFAULT_FISCAL_YEAR_START_MONTH;
+  const fiscalWindowLabel = formatFiscalWindow(fiscalStartMonth);
+  const ratioSummaries = useMemo(() => {
+    if (!ratios.length) {
+      return [];
+    }
+    const fiscalKeys = computeFiscalYearKeys(monthKeys, fiscalStartMonth);
+    const trailingKeys = monthKeys.slice(Math.max(monthKeys.length - 12, 0));
+    const lastKey = monthKeys[monthKeys.length - 1];
+    return ratios.map((ratio) => {
+      const numerator = lineByCode.get(ratio.numeratorCode);
+      const denominator = lineByCode.get(ratio.denominatorCode);
+      const numeratorValues = numerator ? valueMap.get(numerator.id) : undefined;
+      const denominatorValues = denominator ? valueMap.get(denominator.id) : undefined;
+      const computeWindow = (keys: string[]): number | null => {
+        if (!keys.length || !numeratorValues || !denominatorValues) {
+          return null;
+        }
+        const numeratorTotal = keys.reduce((sum, key) => sum + (numeratorValues[key] ?? 0), 0);
+        const denominatorTotal = keys.reduce((sum, key) => sum + (denominatorValues[key] ?? 0), 0);
+        if (!denominatorTotal) {
+          return null;
+        }
+        return numeratorTotal / denominatorTotal;
+      };
+      return {
+        ratio,
+        lastMonth: lastKey ? computeWindow([lastKey]) : null,
+        trailing12: computeWindow(trailingKeys),
+        fiscalYear: computeWindow(fiscalKeys),
+        missingNumerator: !numerator,
+        missingDenominator: !denominator
+      };
+    });
+  }, [ratios, lineByCode, valueMap, monthKeys, fiscalStartMonth]);
 
   const markDirty = () => {
     setDirty(true);
@@ -351,11 +519,62 @@ export const FinancialsScreen = () => {
     markDirty();
   };
 
+  const handleFiscalStartChange = (nextStart: number) => {
+    const safeValue = clampMonth(nextStart);
+    setFiscalYear((current) => ({ ...current, startMonth: safeValue }));
+    markDirty();
+  };
+
+  const addRatio = () => {
+    if (!lineOptions.length) {
+      return;
+    }
+    const defaultDenominator =
+      lineOptions.find((option) => option.code === 'REV_TOTAL')?.code ?? lineOptions[0].code;
+    const defaultNumerator =
+      lineOptions.find((option) => option.code === 'GROSS_PROFIT')?.code ?? lineOptions[0].code;
+    setRatios((current) => [
+      ...current,
+      {
+        id: generateId(),
+        label: 'New ratio',
+        numeratorCode: defaultNumerator,
+        denominatorCode: defaultDenominator,
+        format: 'percentage',
+        precision: 1
+      }
+    ]);
+    markDirty();
+  };
+
+  const updateRatio = (id: string, changes: Partial<FinancialRatioDefinition>) => {
+    setRatios((current) => current.map((ratio) => (ratio.id === id ? { ...ratio, ...changes } : ratio)));
+    markDirty();
+  };
+
+  const removeRatio = (id: string) => {
+    setRatios((current) => current.filter((ratio) => ratio.id !== id));
+    markDirty();
+  };
+
+  const formatRatioDisplay = (value: number | null, ratio: FinancialRatioDefinition) => {
+    const basePrecision = Number.isFinite(ratio.precision) ? Math.max(0, Math.min(4, ratio.precision)) : 1;
+    if (value === null) {
+      return '—';
+    }
+    if (ratio.format === 'multiple') {
+      return `${value.toFixed(basePrecision)}x`;
+    }
+    return `${(value * 100).toFixed(basePrecision)}%`;
+  };
+
   const resetToTemplate = () => {
     const defaults = createDefaultBlueprint();
     setLines(defaults.lines);
     setStartMonth(defaults.startMonth);
-    setMonthCount(DEFAULT_MONTH_COUNT);
+    setMonthCount(defaults.monthCount);
+    setFiscalYear(defaults.fiscalYear);
+    setRatios(defaults.ratios);
     setCollapsed(new Set());
     setDirty(true);
     setSaveFeedback(null);
@@ -462,101 +681,25 @@ export const FinancialsScreen = () => {
   };
 
   const exportWorkbook = () => {
-    const workbook = XLSX.utils.book_new();
-    const metaHeaders = [
-      'Line ID',
-      'Code',
-      'Line name',
-      'Nature',
-      'Computation',
-      'Indent',
-      'Level',
-      'Impact'
-    ];
-    const headers = [...metaHeaders, ...monthColumns.map((month) => `${month.label} ${month.year}`)];
-      const rows: (string | number)[][] = [headers];
-    const rowNumberMap = new Map<string, number>();
-    lines.forEach((line, index) => {
-      const rowNumber = index + 2;
-      rowNumberMap.set(line.id, rowNumber);
-      const baseRow: (string | number)[] = [
-        line.id,
-        line.code,
-        line.name,
-        line.nature,
-        line.computation,
-        line.indent,
-        line.indent + 1,
-        line.computation === 'manual' ? lineEffect(line) : 1
-      ];
-      const monthValues = monthColumns.map((month) => {
-        if (line.computation !== 'manual') {
-          return '';
-        }
-        const raw = Number(line.months[month.key]);
-        return Number.isFinite(raw) ? raw : '';
-      });
-      rows.push([...baseRow, ...monthValues]);
-    });
-    const sheet = XLSX.utils.aoa_to_sheet(rows);
-    const impactColumnLetter = toColumnLetter(metaHeaders.length - 1);
-    const computationColumnLetter = toColumnLetter(metaHeaders.indexOf('Computation'));
-    lines.forEach((line, lineIndex) => {
-      const rowNumber = lineIndex + 2;
-      monthColumns.forEach((month, monthIndex) => {
-        const columnIndex = metaHeaders.length + monthIndex;
-        const columnLetter = toColumnLetter(columnIndex);
-        const cellRef = `${columnLetter}${rowNumber}`;
-        if (line.computation === 'manual') {
-          const raw = Number(line.months[month.key]);
-          sheet[cellRef] = Number.isFinite(raw)
-            ? { t: 'n', v: raw }
-            : { t: 'n', v: '' as unknown as number };
-          return;
-        }
-        if (line.computation === 'children') {
-          const childIds = childMap.get(line.id) ?? [];
-          const terms = childIds
-            .map((childId) => {
-              const childRow = rowNumberMap.get(childId);
-              if (!childRow) {
-                return null;
-              }
-              const childLine = lines.find((candidate) => candidate.id === childId);
-              if (!childLine) {
-                return null;
-              }
-              if (childLine.computation === 'manual') {
-                return `${impactColumnLetter}${childRow}*${columnLetter}${childRow}`;
-              }
-              return `${columnLetter}${childRow}`;
-            })
-            .filter(Boolean);
-          const formula = terms.length ? `=${terms.join('+')}` : '=0';
-          sheet[cellRef] = { t: 'n', f: formula };
-          return;
-        }
-        const rangeEnd = rowNumber - 1;
-        if (rangeEnd <= 1) {
-          sheet[cellRef] = { t: 'n', v: 0 };
-          return;
-        }
-        const formula = `=SUMPRODUCT(--($${computationColumnLetter}$2:$${computationColumnLetter}$${rangeEnd}="manual"), $${impactColumnLetter}$2:$${impactColumnLetter}$${rangeEnd}, ${columnLetter}$2:${columnLetter}$${rangeEnd})`;
-        sheet[cellRef] = { t: 'n', f: formula };
-      });
-    });
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Blueprint');
+    const workbook = buildWorkbookDocument(lines, startMonth, monthCount);
     XLSX.writeFile(workbook, 'financials-blueprint.xlsx');
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplateWorkbook = () => {
     const defaults = createDefaultBlueprint();
-    setLines(defaults.lines);
-    setStartMonth(defaults.startMonth);
-    setMonthCount(DEFAULT_MONTH_COUNT);
-    setCollapsed(new Set());
-    setDirty(true);
-    setSaveFeedback(null);
+    const workbook = buildWorkbookDocument(defaults.lines, defaults.startMonth, defaults.monthCount);
+    const instructions = [
+      ['How to use the Financials template'],
+      ['1. Keep the metadata columns (Line ID, Code, Nature, Computation, Indent, Level, Impact).'],
+      ['2. Insert or duplicate manual rows where you need new accounts. Computed rows stay empty.'],
+      ['3. Fill months only for manual rows. Enter costs as positive values—the app applies signs.'],
+      ['4. Export your ERP data into the month columns, then save the file as .xlsx.'],
+      ['5. Import it back on this page. We recalculate roll-ups, cumulative subtotals, and ratios automatically.'],
+      ['Tip: export the current blueprint first if you want to tweak the live structure.']
+    ];
+    const instructionsSheet = XLSX.utils.aoa_to_sheet(instructions);
+    XLSX.utils.book_append_sheet(workbook, instructionsSheet, 'Instructions');
+    XLSX.writeFile(workbook, 'financials-template.xlsx');
   };
   const netSummaryLine = useMemo(
     () => [...lines].reverse().find((line) => line.computation === 'cumulative'),
@@ -608,8 +751,14 @@ export const FinancialsScreen = () => {
     if (orphanRollups.length) {
       issues.push(`${orphanRollups.length} roll-up lines have no children and always show zero.`);
     }
+    const ratioIssues = ratios
+      .filter((ratio) => !lineByCode.has(ratio.numeratorCode) || !lineByCode.has(ratio.denominatorCode))
+      .map((ratio) => ratio.label || ratio.id);
+    if (ratioIssues.length) {
+      issues.push(`Ratios referencing missing line codes: ${ratioIssues.slice(0, 4).join(', ')}.`);
+    }
     return issues;
-  }, [lines, childMap]);
+  }, [lines, childMap, ratios, lineByCode]);
 
   const blueprintStats = useMemo(() => {
     const manualRevenue = lines.filter((line) => line.computation === 'manual' && line.nature === 'revenue').length;
@@ -619,9 +768,10 @@ export const FinancialsScreen = () => {
       total: lines.length,
       revenue: manualRevenue,
       costs: manualCosts,
-      summaries
+      summaries,
+      ratios: ratios.length
     };
-  }, [lines]);
+  }, [lines, ratios.length]);
 
   const handleSave = async () => {
     if (saving || version === null) {
@@ -632,6 +782,8 @@ export const FinancialsScreen = () => {
     const payload: FinancialBlueprintPayload = {
       startMonth,
       monthCount,
+      fiscalYear,
+      ratios,
       lines
     };
     const result = await saveBlueprint(payload, version);
@@ -676,6 +828,9 @@ export const FinancialsScreen = () => {
           </button>
           <button className={styles.secondaryButton} onClick={exportWorkbook} type="button">
             Export to Excel
+          </button>
+          <button className={styles.secondaryButton} onClick={downloadTemplateWorkbook} type="button">
+            Download template
           </button>
           <label className={styles.importButton}>
             <input type="file" accept=".xlsx,.xls" onChange={handleImport} />
@@ -727,6 +882,20 @@ export const FinancialsScreen = () => {
                 </option>
               ))}
             </select>
+          </label>
+          <label>
+            <span>Fiscal year start</span>
+            <select
+              value={fiscalStartMonth}
+              onChange={(event) => handleFiscalStartChange(Number(event.target.value))}
+            >
+              {monthLabels.map((label, index) => (
+                <option key={label} value={index + 1}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <small className={styles.controlHint}>FY window: {fiscalWindowLabel}</small>
           </label>
           <label>
             <span>Last updated</span>
@@ -899,9 +1068,131 @@ export const FinancialsScreen = () => {
               </tbody>
             </table>
           </div>
-        </div>
 
-        <aside className={styles.sidebar}>
+          <div className={styles.ratioPanel}>
+            <div className={styles.ratioEditor}>
+            <div className={styles.ratioHeader}>
+              <h3>Ratios & margins</h3>
+              <p>Link numerator and denominator line codes to surface the key profitability views.</p>
+            </div>
+            {ratios.length === 0 ? (
+              <p className={styles.placeholder}>
+                No ratios yet. Use &ldquo;Add ratio / margin&rdquo; to start tracking gross, EBITDA, or custom metrics.
+              </p>
+            ) : (
+              <div className={styles.ratioList}>
+                {ratios.map((ratio) => (
+                  <div key={ratio.id} className={styles.ratioRow}>
+                    <input
+                      className={styles.ratioNameInput}
+                      value={ratio.label}
+                      onChange={(event) => updateRatio(ratio.id, { label: event.target.value })}
+                      placeholder="Ratio name"
+                    />
+                    <select
+                      value={ratio.numeratorCode}
+                      onChange={(event) => updateRatio(ratio.id, { numeratorCode: event.target.value })}
+                    >
+                      {lineOptions.map((option) => (
+                        <option key={`num-${ratio.id}-${option.code}`} value={option.code}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </select>
+                    <span className={styles.ratioDivider}>÷</span>
+                    <select
+                      value={ratio.denominatorCode}
+                      onChange={(event) => updateRatio(ratio.id, { denominatorCode: event.target.value })}
+                    >
+                      {lineOptions.map((option) => (
+                        <option key={`den-${ratio.id}-${option.code}`} value={option.code}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={ratio.format}
+                      onChange={(event) =>
+                        updateRatio(ratio.id, { format: event.target.value as FinancialRatioDefinition['format'] })
+                      }
+                    >
+                      <option value="percentage">%</option>
+                      <option value="multiple">Multiple</option>
+                    </select>
+                    <input
+                      type="number"
+                      min={0}
+                      max={4}
+                      value={ratio.precision}
+                      onChange={(event) =>
+                        updateRatio(ratio.id, { precision: Math.max(0, Math.min(4, Number(event.target.value))) })
+                      }
+                      className={styles.ratioPrecisionInput}
+                    />
+                    <button
+                      type="button"
+                      className={styles.ratioRemoveButton}
+                      onClick={() => removeRatio(ratio.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              className={styles.ghostButton}
+              onClick={addRatio}
+              type="button"
+              disabled={!lineOptions.length}
+            >
+              Add ratio / margin
+            </button>
+          </div>
+
+          <div className={styles.ratioPreview}>
+            <div className={styles.ratioHeader}>
+              <h4>Live preview</h4>
+              <p>Last month, trailing 12 months, and FY {fiscalWindowLabel}.</p>
+            </div>
+            <table className={styles.ratioTable}>
+              <thead>
+                <tr>
+                  <th>Ratio</th>
+                  <th>Last month</th>
+                  <th>Trailing 12</th>
+                  <th>FY {fiscalWindowLabel}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ratioSummaries.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className={styles.emptyCell}>
+                      Ratios appear here as soon as you create one.
+                    </td>
+                  </tr>
+                ) : (
+                  ratioSummaries.map((entry) => (
+                    <tr key={entry.ratio.id}>
+                      <td>
+                        <strong>{entry.ratio.label || 'Unnamed ratio'}</strong>
+                        {(entry.missingDenominator || entry.missingNumerator) && (
+                          <span className={styles.ratioWarning}>Missing source line</span>
+                        )}
+                      </td>
+                      <td>{formatRatioDisplay(entry.lastMonth, entry.ratio)}</td>
+                      <td>{formatRatioDisplay(entry.trailing12, entry.ratio)}</td>
+                      <td>{formatRatioDisplay(entry.fiscalYear, entry.ratio)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <aside className={styles.sidebar}>
           <div className={styles.sidebarCard}>
             <h3>Quality guardrails</h3>
             {warnings.length === 0 ? (
@@ -917,16 +1208,26 @@ export const FinancialsScreen = () => {
           <div className={styles.sidebarCard}>
             <h3>Excel automation</h3>
             <ol>
-              <li>Download the template or export the current blueprint.</li>
-              <li>
-                Each manual line keeps editable values. Cost rows should stay negative once exported so subtotals keep
-                signs.
-              </li>
-              <li>
-                Roll-up rows rely on formulas that reference the hierarchy level column. Avoid deleting metadata columns.
-              </li>
-              <li>Import the updated file. We ignore formulas for computed rows and recalculate them automatically.</li>
+              <li>Download the curated template (or export the live blueprint) to copy the metadata columns.</li>
+              <li>Add or reorder manual lines in Excel but keep the Line ID + Code columns intact.</li>
+              <li>Fill only manual cells with monthly values. Enter costs as positive numbers; we apply signs.</li>
+              <li>Save as .xlsx and import it. Roll-ups, running subtotals, and ratios are recalculated automatically.</li>
+              <li>Review the preview, adjust ratios/fiscal year if needed, then click Save to publish.</li>
             </ol>
+            <button type="button" className={styles.sidebarButton} onClick={downloadTemplateWorkbook}>
+              Download template
+            </button>
+          </div>
+          <div className={styles.sidebarCard}>
+            <h3>Fiscal calendar</h3>
+            <p>FY runs {fiscalWindowLabel}. Initiative editors and analytics dashboards rely on this definition.</p>
+            <p>
+              See it in context inside{' '}
+              <a href="#/initiatives" className={styles.inlineLink}>
+                Initiatives &rarr; Financial outlook
+              </a>
+              .
+            </p>
           </div>
           <div className={styles.sidebarCard}>
             <h3>Blueprint stats</h3>
@@ -941,6 +1242,9 @@ export const FinancialsScreen = () => {
             </p>
             <p>
               Summaries: <strong>{blueprintStats.summaries}</strong>
+            </p>
+            <p>
+              Custom ratios: <strong>{blueprintStats.ratios}</strong>
             </p>
           </div>
           {netSummaryLine && netTotals && (

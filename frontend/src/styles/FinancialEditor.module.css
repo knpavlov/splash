@@ -89,6 +89,22 @@
   color: #0f172a;
 }
 
+.metricNote {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #475569;
+}
+
+.metricNote a {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.metricNote a:hover {
+  text-decoration: underline;
+}
+
 .sheetWrapper {
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 18px;

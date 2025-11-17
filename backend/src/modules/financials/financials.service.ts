@@ -3,15 +3,19 @@ import { FinancialsRepository } from './financials.repository.js';
 import {
   FinancialBlueprintModel,
   FinancialBlueprintRecord,
+  FinancialFiscalYearConfig,
   FinancialLineComputation,
   FinancialLineItem,
-  FinancialLineNature
+  FinancialLineNature,
+  FinancialRatioDefinition
 } from './financials.types.js';
 import {
   createDefaultBlueprintModel,
   DEFAULT_MONTH_COUNT,
+  DEFAULT_FISCAL_YEAR_START_MONTH,
   MAX_MONTH_COUNT,
-  MIN_MONTH_COUNT
+  MIN_MONTH_COUNT,
+  createDefaultRatios
 } from './financials.defaults.js';
 
 const MONTH_KEY_PATTERN = /^\d{4}-\d{2}$/;
@@ -101,6 +105,70 @@ const sanitizeLines = (lines: unknown): FinancialLineItem[] => {
   return sanitized;
 };
 
+const sanitizeFiscalYear = (input: unknown): FinancialFiscalYearConfig => {
+  if (!input || typeof input !== 'object') {
+    return { startMonth: DEFAULT_FISCAL_YEAR_START_MONTH };
+  }
+  const source = input as Record<string, unknown>;
+  const rawStart = Number(source.startMonth);
+  const startMonth =
+    Number.isFinite(rawStart) && rawStart >= 1 && rawStart <= 12
+      ? Math.floor(rawStart)
+      : DEFAULT_FISCAL_YEAR_START_MONTH;
+  const label = typeof source.label === 'string' ? source.label.trim() : '';
+  return label ? { startMonth, label } : { startMonth };
+};
+
+const sanitizeRatios = (ratios: unknown): FinancialRatioDefinition[] => {
+  if (!Array.isArray(ratios)) {
+    return createDefaultRatios();
+  }
+  const sanitized: FinancialRatioDefinition[] = [];
+  for (const candidate of ratios) {
+    if (!candidate || typeof candidate !== 'object') {
+      continue;
+    }
+    const source = candidate as Record<string, unknown>;
+    const label = typeof source.label === 'string' ? source.label.trim() : '';
+    if (!label) {
+      continue;
+    }
+    const numeratorCode =
+      typeof source.numeratorCode === 'string' && source.numeratorCode.trim()
+        ? slugify(source.numeratorCode)
+        : '';
+    const denominatorCode =
+      typeof source.denominatorCode === 'string' && source.denominatorCode.trim()
+        ? slugify(source.denominatorCode)
+        : '';
+    if (!numeratorCode || !denominatorCode) {
+      continue;
+    }
+    const id =
+      typeof source.id === 'string' && source.id.trim() ? source.id.trim() : randomUUID();
+    const format = source.format === 'multiple' ? 'multiple' : 'percentage';
+    const rawPrecision = Number(source.precision);
+    const precision =
+      Number.isFinite(rawPrecision) && rawPrecision >= 0
+        ? Math.min(4, Math.max(0, Math.floor(rawPrecision)))
+        : 1;
+    const description =
+      typeof source.description === 'string' && source.description.trim()
+        ? source.description.trim()
+        : undefined;
+    sanitized.push({
+      id,
+      label,
+      numeratorCode,
+      denominatorCode,
+      format,
+      precision,
+      description
+    });
+  }
+  return sanitized;
+};
+
 const sanitizeBlueprint = (payload: unknown): FinancialBlueprintModel => {
   if (!payload || typeof payload !== 'object') {
     throw new Error('INVALID_INPUT');
@@ -109,6 +177,8 @@ const sanitizeBlueprint = (payload: unknown): FinancialBlueprintModel => {
     startMonth?: unknown;
     monthCount?: unknown;
     lines?: unknown;
+    fiscalYear?: unknown;
+    ratios?: unknown;
   };
   const startMonth =
     typeof input.startMonth === 'string' && MONTH_KEY_PATTERN.test(input.startMonth)
@@ -119,9 +189,13 @@ const sanitizeBlueprint = (payload: unknown): FinancialBlueprintModel => {
     ? Math.max(MIN_MONTH_COUNT, Math.min(MAX_MONTH_COUNT, Math.floor(rawMonthCount)))
     : DEFAULT_MONTH_COUNT;
   const sanitizedLines = sanitizeLines(input.lines);
+  const fiscalYear = sanitizeFiscalYear(input.fiscalYear);
+  const ratios = sanitizeRatios(input.ratios);
   return {
     startMonth,
     monthCount,
+    fiscalYear,
+    ratios,
     lines: sanitizedLines.length ? sanitizedLines : createDefaultBlueprintModel().lines
   };
 };

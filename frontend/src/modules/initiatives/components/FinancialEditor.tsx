@@ -16,6 +16,7 @@ import {
 } from './financials.helpers';
 import { createCommentAnchor, CommentAnchorAttributes } from '../comments/commentAnchors';
 import { useFinancialsState } from '../../../app/state/AppStateContext';
+import { DEFAULT_FISCAL_YEAR_START_MONTH } from '../../../shared/config/finance';
 
 interface FinancialEditorProps {
   stage: InitiativeStageData;
@@ -52,6 +53,16 @@ const shadeColor = (hex: string, amount: number) => {
   const mix = (channel: number) => Math.round(channel + (mixTarget - channel) * factor);
   const toHex = (channel: number) => channel.toString(16).padStart(2, '0');
   return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
+};
+
+const fiscalMonthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const clampMonth = (value: number) => Math.min(12, Math.max(1, Math.floor(value || 1)));
+
+const formatFiscalWindow = (startMonth: number) => {
+  const safeStart = clampMonth(startMonth);
+  const endMonth = ((safeStart + 10) % 12) + 1;
+  return `${fiscalMonthLabels[safeStart - 1]} – ${fiscalMonthLabels[endMonth - 1]}`;
 };
 
 type MonthDescriptor = { key: string; label: string; year: number; index: number };
@@ -472,6 +483,8 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
     [months.length]
   );
   const { blueprint: financialBlueprint, loading: blueprintLoading } = useFinancialsState();
+  const fiscalStartMonth = financialBlueprint?.fiscalYear?.startMonth ?? DEFAULT_FISCAL_YEAR_START_MONTH;
+  const fiscalWindowLabel = formatFiscalWindow(fiscalStartMonth);
   const manualBlueprintLines = useMemo(
     () => (financialBlueprint?.lines ?? []).filter((line) => line.computation === 'manual'),
     [financialBlueprint]
@@ -598,7 +611,7 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
   }, [months, kindMonthlyTotals, activeBenefitKinds, activeCostKinds]);
 
   const runRate = calculateRunRate(monthKeys, impactTotals);
-  const summaryTotals = calculateYearSummaries(impactTotals);
+  const summaryTotals = useMemo(() => calculateYearSummaries(impactTotals, fiscalStartMonth), [impactTotals, fiscalStartMonth]);
 
   const updateEntries = (
     kind: InitiativeFinancialKind,
@@ -696,6 +709,13 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
         >
           <span>Net run rate (last 12 months)</span>
           <strong>{formatCurrency(runRate)}</strong>
+        </div>
+        <div className={styles.metricCard}>
+          <span>Fiscal calendar</span>
+          <strong>{fiscalWindowLabel}</strong>
+          <p className={styles.metricNote}>
+            Managed in <a href="#/financials">Financials</a>
+          </p>
         </div>
       </div>
 

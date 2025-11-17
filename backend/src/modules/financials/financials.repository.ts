@@ -2,8 +2,11 @@ import { postgresPool } from '../../shared/database/postgres.client.js';
 import {
   FinancialBlueprintModel,
   FinancialBlueprintRecord,
-  FinancialLineItem
+  FinancialLineItem,
+  FinancialFiscalYearConfig,
+  FinancialRatioDefinition
 } from './financials.types.js';
+import { createDefaultRatios, DEFAULT_FISCAL_YEAR_START_MONTH } from './financials.defaults.js';
 
 type BlueprintRow = {
   id: string;
@@ -16,13 +19,40 @@ type BlueprintRow = {
 const mapRow = (row: BlueprintRow): FinancialBlueprintRecord => {
   const definition = (typeof row.definition === 'object' && row.definition !== null
     ? (row.definition as Record<string, unknown>)
-    : {}) as { startMonth?: string; monthCount?: number; lines?: FinancialLineItem[] };
+    : {}) as {
+    startMonth?: string;
+    monthCount?: number;
+    lines?: FinancialLineItem[];
+    fiscalYear?: FinancialFiscalYearConfig;
+    ratios?: FinancialRatioDefinition[];
+  };
+
+  const fiscalYearSource = definition.fiscalYear;
+  const fiscalYear: FinancialFiscalYearConfig = (() => {
+    if (fiscalYearSource && typeof fiscalYearSource === 'object') {
+      const source = fiscalYearSource as Record<string, unknown>;
+      const rawStart = Number(source.startMonth);
+      const startMonth =
+        Number.isFinite(rawStart) && rawStart >= 1 && rawStart <= 12
+          ? Math.floor(rawStart)
+          : DEFAULT_FISCAL_YEAR_START_MONTH;
+      const label = typeof source.label === 'string' ? source.label : undefined;
+      return label ? { startMonth, label } : { startMonth };
+    }
+    return { startMonth: DEFAULT_FISCAL_YEAR_START_MONTH };
+  })();
+
+  const ratios = Array.isArray(definition.ratios)
+    ? (definition.ratios as FinancialRatioDefinition[])
+    : createDefaultRatios();
 
   return {
     id: row.id,
     startMonth: typeof definition.startMonth === 'string' ? definition.startMonth : '2024-01',
     monthCount: typeof definition.monthCount === 'number' ? definition.monthCount : 36,
     lines: Array.isArray(definition.lines) ? (definition.lines as FinancialLineItem[]) : [],
+    fiscalYear,
+    ratios,
     version: Number(row.version ?? 1),
     createdAt: (row.created_at instanceof Date ? row.created_at : new Date()).toISOString(),
     updatedAt: (row.updated_at instanceof Date ? row.updated_at : new Date()).toISOString()

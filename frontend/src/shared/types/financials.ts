@@ -11,9 +11,28 @@ export interface FinancialLineItem {
   months: Record<string, number>;
 }
 
+export type FinancialRatioFormat = 'percentage' | 'multiple';
+
+export interface FinancialRatioDefinition {
+  id: string;
+  label: string;
+  numeratorCode: string;
+  denominatorCode: string;
+  format: FinancialRatioFormat;
+  precision: number;
+  description?: string;
+}
+
+export interface FinancialFiscalYearConfig {
+  startMonth: number;
+  label?: string;
+}
+
 export interface FinancialBlueprintPayload {
   startMonth: string;
   monthCount: number;
+  fiscalYear: FinancialFiscalYearConfig;
+  ratios: FinancialRatioDefinition[];
   lines: FinancialLineItem[];
 }
 

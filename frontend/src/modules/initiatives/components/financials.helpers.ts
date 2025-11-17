@@ -4,7 +4,7 @@ import {
   InitiativeStageData,
   initiativeFinancialKinds
 } from '../../../shared/types/initiative';
-import { FISCAL_YEAR_START_MONTH } from '../../../shared/config/finance';
+import { DEFAULT_FISCAL_YEAR_START_MONTH } from '../../../shared/config/finance';
 
 export const parseMonthKey = (key: string) => {
   const [yearStr, monthStr] = key.split('-');
@@ -105,7 +105,7 @@ export interface YearSummaryResult {
 
 export const calculateYearSummaries = (
   totals: Record<string, number>,
-  fiscalStartMonth = FISCAL_YEAR_START_MONTH
+  fiscalStartMonth = DEFAULT_FISCAL_YEAR_START_MONTH
 ): YearSummaryResult => {
   const calendar = new Map<number, number>();
   const fiscal = new Map<number, number>();
