@@ -157,16 +157,40 @@ const buildRows = (initiatives: Initiative[], workstreams: Workstream[]): { rows
     totalRow: finalizeRow(totalRow)
   };
 };
+const selectSnapshotWithinDate = (group: ProgramSnapshotSummary[]): ProgramSnapshotSummary =>
+  [...group].sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime()).pop() ??
+  group[group.length - 1];
+
+const groupSnapshotsByDate = (snapshots: ProgramSnapshotSummary[]) => {
+  const map = new Map<string, ProgramSnapshotSummary[]>();
+  snapshots.forEach((snapshot) => {
+    const key = snapshot.dateKey ?? snapshot.capturedAt.slice(0, 10);
+    const bucket = map.get(key) ?? [];
+    bucket.push(snapshot);
+    map.set(key, bucket);
+  });
+  return map;
+};
+
 const findSnapshotByDaysAgo = (snapshots: ProgramSnapshotSummary[], days: number): ProgramSnapshotSummary | null => {
   if (!snapshots.length) {
     return null;
   }
-  const target = Date.now() - days * 86400000;
-  const olderOrEqual = snapshots.filter((snapshot) => new Date(snapshot.capturedAt).getTime() <= target);
-  if (olderOrEqual.length) {
-    return olderOrEqual[olderOrEqual.length - 1];
+  const grouped = groupSnapshotsByDate(snapshots);
+  const orderedDates = Array.from(grouped.keys()).sort();
+  const targetDateKey = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const candidateDate =
+    orderedDates.filter((date) => date <= targetDateKey).pop() ??
+    orderedDates.find((date) => date > targetDateKey) ??
+    orderedDates[orderedDates.length - 1];
+  if (!candidateDate) {
+    return null;
   }
-  return snapshots[0];
+  const group = grouped.get(candidateDate);
+  if (!group || !group.length) {
+    return null;
+  }
+  return selectSnapshotWithinDate(group);
 };
 
 const formatImpact = (value: number) => impactFormatter.format(value || 0);

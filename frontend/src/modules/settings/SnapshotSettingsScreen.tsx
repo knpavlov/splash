@@ -1,7 +1,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/SnapshotSettingsScreen.module.css';
 import { snapshotsApi } from '../snapshots/services/snapshotsApi';
-import { SnapshotSettingsPayload } from '../../shared/types/snapshot';
+import { ProgramSnapshotDetail, SnapshotSettingsPayload } from '../../shared/types/snapshot';
+import { initiativeStageKeys, initiativeStageLabels } from '../../shared/types/initiative';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('en-AU', {
   dateStyle: 'full',
@@ -23,6 +24,9 @@ const formatBytes = (value: number) => {
   }
   return `${Math.round(value)} B`;
 };
+
+const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+const impactFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 interface SnapshotFormState {
   enabled: boolean;
@@ -47,6 +51,10 @@ export const SnapshotSettingsScreen = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [latestSnapshot, setLatestSnapshot] = useState<ProgramSnapshotDetail | null>(null);
+  const [latestSnapshotLoading, setLatestSnapshotLoading] = useState(false);
+  const [latestSnapshotError, setLatestSnapshotError] = useState<string | null>(null);
+  const [manualCaptureBusy, setManualCaptureBusy] = useState(false);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -66,6 +74,25 @@ export const SnapshotSettingsScreen = () => {
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
+
+  const loadLatestSnapshot = useCallback(async () => {
+    setLatestSnapshotLoading(true);
+    try {
+      const snapshot = await snapshotsApi.getLatestProgramSnapshot();
+      setLatestSnapshot(snapshot);
+      setLatestSnapshotError(null);
+    } catch (err) {
+      console.error('Failed to load latest snapshot:', err);
+      setLatestSnapshot(null);
+      setLatestSnapshotError('Unable to load the latest snapshot preview.');
+    } finally {
+      setLatestSnapshotLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLatestSnapshot();
+  }, [loadLatestSnapshot]);
 
   const handleToggleEnabled = () => {
     setForm((prev) => ({ ...prev, enabled: !prev.enabled }));
@@ -122,6 +149,36 @@ export const SnapshotSettingsScreen = () => {
     }
   };
 
+  const handleManualCapture = useCallback(async () => {
+    setManualCaptureBusy(true);
+    setMessage(null);
+    try {
+      await snapshotsApi.captureProgramSnapshot('full');
+      await loadSettings();
+      await loadLatestSnapshot();
+      setMessage('Manual snapshot captured successfully.');
+      setError(null);
+    } catch (err) {
+      console.error('Failed to capture manual snapshot:', err);
+      setError('Unable to capture a snapshot right now. Try again in a moment.');
+    } finally {
+      setManualCaptureBusy(false);
+    }
+  }, [loadLatestSnapshot, loadSettings]);
+
+  const handleDownloadSnapshot = useCallback(() => {
+    if (!latestSnapshot) {
+      return;
+    }
+    const blob = new Blob([JSON.stringify(latestSnapshot.payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `snapshot-${latestSnapshot.dateKey}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [latestSnapshot]);
+
   const nextRunLabel = useMemo(() => {
     if (!settings) {
       return 'Loading...';
@@ -139,6 +196,28 @@ export const SnapshotSettingsScreen = () => {
     ? dateTimeFormatter.format(new Date(settings.lastAutomaticSnapshot.capturedAt))
     : 'No automatic snapshot captured yet';
 
+  const stageSummaryRows = useMemo(() => {
+    if (!latestSnapshot?.payload.stageSummary) {
+      return [];
+    }
+    return initiativeStageKeys.map((stage) => {
+      const entry = latestSnapshot.payload.stageSummary[stage];
+      return {
+        stage,
+        label: initiativeStageLabels[stage],
+        initiatives: entry?.initiatives ?? 0,
+        approved: entry?.approved ?? 0,
+        pendingGate: entry?.pendingGate ?? 0,
+        impact: entry?.impact ?? 0
+      };
+    });
+  }, [latestSnapshot]);
+
+  const statusSummaryRows = latestSnapshot?.payload.statusSummary ?? [];
+  const workstreamSummaryRows = latestSnapshot?.payload.workstreamSummary ?? [];
+  const snapshotMetrics = latestSnapshot?.payload.metrics;
+  const snapshotTotals = latestSnapshot?.payload.totals;
+
   return (
     <section className={styles.wrapper}>
       <header className={styles.header}>
@@ -150,6 +229,9 @@ export const SnapshotSettingsScreen = () => {
           </p>
         </div>
         <div className={styles.actions}>
+          <button type="button" onClick={handleManualCapture} disabled={loading || manualCaptureBusy}>
+            {manualCaptureBusy ? 'Capturing...' : 'Capture snapshot now'}
+          </button>
           <button type="button" onClick={loadSettings} disabled={loading || saving}>
             Refresh status
           </button>
@@ -259,6 +341,129 @@ export const SnapshotSettingsScreen = () => {
           </article>
         </aside>
       </div>
+
+      <section className={styles.viewer}>
+        <header className={styles.viewerHeader}>
+          <div>
+            <h2>Latest snapshot preview</h2>
+            <p className={styles.viewerSubtitle}>
+              Quickly inspect what exactly is persisted during the most recent capture. Use the download option for
+              deeper offline analysis.
+            </p>
+          </div>
+          <div className={styles.viewerActions}>
+            <button type="button" onClick={loadLatestSnapshot} disabled={latestSnapshotLoading}>
+              {latestSnapshotLoading ? 'Loading...' : 'Load latest snapshot'}
+            </button>
+            <button type="button" onClick={handleDownloadSnapshot} disabled={!latestSnapshot}>
+              Download JSON
+            </button>
+          </div>
+        </header>
+        {latestSnapshotError && <p className={styles.errorBanner}>{latestSnapshotError}</p>}
+        {latestSnapshot && (
+          <div className={styles.snapshotViewer}>
+            <div className={styles.snapshotSummaryGrid}>
+              <article className={styles.snapshotCard}>
+                <p className={styles.statLabel}>Captured</p>
+                <p className={styles.statValue}>{dateTimeFormatter.format(new Date(latestSnapshot.capturedAt))}</p>
+                <p className={styles.statMeta}>
+                  {latestSnapshot.trigger === 'auto' ? 'Automatic run' : 'Manual request'} ·{' '}
+                  {formatBytes(latestSnapshot.payloadSizeBytes)}
+                </p>
+              </article>
+              <article className={styles.snapshotCard}>
+                <p className={styles.statLabel}>Portfolio size</p>
+                <p className={styles.statValue}>
+                  {numberFormatter.format(snapshotMetrics?.initiatives ?? 0)} initiatives
+                </p>
+                <p className={styles.statMeta}>
+                  {numberFormatter.format(snapshotMetrics?.workstreams ?? 0)} workstreams •{' '}
+                  {numberFormatter.format(snapshotMetrics?.participants ?? 0)} participants
+                </p>
+              </article>
+              <article className={styles.snapshotCard}>
+                <p className={styles.statLabel}>Recurring impact</p>
+                <p className={styles.statValue}>{impactFormatter.format(snapshotTotals?.recurringImpact ?? 0)}</p>
+                <p className={styles.statMeta}>
+                  Recurring benefits {impactFormatter.format(snapshotTotals?.recurringBenefits ?? 0)} • Costs{' '}
+                  {impactFormatter.format(snapshotTotals?.recurringCosts ?? 0)}
+                </p>
+              </article>
+            </div>
+
+            <div className={styles.snapshotTables}>
+              <section>
+                <h3>Stage summary</h3>
+                <table className={styles.snapshotTable}>
+                  <thead>
+                    <tr>
+                      <th>Stage</th>
+                      <th>Pending gate</th>
+                      <th>Approved</th>
+                      <th>Total initiatives</th>
+                      <th>Impact</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stageSummaryRows.map((row) => (
+                      <tr key={row.stage}>
+                        <th scope="row">{row.label}</th>
+                        <td>{numberFormatter.format(row.pendingGate)}</td>
+                        <td>{numberFormatter.format(row.approved)}</td>
+                        <td>{numberFormatter.format(row.initiatives)}</td>
+                        <td>{impactFormatter.format(row.impact)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+
+              <section>
+                <h3>Status breakdown</h3>
+                <ul className={styles.snapshotList}>
+                  {statusSummaryRows.map((entry) => (
+                    <li key={entry.status}>
+                      <span>{entry.status}</span>
+                      <strong>{numberFormatter.format(entry.initiatives)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <section>
+                <h3>Workstream impact</h3>
+                <table className={styles.snapshotTable}>
+                  <thead>
+                    <tr>
+                      <th>Workstream</th>
+                      <th>Initiatives</th>
+                      <th>Recurring impact</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workstreamSummaryRows.map((entry) => (
+                      <tr key={entry.id}>
+                        <th scope="row">{entry.name}</th>
+                        <td>{numberFormatter.format(entry.initiatives)}</td>
+                        <td>{impactFormatter.format(entry.impact)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            </div>
+
+            <details className={styles.snapshotRaw}>
+              <summary>Raw payload</summary>
+              <pre>{JSON.stringify(latestSnapshot.payload, null, 2)}</pre>
+            </details>
+          </div>
+        )}
+        {!latestSnapshot && !latestSnapshotLoading && !latestSnapshotError && (
+          <p className={styles.helpText}>No snapshots captured yet.</p>
+        )}
+      </section>
     </section>
   );
 };

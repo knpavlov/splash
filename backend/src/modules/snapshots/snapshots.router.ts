@@ -83,6 +83,20 @@ router.get('/program/:id', async (req, res) => {
   }
 });
 
+router.get('/program/latest', async (_req, res) => {
+  try {
+    const snapshot = await snapshotsService.getLatestProgramSnapshot();
+    if (!snapshot) {
+      res.status(404).json({ code: 'not-found', message: 'Snapshot not found.' });
+      return;
+    }
+    res.json(snapshot);
+  } catch (error) {
+    console.error('Failed to load latest snapshot:', error);
+    res.status(500).json({ code: 'snapshot-load-error', message: 'Unable to load the latest snapshot.' });
+  }
+});
+
 router.post('/capture', async (req, res) => {
   const detailLevel = normalizeDetailLevel(req.body?.detailLevel);
   try {

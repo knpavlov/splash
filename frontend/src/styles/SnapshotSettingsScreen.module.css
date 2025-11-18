@@ -222,3 +222,131 @@
   font-size: 12px;
   color: #64748b;
 }
+
+.viewer {
+  margin-top: 24px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.viewerHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.viewerSubtitle {
+  margin-top: 4px;
+  color: #64748b;
+  max-width: 620px;
+}
+
+.viewerActions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.viewerActions button {
+  border: 1px solid #cbd5f5;
+  border-radius: 8px;
+  padding: 8px 16px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.viewerActions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.snapshotViewer {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.snapshotSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.snapshotCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.snapshotTables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.snapshotTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.snapshotTable th,
+.snapshotTable td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.snapshotTable th {
+  font-weight: 600;
+  color: #475569;
+}
+
+.snapshotList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.snapshotList li {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 4px;
+  font-size: 13px;
+}
+
+.snapshotList strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.snapshotRaw pre {
+  margin-top: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12px;
+}
+.snapshotRaw summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #0f172a;
+}
+.snapshotRaw {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+}

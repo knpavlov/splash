@@ -45,6 +45,27 @@ export interface StageGateSnapshot {
   workstreams: StageGateSnapshotWorkstream[];
 }
 
+export interface StageSummaryEntry {
+  initiatives: number;
+  impact: number;
+  approved: number;
+  pendingGate: number;
+}
+
+export type StageSummaryMap = Record<InitiativeStageKey, StageSummaryEntry>;
+
+export interface StatusSummaryEntry {
+  status: string;
+  initiatives: number;
+}
+
+export interface WorkstreamSummaryEntry {
+  id: string;
+  name: string;
+  initiatives: number;
+  impact: number;
+}
+
 export interface ProgramSnapshotInitiativeSummary {
   id: string;
   name: string;
@@ -103,6 +124,9 @@ export interface ProgramSnapshotPayload {
     blueprint: FinancialBlueprintRecord | null;
   };
   stageGate: StageGateSnapshot;
+  stageSummary: StageSummaryMap;
+  statusSummary: StatusSummaryEntry[];
+  workstreamSummary: WorkstreamSummaryEntry[];
   initiatives: ProgramSnapshotInitiativeSummary[];
   workstreams: ProgramSnapshotWorkstreamSummary[];
   participants: ProgramSnapshotParticipantSummary[];
@@ -111,6 +135,7 @@ export interface ProgramSnapshotPayload {
 export interface ProgramSnapshotSummary {
   id: string;
   capturedAt: string;
+  dateKey: string;
   trigger: ProgramSnapshotTrigger;
   metrics: {
     initiatives: number;

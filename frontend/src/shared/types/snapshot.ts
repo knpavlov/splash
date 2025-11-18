@@ -1,3 +1,6 @@
+import { InitiativeStageKey } from './initiative';
+import { FinancialBlueprint } from './financials';
+
 export type StageColumnKey =
   | 'l0'
   | 'l1-gate'
@@ -31,9 +34,58 @@ export interface StageGateSnapshot {
   workstreams: StageGateSnapshotWorkstream[];
 }
 
+export interface StageSummaryEntry {
+  initiatives: number;
+  impact: number;
+  approved: number;
+  pendingGate: number;
+}
+
+export type StageSummaryMap = Record<InitiativeStageKey, StageSummaryEntry>;
+
+export interface StatusSummaryEntry {
+  status: string;
+  initiatives: number;
+}
+
+export interface WorkstreamSummaryEntry {
+  id: string;
+  name: string;
+  initiatives: number;
+  impact: number;
+}
+
+export interface ProgramSnapshotPayload {
+  version: number;
+  capturedAt: string;
+  metrics: {
+    initiatives: number;
+    workstreams: number;
+    participants: number;
+  };
+  totals: {
+    recurringBenefits: number;
+    recurringCosts: number;
+    oneoffBenefits: number;
+    oneoffCosts: number;
+    recurringImpact: number;
+  };
+  financials: {
+    blueprint: FinancialBlueprint | null;
+  };
+  stageGate: StageGateSnapshot;
+  stageSummary: StageSummaryMap;
+  statusSummary: StatusSummaryEntry[];
+  workstreamSummary: WorkstreamSummaryEntry[];
+  initiatives: unknown[];
+  workstreams: unknown[];
+  participants: unknown[];
+}
+
 export interface ProgramSnapshotSummary {
   id: string;
   capturedAt: string;
+  dateKey: string;
   trigger: 'auto' | 'manual';
   metrics: {
     initiatives: number;
@@ -47,8 +99,9 @@ export interface ProgramSnapshotSummary {
 export interface ProgramSnapshotDetail {
   id: string;
   capturedAt: string;
+  dateKey: string;
   trigger: 'auto' | 'manual';
-  payload: unknown;
+  payload: ProgramSnapshotPayload;
   payloadSizeBytes: number;
 }
 

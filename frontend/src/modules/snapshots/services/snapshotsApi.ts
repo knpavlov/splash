@@ -42,6 +42,7 @@ export const snapshotsApi = {
       body: { detailLevel }
     }),
   getProgramSnapshot: (id: string) => apiRequest<ProgramSnapshotDetail>(`/snapshots/program/${id}`),
+  getLatestProgramSnapshot: () => apiRequest<ProgramSnapshotDetail>('/snapshots/program/latest'),
   recordSessionEvent: (event: SnapshotSessionEvent, accountId: string | null) =>
     apiRequest<{ accepted: boolean }>('/snapshots/session-events', {
       method: 'POST',

@@ -1,10 +1,12 @@
 import { postgresPool } from '../../shared/database/postgres.client.js';
+import { initiativeStageKeys } from '../initiatives/initiatives.types.js';
 import type {
   ProgramSnapshotPayload,
   SnapshotCategory,
   SnapshotTrigger,
   StageColumnKey,
-  StageMetricMap
+  StageMetricMap,
+  StageSummaryMap
 } from './snapshots.types.js';
 
 const stageColumnKeys: StageColumnKey[] = [
@@ -26,6 +28,12 @@ const createEmptyStageMetricMap = (): StageMetricMap =>
     acc[key] = { initiatives: 0, impact: 0 };
     return acc;
   }, {} as StageMetricMap);
+
+const createEmptyStageSummary = (): StageSummaryMap =>
+  initiativeStageKeys.reduce((acc, stage) => {
+    acc[stage] = { initiatives: 0, impact: 0, approved: 0, pendingGate: 0 };
+    return acc;
+  }, {} as StageSummaryMap);
 
 type SnapshotRow = {
   id: string;
@@ -102,6 +110,9 @@ export class SnapshotsRepository {
           totals: { initiatives: 0, impact: 0 },
           workstreams: []
         },
+        stageSummary: createEmptyStageSummary(),
+        statusSummary: [],
+        workstreamSummary: [],
         initiatives: [],
         workstreams: [],
         participants: []
@@ -110,6 +121,15 @@ export class SnapshotsRepository {
       payload = JSON.parse(payloadValue) as ProgramSnapshotPayload;
     } else {
       payload = payloadValue as ProgramSnapshotPayload;
+    }
+    if (!payload.stageSummary) {
+      payload.stageSummary = createEmptyStageSummary();
+    }
+    if (!payload.statusSummary) {
+      payload.statusSummary = [];
+    }
+    if (!payload.workstreamSummary) {
+      payload.workstreamSummary = [];
     }
     return {
       id: row.id,
@@ -327,6 +347,28 @@ export class SnapshotsRepository {
           FROM program_snapshots
          WHERE category = 'program'
            AND trigger = 'auto'
+      ORDER BY captured_at DESC
+         LIMIT 1;
+      `
+    );
+    const row = result.rows?.[0];
+    return row ? this.mapRow(row) : null;
+  }
+
+  async getLatestProgramSnapshot() {
+    const result = await postgresPool.query<SnapshotRow>(
+      `
+        SELECT id,
+               category,
+               trigger,
+               account_id,
+               captured_at,
+               payload,
+               payload_bytes,
+               initiative_count,
+               recurring_impact
+          FROM program_snapshots
+         WHERE category = 'program'
       ORDER BY captured_at DESC
          LIMIT 1;
       `

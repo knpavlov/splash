@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { initiativeStageKeys } from '../initiatives/initiatives.types.js';
 import type { InitiativeResponse, InitiativeStageKey } from '../initiatives/initiatives.types.js';
 import { initiativesService } from '../initiatives/initiatives.module.js';
 import { workstreamsService } from '../workstreams/workstreams.module.js';
@@ -7,7 +8,19 @@ import { financialsService } from '../financials/financials.module.js';
 import { SnapshotsRepository, SnapshotListFilters } from './snapshots.repository.js';
 import type { WorkstreamRecord } from '../workstreams/workstreams.types.js';
 import type { FinancialBlueprintRecord } from '../financials/financials.types.js';
-import type { ProgramSnapshotPayload, ProgramSnapshotSummary, SnapshotDetailLevel, SnapshotSettingsPayload, SessionSnapshotTrigger, StageColumnKey, StageGateSnapshot, StageMetricMap } from './snapshots.types.js';
+import type {
+  ProgramSnapshotPayload,
+  ProgramSnapshotSummary,
+  SnapshotDetailLevel,
+  SnapshotSettingsPayload,
+  SessionSnapshotTrigger,
+  StageColumnKey,
+  StageGateSnapshot,
+  StageMetricMap,
+  StageSummaryMap,
+  StatusSummaryEntry,
+  WorkstreamSummaryEntry
+} from './snapshots.types.js';
 import type { SnapshotScheduler } from './snapshotScheduler.js';
 
 const stageColumnKeys: StageColumnKey[] = [
@@ -92,6 +105,9 @@ export class SnapshotsService {
     });
 
     const stageGate = this.buildStageGateSnapshot(initiatives, workstreamLookup);
+    const stageSummary = this.buildStageSummary(stageGate);
+    const statusSummary = this.buildStatusSummary(initiatives);
+    const workstreamSummary = this.buildWorkstreamSummary(stageGate);
     const totals = initiatives.reduce(
       (acc, initiative) => {
         acc.recurringBenefits += initiative.totals.recurringBenefits;
@@ -179,6 +195,9 @@ export class SnapshotsService {
         blueprint: financialBlueprint
       },
       stageGate,
+      stageSummary,
+      statusSummary,
+      workstreamSummary,
       initiatives: initiativePayload,
       workstreams: workstreamPayload,
       participants: participantPayload
@@ -263,10 +282,48 @@ export class SnapshotsService {
     };
   }
 
+  private buildStageSummary(stageGate: StageGateSnapshot): StageSummaryMap {
+    return initiativeStageKeys.reduce((acc, stage) => {
+      const approved = stageGate.metrics[stage] ?? { initiatives: 0, impact: 0 };
+      const gateKey = stage === 'l0' ? null : (`${stage}-gate` as StageColumnKey);
+      const gateMetrics = gateKey ? stageGate.metrics[gateKey] ?? { initiatives: 0, impact: 0 } : { initiatives: 0, impact: 0 };
+      acc[stage] = {
+        initiatives: approved.initiatives + gateMetrics.initiatives,
+        impact: approved.impact + gateMetrics.impact,
+        approved: approved.initiatives,
+        pendingGate: gateMetrics.initiatives
+      };
+      return acc;
+    }, {} as StageSummaryMap);
+  }
+
+  private buildStatusSummary(initiatives: InitiativeResponse[]): StatusSummaryEntry[] {
+    const counts = new Map<string, number>();
+    initiatives.forEach((initiative) => {
+      const key = initiative.currentStatus?.trim().toLowerCase() || 'unknown';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([status, initiatives]) => ({ status, initiatives }))
+      .sort((a, b) => b.initiatives - a.initiatives);
+  }
+
+  private buildWorkstreamSummary(stageGate: StageGateSnapshot): WorkstreamSummaryEntry[] {
+    return stageGate.workstreams
+      .map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        initiatives: entry.totals.initiatives,
+        impact: entry.totals.impact
+      }))
+      .sort((a, b) => b.initiatives - a.initiatives || a.name.localeCompare(b.name));
+  }
+
   private mapSummary(record: Awaited<ReturnType<SnapshotsRepository['insertSnapshot']>>): ProgramSnapshotSummary {
     return {
       id: record.id,
       capturedAt: record.capturedAt.toISOString(),
+      dateKey: record.capturedAt.toISOString().slice(0, 10),
       trigger: record.trigger === 'auto' || record.trigger === 'manual' ? record.trigger : 'manual',
       metrics: {
         initiatives: record.initiativeCount,
@@ -304,7 +361,14 @@ export class SnapshotsService {
 
   async captureSessionSnapshot(event: SessionSnapshotTrigger, account?: { id?: string | null }) {
     const payload = await this.buildProgramSnapshotPayload('summary');
-    const payloadText = JSON.stringify(payload);
+    const payloadForSession: ProgramSnapshotPayload = {
+      ...payload,
+      initiatives: [],
+      workstreams: [],
+      participants: [],
+      financials: { blueprint: null }
+    };
+    const payloadText = JSON.stringify(payloadForSession);
     const payloadBytes = Buffer.byteLength(payloadText, 'utf8');
     await this.repository.insertSnapshot({
       id: randomUUID(),
@@ -312,7 +376,7 @@ export class SnapshotsService {
       trigger: event,
       accountId: account?.id ?? null,
       capturedAt: new Date(payload.capturedAt),
-      payload,
+      payload: payloadForSession,
       payloadBytes,
       initiativeCount: payload.metrics.initiatives,
       recurringImpact: payload.totals.recurringImpact
@@ -326,6 +390,7 @@ export class SnapshotsService {
       .map((row) => ({
         id: row.id,
         capturedAt: row.capturedAt.toISOString(),
+        dateKey: row.capturedAt.toISOString().slice(0, 10),
         trigger: row.trigger === 'auto' || row.trigger === 'manual' ? row.trigger : 'manual',
         metrics: {
           initiatives: row.initiativeCount,
@@ -346,6 +411,22 @@ export class SnapshotsService {
     return {
       id: record.id,
       capturedAt: record.capturedAt.toISOString(),
+       dateKey: record.capturedAt.toISOString().slice(0, 10),
+      trigger: record.trigger === 'auto' || record.trigger === 'manual' ? record.trigger : 'manual',
+      payload: record.payload,
+      payloadSizeBytes: record.payloadBytes
+    };
+  }
+
+  async getLatestProgramSnapshot() {
+    const record = await this.repository.getLatestProgramSnapshot();
+    if (!record || record.category !== 'program') {
+      return null;
+    }
+    return {
+      id: record.id,
+      capturedAt: record.capturedAt.toISOString(),
+      dateKey: record.capturedAt.toISOString().slice(0, 10),
       trigger: record.trigger === 'auto' || record.trigger === 'manual' ? record.trigger : 'manual',
       payload: record.payload,
       payloadSizeBytes: record.payloadBytes
@@ -372,6 +453,7 @@ export class SnapshotsService {
         ? {
             id: lastAuto.id,
             capturedAt: lastAuto.capturedAt.toISOString(),
+            dateKey: lastAuto.capturedAt.toISOString().slice(0, 10),
             trigger: 'auto',
             metrics: {
               initiatives: lastAuto.initiativeCount,
