@@ -16,6 +16,7 @@ import { approvalsRouter } from '../modules/approvals/approvals.router.js';
 import { participantsRouter } from '../modules/participants/participants.router.js';
 import { financialsRouter } from '../modules/financials/financials.router.js';
 import { snapshotsRouter } from '../modules/snapshots/snapshots.router.js';
+import { initiativeLogsRouter } from '../modules/logs/initiativeLogs.router.js';
 
 export const registerAppRoutes = (app: Application) => {
   // TODO: add middleware for authentication and request logging
@@ -35,5 +36,6 @@ export const registerAppRoutes = (app: Application) => {
   app.use('/participants', participantsRouter);
   app.use('/financials', financialsRouter);
   app.use('/snapshots', snapshotsRouter);
+  app.use('/initiative-logs', initiativeLogsRouter);
   app.use('/demo', demoRouter);
 };

@@ -23,6 +23,7 @@ import { FinancialTreeScreen } from './modules/dashboards/FinancialTreeScreen';
 import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboardScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 import { SnapshotSettingsScreen } from './modules/settings/SnapshotSettingsScreen';
+import { InitiativeLogsScreen } from './modules/logs/InitiativeLogsScreen';
 
 interface AppRoute {
   page: NavigationKey;
@@ -326,6 +327,8 @@ const AppContent = () => {
         return <StageGateDashboardScreen />;
       case 'accounts':
         return <AccountsScreen />;
+      case 'initiative-logs':
+        return <InitiativeLogsScreen />;
       case 'snapshot-settings':
         return <SnapshotSettingsScreen />;
       default:
