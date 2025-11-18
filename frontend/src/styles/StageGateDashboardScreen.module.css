@@ -18,6 +18,15 @@
   font-size: 14px;
 }
 
+.errorBanner {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
 .headerActions {
   display: flex;
   flex-direction: column;

@@ -3,10 +3,12 @@ import express from 'express';
 import cors from 'cors';
 import { registerAppRoutes } from './setupRoutes.js';
 import { runMigrations } from '../shared/database/migrations.js';
+import { snapshotScheduler } from '../modules/snapshots/snapshots.module.js';
 
 const bootstrap = async () => {
   // Ensure the database is ready before serving requests
   await runMigrations();
+  await snapshotScheduler.start();
 
   const app = express();
   app.use(cors());

@@ -22,6 +22,7 @@ import { CapacityHeatmapScreen } from './modules/dashboards/CapacityHeatmapScree
 import { FinancialTreeScreen } from './modules/dashboards/FinancialTreeScreen';
 import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboardScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
+import { SnapshotSettingsScreen } from './modules/settings/SnapshotSettingsScreen';
 
 interface AppRoute {
   page: NavigationKey;
@@ -325,6 +326,8 @@ const AppContent = () => {
         return <StageGateDashboardScreen />;
       case 'accounts':
         return <AccountsScreen />;
+      case 'snapshot-settings':
+        return <SnapshotSettingsScreen />;
       default:
         return (
           <PlaceholderScreen

@@ -10,6 +10,7 @@ import {
 import { AccountRole } from '../../shared/types/account';
 import { ApiError } from '../../shared/api/httpClient';
 import { authApi } from './services/authApi';
+import { snapshotsApi } from '../snapshots/services/snapshotsApi';
 
 export interface AuthSession {
   token: string;
@@ -256,9 +257,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const logout = useCallback(() => {
+    if (session?.accountId) {
+      void snapshotsApi.recordSessionEvent('logout', session.accountId).catch((error) => {
+        console.error('Failed to record logout snapshot event:', error);
+      });
+    }
     setSession(null);
     clearStoredSession();
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     if (!session || !isBrowserEnvironment()) {

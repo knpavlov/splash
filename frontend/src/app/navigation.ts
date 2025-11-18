@@ -17,7 +17,8 @@ export type NavigationKey =
   | 'capacity-heatmap'
   | 'financial-tree'
   | 'financials'
-  | 'kpis';
+  | 'kpis'
+  | 'snapshot-settings';
 
 export type NavigationGroupKey = 'old' | 'program' | 'dashboards' | 'settings';
 
@@ -58,5 +59,6 @@ export const navigationItems: NavigationItem[] = [
   },
   { key: 'capacity-heatmap', label: 'Capacity heatmap', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
   { key: 'financial-tree', label: 'P&L tree', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
-  { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'], group: 'settings' }
+  { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'], group: 'settings' },
+  { key: 'snapshot-settings', label: 'Snapshot settings', roleAccess: ['super-admin', 'admin'], group: 'settings' }
 ];

@@ -4,6 +4,7 @@ import type { AccountsService } from '../accounts/accounts.service.js';
 import { MailerDeliveryError, MailerService, MAILER_NOT_CONFIGURED } from '../../shared/mailer.service.js';
 import { OtpService } from '../../shared/otp.service.js';
 import { AccessCodesRepository } from './accessCodes.repository.js';
+import { snapshotsService } from '../snapshots/snapshots.module.js';
 
 export class AuthService {
   constructor(
@@ -70,6 +71,9 @@ export class AuthService {
     }
 
     await this.codesRepository.deleteCode(normalized);
+    void snapshotsService.captureSessionSnapshot('login', { id: account.id }).catch((error) => {
+      console.error('Failed to capture login snapshot:', error);
+    });
 
     return {
       token: randomUUID(),

@@ -3,6 +3,8 @@ import styles from '../../styles/StageGateDashboardScreen.module.css';
 import { useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { Initiative, InitiativeStageKey, initiativeStageKeys } from '../../shared/types/initiative';
 import { Workstream } from '../../shared/types/workstream';
+import { ProgramSnapshotSummary } from '../../shared/types/snapshot';
+import { snapshotsApi } from '../snapshots/services/snapshotsApi';
 
 type GateStageKey = Exclude<InitiativeStageKey, 'l0'>;
 type StageColumnKey = 'l0' | GateStageKey | `${GateStageKey}-gate`;
@@ -41,16 +43,8 @@ interface StageGatePortfolio {
   totals: StageMetric;
 }
 
-interface StageGateSnapshot extends StageGatePortfolio {
-  id: string;
-  capturedAt: string;
-  dateKey: string;
-}
-
 type ComparisonMode = 'none' | '7d' | '30d' | 'custom';
-
-const SNAPSHOT_STORAGE_KEY = 'stage-gate-pipeline-snapshots-v1';
-const SNAPSHOT_LIMIT = 120;
+const SNAPSHOT_FETCH_LIMIT = 90;
 
 const countFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const impactFormatter = new Intl.NumberFormat('en-US', {
@@ -163,73 +157,7 @@ const buildRows = (initiatives: Initiative[], workstreams: Workstream[]): { rows
     totalRow: finalizeRow(totalRow)
   };
 };
-
-const ensureSnapshotList = (payload: unknown): StageGateSnapshot[] => {
-  if (!Array.isArray(payload)) {
-    return [];
-  }
-  return payload
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') {
-        return null;
-      }
-      const typed = entry as Partial<StageGateSnapshot>;
-      const capturedAt =
-        typeof typed.capturedAt === 'string' && typed.capturedAt ? typed.capturedAt : new Date().toISOString();
-      const date = new Date(capturedAt);
-      if (Number.isNaN(date.getTime())) {
-        return null;
-      }
-      const metrics = typed.metrics ? cloneMetricMap(typed.metrics) : createEmptyMetricMap();
-      const totals = typed.totals ?? { initiatives: 0, impact: 0 };
-      return {
-        id: typed.id ?? `${date.getTime()}`,
-        capturedAt,
-        dateKey: getDateKey(date),
-        metrics,
-        totals: {
-          initiatives: totals.initiatives ?? 0,
-          impact: totals.impact ?? 0
-        }
-      } satisfies StageGateSnapshot;
-    })
-    .filter((snapshot): snapshot is StageGateSnapshot => Boolean(snapshot))
-    .sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime());
-};
-
-const getDateKey = (value: Date) => value.toISOString().slice(0, 10);
-
-const createSnapshot = (portfolio: StageGatePortfolio, capturedAt = new Date()): StageGateSnapshot => ({
-  id:
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `snap-${capturedAt.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
-  capturedAt: capturedAt.toISOString(),
-  dateKey: getDateKey(capturedAt),
-  metrics: cloneMetricMap(portfolio.metrics),
-  totals: {
-    initiatives: portfolio.totals.initiatives,
-    impact: portfolio.totals.impact
-  }
-});
-
-const persistSnapshots = (snapshots: StageGateSnapshot[]) => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  try {
-    localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshots));
-  } catch (error) {
-    console.error('Failed to write pipeline snapshots', error);
-  }
-};
-
-const trimSnapshots = (snapshots: StageGateSnapshot[]) =>
-  snapshots
-    .sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime())
-    .slice(-SNAPSHOT_LIMIT);
-
-const findSnapshotByDaysAgo = (snapshots: StageGateSnapshot[], days: number): StageGateSnapshot | null => {
+const findSnapshotByDaysAgo = (snapshots: ProgramSnapshotSummary[], days: number): ProgramSnapshotSummary | null => {
   if (!snapshots.length) {
     return null;
   }
@@ -261,61 +189,6 @@ const formatCountDelta = (value: number) => {
     return `-${countFormatter.format(Math.abs(value))}`;
   }
   return 'No change';
-};
-
-const useStageGateSnapshots = (portfolio: StageGatePortfolio) => {
-  const [snapshots, setSnapshots] = useState<StageGateSnapshot[]>([]);
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      setInitialized(true);
-      return;
-    }
-    try {
-      const raw = localStorage.getItem(SNAPSHOT_STORAGE_KEY);
-      if (raw) {
-        setSnapshots(ensureSnapshotList(JSON.parse(raw)));
-      }
-    } catch (error) {
-      console.error('Failed to load pipeline snapshots', error);
-    } finally {
-      setInitialized(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!initialized) {
-      return;
-    }
-    setSnapshots((previous) => {
-      const todayKey = getDateKey(new Date());
-      if (previous.some((snapshot) => snapshot.dateKey === todayKey)) {
-        return previous;
-      }
-      const nextSnapshot = createSnapshot(portfolio);
-      const next = trimSnapshots([...previous, nextSnapshot]);
-      persistSnapshots(next);
-      return next;
-    });
-  }, [portfolio, initialized]);
-
-  const captureSnapshot = useCallback(() => {
-    if (!initialized) {
-      return null;
-    }
-    let created: StageGateSnapshot | null = null;
-    setSnapshots((previous) => {
-      const nextSnapshot = createSnapshot(portfolio);
-      created = nextSnapshot;
-      const next = trimSnapshots([...previous, nextSnapshot]);
-      persistSnapshots(next);
-      return next;
-    });
-    return created;
-  }, [portfolio, initialized]);
-
-  return { snapshots, initialized, captureSnapshot };
 };
 
 const renderBar = (
@@ -374,7 +247,30 @@ export const StageGateDashboardScreen = () => {
     }),
     [totalRow]
   );
-  const { snapshots, initialized, captureSnapshot } = useStageGateSnapshots(portfolio);
+  const [snapshots, setSnapshots] = useState<ProgramSnapshotSummary[]>([]);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  const [captureBusy, setCaptureBusy] = useState(false);
+
+  const loadSnapshots = useCallback(async () => {
+    setSnapshotsLoading(true);
+    try {
+      const remote = await snapshotsApi.listProgramSnapshots({ limit: SNAPSHOT_FETCH_LIMIT });
+      setSnapshots(remote);
+      setSnapshotError(null);
+    } catch (error) {
+      console.error('Failed to load pipeline snapshots:', error);
+      setSnapshotError('Unable to load snapshots right now. Try again later.');
+    } finally {
+      setSnapshotsLoading(false);
+      setSnapshotsLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSnapshots();
+  }, [loadSnapshots]);
 
   useEffect(() => {
     if (!snapshots.length && comparisonMode !== 'none') {
@@ -417,7 +313,7 @@ export const StageGateDashboardScreen = () => {
     }
     return stageColumns.map((column) => {
       const current = totalRow.metrics[column.key];
-      const previous = comparisonSnapshot.metrics[column.key];
+      const previous = comparisonSnapshot.stageGate.metrics[column.key];
       return {
         key: column.key,
         label: column.label,
@@ -440,9 +336,18 @@ export const StageGateDashboardScreen = () => {
     setSelectedSnapshotId(event.target.value || null);
   };
 
-  const handleCaptureSnapshot = () => {
-    captureSnapshot();
-  };
+  const handleCaptureSnapshot = useCallback(async () => {
+    setCaptureBusy(true);
+    try {
+      await snapshotsApi.captureProgramSnapshot('full');
+      await loadSnapshots();
+    } catch (error) {
+      console.error('Failed to capture snapshot:', error);
+      setSnapshotError('Unable to capture snapshot right now.');
+    } finally {
+      setCaptureBusy(false);
+    }
+  }, [loadSnapshots]);
 
   return (
     <section className={styles.wrapper}>
@@ -452,13 +357,25 @@ export const StageGateDashboardScreen = () => {
           <p className={styles.subtitle}>
             Track how initiatives move from L0 through L5 and monitor the recurring impact tied to each gate.
           </p>
+          {snapshotError && <p className={styles.errorBanner}>{snapshotError}</p>}
         </div>
         <div className={styles.headerActions}>
-          <button type="button" className={styles.snapshotButton} onClick={handleCaptureSnapshot} disabled={!initialized}>
-            Capture snapshot now
+          <button
+            type="button"
+            className={styles.snapshotButton}
+            onClick={handleCaptureSnapshot}
+            disabled={captureBusy || snapshotsLoading}
+          >
+            {captureBusy ? 'Capturing...' : 'Capture snapshot now'}
           </button>
           <p className={styles.snapshotInfo}>
-            Snapshots are stored in this browser and updated automatically once per day when you visit this dashboard.
+            Snapshots are stored on the server and refreshed automatically according to the Snapshot settings.
+            {snapshotsLoading && !snapshotsLoaded && (
+              <>
+                <br />
+                Loading history...
+              </>
+            )}
             {lastSnapshot && (
               <>
                 <br />
@@ -481,7 +398,7 @@ export const StageGateDashboardScreen = () => {
               vs 30 days ago
             </option>
             <option value="custom" disabled={!snapshots.length}>
-              Pick snapshot…
+              Pick snapshot...
             </option>
           </select>
         </div>
@@ -582,7 +499,7 @@ export const StageGateDashboardScreen = () => {
                   totalRow,
                   column.key,
                   'initiatives',
-                  comparisonSnapshot?.metrics[column.key].initiatives
+                  comparisonSnapshot?.stageGate.metrics[column.key].initiatives
                 )
               )}
             </tr>
@@ -590,7 +507,12 @@ export const StageGateDashboardScreen = () => {
               <th scope="row" className={styles.workstreamCell} />
               <td className={styles.metricLabel}>Recurring impact</td>
               {stageColumns.map((column) =>
-                renderBar(totalRow, column.key, 'impact', comparisonSnapshot?.metrics[column.key].impact)
+                renderBar(
+                  totalRow,
+                  column.key,
+                  'impact',
+                  comparisonSnapshot?.stageGate.metrics[column.key].impact
+                )
               )}
             </tr>
           </tbody>

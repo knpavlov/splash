@@ -873,6 +873,51 @@ const createTables = async () => {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+
+  await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS program_snapshots (
+      id UUID PRIMARY KEY,
+      category TEXT NOT NULL CHECK (category IN ('program', 'session')),
+      trigger TEXT NOT NULL,
+      account_id UUID,
+      captured_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      payload JSONB NOT NULL,
+      payload_bytes INTEGER NOT NULL DEFAULT 0,
+      initiative_count INTEGER NOT NULL DEFAULT 0,
+      recurring_impact NUMERIC(14, 2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS program_snapshots_category_captured_idx
+      ON program_snapshots(category, captured_at DESC);
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS program_snapshots_account_idx
+      ON program_snapshots(account_id, captured_at DESC)
+      WHERE account_id IS NOT NULL;
+  `);
+
+  await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS snapshot_settings (
+      id SMALLINT PRIMARY KEY DEFAULT 1,
+      auto_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      retention_days INTEGER NOT NULL DEFAULT 60,
+      timezone TEXT NOT NULL DEFAULT 'Australia/Sydney',
+      schedule_hour INTEGER NOT NULL DEFAULT 19,
+      schedule_minute INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`
+    INSERT INTO snapshot_settings (id, auto_enabled, retention_days, timezone, schedule_hour, schedule_minute)
+    VALUES (1, FALSE, 60, 'Australia/Sydney', 19, 0)
+    ON CONFLICT (id) DO NOTHING;
+  `);
 };
 
 const syncSuperAdmin = async () => {
