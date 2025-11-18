@@ -69,20 +69,6 @@ router.get('/program', async (req, res) => {
   }
 });
 
-router.get('/program/:id', async (req, res) => {
-  try {
-    const snapshot = await snapshotsService.getProgramSnapshot(req.params.id);
-    if (!snapshot) {
-      res.status(404).json({ code: 'not-found', message: 'Snapshot not found.' });
-      return;
-    }
-    res.json(snapshot);
-  } catch (error) {
-    console.error('Failed to load snapshot payload:', error);
-    res.status(500).json({ code: 'snapshot-load-error', message: 'Unable to load the snapshot.' });
-  }
-});
-
 router.get('/program/latest', async (_req, res) => {
   try {
     const snapshot = await snapshotsService.getLatestProgramSnapshot();
@@ -94,6 +80,20 @@ router.get('/program/latest', async (_req, res) => {
   } catch (error) {
     console.error('Failed to load latest snapshot:', error);
     res.status(500).json({ code: 'snapshot-load-error', message: 'Unable to load the latest snapshot.' });
+  }
+});
+
+router.get('/program/:id', async (req, res) => {
+  try {
+    const snapshot = await snapshotsService.getProgramSnapshot(req.params.id);
+    if (!snapshot) {
+      res.status(404).json({ code: 'not-found', message: 'Snapshot not found.' });
+      return;
+    }
+    res.json(snapshot);
+  } catch (error) {
+    console.error('Failed to load snapshot payload:', error);
+    res.status(500).json({ code: 'snapshot-load-error', message: 'Unable to load the snapshot.' });
   }
 });
 
