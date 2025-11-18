@@ -1,7 +1,14 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/SnapshotSettingsScreen.module.css';
 import { snapshotsApi } from '../snapshots/services/snapshotsApi';
-import { ProgramSnapshotDetail, SnapshotSettingsPayload } from '../../shared/types/snapshot';
+import {
+  ProgramSnapshotDetail,
+  ProgramSnapshotInitiativeSummary,
+  ProgramSnapshotParticipantSummary,
+  ProgramSnapshotWorkstreamSummary,
+  SnapshotSettingsPayload,
+  StageColumnKey
+} from '../../shared/types/snapshot';
 import { initiativeStageKeys, initiativeStageLabels } from '../../shared/types/initiative';
 
 const dateTimeFormatter = new Intl.DateTimeFormat('en-AU', {
@@ -27,6 +34,20 @@ const formatBytes = (value: number) => {
 
 const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const impactFormatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+const stageColumns: { key: StageColumnKey; label: string }[] = [
+  { key: 'l0', label: 'L0' },
+  { key: 'l1-gate', label: 'L1 Gate' },
+  { key: 'l1', label: 'L1' },
+  { key: 'l2-gate', label: 'L2 Gate' },
+  { key: 'l2', label: 'L2' },
+  { key: 'l3-gate', label: 'L3 Gate' },
+  { key: 'l3', label: 'L3' },
+  { key: 'l4-gate', label: 'L4 Gate' },
+  { key: 'l4', label: 'L4' },
+  { key: 'l5-gate', label: 'L5 Gate' },
+  { key: 'l5', label: 'L5' }
+];
 
 interface SnapshotFormState {
   enabled: boolean;
@@ -215,6 +236,33 @@ export const SnapshotSettingsScreen = () => {
 
   const statusSummaryRows = latestSnapshot?.payload.statusSummary ?? [];
   const workstreamSummaryRows = latestSnapshot?.payload.workstreamSummary ?? [];
+  const initiativeRows: ProgramSnapshotInitiativeSummary[] = useMemo(
+    () =>
+      (latestSnapshot?.payload.initiatives ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
+    [latestSnapshot]
+  );
+  const workstreamDetails: ProgramSnapshotWorkstreamSummary[] = useMemo(
+    () => (latestSnapshot?.payload.workstreams ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
+    [latestSnapshot]
+  );
+  const participantRows: ProgramSnapshotParticipantSummary[] = useMemo(
+    () => (latestSnapshot?.payload.participants ?? []).slice().sort((a, b) => a.displayName.localeCompare(b.displayName)),
+    [latestSnapshot]
+  );
+  const stageGateMetricsRows = useMemo(() => {
+    const metrics = latestSnapshot?.payload.stageGate?.metrics;
+    if (!metrics) {
+      return [];
+    }
+    return stageColumns.map((column) => ({
+      key: column.key,
+      label: column.label,
+      initiatives: metrics[column.key]?.initiatives ?? 0,
+      impact: metrics[column.key]?.impact ?? 0
+    }));
+  }, [latestSnapshot]);
+  const stageGateWorkstreams = latestSnapshot?.payload.stageGate?.workstreams ?? [];
+  const blueprint = latestSnapshot?.payload.financials?.blueprint ?? null;
   const snapshotMetrics = latestSnapshot?.payload.metrics;
   const snapshotTotals = latestSnapshot?.payload.totals;
 
@@ -260,6 +308,19 @@ export const SnapshotSettingsScreen = () => {
                 <input type="checkbox" checked={form.enabled} onChange={handleToggleEnabled} />
                 <span />
               </label>
+              {blueprint && (
+                <article className={styles.snapshotCard}>
+                  <p className={styles.statLabel}>Financial blueprint</p>
+                  <p className={styles.statValue}>
+                    {blueprint.monthCount} months starting{' '}
+                    {new Date(`${blueprint.startMonth}-01`).toLocaleString('en-US', {
+                      month: 'short',
+                      year: 'numeric'
+                    })}
+                  </p>
+                  <p className={styles.statMeta}>Ratios configured: {blueprint.ratios.length}</p>
+                </article>
+              )}
             </div>
 
             <div className={styles.fieldRow}>
@@ -418,6 +479,29 @@ export const SnapshotSettingsScreen = () => {
                   </tbody>
                 </table>
               </section>
+              {stageGateMetricsRows.length > 0 && (
+                <section>
+                  <h3>Stage-gate columns</h3>
+                  <table className={styles.snapshotTable}>
+                    <thead>
+                      <tr>
+                        <th>Column</th>
+                        <th>Initiatives</th>
+                        <th>Impact</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stageGateMetricsRows.map((row) => (
+                        <tr key={row.key}>
+                          <th scope="row">{row.label}</th>
+                          <td>{numberFormatter.format(row.initiatives)}</td>
+                          <td>{impactFormatter.format(row.impact)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
+              )}
 
               <section>
                 <h3>Status breakdown</h3>
@@ -452,7 +536,127 @@ export const SnapshotSettingsScreen = () => {
                   </tbody>
                 </table>
               </section>
+              {stageGateWorkstreams.length > 0 && (
+                <section>
+                  <h3>Stage-gate workstreams</h3>
+                  <table className={styles.snapshotTable}>
+                    <thead>
+                      <tr>
+                        <th>Workstream</th>
+                        <th>Initiatives</th>
+                        <th>Recurring impact</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stageGateWorkstreams.map((row) => (
+                        <tr key={row.id}>
+                          <th scope="row">{row.name}</th>
+                          <td>{numberFormatter.format(row.totals.initiatives)}</td>
+                          <td>{impactFormatter.format(row.totals.impact)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
+              )}
             </div>
+
+            {workstreamDetails.length > 0 && (
+              <section className={styles.snapshotSection}>
+                <h3>Workstream snapshot ({workstreamDetails.length})</h3>
+                <div className={styles.tableScroll}>
+                  <table className={styles.snapshotTable}>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workstreamDetails.map((workstream) => (
+                        <tr key={workstream.id}>
+                          <th scope="row">{workstream.name}</th>
+                          <td>{workstream.description || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {participantRows.length > 0 && (
+              <section className={styles.snapshotSection}>
+                <h3>Participants snapshot ({participantRows.length})</h3>
+                <div className={styles.tableScroll}>
+                  <table className={styles.snapshotTable}>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Role</th>
+                        <th>Hierarchy</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {participantRows.map((participant) => (
+                        <tr key={participant.id}>
+                          <th scope="row">{participant.displayName}</th>
+                          <td>{participant.role ?? '—'}</td>
+                          <td>
+                            {[participant.hierarchyLevel1, participant.hierarchyLevel2, participant.hierarchyLevel3]
+                              .filter(Boolean)
+                              .join(' / ') || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            <section className={styles.snapshotSection}>
+              <h3>Initiatives snapshot ({initiativeRows.length})</h3>
+              <div className={styles.tableScroll}>
+                <table className={styles.snapshotTable}>
+                  <thead>
+                    <tr>
+                      <th>Initiative</th>
+                      <th>Workstream</th>
+                      <th>Stage</th>
+                      <th>Status</th>
+                      <th>Owner</th>
+                      <th>Recurring impact</th>
+                      <th>Plan window</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {initiativeRows.map((initiative) => (
+                      <tr key={initiative.id}>
+                        <th scope="row">
+                          <div className={styles.initiativeName}>{initiative.name}</div>
+                          <div className={styles.initiativeMeta}>
+                            Created {new Date(initiative.createdAt).toLocaleDateString()}
+                          </div>
+                        </th>
+                        <td>{initiative.workstreamName ?? 'Unassigned'}</td>
+                        <td>{initiative.activeStage.toUpperCase()}</td>
+                        <td>{initiative.currentStatus || 'Unknown'}</td>
+                        <td>{initiative.ownerName ?? '—'}</td>
+                        <td>{impactFormatter.format(initiative.totals.recurringImpact ?? 0)}</td>
+                        <td>
+                          {initiative.timeline.startDate && initiative.timeline.endDate
+                            ? `${new Date(initiative.timeline.startDate).toLocaleDateString()} – ${new Date(
+                                initiative.timeline.endDate
+                              ).toLocaleDateString()} (${initiative.timeline.durationDays ?? '?'} d)`
+                            : 'No plan'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
 
             <details className={styles.snapshotRaw}>
               <summary>Raw payload</summary>

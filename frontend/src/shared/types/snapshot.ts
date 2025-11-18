@@ -1,5 +1,11 @@
-import { InitiativeStageKey } from './initiative';
+import {
+  InitiativePlanModel,
+  InitiativeStageKey,
+  InitiativeStageStateMap,
+  InitiativeTotals
+} from './initiative';
 import { FinancialBlueprint } from './financials';
+import { Participant } from './participant';
 
 export type StageColumnKey =
   | 'l0'
@@ -55,6 +61,45 @@ export interface WorkstreamSummaryEntry {
   impact: number;
 }
 
+export interface ProgramSnapshotWorkstreamSummary {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface ProgramSnapshotParticipantSummary {
+  id: string;
+  displayName: string;
+  role: string | null;
+  hierarchyLevel1: string | null;
+  hierarchyLevel2: string | null;
+  hierarchyLevel3: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProgramSnapshotInitiativeSummary {
+  id: string;
+  name: string;
+  workstreamId: string;
+  workstreamName: string | null;
+  activeStage: InitiativeStageKey;
+  stageState: InitiativeStageStateMap;
+  currentStatus: string;
+  ownerName: string | null;
+  ownerAccountId: string | null;
+  l4Date: string | null;
+  createdAt: string;
+  updatedAt: string;
+  totals: InitiativeTotals;
+  plan: InitiativePlanModel;
+  timeline: {
+    startDate: string | null;
+    endDate: string | null;
+    durationDays: number | null;
+  };
+}
+
 export interface ProgramSnapshotPayload {
   version: number;
   capturedAt: string;
@@ -77,9 +122,9 @@ export interface ProgramSnapshotPayload {
   stageSummary: StageSummaryMap;
   statusSummary: StatusSummaryEntry[];
   workstreamSummary: WorkstreamSummaryEntry[];
-  initiatives: unknown[];
-  workstreams: unknown[];
-  participants: unknown[];
+  initiatives: ProgramSnapshotInitiativeSummary[];
+  workstreams: ProgramSnapshotWorkstreamSummary[];
+  participants: ProgramSnapshotParticipantSummary[];
 }
 
 export interface ProgramSnapshotSummary {
