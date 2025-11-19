@@ -33,6 +33,7 @@ import {
   WorkstreamApprovalRound,
   WorkstreamRoleAssignmentRecord
 } from '../workstreams/workstreams.types.js';
+import { buildInitiativeTotals } from './initiativeTotals.js';
 
 const sanitizeString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
@@ -365,38 +366,9 @@ const createDefaultStageStateEntry = (_stageKey: InitiativeStageKey): Initiative
   comment: null
 });
 
-const sumFinancialEntries = (stages: InitiativeStageMap, kind: typeof initiativeFinancialKinds[number]) => {
-  let total = 0;
-  for (const stageKey of initiativeStageKeys) {
-    const entries = stages[stageKey].financials[kind];
-    for (const entry of entries) {
-      for (const value of Object.values(entry.distribution)) {
-        if (Number.isFinite(value)) {
-          total += value;
-        }
-      }
-    }
-  }
-  return total;
-};
-
-const buildTotals = (record: InitiativeRecord): InitiativeTotals => {
-  const recurringBenefits = sumFinancialEntries(record.stages, 'recurring-benefits');
-  const recurringCosts = sumFinancialEntries(record.stages, 'recurring-costs');
-  const oneoffBenefits = sumFinancialEntries(record.stages, 'oneoff-benefits');
-  const oneoffCosts = sumFinancialEntries(record.stages, 'oneoff-costs');
-  return {
-    recurringBenefits,
-    recurringCosts,
-    oneoffBenefits,
-    oneoffCosts,
-    recurringImpact: recurringBenefits - recurringCosts
-  };
-};
-
 const toResponse = (record: InitiativeRecord): InitiativeResponse => ({
   ...record,
-  totals: buildTotals(record)
+  totals: buildInitiativeTotals(record)
 });
 
 const mapCommentMessageRow = (row: InitiativeCommentMessageRow): InitiativeCommentMessage => ({
@@ -999,7 +971,7 @@ export class InitiativesService {
       ownerAccountId: row.owner_account_id,
       stage,
       stageState,
-      totals: buildTotals(initiativeRecord),
+      totals: buildInitiativeTotals(initiativeRecord),
       roleTotal: Number(row.role_total ?? 0),
       roleApproved: Number(row.role_approved ?? 0),
       rolePending: Number(row.role_pending ?? 0)
@@ -1061,8 +1033,8 @@ export class InitiativesService {
       { field: 'status', previousValue: previous.currentStatus, nextValue: next.currentStatus },
       { field: 'l4Date', previousValue: previous.l4Date, nextValue: next.l4Date }
     ];
-    const previousTotals = buildTotals(previous);
-    const nextTotals = buildTotals(next);
+    const previousTotals = buildInitiativeTotals(previous);
+    const nextTotals = buildInitiativeTotals(next);
     trackedFields.push({
       field: 'recurringImpact',
       previousValue: previousTotals.recurringImpact,

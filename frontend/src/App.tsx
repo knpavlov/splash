@@ -24,6 +24,7 @@ import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboar
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 import { SnapshotSettingsScreen } from './modules/settings/SnapshotSettingsScreen';
 import { InitiativeLogsScreen } from './modules/logs/InitiativeLogsScreen';
+import { ActivityScreen } from './modules/activity/ActivityScreen';
 
 interface AppRoute {
   page: NavigationKey;
@@ -47,7 +48,7 @@ const parseHash = (hash: string): AppRoute => {
   const normalized = hash.startsWith('#') ? hash.slice(1) : hash;
   const trimmed = normalized.replace(/^\/+/, '').trim();
   if (!trimmed) {
-    return { page: 'cases' };
+    return { page: 'activity' };
   }
 
   const [pathPart, queryString] = trimmed.split('?');
@@ -280,6 +281,8 @@ const AppContent = () => {
     switch (activePage) {
       case 'cases':
         return <CasesScreen />;
+      case 'activity':
+        return <ActivityScreen />;
       case 'case-criteria':
         return <CaseCriteriaScreen />;
       case 'questions':

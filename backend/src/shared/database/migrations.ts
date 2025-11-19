@@ -911,6 +911,31 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS account_activity_preferences (
+      account_id UUID PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+      workstream_ids UUID[] NOT NULL DEFAULT '{}'::uuid[],
+      initiative_ids UUID[] NOT NULL DEFAULT '{}'::uuid[],
+      module_keys TEXT[] NOT NULL DEFAULT ARRAY['insights','updates','comments']::text[],
+      metric_keys TEXT[] NOT NULL DEFAULT ARRAY[
+        'impact-total',
+        'impact-change',
+        'initiatives-total',
+        'initiatives-started',
+        'impact-l3-share',
+        'initiatives-l3-share'
+      ]::text[],
+      default_timeframe TEXT NOT NULL DEFAULT 'since-last-login',
+      last_checked_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS account_activity_preferences_updated_idx
+      ON account_activity_preferences(updated_at DESC);
+  `);
+
+  await postgresPool.query(`
     CREATE TABLE IF NOT EXISTS snapshot_settings (
       id SMALLINT PRIMARY KEY DEFAULT 1,
       auto_enabled BOOLEAN NOT NULL DEFAULT FALSE,

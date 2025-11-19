@@ -1,6 +1,7 @@
 import { AccountRole } from '../shared/types/account';
 
 export type NavigationKey =
+  | 'activity'
   | 'cases'
   | 'case-criteria'
   | 'questions'
@@ -39,6 +40,7 @@ export const navigationGroups: { id: NavigationGroupKey; label: string; collapse
 ];
 
 export const navigationItems: NavigationItem[] = [
+  { key: 'activity', label: "What's new", roleAccess: ['super-admin', 'admin', 'user'] },
   { key: 'cases', label: 'Case library', roleAccess: ['super-admin', 'admin'], group: 'old' },
   { key: 'case-criteria', label: 'Case criteria', roleAccess: ['super-admin', 'admin'], group: 'old' },
   { key: 'questions', label: 'Fit questions', roleAccess: ['super-admin', 'admin'], group: 'old' },
