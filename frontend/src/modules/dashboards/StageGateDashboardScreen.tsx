@@ -113,7 +113,7 @@ const formatCurrencyDelta = (value: number) => {
     return `+${impactFormatter.format(value)}`;
   }
   if (value === 0) {
-    return 'No change';
+    return '--';
   }
   return impactFormatter.format(value);
 };
@@ -125,7 +125,7 @@ const formatCountDelta = (value: number) => {
   if (value < 0) {
     return `-${countFormatter.format(Math.abs(value))}`;
   }
-  return 'No change';
+  return '--';
 };
 
 const measurementDefinitions: Record<MeasurementKey, MeasurementDefinition> = {
@@ -619,6 +619,67 @@ export const StageGateDashboardScreen = () => {
     );
   };
 
+  const renderTotalCells = (row: WorkstreamRow, measurement: MeasurementKey, comparisonRow?: WorkstreamRow) => {
+    const meta = measurementDefinitions[measurement];
+    const value = row.totals[measurement] ?? 0;
+    const normalized = meta.type === 'currency' ? Math.abs(value) : value;
+    const max = Math.max(row.maxValues[measurement] || 1, Math.abs(value));
+    const width = max > 0 ? Math.min(100, Math.round((normalized / max) * 100)) : 0;
+    const barClasses = [styles.barFill, styles[meta.barClassName], styles.totalBarFill]
+      .filter(Boolean)
+      .join(' ');
+    const formatted = meta.formatter(value);
+    const tooltipParts = [
+      `${row.name} - ${meta.label} - Total`,
+      `Current: ${meta.tooltipFormatter ? meta.tooltipFormatter(value) : formatted}`
+    ];
+    const comparisonValue = comparisonRow?.totals[measurement];
+    let delta: number | null = null;
+    if (typeof comparisonValue === 'number') {
+      delta = value - comparisonValue;
+      tooltipParts.push(
+        `Snapshot: ${
+          meta.tooltipFormatter ? meta.tooltipFormatter(comparisonValue) : meta.formatter(comparisonValue)
+        }`
+      );
+    }
+    const tone = getDeltaTone(delta, meta.desiredTrend);
+    const deltaClasses = [styles.deltaBadge, styles.totalDeltaBadge];
+    if (tone === 'positive') {
+      deltaClasses.push(styles.deltaPositive);
+    } else if (tone === 'negative') {
+      deltaClasses.push(styles.deltaNegative);
+    } else {
+      deltaClasses.push(styles.deltaNeutral);
+    }
+    return (
+      <Fragment key={`${row.id}-total-${measurement}`}>
+        <td className={[styles.valueCell, styles.totalValueCell].join(' ')} title={tooltipParts.join(' - ')}>
+          <div className={styles.barTrack} aria-hidden="true">
+            <div className={barClasses} style={{ width: `${width}%` }} />
+            <span className={[styles.barValue, value < 0 ? styles.negativeValue : ''].join(' ')}>{formatted}</span>
+          </div>
+        </td>
+        <td className={[styles.deltaCell, styles.totalDeltaCell].join(' ')}>
+          {delta === null ? (
+            <span
+              className={[
+                styles.deltaBadge,
+                styles.totalDeltaBadge,
+                styles.deltaNeutral,
+                styles.deltaPlaceholder
+              ].join(' ')}
+            >
+              --
+            </span>
+          ) : (
+            <span className={deltaClasses.join(' ')}>{meta.deltaFormatter(delta)}</span>
+          )}
+        </td>
+      </Fragment>
+    );
+  };
+
   const renderWorkstreamFirstRows = () => (
     <>
       {rows.map((row) => (
@@ -640,6 +701,7 @@ export const StageGateDashboardScreen = () => {
               {stageColumns.flatMap((column) =>
                 renderStageCells(row, column.key, measurement, comparisonLookup?.get(row.id))
               )}
+              {renderTotalCells(row, measurement, comparisonLookup?.get(row.id))}
             </tr>
           ))}
         </Fragment>
@@ -661,6 +723,7 @@ export const StageGateDashboardScreen = () => {
           {stageColumns.flatMap((column) =>
             renderStageCells(totalRow, column.key, measurement, comparisonLookup?.get(totalRow.id))
           )}
+          {renderTotalCells(totalRow, measurement, comparisonLookup?.get(totalRow.id))}
         </tr>
       ))}
     </>
@@ -690,6 +753,7 @@ export const StageGateDashboardScreen = () => {
                 {stageColumns.flatMap((column) =>
                   renderStageCells(row, column.key, measurement, comparisonLookup?.get(row.id))
                 )}
+                {renderTotalCells(row, measurement, comparisonLookup?.get(row.id))}
               </tr>
             ))}
             <tr key={`${measurement}-portfolio`} className={styles.totalRow}>
@@ -700,6 +764,7 @@ export const StageGateDashboardScreen = () => {
               {stageColumns.flatMap((column) =>
                 renderStageCells(totalRow, column.key, measurement, comparisonLookup?.get(totalRow.id))
               )}
+              {renderTotalCells(totalRow, measurement, comparisonLookup?.get(totalRow.id))}
             </tr>
           </Fragment>
         );
@@ -715,14 +780,9 @@ export const StageGateDashboardScreen = () => {
           <p className={styles.subtitle}>
             Visualize how initiatives progress across the stage-gate funnel and compare metrics with historical snapshots.
           </p>
+          {lastSnapshot && <p className={styles.metaLine}>Last snapshot: {dayFormatter.format(new Date(lastSnapshot.capturedAt))}</p>}
+          {snapshotsLoading && !snapshotsLoaded && <p className={styles.metaLine}>Loading history...</p>}
           {snapshotError && <p className={styles.errorBanner}>{snapshotError}</p>}
-        </div>
-        <div className={styles.snapshotStatus}>
-          <p>
-            Snapshots are captured automatically based on the Snapshot settings schedule.
-            {snapshotsLoading && !snapshotsLoaded && ' Loading history...'}
-          </p>
-          {lastSnapshot && <p>Last snapshot: {dayFormatter.format(new Date(lastSnapshot.capturedAt))}</p>}
         </div>
       </header>
 
@@ -804,6 +864,9 @@ export const StageGateDashboardScreen = () => {
                   {column.label}
                 </th>
               ))}
+              <th colSpan={2} className={[styles.stageHeader, styles.totalStageHeader].join(' ')}>
+                Total
+              </th>
             </tr>
             <tr>
               {stageColumns.map((column) => (
@@ -812,6 +875,10 @@ export const StageGateDashboardScreen = () => {
                   <th className={styles.stageSubHeader}>Delta</th>
                 </Fragment>
               ))}
+              <Fragment key="total-sub">
+                <th className={styles.stageSubHeader}>Now</th>
+                <th className={styles.stageSubHeader}>Delta</th>
+              </Fragment>
             </tr>
           </thead>
           <tbody>{layoutMode === 'workstream-first' ? renderWorkstreamFirstRows() : renderMetricFirstRows()}</tbody>
