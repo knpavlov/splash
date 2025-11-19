@@ -3,6 +3,14 @@ import { initiativeLogsService } from './initiativeLogs.module.js';
 
 const router = Router();
 
+const parseDate = (value: unknown): Date | null => {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 router.get('/', async (req, res) => {
   const accountId = req.headers['x-account-id'];
   if (typeof accountId !== 'string' || !accountId.trim()) {
@@ -11,11 +19,15 @@ router.get('/', async (req, res) => {
   }
   const filters = {
     limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : 100,
-    before: typeof req.query.before === 'string' ? new Date(req.query.before) : undefined,
-    after: typeof req.query.after === 'string' ? new Date(req.query.after) : undefined,
+    before: parseDate(req.query.before),
+    after: parseDate(req.query.after),
     workstreamIds:
       typeof req.query.workstreams === 'string'
         ? req.query.workstreams.split(',').map((id) => id.trim()).filter(Boolean)
+        : undefined,
+    initiativeIds:
+      typeof req.query.initiatives === 'string'
+        ? req.query.initiatives.split(',').map((id) => id.trim()).filter(Boolean)
         : undefined
   };
   try {

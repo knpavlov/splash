@@ -4,8 +4,6 @@ import { snapshotsApi } from '../snapshots/services/snapshotsApi';
 import {
   ProgramSnapshotDetail,
   ProgramSnapshotInitiativeSummary,
-  ProgramSnapshotParticipantSummary,
-  ProgramSnapshotWorkstreamSummary,
   SnapshotSettingsPayload,
   StageColumnKey
 } from '../../shared/types/snapshot';
@@ -239,14 +237,6 @@ export const SnapshotSettingsScreen = () => {
   const initiativeRows: ProgramSnapshotInitiativeSummary[] = useMemo(
     () =>
       (latestSnapshot?.payload.initiatives ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
-    [latestSnapshot]
-  );
-  const workstreamDetails: ProgramSnapshotWorkstreamSummary[] = useMemo(
-    () => (latestSnapshot?.payload.workstreams ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)),
-    [latestSnapshot]
-  );
-  const participantRows: ProgramSnapshotParticipantSummary[] = useMemo(
-    () => (latestSnapshot?.payload.participants ?? []).slice().sort((a, b) => a.displayName.localeCompare(b.displayName)),
     [latestSnapshot]
   );
   const stageGateMetricsRows = useMemo(() => {
@@ -561,60 +551,6 @@ export const SnapshotSettingsScreen = () => {
               )}
             </div>
 
-            {workstreamDetails.length > 0 && (
-              <section className={styles.snapshotSection}>
-                <h3>Workstream snapshot ({workstreamDetails.length})</h3>
-                <div className={styles.tableScroll}>
-                  <table className={styles.snapshotTable}>
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Description</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {workstreamDetails.map((workstream) => (
-                        <tr key={workstream.id}>
-                          <th scope="row">{workstream.name}</th>
-                          <td>{workstream.description || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            )}
-
-            {participantRows.length > 0 && (
-              <section className={styles.snapshotSection}>
-                <h3>Participants snapshot ({participantRows.length})</h3>
-                <div className={styles.tableScroll}>
-                  <table className={styles.snapshotTable}>
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Role</th>
-                        <th>Hierarchy</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {participantRows.map((participant) => (
-                        <tr key={participant.id}>
-                          <th scope="row">{participant.displayName}</th>
-                          <td>{participant.role ?? '—'}</td>
-                          <td>
-                            {[participant.hierarchyLevel1, participant.hierarchyLevel2, participant.hierarchyLevel3]
-                              .filter(Boolean)
-                              .join(' / ') || '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            )}
-
             <section className={styles.snapshotSection}>
               <h3>Initiatives snapshot ({initiativeRows.length})</h3>
               <div className={styles.tableScroll}>
@@ -627,6 +563,9 @@ export const SnapshotSettingsScreen = () => {
                       <th>Status</th>
                       <th>Owner</th>
                       <th>Recurring impact</th>
+                      <th>Recurring costs</th>
+                      <th>One-off benefits</th>
+                      <th>One-off costs</th>
                       <th>Plan window</th>
                     </tr>
                   </thead>
@@ -644,6 +583,9 @@ export const SnapshotSettingsScreen = () => {
                         <td>{initiative.currentStatus || 'Unknown'}</td>
                         <td>{initiative.ownerName ?? '—'}</td>
                         <td>{impactFormatter.format(initiative.totals.recurringImpact ?? 0)}</td>
+                        <td>{impactFormatter.format(initiative.totals.recurringCosts ?? 0)}</td>
+                        <td>{impactFormatter.format(initiative.totals.oneoffBenefits ?? 0)}</td>
+                        <td>{impactFormatter.format(initiative.totals.oneoffCosts ?? 0)}</td>
                         <td>
                           {initiative.timeline.startDate && initiative.timeline.endDate
                             ? `${new Date(initiative.timeline.startDate).toLocaleDateString()} – ${new Date(

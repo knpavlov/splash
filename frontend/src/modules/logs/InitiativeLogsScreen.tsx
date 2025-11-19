@@ -4,51 +4,67 @@ import { workstreamsApi } from '../workstreams/services/workstreamsApi';
 import { initiativeLogsApi, InitiativeLogFilters } from './services/initiativeLogsApi';
 import { InitiativeLogEntry } from '../../shared/types/initiativeLog';
 import { Workstream } from '../../shared/types/workstream';
+import { initiativesApi } from '../initiatives/services/initiativesApi';
+import { Initiative } from '../../shared/types/initiative';
+import { useAuth } from '../auth/AuthContext';
 
-const formatDate = (value: string) =>
+const formatDateTime = (value: string) =>
   new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
-const useWorkstreams = () => {
-  const [workstreams, setWorkstreams] = useState<Workstream[]>([]);
-  useEffect(() => {
-    workstreamsApi
-      .list()
-      .then(setWorkstreams)
-      .catch((error) => console.error('Failed to load workstreams', error));
-  }, []);
-  return workstreams;
-};
+const DEFAULT_AFTER = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
 export const InitiativeLogsScreen = () => {
-  const workstreams = useWorkstreams();
+  const { session } = useAuth();
+  const [workstreams, setWorkstreams] = useState<Workstream[]>([]);
+  const [initiatives, setInitiatives] = useState<Initiative[]>([]);
   const [entries, setEntries] = useState<InitiativeLogEntry[]>([]);
   const [selectedWorkstreams, setSelectedWorkstreams] = useState<string[]>([]);
+  const [selectedInitiatives, setSelectedInitiatives] = useState<string[]>([]);
+  const [after, setAfter] = useState<string | null>(DEFAULT_AFTER);
   const [before, setBefore] = useState<string | null>(null);
-  const [after, setAfter] = useState<string | null>(null);
+  const [showRead, setShowRead] = useState(true);
   const [loading, setLoading] = useState(false);
   const [marking, setMarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    workstreamsApi
+      .list()
+      .then((list) => {
+        setWorkstreams(list);
+        setSelectedWorkstreams(list.map((item) => item.id));
+      })
+      .catch((err) => console.error('Failed to load workstreams', err));
+    initiativesApi
+      .list()
+      .then((list) => setInitiatives(list))
+      .catch((err) => console.error('Failed to load initiatives', err));
+  }, []);
+
   const filters = useMemo<InitiativeLogFilters>(
     () => ({
-      limit: 200,
+      limit: 300,
+      after: after || undefined,
+      before: before || undefined,
       workstreamIds: selectedWorkstreams.length ? selectedWorkstreams : undefined,
-      before: before ?? undefined,
-      after: after ?? undefined
+      initiativeIds: selectedInitiatives.length ? selectedInitiatives : undefined
     }),
-    [selectedWorkstreams, before, after]
+    [after, before, selectedWorkstreams, selectedInitiatives]
   );
 
   const loadEntries = () => {
+    if (!session?.accountId) {
+      return;
+    }
     setLoading(true);
     initiativeLogsApi
-      .list(filters)
+      .list(session.accountId, filters)
       .then((list) => {
         setEntries(list);
         setError(null);
       })
       .catch((err) => {
-        console.error('Failed to load initiative logs:', err);
+        console.error('Failed to load initiative history:', err);
         setError('Unable to load initiative history.');
       })
       .finally(() => setLoading(false));
@@ -57,7 +73,7 @@ export const InitiativeLogsScreen = () => {
   useEffect(() => {
     loadEntries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [filters, session?.accountId]);
 
   const toggleWorkstream = (id: string) => {
     setSelectedWorkstreams((current) =>
@@ -65,77 +81,119 @@ export const InitiativeLogsScreen = () => {
     );
   };
 
+  const toggleInitiative = (id: string) => {
+    setSelectedInitiatives((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
+  };
+
   const markVisibleAsRead = () => {
-    const unreadIds = entries.filter((entry) => !entry.read).map((entry) => entry.id);
-    if (!unreadIds.length) {
+    if (!session?.accountId) {
+      return;
+    }
+    const visibleIds = entries.filter((entry) => showRead || !entry.read).map((entry) => entry.id);
+    if (!visibleIds.length) {
       return;
     }
     setMarking(true);
     initiativeLogsApi
-      .markAsRead(unreadIds)
+      .markAsRead(session.accountId, visibleIds)
       .then(() => loadEntries())
       .catch((err) => {
-        console.error('Failed to mark logs as read:', err);
+        console.error('Failed to mark entries as read:', err);
         setError('Unable to mark entries as read.');
       })
       .finally(() => setMarking(false));
   };
+
+  const filteredEntries = entries.filter((entry) => (showRead ? true : !entry.read));
 
   return (
     <section className={styles.wrapper}>
       <header className={styles.header}>
         <div>
           <h1>Initiative history</h1>
-          <p>Track every key change across all initiatives and filter by workstream or date.</p>
+          <p>Unified audit log for every initiative: financial changes, ownership updates, stage movements and more.</p>
         </div>
         <div className={styles.actions}>
+          <button type="button" onClick={() => setSelectedWorkstreams(workstreams.map((ws) => ws.id))}>
+            Select all streams
+          </button>
+          <button type="button" onClick={() => setSelectedWorkstreams([])}>
+            Clear streams
+          </button>
           <button type="button" onClick={loadEntries} disabled={loading}>
             Refresh
           </button>
           <button type="button" onClick={markVisibleAsRead} disabled={marking || loading}>
-            Mark visible as read
+            Mark all as read
+          </button>
+          <button type="button" onClick={() => setShowRead((prev) => !prev)}>
+            {showRead ? 'Hide read entries' : 'Show read entries'}
           </button>
         </div>
       </header>
+
       <section className={styles.filters}>
-        <div>
-          <label>Workstreams</label>
-          <div className={styles.workstreamList}>
+        <div className={styles.filterGroup}>
+          <label htmlFor="workstreams">Workstreams</label>
+          <select
+            id="workstreams"
+            multiple
+            value={selectedWorkstreams}
+            onChange={(event) =>
+              setSelectedWorkstreams(Array.from(event.target.selectedOptions, (option) => option.value))
+            }
+          >
             {workstreams.map((workstream) => (
-              <label key={workstream.id}>
-                <input
-                  type="checkbox"
-                  checked={selectedWorkstreams.includes(workstream.id)}
-                  onChange={() => toggleWorkstream(workstream.id)}
-                />
+              <option key={workstream.id} value={workstream.id}>
                 {workstream.name}
-              </label>
+              </option>
             ))}
-          </div>
+          </select>
         </div>
-        <div className={styles.dateFilters}>
-          <label>
-            After
-            <input type="date" value={after ?? ''} onChange={(event) => setAfter(event.target.value || null)} />
-          </label>
-          <label>
-            Before
-            <input type="date" value={before ?? ''} onChange={(event) => setBefore(event.target.value || null)} />
-          </label>
+
+        <div className={styles.filterGroup}>
+          <label htmlFor="initiatives">Initiatives</label>
+          <select
+            id="initiatives"
+            multiple
+            value={selectedInitiatives}
+            onChange={(event) =>
+              setSelectedInitiatives(Array.from(event.target.selectedOptions, (option) => option.value))
+            }
+          >
+            {initiatives.map((initiative) => (
+              <option key={initiative.id} value={initiative.id}>
+                {initiative.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className={styles.filterGroup}>
+          <label>From</label>
+          <input type="date" value={after ?? ''} onChange={(event) => setAfter(event.target.value || null)} />
+        </div>
+        <div className={styles.filterGroup}>
+          <label>To</label>
+          <input type="date" value={before ?? ''} onChange={(event) => setBefore(event.target.value || null)} />
         </div>
       </section>
+
       {error && <p className={styles.error}>{error}</p>}
+
       <section className={styles.timeline}>
-        {loading && <p>Loading...</p>}
-        {!loading && entries.length === 0 && <p>No events match your filters.</p>}
+        {loading && <p>Loading…</p>}
+        {!loading && filteredEntries.length === 0 && <p>No entries match your filters.</p>}
         {!loading &&
-          entries.map((entry) => (
+          filteredEntries.map((entry) => (
             <article key={entry.id} className={`${styles.entry} ${entry.read ? styles.read : ''}`}>
               <header>
                 <div>
                   <p className={styles.entryTitle}>{entry.initiativeName}</p>
                   <p className={styles.entryMeta}>
-                    {entry.workstreamName} · {formatDate(entry.createdAt)} · {entry.actorName ?? 'System'}
+                    {entry.workstreamName} · {formatDateTime(entry.createdAt)} · {entry.actorName ?? 'System'}
                   </p>
                 </div>
                 {!entry.read && <span className={styles.badge}>New</span>}

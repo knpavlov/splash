@@ -6,6 +6,7 @@ export interface InitiativeLogFilters {
   before?: string;
   after?: string;
   workstreamIds?: string[];
+  initiativeIds?: string[];
 }
 
 const buildQuery = (filters: InitiativeLogFilters) => {
@@ -22,16 +23,22 @@ const buildQuery = (filters: InitiativeLogFilters) => {
   if (filters.workstreamIds?.length) {
     params.set('workstreams', filters.workstreamIds.join(','));
   }
+  if (filters.initiativeIds?.length) {
+    params.set('initiatives', filters.initiativeIds.join(','));
+  }
   const query = params.toString();
   return query ? `?${query}` : '';
 };
 
 export const initiativeLogsApi = {
-  list: (filters: InitiativeLogFilters) =>
-    apiRequest<InitiativeLogEntry[]>(`/initiative-logs${buildQuery(filters)}`),
-  markAsRead: (eventIds: string[]) =>
+  list: (accountId: string, filters: InitiativeLogFilters) =>
+    apiRequest<InitiativeLogEntry[]>(`/initiative-logs${buildQuery(filters)}`, {
+      headers: { 'X-Account-Id': accountId }
+    }),
+  markAsRead: (accountId: string, eventIds: string[]) =>
     apiRequest('/initiative-logs/mark-read', {
       method: 'POST',
-      body: { eventIds }
+      body: { eventIds },
+      headers: { 'X-Account-Id': accountId }
     })
 };

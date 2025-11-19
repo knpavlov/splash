@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { postgresPool } from '../../shared/database/postgres.client.js';
 
 interface InitiativeEventRow extends Record<string, unknown> {
@@ -43,6 +44,7 @@ export interface InitiativeLogFilters {
   before?: Date | null;
   after?: Date | null;
   workstreamIds?: string[];
+  initiativeIds?: string[];
 }
 
 export class InitiativeLogsRepository {
@@ -62,8 +64,13 @@ export class InitiativeLogsRepository {
       idx += 1;
     }
     if (filters.workstreamIds && filters.workstreamIds.length) {
-      whereClauses.push(`initiatives.workstream_id = ANY($${idx}::uuid[])`);
+      whereClauses.push(`workstreams.id = ANY($${idx}::uuid[])`);
       values.push(filters.workstreamIds);
+      idx += 1;
+    }
+    if (filters.initiativeIds && filters.initiativeIds.length) {
+      whereClauses.push(`initiatives.id = ANY($${idx}::uuid[])`);
+      values.push(filters.initiativeIds);
       idx += 1;
     }
     const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
@@ -81,20 +88,12 @@ export class InitiativeLogsRepository {
                events.actor_account_id,
                events.actor_name,
                events.created_at,
-               initiatives.id as workstream_id,
-               initiatives.workstream_id as workstream_id_ref,
-               initiatives.workstream_name,
+               workstreams.id as workstream_id,
+               workstreams.name as workstream_name,
                initiatives.name as initiative_name
-          FROM (
-            SELECT e.*,
-                   i.workstream_id,
-                   ws.name as workstream_name,
-                   i.name as name
-              FROM workstream_initiatives i
-              JOIN workstreams ws ON ws.id = i.workstream_id
-              JOIN workstream_initiative_events e ON e.initiative_id = i.id
-          ) as initiatives
-          JOIN workstream_initiative_events events ON events.id = initiatives.id
+          FROM workstream_initiative_events events
+          JOIN workstream_initiatives initiatives ON initiatives.id = events.initiative_id
+          JOIN workstreams ON workstreams.id = initiatives.workstream_id
           ${whereSql}
       ORDER BY events.created_at DESC
          LIMIT ${limit};
@@ -140,9 +139,9 @@ export class InitiativeLogsRepository {
       for (const eventId of eventIds) {
         await client.query(
           `INSERT INTO initiative_event_reads (id, event_id, account_id, created_at)
-           VALUES (gen_random_uuid(), $1, $2, NOW())
+           VALUES ($1, $2, $3, NOW())
            ON CONFLICT (event_id, account_id) DO NOTHING;`,
-          [eventId, accountId]
+          [randomUUID(), eventId, accountId]
         );
       }
       await client.query('COMMIT');
