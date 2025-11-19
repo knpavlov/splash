@@ -62,7 +62,6 @@ export const ActivityScreen = () => {
   const [workstreams, setWorkstreams] = useState<Workstream[]>([]);
   const [initiatives, setInitiatives] = useState<Initiative[]>([]);
   const [timeframeKey, setTimeframeKey] = useState<ActivityTimeframeKey>('since-last-login');
-  const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [selectedWorkstreams, setSelectedWorkstreams] = useState<string[]>([]);
   const [followedInitiatives, setFollowedInitiatives] = useState<string[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
@@ -109,7 +108,6 @@ export const ActivityScreen = () => {
         initiativesApi.list()
       ]);
       setBundle(preferencesBundle);
-      setSelectedModules(preferencesBundle.preferences.moduleKeys);
       setSelectedWorkstreams(preferencesBundle.preferences.workstreamIds);
       setFollowedInitiatives(preferencesBundle.preferences.initiativeIds);
       setSelectedMetrics(preferencesBundle.preferences.metricKeys);
@@ -126,7 +124,7 @@ export const ActivityScreen = () => {
     }
   }, [accountId]);
 
-  const loadData = useCallback(
+  const loadSignals = useCallback(
     async (input: {
       timeframe: ActivityTimeframeKey;
       workstreamIds: string[];
@@ -186,13 +184,13 @@ export const ActivityScreen = () => {
     if (!ready || !accountId) {
       return;
     }
-    void loadData({
+    void loadSignals({
       timeframe: timeframeKey,
       workstreamIds: selectedWorkstreams,
       metricKeys: selectedMetrics,
       initiativeIds: followedInitiatives
     });
-  }, [ready, accountId, timeframeKey, selectedWorkstreams, selectedMetrics, followedInitiatives, loadData]);
+  }, [ready, accountId, timeframeKey, selectedWorkstreams, selectedMetrics, followedInitiatives, loadSignals]);
 
   useEffect(() => {
     if (!status) {
@@ -201,12 +199,6 @@ export const ActivityScreen = () => {
     const timeout = window.setTimeout(() => setStatus(null), 3000);
     return () => window.clearTimeout(timeout);
   }, [status]);
-
-  const handleModuleToggle = (key: string) => {
-    setSelectedModules((current) =>
-      current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key]
-    );
-  };
 
   const handleMetricToggle = (key: string) => {
     setSelectedMetrics((current) => {
@@ -227,14 +219,12 @@ export const ActivityScreen = () => {
     setPanelBusy(true);
     try {
       const result = await activityApi.updatePreferences(accountId, {
-        moduleKeys: selectedModules,
         workstreamIds: selectedWorkstreams,
         initiativeIds: followedInitiatives,
         metricKeys: selectedMetrics,
         defaultTimeframe: timeframeKey
       });
       setBundle(result);
-      setSelectedModules(result.preferences.moduleKeys);
       setSelectedWorkstreams(result.preferences.workstreamIds);
       setFollowedInitiatives(result.preferences.initiativeIds);
       setSelectedMetrics(result.preferences.metricKeys);
@@ -261,188 +251,149 @@ export const ActivityScreen = () => {
   }
 
   const timeframeOptions = bundle?.timeframes ?? [];
-  const showInsights = selectedModules.includes('insights');
-  const showUpdates = selectedModules.includes('updates');
-  const showComments = selectedModules.includes('comments');
 
   return (
-    <section className={styles.wrapper}>
-      <header className={styles.header}>
-        <div>
+    <section className={styles.layout}>
+      <aside className={styles.signalColumn}>
+        <div className={styles.signalHeader}>
           <p className={styles.eyebrow}>Signals</p>
-          <h1>What happened since you last logged in</h1>
-          <p className={styles.subtitle}>
-            Track recurring impact, approvals and conversations across the streams you follow.
-          </p>
-          {summary?.timeframe && (
-            <p className={styles.timeframeMeta}>
-              {summary.timeframe.label} · starting {dateTimeFormatter.format(new Date(summary.timeframe.start))}
-              {summary.timeframe.fallback && (
-                <span className={styles.fallbackBadge}>fallback to rolling window</span>
-              )}
-            </p>
-          )}
+          <h1>What’s new</h1>
+          <p className={styles.subtitle}>Impact, governance and execution updates across your streams.</p>
         </div>
         <div className={styles.timeframeSelector}>
           {timeframeOptions.map((option) => (
             <button
               key={option.key}
               type="button"
-              className={`${styles.timeframeButton} ${option.key === timeframeKey ? styles.timeframeButtonActive : ''}`}
+              className={`${styles.timeframePill} ${option.key === timeframeKey ? styles.timeframePillActive : ''}`}
               onClick={() => setTimeframeKey(option.key)}
             >
-              <span>{option.label}</span>
-              <small>{option.start ? dateTimeFormatter.format(new Date(option.start)) : option.description}</small>
+              {option.label}
             </button>
           ))}
         </div>
-      </header>
+        {summary?.timeframe && (
+          <p className={styles.timeframeMeta}>
+            {summary.timeframe.label} · {dateTimeFormatter.format(new Date(summary.timeframe.start))}
+          </p>
+        )}
+        {summary?.timeframe?.fallback && (
+          <p className={styles.timeframeHint}>Fallback to rolling window while we collect more activity data.</p>
+        )}
+        {summary && (
+          <section className={styles.metricPanel}>
+            {selectedMetricDefinitions.map((definition) => {
+              const metric = summary.metrics.find((entry) => entry.key === definition.key);
+              if (!metric) {
+                return null;
+              }
+              const delta = formatDelta(metric);
+              return (
+                <article key={definition.key} className={styles.metricCard}>
+                  <p className={styles.metricTitle}>{definition.label}</p>
+                  <p className={styles.metricValue}>{formatMetricValue(metric)}</p>
+                  {delta && (
+                    <p className={`${styles.metricDelta} ${delta.trend === 'up' ? styles.deltaUp : delta.trend === 'down' ? styles.deltaDown : ''}`}>
+                      {delta.trend === 'up' && '▲'} {delta.trend === 'down' && '▼'} {delta.formatted}
+                    </p>
+                  )}
+                </article>
+              );
+            })}
+          </section>
+        )}
+      </aside>
 
-      <section className={styles.controls}>
-        {panelBusy && <div className={styles.overlay}>Refreshing data…</div>}
-        {error && <p className={styles.error}>{error}</p>}
-        {status && <p className={styles.status}>{status}</p>}
-        <div className={styles.controlGroup}>
-          <p className={styles.controlLabel}>Modules</p>
-          <div className={styles.toggleGroup}>
-            {bundle?.moduleCatalog.map((module) => (
-              <button
-                key={module.key}
-                type="button"
-                className={`${styles.toggleButton} ${
-                  selectedModules.includes(module.key) ? styles.toggleButtonActive : ''
-                }`}
-                onClick={() => handleModuleToggle(module.key)}
+      <div className={styles.contentColumn}>
+        <section className={styles.controls}>
+          {panelBusy && <div className={styles.overlay}>Refreshing data…</div>}
+          {error && <p className={styles.error}>{error}</p>}
+          {status && <p className={styles.status}>{status}</p>}
+          <div className={styles.controlGrid}>
+            <div className={styles.controlGroup}>
+              <p className={styles.controlLabel}>Workstreams</p>
+              <select
+                multiple
+                className={styles.multiSelect}
+                value={selectedWorkstreams}
+                onChange={(event) =>
+                  setSelectedWorkstreams(Array.from(event.target.selectedOptions, (option) => option.value))
+                }
               >
-                {module.label}
-              </button>
-            ))}
+                {sortedWorkstreams.map((workstream) => (
+                  <option key={workstream.id} value={workstream.id}>
+                    {workstream.name}
+                  </option>
+                ))}
+              </select>
+              <div className={styles.selectActions}>
+                <button type="button" onClick={() => setSelectedWorkstreams(sortedWorkstreams.map((ws) => ws.id))}>
+                  Select all
+                </button>
+                <button type="button" onClick={() => setSelectedWorkstreams([])}>
+                  Clear
+                </button>
+              </div>
+            </div>
+            <div className={styles.controlGroup}>
+              <p className={styles.controlLabel}>Followed initiatives</p>
+              <select
+                multiple
+                className={styles.multiSelect}
+                value={followedInitiatives}
+                onChange={(event) =>
+                  setFollowedInitiatives(Array.from(event.target.selectedOptions, (option) => option.value))
+                }
+              >
+                {sortedInitiatives.map((initiative) => (
+                  <option key={initiative.id} value={initiative.id}>
+                    {initiative.name}
+                  </option>
+                ))}
+              </select>
+              <div className={styles.selectActions}>
+                <button
+                  type="button"
+                  onClick={() => setFollowedInitiatives(sortedInitiatives.map((initiative) => initiative.id))}
+                >
+                  Follow all
+                </button>
+                <button type="button" onClick={() => setFollowedInitiatives([])}>
+                  Clear
+                </button>
+              </div>
+            </div>
+            <div className={styles.controlGroup}>
+              <p className={styles.controlLabel}>Metric library</p>
+              <div className={styles.metricLibrary}>
+                {bundle?.metricCatalog.map((definition) => (
+                  <label key={definition.key} className={styles.metricOption}>
+                    <input
+                      type="checkbox"
+                      checked={selectedMetrics.includes(definition.key)}
+                      onChange={() => handleMetricToggle(definition.key)}
+                    />
+                    <span>
+                      <strong>{definition.label}</strong>
+                      <small>{definition.description}</small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-        <div className={styles.controlGrid}>
-          <div className={styles.controlGroup}>
-            <p className={styles.controlLabel}>Workstreams</p>
-            <select
-              multiple
-              className={styles.multiSelect}
-              value={selectedWorkstreams}
-              onChange={(event) =>
-                setSelectedWorkstreams(
-                  Array.from(event.target.selectedOptions, (option) => option.value)
-                )
-              }
+          <div className={styles.preferenceActions}>
+            <button
+              type="button"
+              className={styles.saveButton}
+              onClick={handleSavePreferences}
+              disabled={panelBusy}
             >
-              {sortedWorkstreams.map((workstream) => (
-                <option key={workstream.id} value={workstream.id}>
-                  {workstream.name}
-                </option>
-              ))}
-            </select>
-            <div className={styles.selectActions}>
-              <button type="button" onClick={() => setSelectedWorkstreams(sortedWorkstreams.map((ws) => ws.id))}>
-                Select all
-              </button>
-              <button type="button" onClick={() => setSelectedWorkstreams([])}>
-                Clear
-              </button>
-            </div>
+              Save preferences
+            </button>
           </div>
-          <div className={styles.controlGroup}>
-            <p className={styles.controlLabel}>Followed initiatives</p>
-            <select
-              multiple
-              className={styles.multiSelect}
-              value={followedInitiatives}
-              onChange={(event) =>
-                setFollowedInitiatives(
-                  Array.from(event.target.selectedOptions, (option) => option.value)
-                )
-              }
-            >
-              {sortedInitiatives.map((initiative) => (
-                <option key={initiative.id} value={initiative.id}>
-                  {initiative.name}
-                </option>
-              ))}
-            </select>
-            <div className={styles.selectActions}>
-              <button type="button" onClick={() => setFollowedInitiatives(sortedInitiatives.map((initiative) => initiative.id))}>
-                Follow all
-              </button>
-              <button type="button" onClick={() => setFollowedInitiatives([])}>
-                Clear
-              </button>
-            </div>
-          </div>
-          <div className={styles.controlGroup}>
-            <p className={styles.controlLabel}>Metric library</p>
-            <div className={styles.metricLibrary}>
-              {bundle?.metricCatalog.map((definition) => (
-                <label key={definition.key} className={styles.metricOption}>
-                  <input
-                    type="checkbox"
-                    checked={selectedMetrics.includes(definition.key)}
-                    onChange={() => handleMetricToggle(definition.key)}
-                  />
-                  <span>
-                    <strong>{definition.label}</strong>
-                    <small>{definition.description}</small>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className={styles.preferenceActions}>
-          <button
-            type="button"
-            className={styles.saveButton}
-            onClick={handleSavePreferences}
-            disabled={panelBusy}
-          >
-            Save preferences
-          </button>
-        </div>
-      </section>
-
-      {showInsights && summary && (
-        <section className={styles.dashboard}>
-          {selectedMetricDefinitions.map((definition) => {
-            const metric = summary.metrics.find((entry) => entry.key === definition.key);
-            if (!metric) {
-              return null;
-            }
-            const delta = formatDelta(metric);
-            return (
-              <article key={definition.key} className={styles.metricCard}>
-                <p className={styles.metricEyebrow}>{definition.category}</p>
-                <header className={styles.metricHeader}>
-                  <h3>{definition.label}</h3>
-                  <small>{definition.description}</small>
-                </header>
-                <p className={styles.metricValue}>{formatMetricValue(metric)}</p>
-                {delta && (
-                  <p className={`${styles.metricDelta} ${delta.trend === 'up' ? styles.deltaUp : delta.trend === 'down' ? styles.deltaDown : ''}`}>
-                    {delta.trend === 'up' && '▲'} {delta.trend === 'down' && '▼'} {delta.formatted}
-                  </p>
-                )}
-                {metric.breakdown && metric.breakdown.length > 0 && (
-                  <ul className={styles.breakdownList}>
-                    {metric.breakdown.map((entry) => (
-                      <li key={entry.key}>
-                        <span>{entry.label}</span>
-                        <strong>{currencyFormatter.format(entry.value)}</strong>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </article>
-            );
-          })}
         </section>
-      )}
 
-      {showUpdates && (
         <section className={styles.logSection}>
           <header className={styles.sectionHeader}>
             <div>
@@ -479,9 +430,7 @@ export const ActivityScreen = () => {
             ))}
           </div>
         </section>
-      )}
 
-      {showComments && (
         <section className={styles.commentsSection}>
           <header className={styles.sectionHeader}>
             <div>
@@ -518,7 +467,7 @@ export const ActivityScreen = () => {
             ))}
           </div>
         </section>
-      )}
+      </div>
     </section>
   );
 };
