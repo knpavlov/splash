@@ -34,6 +34,9 @@
   max-width: 320px;
   text-align: right;
   line-height: 1.5;
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.15), rgba(148, 163, 184, 0));
+  padding: 8px 12px;
+  border-radius: 8px;
 }
 
 .controls {
@@ -189,17 +192,22 @@
   color: #94a3b8;
 }
 
-.valueCell,
-.deltaCell {
+.valueCell {
   padding: 10px 6px;
   text-align: center;
-  min-width: 90px;
+  min-width: 80px;
+}
+
+.deltaCell {
+  padding: 10px 4px;
+  text-align: center;
+  min-width: 58px;
 }
 
 .barTrack {
   position: relative;
   height: 24px;
-  border-radius: 12px;
+  border-radius: 6px;
   background: #f1f5f9;
   display: flex;
   align-items: center;
@@ -211,7 +219,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  border-radius: 12px;
+  border-radius: 6px;
 }
 
 .countBar {
@@ -251,10 +259,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 56px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
+  min-width: 48px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
   font-weight: 600;
 }
 
@@ -284,7 +292,7 @@
 
 .totalRow th,
 .totalRow td {
-  background: #0f172a;
+  background: #1f2b44;
   color: #f8fafc;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
 }

@@ -455,11 +455,12 @@ export const StageGateDashboardScreen = () => {
     if (!comparisonSnapshot || comparisonMode === 'none') {
       return;
     }
-    if (activeComparisonStatus === 'loading' || activeComparisonStatus === 'ready') {
+    const snapshotId = comparisonSnapshot.id;
+    const existing = snapshotDetails[snapshotId];
+    if (existing && existing.status !== 'error') {
       return;
     }
     let cancelled = false;
-    const snapshotId = comparisonSnapshot.id;
     setSnapshotDetails((prev) => ({
       ...prev,
       [snapshotId]: { status: 'loading' }
@@ -487,7 +488,10 @@ export const StageGateDashboardScreen = () => {
     return () => {
       cancelled = true;
     };
-  }, [comparisonSnapshot?.id, comparisonMode, activeComparisonStatus]);
+    // We intentionally exclude snapshotDetails from dependencies to avoid cancelling
+    // the fetch when the local cache flips between loading/ready states.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparisonSnapshot?.id, comparisonMode]);
 
   const comparisonDataset = useMemo(() => {
     if (!comparisonSnapshot || !activeComparisonDetail || activeComparisonDetail.status !== 'ready') {
