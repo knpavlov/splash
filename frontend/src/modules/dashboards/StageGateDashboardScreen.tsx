@@ -1,9 +1,15 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+﻿import { Fragment, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import styles from '../../styles/StageGateDashboardScreen.module.css';
 import { useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
-import { Initiative, InitiativeStageKey, initiativeStageKeys } from '../../shared/types/initiative';
+import {
+  Initiative,
+  InitiativeStageKey,
+  initiativeStageKeys,
+  InitiativeStageStateMap,
+  InitiativeTotals
+} from '../../shared/types/initiative';
 import { Workstream } from '../../shared/types/workstream';
-import { ProgramSnapshotSummary } from '../../shared/types/snapshot';
+import { ProgramSnapshotDetail, ProgramSnapshotSummary } from '../../shared/types/snapshot';
 import { snapshotsApi } from '../snapshots/services/snapshotsApi';
 
 type GateStageKey = Exclude<InitiativeStageKey, 'l0'>;
@@ -19,13 +25,35 @@ const stageColumns: { key: StageColumnKey; label: string }[] = [
   ])
 ];
 
-type MeasurementKey = 'initiatives' | 'impact';
+const stageColumnLabelMap = new Map<StageColumnKey, string>(stageColumns.map((column) => [column.key, column.label]));
 
-interface StageMetric {
-  initiatives: number;
-  impact: number;
+const measurementKeys = [
+  'initiatives',
+  'recurringImpact',
+  'recurringBenefits',
+  'recurringCosts',
+  'oneoffBenefits',
+  'oneoffCosts'
+] as const;
+type MeasurementKey = (typeof measurementKeys)[number];
+const measurementKeyList: MeasurementKey[] = [...measurementKeys];
+
+type StageGateEntity = Pick<Initiative, 'id' | 'workstreamId' | 'activeStage' | 'stageState' | 'totals'>;
+
+interface MeasurementDefinition {
+  key: MeasurementKey;
+  label: string;
+  description: string;
+  type: 'count' | 'currency';
+  desiredTrend: 'up' | 'down' | 'neutral';
+  formatter: (value: number) => string;
+  tooltipFormatter?: (value: number) => string;
+  deltaFormatter: (value: number) => string;
+  barClassName: keyof typeof styles;
+  valueExtractor: (entity: StageGateEntity) => number;
 }
 
+type StageMetric = Record<MeasurementKey, number>;
 type StageMetricMap = Record<StageColumnKey, StageMetric>;
 
 interface WorkstreamRow {
@@ -33,18 +61,27 @@ interface WorkstreamRow {
   name: string;
   metrics: StageMetricMap;
   totals: StageMetric;
-  maxInitiatives: number;
-  maxImpact: number;
+  maxValues: Record<MeasurementKey, number>;
   tone?: 'unassigned';
 }
 
-interface StageGatePortfolio {
-  metrics: StageMetricMap;
-  totals: StageMetric;
+interface StageGateDataset {
+  rows: WorkstreamRow[];
+  totalRow: WorkstreamRow;
+  lookup: Map<string, WorkstreamRow>;
 }
 
 type ComparisonMode = 'none' | '7d' | '30d' | 'custom';
+type DashboardLayout = 'workstream-first' | 'metric-first';
+
 const SNAPSHOT_FETCH_LIMIT = 90;
+const DEFAULT_MEASUREMENTS: MeasurementKey[] = ['initiatives', 'recurringImpact'];
+const SETTINGS_STORAGE_KEY = 'stage-gate-dashboard-settings';
+
+type SnapshotDetailCacheEntry =
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'ready'; detail: ProgramSnapshotDetail };
 
 const countFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 const impactFormatter = new Intl.NumberFormat('en-US', {
@@ -64,30 +101,130 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
 });
 const dayFormatter = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' });
 
-const createEmptyMetricMap = (): StageMetricMap =>
-  stageColumns.reduce((acc, column) => {
-    acc[column.key as StageColumnKey] = { initiatives: 0, impact: 0 };
-    return acc;
-  }, {} as StageMetricMap);
-
-const cloneMetricMap = (source: StageMetricMap): StageMetricMap =>
-  stageColumns.reduce((acc, column) => {
-    const metrics = source[column.key];
-    acc[column.key] = {
-      initiatives: metrics?.initiatives ?? 0,
-      impact: metrics?.impact ?? 0
-    };
-    return acc;
-  }, {} as StageMetricMap);
-
-const sanitizeImpact = (value: number | null | undefined) => {
+const sanitizeNumber = (value: number | null | undefined) => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return 0;
   }
   return value;
 };
 
-const bucketForInitiative = (initiative: Initiative): StageColumnKey => {
+const formatCurrencyDelta = (value: number) => {
+  if (value > 0) {
+    return `+${impactFormatter.format(value)}`;
+  }
+  if (value === 0) {
+    return 'No change';
+  }
+  return impactFormatter.format(value);
+};
+
+const formatCountDelta = (value: number) => {
+  if (value > 0) {
+    return `+${countFormatter.format(value)}`;
+  }
+  if (value < 0) {
+    return `-${countFormatter.format(Math.abs(value))}`;
+  }
+  return 'No change';
+};
+
+const measurementDefinitions: Record<MeasurementKey, MeasurementDefinition> = {
+  initiatives: {
+    key: 'initiatives',
+    label: 'Initiatives',
+    description: 'Active initiatives per bucket',
+    type: 'count',
+    desiredTrend: 'up',
+    formatter: (value) => countFormatter.format(value || 0),
+    tooltipFormatter: (value) => countFormatter.format(value || 0),
+    deltaFormatter: formatCountDelta,
+    barClassName: 'countBar',
+    valueExtractor: () => 1
+  },
+  recurringImpact: {
+    key: 'recurringImpact',
+    label: 'Recurring impact',
+    description: 'Net recurring impact for the bucket',
+    type: 'currency',
+    desiredTrend: 'up',
+    formatter: (value) => impactFormatter.format(value || 0),
+    tooltipFormatter: (value) => fullImpactFormatter.format(value || 0),
+    deltaFormatter: formatCurrencyDelta,
+    barClassName: 'impactBar',
+    valueExtractor: (entity) => sanitizeNumber(entity.totals.recurringImpact)
+  },
+  recurringBenefits: {
+    key: 'recurringBenefits',
+    label: 'Recurring benefits',
+    description: 'Gross recurring benefits in the pipeline',
+    type: 'currency',
+    desiredTrend: 'up',
+    formatter: (value) => impactFormatter.format(value || 0),
+    tooltipFormatter: (value) => fullImpactFormatter.format(value || 0),
+    deltaFormatter: formatCurrencyDelta,
+    barClassName: 'benefitBar',
+    valueExtractor: (entity) => sanitizeNumber(entity.totals.recurringBenefits)
+  },
+  recurringCosts: {
+    key: 'recurringCosts',
+    label: 'Recurring costs',
+    description: 'Recurring cost commitments',
+    type: 'currency',
+    desiredTrend: 'down',
+    formatter: (value) => impactFormatter.format(value || 0),
+    tooltipFormatter: (value) => fullImpactFormatter.format(value || 0),
+    deltaFormatter: formatCurrencyDelta,
+    barClassName: 'costBar',
+    valueExtractor: (entity) => sanitizeNumber(entity.totals.recurringCosts)
+  },
+  oneoffBenefits: {
+    key: 'oneoffBenefits',
+    label: 'One-off benefits',
+    description: 'One-time benefits attributed to the pipeline',
+    type: 'currency',
+    desiredTrend: 'up',
+    formatter: (value) => impactFormatter.format(value || 0),
+    tooltipFormatter: (value) => fullImpactFormatter.format(value || 0),
+    deltaFormatter: formatCurrencyDelta,
+    barClassName: 'benefitBar',
+    valueExtractor: (entity) => sanitizeNumber(entity.totals.oneoffBenefits)
+  },
+  oneoffCosts: {
+    key: 'oneoffCosts',
+    label: 'One-off costs',
+    description: 'Implementation costs',
+    type: 'currency',
+    desiredTrend: 'down',
+    formatter: (value) => impactFormatter.format(value || 0),
+    tooltipFormatter: (value) => fullImpactFormatter.format(value || 0),
+    deltaFormatter: formatCurrencyDelta,
+    barClassName: 'costBar',
+    valueExtractor: (entity) => sanitizeNumber(entity.totals.oneoffCosts)
+  }
+};
+
+const isMeasurementKey = (value: unknown): value is MeasurementKey =>
+  typeof value === 'string' && measurementKeyList.includes(value as MeasurementKey);
+
+const createEmptyMeasurementValues = (): StageMetric =>
+  measurementKeyList.reduce((acc, key) => {
+    acc[key] = 0;
+    return acc;
+  }, {} as StageMetric);
+
+const createMaxValues = () =>
+  measurementKeyList.reduce((acc, key) => {
+    acc[key] = 1;
+    return acc;
+  }, {} as Record<MeasurementKey, number>);
+
+const createEmptyMetricMap = (): StageMetricMap =>
+  stageColumns.reduce((acc, column) => {
+    acc[column.key] = createEmptyMeasurementValues();
+    return acc;
+  }, {} as StageMetricMap);
+
+const bucketForInitiative = (initiative: StageGateEntity): StageColumnKey => {
   const stage = initiative.activeStage;
   if (stage === 'l0') {
     return 'l0';
@@ -97,18 +234,17 @@ const bucketForInitiative = (initiative: Initiative): StageColumnKey => {
   if (status === 'approved') {
     return stage as StageColumnKey;
   }
-  const gateKey = `${stage}-gate`;
-  return (stageColumns.find((column) => column.key === gateKey)?.key ?? (stage as StageColumnKey));
+  const gateKey = `${stage}-gate` as StageColumnKey;
+  return stageColumnLabelMap.has(gateKey) ? gateKey : (stage as StageColumnKey);
 };
 
-const buildRows = (initiatives: Initiative[], workstreams: Workstream[]): { rows: WorkstreamRow[]; totalRow: WorkstreamRow } => {
+const buildDataset = (initiatives: StageGateEntity[], workstreams: Workstream[]): StageGateDataset => {
   const buildRow = (id: string, name: string, tone?: WorkstreamRow['tone']): WorkstreamRow => ({
     id,
     name,
     metrics: createEmptyMetricMap(),
-    totals: { initiatives: 0, impact: 0 },
-    maxInitiatives: 1,
-    maxImpact: 1,
+    totals: createEmptyMeasurementValues(),
+    maxValues: createMaxValues(),
     tone
   });
 
@@ -120,43 +256,50 @@ const buildRows = (initiatives: Initiative[], workstreams: Workstream[]): { rows
   const totalRow = buildRow('__total__', 'Portfolio total');
 
   initiatives.forEach((initiative) => {
-    const impact = sanitizeImpact(initiative.totals.recurringImpact);
     const bucket = bucketForInitiative(initiative);
     const workstreamRow = rowsById.get(initiative.workstreamId) ?? unassignedRow;
     [workstreamRow, totalRow].forEach((row) => {
       const entry = row.metrics[bucket];
-      entry.initiatives += 1;
-      entry.impact += impact;
-      row.totals.initiatives += 1;
-      row.totals.impact += impact;
+      measurementKeyList.forEach((measurement) => {
+        const delta = measurementDefinitions[measurement].valueExtractor(initiative);
+        entry[measurement] += delta;
+        row.totals[measurement] += delta;
+      });
     });
   });
 
-  const finalizeRow = (row: WorkstreamRow): WorkstreamRow => {
-    const initiativesMax = Math.max(
-      1,
-      ...stageColumns.map((column) => row.metrics[column.key].initiatives)
-    );
-    const impactMax = Math.max(
-      1,
-      ...stageColumns.map((column) => Math.abs(row.metrics[column.key].impact))
-    );
-    row.maxInitiatives = initiativesMax;
-    row.maxImpact = impactMax;
+  const finalizeRow = (row: WorkstreamRow) => {
+    measurementKeyList.forEach((measurement) => {
+      const max = Math.max(
+        1,
+        ...stageColumns.map((column) => Math.abs(row.metrics[column.key][measurement]))
+      );
+      row.maxValues[measurement] = max;
+    });
     return row;
   };
 
   const orderedRows = workstreams.map((workstream) => finalizeRow(rowsById.get(workstream.id)!));
-  const includeUnassigned = unassignedRow.totals.initiatives > 0 || initiatives.length === 0;
-  if (includeUnassigned) {
+  const shouldIncludeUnassigned = unassignedRow.totals.initiatives > 0 || initiatives.length === 0;
+  if (shouldIncludeUnassigned) {
     orderedRows.push(finalizeRow(unassignedRow));
+  } else {
+    finalizeRow(unassignedRow);
   }
+
+  const finalizedTotal = finalizeRow(totalRow);
+  const lookup = new Map<string, WorkstreamRow>();
+  orderedRows.forEach((row) => lookup.set(row.id, row));
+  lookup.set(finalizedTotal.id, finalizedTotal);
+  lookup.set(unassignedRow.id, unassignedRow);
 
   return {
     rows: orderedRows,
-    totalRow: finalizeRow(totalRow)
+    totalRow: finalizedTotal,
+    lookup
   };
 };
+
 const selectSnapshotWithinDate = (group: ProgramSnapshotSummary[]): ProgramSnapshotSummary =>
   [...group].sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime()).pop() ??
   group[group.length - 1];
@@ -193,68 +336,18 @@ const findSnapshotByDaysAgo = (snapshots: ProgramSnapshotSummary[], days: number
   return selectSnapshotWithinDate(group);
 };
 
-const formatImpact = (value: number) => impactFormatter.format(value || 0);
-const formatImpactDelta = (value: number) => {
-  const formatted = formatImpact(value);
-  if (value > 0) {
-    return `+${formatted}`;
+const getDeltaTone = (
+  delta: number | null,
+  trend: MeasurementDefinition['desiredTrend']
+): 'positive' | 'negative' | 'neutral' => {
+  if (delta === null || delta === 0) {
+    return 'neutral';
   }
-  if (value === 0) {
-    return 'No change';
+  const positive = delta > 0;
+  if (trend === 'neutral') {
+    return positive ? 'positive' : 'negative';
   }
-  return formatted;
-};
-
-const formatCountDelta = (value: number) => {
-  if (value > 0) {
-    return `+${countFormatter.format(value)}`;
-  }
-  if (value < 0) {
-    return `-${countFormatter.format(Math.abs(value))}`;
-  }
-  return 'No change';
-};
-
-const renderBar = (
-  row: WorkstreamRow,
-  column: StageColumnKey,
-  measurement: MeasurementKey,
-  comparisonValue?: number
-) => {
-  const value = row.metrics[column][measurement];
-  const max = measurement === 'initiatives' ? row.maxInitiatives : row.maxImpact;
-  const normalized = measurement === 'impact' ? Math.abs(value) : value;
-  const width = max > 0 ? Math.min(100, Math.round((normalized / max) * 100)) : 0;
-  const isZero = normalized === 0;
-  const isNegative = measurement === 'impact' && value < 0;
-  const formattedValue = measurement === 'initiatives' ? countFormatter.format(value) : formatImpact(value);
-  const tooltipParts = [
-    `${row.name} / ${measurement === 'initiatives' ? 'initiatives' : 'recurring impact'}`,
-    `${formattedValue}`
-  ];
-  if (typeof comparisonValue === 'number') {
-    tooltipParts.push(
-      `vs snapshot: ${
-        measurement === 'initiatives' ? countFormatter.format(comparisonValue) : formatImpact(comparisonValue)
-      }`
-    );
-  }
-  return (
-    <td key={`${row.id}-${column}-${measurement}`} className={styles.barCell} title={tooltipParts.join(' • ')}>
-      <div className={styles.barTrack} aria-hidden="true">
-        <div
-          className={[
-            styles.barFill,
-            measurement === 'initiatives' ? styles.countBar : styles.impactBar,
-            isZero ? styles.barFillEmpty : '',
-            isNegative ? styles.barFillNegative : ''
-          ].join(' ')}
-          style={{ width: `${width}%` }}
-        />
-        <span className={[styles.barValue, isNegative ? styles.negativeValue : ''].join(' ')}>{formattedValue}</span>
-      </div>
-    </td>
-  );
+  return trend === 'up' ? (positive ? 'positive' : 'negative') : positive ? 'negative' : 'positive';
 };
 
 export const StageGateDashboardScreen = () => {
@@ -262,20 +355,57 @@ export const StageGateDashboardScreen = () => {
   const { list: workstreams } = useWorkstreamsState();
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('7d');
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
-
-  const { rows, totalRow } = useMemo(() => buildRows(initiatives, workstreams), [initiatives, workstreams]);
-  const portfolio = useMemo<StageGatePortfolio>(
-    () => ({
-      metrics: cloneMetricMap(totalRow.metrics),
-      totals: { ...totalRow.totals }
-    }),
-    [totalRow]
-  );
+  const [selectedMeasurements, setSelectedMeasurements] = useState<MeasurementKey[]>(DEFAULT_MEASUREMENTS);
+  const [layoutMode, setLayoutMode] = useState<DashboardLayout>('workstream-first');
   const [snapshots, setSnapshots] = useState<ProgramSnapshotSummary[]>([]);
   const [snapshotsLoading, setSnapshotsLoading] = useState(false);
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
-  const [captureBusy, setCaptureBusy] = useState(false);
+  const [snapshotDetails, setSnapshotDetails] = useState<Record<string, SnapshotDetailCacheEntry>>({});
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+      const parsed = JSON.parse(raw) as { measurements?: MeasurementKey[]; layout?: DashboardLayout };
+      if (Array.isArray(parsed.measurements)) {
+        const filtered = parsed.measurements.filter((key): key is MeasurementKey => isMeasurementKey(key));
+        if (filtered.length) {
+          setSelectedMeasurements(filtered);
+        }
+      }
+      if (parsed.layout === 'metric-first' || parsed.layout === 'workstream-first') {
+        setLayoutMode(parsed.layout);
+      }
+    } catch (error) {
+      console.warn('Failed to restore dashboard settings', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        SETTINGS_STORAGE_KEY,
+        JSON.stringify({ measurements: selectedMeasurements, layout: layoutMode })
+      );
+    } catch (error) {
+      console.warn('Failed to persist dashboard settings', error);
+    }
+  }, [selectedMeasurements, layoutMode]);
+
+  const dataset = useMemo(
+    () => buildDataset(initiatives as StageGateEntity[], workstreams),
+    [initiatives, workstreams]
+  );
+  const { rows, totalRow } = dataset;
 
   const loadSnapshots = useCallback(async () => {
     setSnapshotsLoading(true);
@@ -318,39 +448,91 @@ export const StageGateDashboardScreen = () => {
     return findSnapshotByDaysAgo(snapshots, comparisonMode === '7d' ? 7 : 30);
   }, [snapshots, comparisonMode, selectedSnapshotId]);
 
-  const comparisonLabel = useMemo(() => {
-    if (!comparisonSnapshot) {
-      return comparisonMode === 'none' ? 'No comparison' : 'Snapshot not available yet';
+  const activeComparisonDetail = comparisonSnapshot ? snapshotDetails[comparisonSnapshot.id] : undefined;
+  const activeComparisonStatus = comparisonMode === 'none' ? undefined : activeComparisonDetail?.status;
+
+  useEffect(() => {
+    if (!comparisonSnapshot || comparisonMode === 'none') {
+      return;
     }
-    const target =
+    if (activeComparisonStatus === 'loading' || activeComparisonStatus === 'ready') {
+      return;
+    }
+    let cancelled = false;
+    const snapshotId = comparisonSnapshot.id;
+    setSnapshotDetails((prev) => ({
+      ...prev,
+      [snapshotId]: { status: 'loading' }
+    }));
+    void snapshotsApi
+      .getProgramSnapshot(snapshotId)
+      .then((detail) => {
+        if (cancelled) {
+          return;
+        }
+        setSnapshotDetails((prev) => ({
+          ...prev,
+          [snapshotId]: { status: 'ready', detail }
+        }));
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setSnapshotDetails((prev) => ({
+          ...prev,
+          [snapshotId]: { status: 'error' }
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [comparisonSnapshot?.id, comparisonMode, activeComparisonStatus]);
+
+  const comparisonDataset = useMemo(() => {
+    if (!comparisonSnapshot || !activeComparisonDetail || activeComparisonDetail.status !== 'ready') {
+      return null;
+    }
+    return buildDataset(activeComparisonDetail.detail.payload.initiatives as StageGateEntity[], workstreams);
+  }, [comparisonSnapshot?.id, activeComparisonDetail, workstreams]);
+
+  const comparisonLookup = comparisonDataset?.lookup ?? null;
+  const comparisonLoading = Boolean(
+    comparisonSnapshot && comparisonMode !== 'none' && activeComparisonStatus === 'loading'
+  );
+  const comparisonError = Boolean(
+    comparisonSnapshot && comparisonMode !== 'none' && activeComparisonStatus === 'error'
+  );
+
+  const comparisonLabel = useMemo(() => {
+    if (comparisonMode === 'none') {
+      return 'Comparison disabled';
+    }
+    if (!comparisonSnapshot) {
+      return snapshotsLoading ? 'Loading snapshot history...' : 'Snapshot not available yet';
+    }
+    const targetLabel =
       comparisonMode === '7d'
         ? '7 days ago'
         : comparisonMode === '30d'
         ? '30 days ago'
         : 'Selected snapshot';
-    return `${target} • ${dateFormatter.format(new Date(comparisonSnapshot.capturedAt))}`;
-  }, [comparisonSnapshot, comparisonMode]);
-
-  const comparisonDeltas = useMemo(() => {
-    if (!comparisonSnapshot) {
-      return null;
+    const base = `${targetLabel}  -  ${dateFormatter.format(new Date(comparisonSnapshot.capturedAt))}`;
+    if (comparisonLoading) {
+      return `${base}  -  loading metrics...`;
     }
-    return stageColumns.map((column) => {
-      const current = totalRow.metrics[column.key];
-      const previous = comparisonSnapshot.stageGate.metrics[column.key];
-      return {
-        key: column.key,
-        label: column.label,
-        currentInitiatives: current.initiatives,
-        currentImpact: current.impact,
-        deltaInitiatives: current.initiatives - previous.initiatives,
-        deltaImpact: current.impact - previous.impact
-      };
-    });
-  }, [comparisonSnapshot, totalRow]);
+    if (comparisonError) {
+      return `${base}  -  unable to load metrics`;
+    }
+    if (!comparisonLookup) {
+      return `${base}  -  queued for download`;
+    }
+    return `${base}  -  ready`;
+  }, [comparisonMode, comparisonSnapshot, comparisonLoading, comparisonError, comparisonLookup, snapshotsLoading]);
 
-  const hasInitiatives = totalRow.totals.initiatives > 0;
   const lastSnapshot = snapshots[snapshots.length - 1];
+  const hasInitiatives = totalRow.totals.initiatives > 0;
+  const activeMeasurements = selectedMeasurements.length ? selectedMeasurements : DEFAULT_MEASUREMENTS;
 
   const handleComparisonModeChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setComparisonMode(event.target.value as ComparisonMode);
@@ -360,18 +542,166 @@ export const StageGateDashboardScreen = () => {
     setSelectedSnapshotId(event.target.value || null);
   };
 
-  const handleCaptureSnapshot = useCallback(async () => {
-    setCaptureBusy(true);
-    try {
-      await snapshotsApi.captureProgramSnapshot('full');
-      await loadSnapshots();
-    } catch (error) {
-      console.error('Failed to capture snapshot:', error);
-      setSnapshotError('Unable to capture snapshot right now.');
-    } finally {
-      setCaptureBusy(false);
+  const handleToggleMeasurement = (measurement: MeasurementKey) => {
+    setSelectedMeasurements((current) => {
+      if (current.includes(measurement)) {
+        if (current.length === 1) {
+          return current;
+        }
+        return current.filter((key) => key !== measurement);
+      }
+      return [...current, measurement];
+    });
+  };
+
+  const handleLayoutChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setLayoutMode(event.target.value as DashboardLayout);
+  };
+
+  const renderStageCells = (
+    row: WorkstreamRow,
+    column: StageColumnKey,
+    measurement: MeasurementKey,
+    comparisonRow?: WorkstreamRow
+  ) => {
+    const meta = measurementDefinitions[measurement];
+    const columnLabel = stageColumnLabelMap.get(column) ?? column.toUpperCase();
+    const value = row.metrics[column][measurement] ?? 0;
+    const normalized = meta.type === 'currency' ? Math.abs(value) : value;
+    const max = row.maxValues[measurement] || 1;
+    const width = max > 0 ? Math.min(100, Math.round((normalized / max) * 100)) : 0;
+    const barClasses = [styles.barFill, styles[meta.barClassName]];
+    if (width === 0) {
+      barClasses.push(styles.barFillEmpty);
     }
-  }, [loadSnapshots]);
+    const formatted = meta.formatter(value);
+    const tooltipParts = [
+      `${row.name}  -  ${meta.label}  -  ${columnLabel}`,
+      `Current: ${meta.tooltipFormatter ? meta.tooltipFormatter(value) : formatted}`
+    ];
+    const comparisonValue = comparisonRow?.metrics[column]?.[measurement];
+    let delta: number | null = null;
+    if (typeof comparisonValue === 'number') {
+      delta = value - comparisonValue;
+      tooltipParts.push(
+        `Snapshot: ${meta.tooltipFormatter ? meta.tooltipFormatter(comparisonValue) : meta.formatter(comparisonValue)}`
+      );
+    }
+    const tone = getDeltaTone(delta, meta.desiredTrend);
+    const deltaClasses = [styles.deltaBadge];
+    if (tone === 'positive') {
+      deltaClasses.push(styles.deltaPositive);
+    } else if (tone === 'negative') {
+      deltaClasses.push(styles.deltaNegative);
+    } else {
+      deltaClasses.push(styles.deltaNeutral);
+    }
+    return (
+      <Fragment key={`${row.id}-${column}-${measurement}`}>
+        <td className={styles.valueCell} title={tooltipParts.join('  -  ')}>
+          <div className={styles.barTrack} aria-hidden="true">
+            <div className={barClasses.join(' ')} style={{ width: `${width}%` }} />
+            <span className={[styles.barValue, value < 0 ? styles.negativeValue : ''].join(' ')}>{formatted}</span>
+          </div>
+        </td>
+        <td className={styles.deltaCell}>
+          {delta === null ? (
+            <span className={[styles.deltaBadge, styles.deltaNeutral, styles.deltaPlaceholder].join(' ')}>--</span>
+          ) : (
+            <span className={deltaClasses.join(' ')}>{meta.deltaFormatter(delta)}</span>
+          )}
+        </td>
+      </Fragment>
+    );
+  };
+
+  const renderWorkstreamFirstRows = () => (
+    <>
+      {rows.map((row) => (
+        <Fragment key={row.id}>
+          {activeMeasurements.map((measurement, index) => (
+            <tr key={`${row.id}-${measurement}`} className={row.tone === 'unassigned' ? styles.unassignedRow : undefined}>
+              {index === 0 && (
+                <th scope="rowgroup" rowSpan={activeMeasurements.length} className={styles.workstreamCell}>
+                  <p className={styles.workstreamName}>{row.name}</p>
+                  <p className={styles.workstreamMeta}>
+                    {countFormatter.format(row.totals.initiatives)} active initiatives
+                  </p>
+                </th>
+              )}
+              <td className={styles.metricLabel}>
+                <span>{measurementDefinitions[measurement].label}</span>
+                <strong>{measurementDefinitions[measurement].formatter(row.totals[measurement])}</strong>
+              </td>
+              {stageColumns.flatMap((column) =>
+                renderStageCells(row, column.key, measurement, comparisonLookup?.get(row.id))
+              )}
+            </tr>
+          ))}
+        </Fragment>
+      ))}
+      {activeMeasurements.map((measurement, index) => (
+        <tr key={`total-${measurement}`} className={styles.totalRow}>
+          {index === 0 && (
+            <th scope="rowgroup" rowSpan={activeMeasurements.length} className={styles.workstreamCell}>
+              <p className={styles.workstreamName}>Portfolio total</p>
+              <p className={styles.workstreamMeta}>
+                {countFormatter.format(totalRow.totals.initiatives)} active initiatives
+              </p>
+            </th>
+          )}
+          <td className={styles.metricLabel}>
+            <span>{measurementDefinitions[measurement].label}</span>
+            <strong>{measurementDefinitions[measurement].formatter(totalRow.totals[measurement])}</strong>
+          </td>
+          {stageColumns.flatMap((column) =>
+            renderStageCells(totalRow, column.key, measurement, comparisonLookup?.get(totalRow.id))
+          )}
+        </tr>
+      ))}
+    </>
+  );
+
+  const renderMetricFirstRows = () => (
+    <>
+      {activeMeasurements.map((measurement) => {
+        const blockRowSpan = rows.length + 1;
+        return (
+          <Fragment key={`metric-block-${measurement}`}>
+            {rows.map((row, index) => (
+              <tr key={`${measurement}-${row.id}`} className={row.tone === 'unassigned' ? styles.unassignedRow : undefined}>
+                {index === 0 && (
+                  <th scope="rowgroup" rowSpan={blockRowSpan} className={styles.metricGroupCell}>
+                    <p className={styles.workstreamName}>{measurementDefinitions[measurement].label}</p>
+                    <p className={styles.workstreamMeta}>{measurementDefinitions[measurement].description}</p>
+                    <p className={styles.workstreamMeta}>
+                      Total {measurementDefinitions[measurement].formatter(totalRow.totals[measurement])}
+                    </p>
+                  </th>
+                )}
+                <td className={styles.metricLabel}>
+                  <span>{row.name}</span>
+                  <strong>{measurementDefinitions[measurement].formatter(row.totals[measurement])}</strong>
+                </td>
+                {stageColumns.flatMap((column) =>
+                  renderStageCells(row, column.key, measurement, comparisonLookup?.get(row.id))
+                )}
+              </tr>
+            ))}
+            <tr key={`${measurement}-portfolio`} className={styles.totalRow}>
+              <td className={styles.metricLabel}>
+                <span>Portfolio total</span>
+                <strong>{measurementDefinitions[measurement].formatter(totalRow.totals[measurement])}</strong>
+              </td>
+              {stageColumns.flatMap((column) =>
+                renderStageCells(totalRow, column.key, measurement, comparisonLookup?.get(totalRow.id))
+              )}
+            </tr>
+          </Fragment>
+        );
+      })}
+    </>
+  );
 
   return (
     <section className={styles.wrapper}>
@@ -379,39 +709,21 @@ export const StageGateDashboardScreen = () => {
         <div>
           <h1>Stage-gate pipeline</h1>
           <p className={styles.subtitle}>
-            Track how initiatives move from L0 through L5 and monitor the recurring impact tied to each gate.
+            Visualize how initiatives progress across the stage-gate funnel and compare metrics with historical snapshots.
           </p>
           {snapshotError && <p className={styles.errorBanner}>{snapshotError}</p>}
         </div>
-        <div className={styles.headerActions}>
-          <button
-            type="button"
-            className={styles.snapshotButton}
-            onClick={handleCaptureSnapshot}
-            disabled={captureBusy || snapshotsLoading}
-          >
-            {captureBusy ? 'Capturing...' : 'Capture snapshot now'}
-          </button>
-          <p className={styles.snapshotInfo}>
-            Snapshots are stored on the server and refreshed automatically according to the Snapshot settings.
-            {snapshotsLoading && !snapshotsLoaded && (
-              <>
-                <br />
-                Loading history...
-              </>
-            )}
-            {lastSnapshot && (
-              <>
-                <br />
-                Last snapshot: {dayFormatter.format(new Date(lastSnapshot.capturedAt))}
-              </>
-            )}
+        <div className={styles.snapshotStatus}>
+          <p>
+            Snapshots are captured automatically based on the Snapshot settings schedule.
+            {snapshotsLoading && !snapshotsLoaded && ' Loading history...'}
           </p>
+          {lastSnapshot && <p>Last snapshot: {dayFormatter.format(new Date(lastSnapshot.capturedAt))}</p>}
         </div>
       </header>
 
-      <section className={styles.comparisonPanel}>
-        <div className={styles.field}>
+      <section className={styles.controls}>
+        <div className={styles.fieldGroup}>
           <label htmlFor="comparison-mode">Comparison</label>
           <select id="comparison-mode" value={comparisonMode} onChange={handleComparisonModeChange}>
             <option value="none">No comparison</option>
@@ -427,13 +739,9 @@ export const StageGateDashboardScreen = () => {
           </select>
         </div>
         {comparisonMode === 'custom' && snapshots.length > 0 && (
-          <div className={styles.field}>
+          <div className={styles.fieldGroup}>
             <label htmlFor="comparison-snapshot">Snapshot</label>
-            <select
-              id="comparison-snapshot"
-              value={selectedSnapshotId ?? ''}
-              onChange={handleSnapshotSelect}
-            >
+            <select id="comparison-snapshot" value={selectedSnapshotId ?? ''} onChange={handleSnapshotSelect}>
               {snapshots.map((snapshot) => (
                 <option key={snapshot.id} value={snapshot.id}>
                   {dateFormatter.format(new Date(snapshot.capturedAt))}
@@ -442,106 +750,71 @@ export const StageGateDashboardScreen = () => {
             </select>
           </div>
         )}
-        <div className={styles.comparisonSummary}>{comparisonLabel}</div>
+        <div className={styles.statusText}>{comparisonLabel}</div>
       </section>
 
-      {comparisonDeltas && (
-        <section className={styles.comparisonChips} aria-live="polite">
-          {comparisonDeltas.map((delta) => (
-            <article key={delta.key} className={styles.comparisonChip}>
-              <header>
-                <p className={styles.chipLabel}>{delta.label}</p>
-                <p className={styles.chipCount}>
-                  {countFormatter.format(delta.currentInitiatives)} initiatives
-                  <span
-                    className={[
-                      styles.deltaBadge,
-                      delta.deltaInitiatives > 0 ? styles.deltaPositive : '',
-                      delta.deltaInitiatives < 0 ? styles.deltaNegative : ''
-                    ].join(' ')}
-                  >
-                    {formatCountDelta(delta.deltaInitiatives)}
-                  </span>
-                </p>
-              </header>
-              <p className={styles.chipImpact}>
-                {fullImpactFormatter.format(delta.currentImpact)}
-                <span
-                  className={[
-                    styles.deltaBadge,
-                    delta.deltaImpact > 0 ? styles.deltaPositive : '',
-                    delta.deltaImpact < 0 ? styles.deltaNegative : ''
-                  ].join(' ')}
+      <section className={styles.controls}>
+        <div className={styles.fieldGroup}>
+          <label>Metrics</label>
+          <div className={styles.metricSelector}>
+            {measurementKeyList.map((measurement) => {
+              const active = selectedMeasurements.includes(measurement);
+              return (
+                <button
+                  key={measurement}
+                  type="button"
+                  className={[styles.metricChip, active ? styles.metricChipActive : ''].join(' ')}
+                  onClick={() => handleToggleMeasurement(measurement)}
+                  aria-pressed={active}
+                  title={measurementDefinitions[measurement].description}
                 >
-                  {formatImpactDelta(delta.deltaImpact)}
-                </span>
-              </p>
-            </article>
-          ))}
-        </section>
-      )}
+                  {measurementDefinitions[measurement].label}
+                </button>
+              );
+            })}
+          </div>
+          <p className={styles.helper}>Select at least one metric to display.</p>
+        </div>
+        <div className={styles.fieldGroup}>
+          <label htmlFor="layout-mode">Table layout</label>
+          <select id="layout-mode" value={layoutMode} onChange={handleLayoutChange}>
+            <option value="workstream-first">Workstreams -&gt; metrics</option>
+            <option value="metric-first">Metrics -&gt; workstreams</option>
+          </select>
+          <p className={styles.helper}>Choose which dimension should group the rows first.</p>
+        </div>
+      </section>
 
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
           <thead>
             <tr>
-              <th className={styles.workstreamColumn}>Workstream</th>
-              <th className={styles.metricColumn}>Metric</th>
+              <th className={styles.workstreamColumn} rowSpan={2}>
+                {layoutMode === 'workstream-first' ? 'Workstream' : 'Metric'}
+              </th>
+              <th className={styles.metricColumn} rowSpan={2}>
+                {layoutMode === 'workstream-first' ? 'Metric' : 'Workstream'}
+              </th>
               {stageColumns.map((column) => (
-                <th key={column.key} className={styles.stageColumn}>
+                <th key={column.key} colSpan={2} className={styles.stageHeader}>
                   {column.label}
                 </th>
               ))}
             </tr>
+            <tr>
+              {stageColumns.map((column) => (
+                <Fragment key={`${column.key}-sub`}>
+                  <th className={styles.stageSubHeader}>Now</th>
+                  <th className={styles.stageSubHeader}>Delta</th>
+                </Fragment>
+              ))}
+            </tr>
           </thead>
-          <tbody>
-            {rows.map((row) => (
-              <Fragment key={row.id}>
-                <tr className={row.tone === 'unassigned' ? styles.unassignedRow : undefined}>
-                  <th scope="rowgroup" rowSpan={2} className={styles.workstreamCell}>
-                    <div>
-                      <p className={styles.workstreamName}>{row.name}</p>
-                      <p className={styles.workstreamMeta}>{countFormatter.format(row.totals.initiatives)} active</p>
-                    </div>
-                  </th>
-                  <td className={styles.metricLabel}>Initiatives</td>
-                  {stageColumns.map((column) => renderBar(row, column.key, 'initiatives'))}
-                </tr>
-                <tr className={row.tone === 'unassigned' ? styles.unassignedRow : undefined}>
-                  <td className={styles.metricLabel}>Recurring impact</td>
-                  {stageColumns.map((column) => renderBar(row, column.key, 'impact'))}
-                </tr>
-              </Fragment>
-            ))}
-            <tr className={styles.totalFooter}>
-              <th scope="row" className={styles.workstreamCell}>
-                Portfolio total
-              </th>
-              <td className={styles.metricLabel}>Initiatives</td>
-              {stageColumns.map((column) =>
-                renderBar(
-                  totalRow,
-                  column.key,
-                  'initiatives',
-                  comparisonSnapshot?.stageGate.metrics[column.key].initiatives
-                )
-              )}
-            </tr>
-            <tr className={styles.totalFooter}>
-              <th scope="row" className={styles.workstreamCell} />
-              <td className={styles.metricLabel}>Recurring impact</td>
-              {stageColumns.map((column) =>
-                renderBar(
-                  totalRow,
-                  column.key,
-                  'impact',
-                  comparisonSnapshot?.stageGate.metrics[column.key].impact
-                )
-              )}
-            </tr>
-          </tbody>
+          <tbody>{layoutMode === 'workstream-first' ? renderWorkstreamFirstRows() : renderMetricFirstRows()}</tbody>
         </table>
-        {!hasInitiatives && <p className={styles.emptyState}>No initiatives yet. Create the first initiative to populate the pipeline.</p>}
+        {!hasInitiatives && (
+          <p className={styles.emptyState}>No initiatives yet. Create the first initiative to populate the pipeline.</p>
+        )}
       </div>
     </section>
   );
