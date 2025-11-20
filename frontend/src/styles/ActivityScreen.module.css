@@ -65,7 +65,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  max-height: 260px;
+  max-height: 360px;
+  min-height: 260px;
   overflow-y: auto;
 }
 
@@ -202,7 +203,7 @@
 
 .metricPanel {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.8rem;
   margin-top: 1rem;
 }
@@ -287,11 +288,23 @@
   gap: 1.2rem;
 }
 
-.groupTitle {
-  margin: 0;
-  font-size: 0.95rem;
+.groupHeaderButton {
+  width: 100%;
+  border: 1px solid #cdd6f4;
+  background: #eef2ff;
+  color: #111d4a;
+  border-radius: 14px;
+  padding: 0.5rem 0.9rem;
   font-weight: 600;
-  color: #1d2342;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  cursor: pointer;
+}
+
+.groupHeaderIcon {
+  font-size: 1.2rem;
 }
 
 .logList,
@@ -351,6 +364,13 @@
 .emptyState {
   margin: 0;
   color: #5d6c8b;
+  font-size: 0.9rem;
+}
+
+.searchInput {
+  border-radius: 10px;
+  border: 1px solid #cfd4e5;
+  padding: 0.35rem 0.6rem;
   font-size: 0.9rem;
 }
 

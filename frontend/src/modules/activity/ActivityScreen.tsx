@@ -94,6 +94,8 @@ export const ActivityScreen = () => {
   const [ready, setReady] = useState(false);
   const [updateGrouping, setUpdateGrouping] = useState<'time' | 'initiative'>('time');
   const [updateSort, setUpdateSort] = useState<'desc' | 'asc'>('desc');
+  const [updateGroupCollapsed, setUpdateGroupCollapsed] = useState<Record<string, boolean>>({});
+  const [followedSearch, setFollowedSearch] = useState('');
   const markVisitRef = useRef(false);
 
   const accountId = session?.accountId ?? null;
@@ -335,6 +337,42 @@ export const ActivityScreen = () => {
     </article>
   );
 
+  const toggleUpdateGroup = (title: string) => {
+    setUpdateGroupCollapsed((prev) => ({
+      ...prev,
+      [title]: !prev[title]
+    }));
+  };
+
+  const followedSearchValue = followedSearch.trim().toLowerCase();
+  const initiativesByWorkstream = useMemo(() => {
+    const workstreamNames = new Map(workstreams.map((ws) => [ws.id, ws.name]));
+    const groups = new Map<
+      string,
+      { workstreamId: string; workstreamName: string; initiatives: Initiative[] }
+    >();
+    sortedInitiatives.forEach((initiative) => {
+      if (
+        followedSearchValue &&
+        !initiative.name.toLowerCase().includes(followedSearchValue)
+      ) {
+        return;
+      }
+      const workstreamName = workstreamNames.get(initiative.workstreamId) ?? 'Other';
+      const existing = groups.get(initiative.workstreamId);
+      if (existing) {
+        existing.initiatives.push(initiative);
+      } else {
+        groups.set(initiative.workstreamId, {
+          workstreamId: initiative.workstreamId,
+          workstreamName,
+          initiatives: [initiative]
+        });
+      }
+    });
+    return Array.from(groups.values()).sort((a, b) => a.workstreamName.localeCompare(b.workstreamName));
+  }, [sortedInitiatives, workstreams, followedSearchValue]);
+
   if (!session) {
     return null;
   }
@@ -379,16 +417,28 @@ export const ActivityScreen = () => {
           </div>
           <div className={styles.controlGroup}>
             <p className={styles.controlLabel}>Followed initiatives</p>
+            <input
+              type="search"
+              className={styles.searchInput}
+              value={followedSearch}
+              onChange={(event) => setFollowedSearch(event.target.value)}
+              placeholder="Search initiatives…"
+            />
             <select
               multiple
               className={styles.multiSelect}
               value={followedInitiatives}
               onChange={(event) => setFollowedInitiatives(Array.from(event.target.selectedOptions, (option) => option.value))}
             >
-              {sortedInitiatives.map((initiative) => (
-                <option key={initiative.id} value={initiative.id}>
-                  {initiative.name}
-                </option>
+              {initiativesByWorkstream.length === 0 && <option disabled>No matches</option>}
+              {initiativesByWorkstream.map((group) => (
+                <optgroup key={group.workstreamId || group.workstreamName} label={group.workstreamName}>
+                  {group.initiatives.map((initiative) => (
+                    <option key={initiative.id} value={initiative.id}>
+                      {initiative.name}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <div className={styles.selectActions}>
@@ -414,7 +464,6 @@ export const ActivityScreen = () => {
                       <input type="checkbox" checked={isActive} onChange={() => handleMetricToggle(definition.key)} />
                       <span>
                         <strong>{definition.label}</strong>
-                        <small>{definition.description}</small>
                       </span>
                     </label>
                     <div className={styles.metricReorder}>
@@ -537,12 +586,25 @@ export const ActivityScreen = () => {
             <p className={styles.emptyState}>No initiative changes in this window.</p>
           ) : (
             <div className={styles.logGroups}>
-              {groupedUpdates.map((group) => (
-                <div key={group.title}>
-                  <p className={styles.groupTitle}>{group.title}</p>
-                  <div className={styles.logList}>{group.entries.map((entry) => renderUpdateEntry(entry))}</div>
-                </div>
-              ))}
+              {groupedUpdates.map((group) => {
+                const isCollapsed = updateGroupCollapsed[group.title];
+                return (
+                  <div key={group.title}>
+                    <button
+                      type="button"
+                      className={styles.groupHeaderButton}
+                      onClick={() => toggleUpdateGroup(group.title)}
+                      aria-expanded={!isCollapsed}
+                    >
+                      <span>{group.title}</span>
+                      <span className={styles.groupHeaderIcon}>{isCollapsed ? '+' : '−'}</span>
+                    </button>
+                    {!isCollapsed && (
+                      <div className={styles.logList}>{group.entries.map((entry) => renderUpdateEntry(entry))}</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
