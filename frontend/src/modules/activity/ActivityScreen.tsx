@@ -270,18 +270,6 @@ export const ActivityScreen = () => {
     window.location.hash = `/initiatives/view/${entry.initiativeId}?${params.toString()}`;
   };
 
-  if (!session) {
-    return null;
-  }
-
-  if (loading) {
-    return (
-      <section className={styles.loadingState}>
-        <p>Loading your tailored activity feed…</p>
-      </section>
-    );
-  }
-
   const timeframeOptions = bundle?.timeframes ?? [];
   const groupedUpdates = useMemo(() => {
     if (!updates.length) {
@@ -346,6 +334,18 @@ export const ActivityScreen = () => {
       <p className={styles.logBody}>{describeUpdate(entry)}</p>
     </article>
   );
+
+  if (!session) {
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <section className={styles.loadingState}>
+        <p>Loading your tailored activity feed…</p>
+      </section>
+    );
+  }
 
   return (
     <section className={styles.layout}>
