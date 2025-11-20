@@ -101,7 +101,7 @@ export const ActivityScreen = () => {
   const sortedInitiatives = useMemo(() => [...initiatives].sort((a, b) => a.name.localeCompare(b.name)), [initiatives]);
   const metricDefinitions = useMemo(() => {
     const map = new Map<string, ActivityMetricDefinition>();
-    bundle?.metricCatalog.forEach((definition) => map.set(definition.key, definition));
+    bundle?.metricCatalog?.forEach((definition) => map.set(definition.key, definition));
     return map;
   }, [bundle?.metricCatalog]);
   const selectedMetricDefinitions = selectedMetrics
@@ -402,8 +402,8 @@ export const ActivityScreen = () => {
           </div>
           <div className={styles.controlGroup}>
             <p className={styles.controlLabel}>Metric library</p>
-            <div className={styles.metricLibrary}>
-              {bundle?.metricCatalog.map((definition) => {
+              <div className={styles.metricLibrary}>
+                {bundle?.metricCatalog?.map((definition) => {
                 const index = selectedMetrics.indexOf(definition.key);
                 const isActive = index !== -1;
                 const disableUp = !isActive || index === 0;
