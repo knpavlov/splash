@@ -557,7 +557,7 @@ export const ActivityScreen = () => {
             <p className={styles.emptyState}>No new comments for the tracked initiatives.</p>
           ) : (
             <div className={styles.commentList}>
-              {comments?.entries.map((entry) => (
+              {comments?.entries?.map((entry) => (
                 <article key={entry.id} className={styles.commentItem}>
                   <header>
                     <div>
