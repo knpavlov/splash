@@ -48,6 +48,8 @@ interface InitiativeProfileProps {
   openPlanFullscreen?: boolean;
   onPlanFocusClear?: () => void;
   dataLoaded?: boolean;
+  initialCommentThreadId?: string | null;
+  openComments?: boolean;
 }
 
 type Banner = { type: 'info' | 'error'; text: string } | null;
@@ -229,7 +231,9 @@ export const InitiativeProfile = ({
   focusPlanTaskId = null,
   openPlanFullscreen = false,
   onPlanFocusClear,
-  dataLoaded = true
+  dataLoaded = true,
+  initialCommentThreadId = null,
+  openComments = false
 }: InitiativeProfileProps) => {
   const [draft, setDraft] = useState<Initiative>(() =>
     initiative ?? createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id)
@@ -260,11 +264,12 @@ export const InitiativeProfile = ({
     actor: commentActor,
     enabled: Boolean(initiative?.id)
   });
-  const [isCommentMode, setIsCommentMode] = useState(false);
+  const [isCommentMode, setIsCommentMode] = useState(Boolean(openComments));
   const [pendingSelection, setPendingSelection] = useState<CommentSelectionDraft | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const initialCommentHandledRef = useRef(false);
   const commentAnchors = useCommentAnchors(commentThreads, contentRef);
   const changeLogLoadedKeyRef = useRef<string | null>(null);
   const initiativeId = initiative?.id ?? null;
@@ -369,6 +374,29 @@ export const InitiativeProfile = ({
   })();
   const isReadOnlyMode = readOnly;
   const commentsAvailable = Boolean(initiative?.id);
+  useEffect(() => {
+    if (!openComments || !commentsAvailable) {
+      return;
+    }
+    setIsCommentMode(true);
+  }, [openComments, commentsAvailable]);
+  useEffect(() => {
+    if (!initialCommentThreadId || !commentsAvailable || initialCommentHandledRef.current) {
+      return;
+    }
+    setIsCommentMode(true);
+    setActiveThreadId(initialCommentThreadId);
+    initialCommentHandledRef.current = true;
+  }, [initialCommentThreadId, commentsAvailable, commentThreads.length]);
+  useEffect(() => {
+    if (!initialCommentThreadId || !isCommentMode) {
+      return;
+    }
+    const anchor = commentAnchors.get(initialCommentThreadId);
+    if (anchor && contentRef.current) {
+      contentRef.current.scrollTo({ top: Math.max(0, anchor.top - 120), behavior: 'smooth' });
+    }
+  }, [initialCommentThreadId, commentAnchors, isCommentMode]);
 
   const handleCommentToggle = () => {
     if (!commentsAvailable) {

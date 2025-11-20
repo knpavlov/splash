@@ -10,7 +10,15 @@ import { initiativesApi } from './services/initiativesApi';
 export type InitiativesViewRoute =
   | { mode: 'list'; workstreamId?: string }
   | { mode: 'create'; workstreamId?: string }
-  | { mode: 'view'; initiativeId: string; workstreamId?: string; planTaskId?: string | null; openPlanFullscreen?: boolean };
+  | {
+      mode: 'view';
+      initiativeId: string;
+      workstreamId?: string;
+      planTaskId?: string | null;
+      openPlanFullscreen?: boolean;
+      commentThreadId?: string | null;
+      openComments?: boolean;
+    };
 
 interface InitiativesScreenProps {
   view: InitiativesViewRoute;
@@ -165,6 +173,8 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
         openPlanFullscreen={view.openPlanFullscreen}
         onPlanFocusClear={handlePlanFocusClear}
         dataLoaded={dataLoadedFlag}
+        initialCommentThreadId={view.commentThreadId ?? null}
+        openComments={view.openComments}
       />
     );
   }

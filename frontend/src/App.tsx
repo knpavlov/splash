@@ -78,7 +78,9 @@ const parseHash = (hash: string): AppRoute => {
           mode: 'view',
           initiativeId: identifier,
           planTaskId: query.get('planTask') ?? undefined,
-          openPlanFullscreen: query.get('planFullscreen') === '1'
+          openPlanFullscreen: query.get('planFullscreen') === '1',
+          commentThreadId: query.get('comment') ?? undefined,
+          openComments: query.get('comments') === '1'
         }
       };
     }
@@ -119,6 +121,12 @@ const buildHash = (route: AppRoute): string => {
       if (initiativeRoute.openPlanFullscreen) {
         params.set('planFullscreen', '1');
       }
+       if (initiativeRoute.commentThreadId) {
+         params.set('comment', initiativeRoute.commentThreadId);
+       }
+       if (initiativeRoute.openComments) {
+         params.set('comments', '1');
+       }
       const query = params.toString();
       return `/initiatives/view/${initiativeRoute.initiativeId}${query ? `?${query}` : ''}`;
     }
@@ -153,7 +161,11 @@ const routesEqual = (a: AppRoute, b: AppRoute) => {
       return false;
     }
     if (left.mode === 'view' && right.mode === 'view') {
-      return left.initiativeId === right.initiativeId;
+      return (
+        left.initiativeId === right.initiativeId &&
+        (left.commentThreadId ?? '') === (right.commentThreadId ?? '') &&
+        Boolean(left.openComments) === Boolean(right.openComments)
+      );
     }
     if (left.mode === 'list' && right.mode === 'list') {
       return (left.workstreamId ?? '') === (right.workstreamId ?? '');

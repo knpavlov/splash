@@ -15,7 +15,13 @@ import {
 import { InitiativesRepository } from '../initiatives/initiatives.repository.js';
 import { WorkstreamsRepository } from '../workstreams/workstreams.repository.js';
 import { buildInitiativeTotals } from '../initiatives/initiativeTotals.js';
-import { InitiativeRecord, InitiativeTotals } from '../initiatives/initiatives.types.js';
+import {
+  initiativeFinancialKinds,
+  initiativeStageKeys,
+  InitiativeFinancialKind,
+  InitiativeRecord,
+  InitiativeTotals
+} from '../initiatives/initiatives.types.js';
 import { WorkstreamRecord } from '../workstreams/workstreams.types.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -25,6 +31,59 @@ const timeframeLabels: Record<ActivityTimeframeKey, { label: string; description
   'since-yesterday': { label: 'Since yesterday', description: 'Rolling 24-hour view of program momentum.' },
   'since-7-days': { label: 'Last 7 days', description: 'Week-on-week transformation progress.' },
   'since-last-month': { label: 'Last 30 days', description: 'Month-to-date shifts in the portfolio.' }
+};
+
+const FISCAL_YEAR_START_MONTH = 6; // July (0-based)
+const costKinds = new Set<InitiativeFinancialKind>(['recurring-costs', 'oneoff-costs']);
+const benefitKinds = new Set<InitiativeFinancialKind>(['recurring-benefits', 'oneoff-benefits']);
+
+const parseDistributionDate = (key: string): Date | null => {
+  const trimmed = key.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}-01T00:00:00Z`);
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return new Date(`${trimmed}T00:00:00Z`);
+  }
+  const fyMatch = trimmed.match(/^FY(\d{2}|\d{4})$/i);
+  if (fyMatch) {
+    const yearValue = fyMatch[1].length === 2 ? Number(`20${fyMatch[1]}`) : Number(fyMatch[1]);
+    if (Number.isFinite(yearValue)) {
+      return new Date(`${yearValue - 1}-07-01T00:00:00Z`);
+    }
+  }
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getFinancialYear = (date: Date) => (date.getMonth() >= FISCAL_YEAR_START_MONTH ? date.getFullYear() + 1 : date.getFullYear());
+
+const forEachFinancialDistribution = (
+  record: InitiativeRecord,
+  handler: (kind: InitiativeFinancialKind, amount: number, date: Date | null) => void
+) => {
+  for (const stageKey of initiativeStageKeys) {
+    const stage = record.stages[stageKey];
+    if (!stage) {
+      continue;
+    }
+    for (const kind of initiativeFinancialKinds) {
+      const entries = stage.financials[kind] ?? [];
+      for (const entry of entries) {
+        const distribution = entry.distribution ?? {};
+        for (const [periodKey, raw] of Object.entries(distribution)) {
+          const amount = typeof raw === 'number' ? raw : Number(raw);
+          if (!Number.isFinite(amount)) {
+            continue;
+          }
+          handler(kind, amount, parseDistributionDate(periodKey));
+        }
+      }
+    }
+  }
 };
 
 const moduleCatalog: ActivityModuleDefinition[] = [
@@ -63,19 +122,51 @@ const metricCatalog: ActivityMetricDefinition[] = [
     granularity: 'program'
   },
   {
+    key: 'impact-calendar-year',
+    label: 'Impact (calendar year)',
+    description: 'Net financial impact recognised in the current calendar year.',
+    category: 'impact',
+    format: 'currency',
+    granularity: 'program'
+  },
+  {
+    key: 'impact-financial-year',
+    label: 'Impact (financial year)',
+    description: 'Net financial impact recognised in the current financial year.',
+    category: 'impact',
+    format: 'currency',
+    granularity: 'program'
+  },
+  {
     key: 'impact-l3-share',
-    label: 'Impact at L3',
+    label: 'Impact at L3 (%)',
     description: 'Share of recurring impact delivered by initiatives sitting at L3.',
     category: 'impact',
     format: 'percentage',
     granularity: 'stage'
   },
   {
+    key: 'impact-l3-amount',
+    label: 'Impact at L3 ($)',
+    description: 'Recurring impact value attributed to L3 initiatives.',
+    category: 'impact',
+    format: 'currency',
+    granularity: 'stage'
+  },
+  {
     key: 'impact-l4-share',
-    label: 'Impact at L4',
+    label: 'Impact at L4 (%)',
     description: 'Share of recurring impact locked in at L4.',
     category: 'impact',
     format: 'percentage',
+    granularity: 'stage'
+  },
+  {
+    key: 'impact-l4-amount',
+    label: 'Impact at L4 ($)',
+    description: 'Recurring impact value attributed to L4 initiatives.',
+    category: 'impact',
+    format: 'currency',
     granularity: 'stage'
   },
   {
@@ -96,24 +187,72 @@ const metricCatalog: ActivityMetricDefinition[] = [
   },
   {
     key: 'initiatives-l3-share',
-    label: 'Initiatives at L3',
+    label: 'Initiatives at L3 (%)',
     description: 'Share of initiatives that progressed to L3.',
     category: 'pipeline',
     format: 'percentage',
     granularity: 'stage'
   },
   {
+    key: 'initiatives-l3-count',
+    label: 'Initiatives at L3 (#)',
+    description: 'Count of initiatives currently at L3.',
+    category: 'pipeline',
+    format: 'count',
+    granularity: 'stage'
+  },
+  {
     key: 'initiatives-l4-share',
-    label: 'Initiatives at L4',
+    label: 'Initiatives at L4 (%)',
     description: 'Share of initiatives that reached L4.',
     category: 'pipeline',
     format: 'percentage',
     granularity: 'stage'
   },
   {
+    key: 'initiatives-l4-count',
+    label: 'Initiatives at L4 (#)',
+    description: 'Count of initiatives currently at L4.',
+    category: 'pipeline',
+    format: 'count',
+    granularity: 'stage'
+  },
+  {
+    key: 'benefits-total',
+    label: 'Total benefits',
+    description: 'Sum of recurring and one-off benefits across the portfolio.',
+    category: 'impact',
+    format: 'currency',
+    granularity: 'program'
+  },
+  {
+    key: 'oneoff-investment',
+    label: 'One-off investment',
+    description: 'Total one-off investment committed across initiatives.',
+    category: 'impact',
+    format: 'currency',
+    granularity: 'program'
+  },
+  {
+    key: 'costs-period',
+    label: 'Costs in this window',
+    description: 'Total costs booked since the selected timeframe start.',
+    category: 'impact',
+    format: 'currency',
+    granularity: 'program'
+  },
+  {
     key: 'pending-approvals',
-    label: 'Pending approvals',
+    label: 'Pending approvals (all)',
     description: 'Stage gates waiting for decisions.',
+    category: 'execution',
+    format: 'count',
+    granularity: 'stage'
+  },
+  {
+    key: 'pending-approvals-mine',
+    label: 'Pending approvals (mine)',
+    description: 'Approvals currently awaiting your decision.',
     category: 'execution',
     format: 'count',
     granularity: 'stage'
@@ -133,24 +272,21 @@ const metricCatalog: ActivityMetricDefinition[] = [
     category: 'execution',
     format: 'count',
     granularity: 'program'
-  },
-  {
-    key: 'top-workstreams-impact',
-    label: 'Top workstreams by impact',
-    description: 'Workstreams contributing the largest share of impact.',
-    category: 'impact',
-    format: 'currency',
-    granularity: 'workstream'
   }
 ];
 
 const defaultMetricKeys = [
   'impact-total',
   'impact-change',
+  'impact-calendar-year',
+  'impact-financial-year',
+  'impact-l3-amount',
+  'impact-l4-amount',
   'initiatives-total',
   'initiatives-started',
-  'impact-l3-share',
-  'initiatives-l3-share'
+  'initiatives-l3-count',
+  'initiatives-l4-count',
+  'pending-approvals-mine'
 ] as const;
 
 const defaultModuleKeys = moduleCatalog.map((item) => item.key);
@@ -170,8 +306,14 @@ interface MetricComputationContext {
   impactDelta: number;
   newInitiatives: number;
   pendingApprovals: number;
+  myPendingApprovals: number;
   overdueL4: number;
   planChanges: number;
+  calendarYearImpact: number;
+  financialYearImpact: number;
+  benefitsTotal: number;
+  oneoffInvestment: number;
+  periodCosts: number;
   timeframeStart: Date;
   eventsByWorkstream: Map<string, number>;
   workstreamImpact: Map<string, number>;
@@ -206,15 +348,37 @@ const metricCalculators: Record<string, MetricCalculator> = {
     delta: null,
     trend: trendFromDelta(context.impactDelta)
   }),
+  'impact-calendar-year': (context) => ({
+    key: 'impact-calendar-year',
+    unit: 'currency',
+    value: context.calendarYearImpact,
+    trend: trendFromDelta(context.calendarYearImpact)
+  }),
+  'impact-financial-year': (context) => ({
+    key: 'impact-financial-year',
+    unit: 'currency',
+    value: context.financialYearImpact,
+    trend: trendFromDelta(context.financialYearImpact)
+  }),
   'impact-l3-share': (context) => ({
     key: 'impact-l3-share',
     unit: 'percentage',
     value: context.totalImpact > 0 ? (context.l3Impact / context.totalImpact) * 100 : 0
   }),
+  'impact-l3-amount': (context) => ({
+    key: 'impact-l3-amount',
+    unit: 'currency',
+    value: context.l3Impact
+  }),
   'impact-l4-share': (context) => ({
     key: 'impact-l4-share',
     unit: 'percentage',
     value: context.totalImpact > 0 ? (context.l4Impact / context.totalImpact) * 100 : 0
+  }),
+  'impact-l4-amount': (context) => ({
+    key: 'impact-l4-amount',
+    unit: 'currency',
+    value: context.l4Impact
   }),
   'initiatives-total': (context) => ({
     key: 'initiatives-total',
@@ -234,15 +398,45 @@ const metricCalculators: Record<string, MetricCalculator> = {
     unit: 'percentage',
     value: context.totalInitiatives > 0 ? (context.l3Count / context.totalInitiatives) * 100 : 0
   }),
+  'initiatives-l3-count': (context) => ({
+    key: 'initiatives-l3-count',
+    unit: 'count',
+    value: context.l3Count
+  }),
   'initiatives-l4-share': (context) => ({
     key: 'initiatives-l4-share',
     unit: 'percentage',
     value: context.totalInitiatives > 0 ? (context.l4Count / context.totalInitiatives) * 100 : 0
   }),
+  'initiatives-l4-count': (context) => ({
+    key: 'initiatives-l4-count',
+    unit: 'count',
+    value: context.l4Count
+  }),
+  'benefits-total': (context) => ({
+    key: 'benefits-total',
+    unit: 'currency',
+    value: context.benefitsTotal
+  }),
+  'oneoff-investment': (context) => ({
+    key: 'oneoff-investment',
+    unit: 'currency',
+    value: context.oneoffInvestment
+  }),
+  'costs-period': (context) => ({
+    key: 'costs-period',
+    unit: 'currency',
+    value: context.periodCosts
+  }),
   'pending-approvals': (context) => ({
     key: 'pending-approvals',
     unit: 'count',
     value: context.pendingApprovals
+  }),
+  'pending-approvals-mine': (context) => ({
+    key: 'pending-approvals-mine',
+    unit: 'count',
+    value: context.myPendingApprovals
   }),
   'overdue-l4': (context) => ({
     key: 'overdue-l4',
@@ -467,7 +661,23 @@ export class ActivityService {
 
   async getSummary(accountId: string, params: ActivitySummaryParams): Promise<ActivitySummaryResponse> {
     const { timeframe, workstreamIds, metricKeys } = await this.resolveContext(accountId, params);
-    const initiatives = await this.initiativesRepository.listInitiatives();
+    const initiativesPromise = this.initiativesRepository.listInitiatives();
+    const workstreamsPromise = this.workstreamsRepository.listWorkstreams();
+    const eventsPromise = this.repository.listEvents({
+      start: timeframe.start,
+      workstreamIds,
+      limit: 2000
+    });
+    const myApprovalsPromise = accountId
+      ? this.initiativesRepository.listApprovalTaskRows({ status: 'pending', accountId })
+      : Promise.resolve([]);
+
+    const [initiatives, workstreams, events, myApprovalTasks] = await Promise.all([
+      initiativesPromise,
+      workstreamsPromise,
+      eventsPromise,
+      myApprovalsPromise
+    ]);
     const scopedInitiatives = (initiatives ?? []).filter((item) =>
       workstreamIds.length ? workstreamIds.includes(item.workstreamId) : true
     );
@@ -476,14 +686,10 @@ export class ActivityService {
       totals: buildInitiativeTotals(record)
     }));
 
-    const workstreams = await this.workstreamsRepository.listWorkstreams();
     const workstreamMap = new Map(workstreams.map((ws) => [ws.id, ws]));
-
-    const events = await this.repository.listEvents({
-      start: timeframe.start,
-      workstreamIds,
-      limit: 2000
-    });
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentFinancialYear = getFinancialYear(now);
 
     const impactDelta = events.reduce((sum, event) => {
       if (event.field !== 'recurringImpact') {
@@ -539,6 +745,26 @@ export class ActivityService {
             acc.overdueL4 += 1;
           }
         }
+        forEachFinancialDistribution(initiative, (kind, amount, date) => {
+          if (benefitKinds.has(kind)) {
+            acc.benefitsTotal += amount;
+          }
+          if (kind === 'oneoff-costs') {
+            acc.oneoffInvestment += amount;
+          }
+          if (costKinds.has(kind) && date && date >= timeframe.start) {
+            acc.periodCosts += amount;
+          }
+          if (date) {
+            const signed = costKinds.has(kind) ? -amount : amount;
+            if (date.getFullYear() === currentYear) {
+              acc.calendarYearImpact += signed;
+            }
+            if (getFinancialYear(date) === currentFinancialYear) {
+              acc.financialYearImpact += signed;
+            }
+          }
+        });
         return acc;
       },
       {
@@ -550,7 +776,12 @@ export class ActivityService {
         l4Count: 0,
         pendingApprovals: 0,
         overdueL4: 0,
-        workstreamImpact: new Map<string, number>()
+        workstreamImpact: new Map<string, number>(),
+        calendarYearImpact: 0,
+        financialYearImpact: 0,
+        benefitsTotal: 0,
+        oneoffInvestment: 0,
+        periodCosts: 0
       }
     );
 
@@ -565,8 +796,14 @@ export class ActivityService {
       impactDelta,
       newInitiatives,
       pendingApprovals: totals.pendingApprovals,
+      myPendingApprovals: myApprovalTasks.length,
       overdueL4: totals.overdueL4,
       planChanges,
+      calendarYearImpact: totals.calendarYearImpact,
+      financialYearImpact: totals.financialYearImpact,
+      benefitsTotal: totals.benefitsTotal,
+      oneoffInvestment: totals.oneoffInvestment,
+      periodCosts: totals.periodCosts,
       timeframeStart: timeframe.start,
       eventsByWorkstream,
       workstreamImpact: totals.workstreamImpact,
