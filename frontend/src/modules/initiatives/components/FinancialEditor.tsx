@@ -1,6 +1,7 @@
-import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/FinancialEditor.module.css';
 import {
+  InitiativeBusinessCaseFile,
   InitiativeFinancialEntry,
   InitiativeStageData,
   InitiativeFinancialKind,
@@ -17,6 +18,7 @@ import {
 import { createCommentAnchor, CommentAnchorAttributes } from '../comments/commentAnchors';
 import { useFinancialsState } from '../../../app/state/AppStateContext';
 import { DEFAULT_FISCAL_YEAR_START_MONTH } from '../../../shared/config/finance';
+import { convertFilesToRecords } from '../../cases/services/fileAdapter';
 
 interface FinancialEditorProps {
   stage: InitiativeStageData;
@@ -34,6 +36,20 @@ const SECTION_LABELS: Record<InitiativeFinancialKind, string> = {
 
 const benefitKinds: InitiativeFinancialKind[] = ['recurring-benefits', 'oneoff-benefits'];
 const costKinds: InitiativeFinancialKind[] = ['recurring-costs', 'oneoff-costs'];
+
+const logicOrder: InitiativeFinancialKind[] = [
+  'recurring-costs',
+  'recurring-benefits',
+  'oneoff-costs',
+  'oneoff-benefits'
+];
+
+const logicLabels: Record<InitiativeFinancialKind, string> = {
+  'recurring-benefits': 'Recurring benefits logic',
+  'recurring-costs': 'Recurring costs logic',
+  'oneoff-benefits': 'One-off benefits logic',
+  'oneoff-costs': 'One-off costs logic'
+};
 
 const SECTION_COLORS: Record<InitiativeFinancialKind, string> = {
   'recurring-benefits': '#1d4ed8',
@@ -62,7 +78,7 @@ const clampMonth = (value: number) => Math.min(12, Math.max(1, Math.floor(value 
 const formatFiscalWindow = (startMonth: number) => {
   const safeStart = clampMonth(startMonth);
   const endMonth = ((safeStart + 10) % 12) + 1;
-  return `${fiscalMonthLabels[safeStart - 1]} – ${fiscalMonthLabels[endMonth - 1]}`;
+  return `${fiscalMonthLabels[safeStart - 1]} - ${fiscalMonthLabels[endMonth - 1]}`;
 };
 
 type MonthDescriptor = { key: string; label: string; year: number; index: number };
@@ -535,6 +551,36 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
     [stage]
   );
 
+  const calculationLogic = useMemo(
+    () =>
+      initiativeFinancialKinds.reduce((acc, kind) => {
+        const raw = stage.calculationLogic?.[kind];
+        acc[kind] = typeof raw === 'string' ? raw : '';
+        return acc;
+      }, {} as Record<InitiativeFinancialKind, string>),
+    [stage.calculationLogic]
+  );
+
+  const businessCaseFiles: InitiativeBusinessCaseFile[] = stage.businessCaseFiles ?? [];
+  const [businessUploadState, setBusinessUploadState] = useState<{
+    status: 'idle' | 'processing' | 'done' | 'error';
+    progress: number;
+    error: string | null;
+  }>({ status: 'idle', progress: 0, error: null });
+  const businessDragCounter = useRef(0);
+  const businessUploadInputRef = useRef<HTMLInputElement | null>(null);
+  const [isBusinessDragActive, setIsBusinessDragActive] = useState(false);
+  const hideUploadStatusTimeout = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (hideUploadStatusTimeout.current) {
+        window.clearTimeout(hideUploadStatusTimeout.current);
+        hideUploadStatusTimeout.current = null;
+      }
+    };
+  }, []);
+
   const entryColorMap = useMemo(() => {
     const map: Record<string, string> = {};
     const buildPalette = (groups: InitiativeFinancialKind[], lighten: boolean) => {
@@ -555,6 +601,101 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
     buildPalette(costKinds, false);
     return map;
   }, [stage.financials]);
+
+  const handleCalculationLogicChange = (kind: InitiativeFinancialKind, value: string) => {
+    onChange({ ...stage, calculationLogic: { ...calculationLogic, [kind]: value } });
+  };
+
+  const handleBusinessFiles = async (files: File[]) => {
+    if (!files.length || disabled) {
+      return;
+    }
+    if (hideUploadStatusTimeout.current) {
+      window.clearTimeout(hideUploadStatusTimeout.current);
+      hideUploadStatusTimeout.current = null;
+    }
+    setBusinessUploadState({ status: 'processing', progress: 0, error: null });
+    try {
+      const records = await convertFilesToRecords(files, (percentage) => {
+        setBusinessUploadState((previous) => ({
+          status: 'processing',
+          progress: Math.max(previous.progress, percentage * 0.9),
+          error: null
+        }));
+      });
+      const uploadedAt = new Date().toISOString();
+      const mapped: InitiativeBusinessCaseFile[] = records.map((record) => ({
+        id: generateId(),
+        fileName: record.fileName,
+        mimeType: record.mimeType || null,
+        size: record.size ?? 0,
+        dataUrl: record.dataUrl,
+        uploadedAt
+      }));
+      onChange({ ...stage, businessCaseFiles: [...businessCaseFiles, ...mapped] });
+      setBusinessUploadState({ status: 'done', progress: 1, error: null });
+      hideUploadStatusTimeout.current = window.setTimeout(() => {
+        setBusinessUploadState({ status: 'idle', progress: 0, error: null });
+      }, 900);
+    } catch (error) {
+      setBusinessUploadState({
+        status: 'error',
+        progress: 0,
+        error: (error as Error).message
+      });
+    } finally {
+      setIsBusinessDragActive(false);
+      businessDragCounter.current = 0;
+    }
+  };
+
+  const handleBusinessInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    await handleBusinessFiles(files);
+    event.target.value = '';
+  };
+
+  const handleBusinessDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (disabled) {
+      return;
+    }
+    const files = Array.from(event.dataTransfer.files || []);
+    businessDragCounter.current = 0;
+    setIsBusinessDragActive(false);
+    await handleBusinessFiles(files);
+  };
+
+  const handleBusinessDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (disabled) {
+      return;
+    }
+    if (!event.dataTransfer.types?.includes('Files')) {
+      return;
+    }
+    businessDragCounter.current += 1;
+    setIsBusinessDragActive(true);
+  };
+
+  const handleBusinessDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (disabled) {
+      return;
+    }
+    businessDragCounter.current = Math.max(0, businessDragCounter.current - 1);
+    if (businessDragCounter.current === 0) {
+      setIsBusinessDragActive(false);
+    }
+  };
+
+  const handleRemoveBusinessFile = (fileId: string) => {
+    if (disabled) {
+      return;
+    }
+    const filtered = businessCaseFiles.filter((file) => file.id !== fileId);
+    onChange({ ...stage, businessCaseFiles: filtered });
+  };
 
   const chartData = useMemo<ChartMonthStack[]>(
     () =>
@@ -756,7 +897,7 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
                 </button>
               </div>
               {stage.financials[kind].length === 0 ? (
-                <p className={styles.placeholder}>No data yet. Use “Add line” to start capturing this metric.</p>
+                <p className={styles.placeholder}>No data yet. Use "Add line" to start capturing this metric.</p>
               ) : (
                 stage.financials[kind].map((entry) => (
                   <EntryRow
@@ -780,6 +921,112 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
             </Fragment>
           ))}
         </div>
+      </div>
+
+      <div className={styles.logicSection}>
+        <div className={styles.logicHeader}>
+          <h4>Calculation logic</h4>
+          <p>Leave a quick note on how each bucket is calculated.</p>
+        </div>
+        <div className={styles.logicGrid}>
+          {logicOrder.map((kind) => (
+            <label
+              key={kind}
+              className={styles.logicCard}
+              {...createCommentAnchor(`financial.${scopeKey}.logic.${kind}`, logicLabels[kind])}
+            >
+              <span>{logicLabels[kind]}</span>
+              <textarea
+                value={calculationLogic[kind]}
+                onChange={(event) => handleCalculationLogicChange(kind, event.target.value)}
+                disabled={disabled}
+                rows={3}
+                placeholder="Key assumptions, formulas, ownersвЂ¦"
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className={styles.businessUpload}>
+        <div className={styles.uploadHeader}>
+          <div>
+            <h4>Business case upload</h4>
+            <p>Drag & drop files or attach manually.</p>
+          </div>
+          <div className={styles.uploadActions}>
+            <button
+              type="button"
+              className={styles.uploadButton}
+              onClick={() => businessUploadInputRef.current?.click()}
+              disabled={disabled}
+            >
+              Select files
+            </button>
+            <input
+              ref={businessUploadInputRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(event) => void handleBusinessInputChange(event)}
+              disabled={disabled}
+            />
+            {businessUploadState.status !== 'idle' && (
+              <span className={styles.uploadStatus}>
+                {businessUploadState.status === 'error'
+                  ? businessUploadState.error ?? 'Upload failed'
+                  : `${Math.round(businessUploadState.progress * 100)}%`}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div
+          className={`${styles.dropZone} ${isBusinessDragActive ? styles.dropZoneActive : ''}`}
+          onDragEnter={handleBusinessDragEnter}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={handleBusinessDragLeave}
+          onDrop={(event) => void handleBusinessDrop(event)}
+        >
+          <p>Drop files here to attach your business case.</p>
+          <p className={styles.dropZoneHint}>We will keep them tied to this stage only.</p>
+        </div>
+
+        {businessUploadState.status === 'error' && businessUploadState.error && (
+          <p className={styles.errorText}>{businessUploadState.error}</p>
+        )}
+
+        {businessCaseFiles.length === 0 ? (
+          <p className={styles.placeholder}>No business case files yet.</p>
+        ) : (
+          <ul className={styles.uploadList}>
+            {businessCaseFiles.map((file) => (
+              <li key={file.id} className={styles.uploadItem}>
+                <div>
+                  <p className={styles.fileName}>{file.fileName}</p>
+                  <p className={styles.fileMeta}>
+                    {Math.max(1, Math.round((file.size ?? 0) / 1024))} KB В·{' '}
+                    {new Date(file.uploadedAt).toLocaleString()}
+                  </p>
+                </div>
+                <div className={styles.uploadActionsInline}>
+                  <a className={styles.uploadButtonGhost} href={file.dataUrl} download={file.fileName}>
+                    Download
+                  </a>
+                  {!disabled && (
+                    <button
+                      className={styles.uploadDangerButton}
+                      type="button"
+                      onClick={() => handleRemoveBusinessFile(file.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

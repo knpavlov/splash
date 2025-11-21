@@ -8,6 +8,8 @@ import { CaseCriterion } from '../../shared/types/caseCriteria';
 import { DomainResult } from '../../shared/types/results';
 import {
   Initiative,
+  InitiativeBusinessCaseFile,
+  InitiativeFinancialKind,
   InitiativeStageKey,
   initiativeStageKeys,
   initiativeFinancialKinds
@@ -34,6 +36,11 @@ import { Participant, ParticipantPayload, ParticipantUpdatePayload } from '../..
 import { participantsApi } from '../../modules/participants/services/participantsApi';
 import { FinancialBlueprint, FinancialBlueprintPayload } from '../../shared/types/financials';
 import { financialsApi } from '../../modules/financials/services/financialsApi';
+import { generateId } from '../../shared/ui/generateId';
+
+const PLAN_MILESTONE_STORAGE_KEY = 'initiative-plan:milestone-types';
+const DEFAULT_MILESTONE_TYPES = ['Standard', 'Value Step', 'Change Management'];
+const VALUE_STEP_LABEL = 'Value Step';
 
 const normalizeParticipantOptional = (value: string | null | undefined): string | null => {
   if (value === null || value === undefined) {
@@ -164,6 +171,10 @@ interface AppStateContextValue {
       expectedVersion: number
     ) => Promise<DomainResult<FinancialBlueprint>>;
   };
+  planSettings: {
+    milestoneTypes: string[];
+    saveMilestoneTypes: (options: string[]) => void;
+  };
 }
 
 const AppStateContext = createContext<AppStateContextValue | null>(null);
@@ -184,7 +195,20 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [financialBlueprint, setFinancialBlueprint] = useState<FinancialBlueprint | null>(null);
   const [financialBlueprintLoading, setFinancialBlueprintLoading] = useState(false);
   const [financialBlueprintError, setFinancialBlueprintError] = useState<string | null>(null);
+  const [milestoneTypes, setMilestoneTypes] = useState<string[]>(() => loadMilestoneTypes());
   const { session } = useAuth();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem(PLAN_MILESTONE_STORAGE_KEY, JSON.stringify(milestoneTypes));
+  }, [milestoneTypes]);
+
+  const saveMilestoneTypes = useCallback((options: string[]) => {
+    const sanitized = sanitizeMilestoneTypes(options);
+    setMilestoneTypes(sanitized.length ? sanitized : DEFAULT_MILESTONE_TYPES);
+  }, []);
 
   const syncFolders = useCallback(async (): Promise<CaseFolder[] | null> => {
     try {
@@ -416,6 +440,70 @@ const sortInitiativesByUpdated = (items: Initiative[]) =>
 
 const sanitizeNumber = (value: number) => (Number.isFinite(value) ? Number(value) : 0);
 
+const sanitizeBusinessCaseFile = (file: InitiativeBusinessCaseFile): InitiativeBusinessCaseFile | null => {
+  const fileName = typeof file.fileName === 'string' ? file.fileName.trim() : '';
+  const dataUrl = typeof file.dataUrl === 'string' ? file.dataUrl : '';
+  if (!fileName || !dataUrl) {
+    return null;
+  }
+  const mimeType = typeof file.mimeType === 'string' ? file.mimeType.trim() || null : null;
+  const size = Number.isFinite(file.size) ? Math.max(0, Number(file.size)) : 0;
+  const uploadedAt =
+    typeof file.uploadedAt === 'string' && file.uploadedAt.trim()
+      ? new Date(file.uploadedAt).toISOString()
+      : new Date().toISOString();
+  return {
+    id: typeof file.id === 'string' && file.id.trim() ? file.id.trim() : generateId(),
+    fileName,
+    mimeType,
+    size,
+    dataUrl,
+    uploadedAt
+  };
+};
+
+const sanitizeMilestoneTypes = (options: string[]): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  const source = Array.isArray(options) ? options : [];
+  [...source, ...DEFAULT_MILESTONE_TYPES].forEach((option) => {
+    if (typeof option !== 'string') {
+      return;
+    }
+    const trimmed = option.trim();
+    if (!trimmed) {
+      return;
+    }
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push(trimmed);
+  });
+  return result;
+};
+
+const loadMilestoneTypes = (): string[] => {
+  if (typeof window === 'undefined') {
+    return DEFAULT_MILESTONE_TYPES;
+  }
+  const raw = window.localStorage.getItem(PLAN_MILESTONE_STORAGE_KEY);
+  if (!raw) {
+    return DEFAULT_MILESTONE_TYPES;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const sanitized = sanitizeMilestoneTypes(parsed as string[]);
+      return sanitized.length ? sanitized : DEFAULT_MILESTONE_TYPES;
+    }
+  } catch {
+    return DEFAULT_MILESTONE_TYPES;
+  }
+  return DEFAULT_MILESTONE_TYPES;
+};
+
 const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
   const trimmedId = initiative.id.trim();
   const trimmedWorkstream = initiative.workstreamId.trim();
@@ -426,10 +514,27 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
   const trimmedOwnerAccountId = initiative.ownerAccountId?.trim() || null;
   const sanitizedStages = initiativeStageKeys.reduce((acc, key) => {
     const stage = initiative.stages[key];
+    const calcLogicSource =
+      stage?.calculationLogic && typeof stage.calculationLogic === 'object'
+        ? (stage.calculationLogic as Record<string, unknown>)
+        : {};
+    const businessCaseFiles = Array.isArray(stage?.businessCaseFiles)
+      ? stage.businessCaseFiles
+          .map((file) => sanitizeBusinessCaseFile(file))
+          .filter((file): file is InitiativeBusinessCaseFile => Boolean(file))
+      : [];
     acc[key] = {
       ...stage,
       name: stage.name.trim(),
       description: stage.description.trim(),
+      valueStepTaskId: stage.valueStepTaskId?.trim() || null,
+      additionalCommentary: stage.additionalCommentary?.trim() ?? '',
+      calculationLogic: initiativeFinancialKinds.reduce((logicAcc, kind) => {
+        const raw = calcLogicSource[kind];
+        logicAcc[kind] = typeof raw === 'string' ? raw.trim() : '';
+        return logicAcc;
+      }, {} as Record<InitiativeFinancialKind, string>),
+      businessCaseFiles,
       financials: initiativeFinancialKinds.reduce((finAcc, kind) => {
         finAcc[kind] = stage.financials[kind].map((entry) => ({
           ...entry,
@@ -455,6 +560,14 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     return acc;
   }, {} as Initiative['stageState']);
   const sanitizedPlan = sanitizePlanModel(initiative.plan);
+  const valueStepTaskId =
+    sanitizedPlan.tasks.find(
+      (task) => (task.milestoneType ?? '').toLowerCase() === VALUE_STEP_LABEL.toLowerCase()
+    )?.id ?? null;
+  const normalizedStages = initiativeStageKeys.reduce((acc, key) => {
+    acc[key] = { ...sanitizedStages[key], valueStepTaskId };
+    return acc;
+  }, {} as Initiative['stages']);
 
   return {
     ...initiative,
@@ -465,7 +578,7 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     currentStatus: trimmedStatus,
     ownerName: trimmedOwnerName,
     ownerAccountId: trimmedOwnerAccountId,
-    stages: sanitizedStages,
+    stages: normalizedStages,
     stageState: sanitizedStageState,
     plan: sanitizedPlan
   };
@@ -1408,6 +1521,10 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
       error: financialBlueprintError,
       refresh: loadFinancialBlueprint,
       saveBlueprint: saveFinancialBlueprint
+    },
+    planSettings: {
+      milestoneTypes,
+      saveMilestoneTypes
     }
   }), [
     folders,
@@ -1425,7 +1542,9 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     financialBlueprintError,
     loadFinancialBlueprint,
     saveFinancialBlueprint,
-    syncFolders
+    syncFolders,
+    milestoneTypes,
+    saveMilestoneTypes
   ]);
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
@@ -1449,3 +1568,4 @@ export const useEvaluationsState = () => useAppState().evaluations;
 export const useAccountsState = () => useAppState().accounts;
 export const useParticipantsState = () => useAppState().participants;
 export const useFinancialsState = () => useAppState().financials;
+export const usePlanSettingsState = () => useAppState().planSettings;

@@ -471,3 +471,177 @@
   font-size: 13px;
 }
 
+.logicSection {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.logicHeader h4 {
+  margin: 0;
+}
+
+.logicHeader p {
+  margin: 4px 0 0;
+  color: #475569;
+  font-size: 13px;
+}
+
+.logicGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.logicCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.logicCard textarea {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 88px;
+}
+
+.businessUpload {
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.uploadHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.uploadActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.uploadButton,
+.uploadButtonGhost,
+.uploadDangerButton {
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+}
+
+.uploadButton {
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  color: #fff;
+  border: none;
+  box-shadow: 0 6px 18px rgba(59, 130, 246, 0.2);
+}
+
+.uploadButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.uploadButtonGhost {
+  background: #fff;
+  color: #0f172a;
+}
+
+.uploadDangerButton {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: rgba(234, 88, 12, 0.45);
+}
+
+.uploadStatus {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.dropZone {
+  border: 2px dashed rgba(148, 163, 184, 0.6);
+  border-radius: 14px;
+  padding: 18px;
+  text-align: center;
+  color: #475569;
+  background: #f8fafc;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dropZoneActive {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.dropZoneHint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.uploadList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.uploadItem {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff;
+  flex-wrap: wrap;
+}
+
+.fileName {
+  margin: 0;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.fileMeta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.uploadActionsInline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.errorText {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 13px;
+}
+

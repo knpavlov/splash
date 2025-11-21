@@ -3,6 +3,7 @@ import {
   initiativeFinancialKinds,
   initiativeStageKeys,
   Initiative,
+  InitiativeBusinessCaseFile,
   InitiativeFinancialEntry,
   InitiativeStageData,
   InitiativeStageMap,
@@ -14,6 +15,7 @@ import {
   InitiativeCommentThread
 } from '../../../shared/types/initiative';
 import { normalizePlanModel } from '../plan/planModel';
+import { generateId } from '../../../shared/ui/generateId';
 
 const toIsoString = (value: unknown): string | null => {
   if (typeof value === 'string') {
@@ -86,6 +88,33 @@ const normalizeFinancialEntry = (value: unknown): InitiativeFinancialEntry | nul
   };
 };
 
+const normalizeBusinessCaseFile = (value: unknown): InitiativeBusinessCaseFile | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    fileName?: unknown;
+    mimeType?: unknown;
+    size?: unknown;
+    dataUrl?: unknown;
+    uploadedAt?: unknown;
+  };
+  const fileName = typeof payload.fileName === 'string' ? payload.fileName.trim() : '';
+  const dataUrl = typeof payload.dataUrl === 'string' ? payload.dataUrl : '';
+  if (!fileName || !dataUrl) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : generateId();
+  const mimeType = typeof payload.mimeType === 'string' ? payload.mimeType.trim() || null : null;
+  const size = typeof payload.size === 'number' && Number.isFinite(payload.size) ? Math.max(0, payload.size) : 0;
+  const uploadedAt =
+    typeof payload.uploadedAt === 'string' && payload.uploadedAt.trim()
+      ? payload.uploadedAt
+      : new Date().toISOString();
+  return { id, fileName, mimeType, size, dataUrl, uploadedAt };
+};
+
 const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
   key,
   name: '',
@@ -93,6 +122,16 @@ const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
   periodMonth: null,
   periodYear: null,
   l4Date: null,
+  valueStepTaskId: null,
+  additionalCommentary: '',
+  calculationLogic: initiativeFinancialKinds.reduce(
+    (acc, kind) => {
+      acc[kind] = '';
+      return acc;
+    },
+    {} as InitiativeStageData['calculationLogic']
+  ),
+  businessCaseFiles: [],
   financials: initiativeFinancialKinds.reduce(
     (acc, kind) => {
       acc[kind] = [];
@@ -117,6 +156,10 @@ const normalizeStage = (key: InitiativeStageKey, value: unknown): InitiativeStag
     periodYear?: unknown;
     l4Date?: unknown;
     financials?: unknown;
+    valueStepTaskId?: unknown;
+    additionalCommentary?: unknown;
+    calculationLogic?: unknown;
+    businessCaseFiles?: unknown;
   };
   stage.name = typeof payload.name === 'string' ? payload.name.trim() : '';
   stage.description = typeof payload.description === 'string' ? payload.description.trim() : '';
@@ -125,6 +168,27 @@ const normalizeStage = (key: InitiativeStageKey, value: unknown): InitiativeStag
   const year = normalizeNumber(payload.periodYear);
   stage.periodYear = year ? Math.trunc(year) : null;
   stage.l4Date = toIsoString(payload.l4Date);
+  stage.valueStepTaskId =
+    typeof payload.valueStepTaskId === 'string' && payload.valueStepTaskId.trim()
+      ? payload.valueStepTaskId.trim()
+      : null;
+  stage.additionalCommentary =
+    typeof payload.additionalCommentary === 'string' ? payload.additionalCommentary.trim() : '';
+
+  const calcSource =
+    payload.calculationLogic && typeof payload.calculationLogic === 'object'
+      ? (payload.calculationLogic as Record<string, unknown>)
+      : {};
+  stage.calculationLogic = initiativeFinancialKinds.reduce((acc, kind) => {
+    const raw = calcSource[kind];
+    acc[kind] = typeof raw === 'string' ? raw.trim() : '';
+    return acc;
+  }, {} as InitiativeStageData['calculationLogic']);
+
+  const businessFiles = Array.isArray(payload.businessCaseFiles) ? payload.businessCaseFiles : [];
+  stage.businessCaseFiles = businessFiles
+    .map((file) => normalizeBusinessCaseFile(file))
+    .filter((file): file is InitiativeBusinessCaseFile => Boolean(file));
   if (payload.financials && typeof payload.financials === 'object') {
     const source = payload.financials as Record<string, unknown>;
     for (const kind of initiativeFinancialKinds) {

@@ -23,6 +23,7 @@ import { FinancialTreeScreen } from './modules/dashboards/FinancialTreeScreen';
 import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboardScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 import { SnapshotSettingsScreen } from './modules/settings/SnapshotSettingsScreen';
+import { GeneralSettingsScreen } from './modules/settings/GeneralSettingsScreen';
 import { InitiativeLogsScreen } from './modules/logs/InitiativeLogsScreen';
 import { ActivityScreen } from './modules/activity/ActivityScreen';
 
@@ -342,6 +343,8 @@ const AppContent = () => {
         return <StageGateDashboardScreen />;
       case 'accounts':
         return <AccountsScreen />;
+      case 'general-settings':
+        return <GeneralSettingsScreen />;
       case 'initiative-logs':
         return <InitiativeLogsScreen />;
       case 'snapshot-settings':

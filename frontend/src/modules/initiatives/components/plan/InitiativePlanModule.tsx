@@ -1,7 +1,7 @@
 import { CSSProperties, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../auth/AuthContext';
-import { useParticipantsState } from '../../../../app/state/AppStateContext';
+import { useParticipantsState, usePlanSettingsState } from '../../../../app/state/AppStateContext';
 import styles from '../../../../styles/InitiativePlanModule.module.css';
 import {
   Initiative,
@@ -49,7 +49,18 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 const TASK_COLOR_PALETTE = ['#5b21b6', '#2563eb', '#0ea5e9', '#10b981', '#f97316', '#ea580c', '#e11d48', '#6d28d9', '#0f172a'];
 const DEFAULT_BAR_COLOR = TASK_COLOR_PALETTE[0];
-type TableColumnId = 'drag' | 'name' | 'description' | 'start' | 'end' | 'responsible' | 'progress' | 'capacity';
+const DEFAULT_MILESTONE_OPTIONS = ['Standard', 'Value Step', 'Change Management'];
+const VALUE_STEP_LABEL = 'Value Step';
+type TableColumnId =
+  | 'drag'
+  | 'name'
+  | 'milestoneType'
+  | 'description'
+  | 'start'
+  | 'end'
+  | 'responsible'
+  | 'progress'
+  | 'capacity';
 
 interface TableColumnConfig {
   id: TableColumnId;
@@ -63,6 +74,7 @@ interface TableColumnConfig {
 const TABLE_COLUMNS: TableColumnConfig[] = [
   { id: 'drag', label: '', defaultWidth: 36, minWidth: 36, maxWidth: 36, resizable: false },
   { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 60, maxWidth: 480, resizable: true },
+  { id: 'milestoneType', label: 'Milestone type', defaultWidth: 170, minWidth: 120, maxWidth: 260, resizable: true },
   { id: 'description', label: 'Description', defaultWidth: 240, minWidth: 70, maxWidth: 520, resizable: true },
   { id: 'start', label: 'Start', defaultWidth: 150, minWidth: 50, maxWidth: 260, resizable: true },
   { id: 'end', label: 'End', defaultWidth: 150, minWidth: 50, maxWidth: 260, resizable: true },
@@ -103,6 +115,7 @@ export const InitiativePlanModule = ({
   onFocusHandled
 }: InitiativePlanModuleProps) => {
   const { list: participants } = useParticipantsState();
+  const { milestoneTypes } = usePlanSettingsState();
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
   const { session } = useAuth();
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(
@@ -1442,6 +1455,32 @@ export const InitiativePlanModule = ({
       if (readOnly) {
         return;
       }
+      if (field === 'milestoneType') {
+        const options = milestoneTypes.length ? milestoneTypes : DEFAULT_MILESTONE_OPTIONS;
+        const trimmed = value.trim();
+        const normalized =
+          options.find((item) => item.toLowerCase() === trimmed.toLowerCase()) ??
+          (trimmed || options[0] || 'Standard');
+        const isValueStep = normalized.toLowerCase() === VALUE_STEP_LABEL.toLowerCase();
+        const fallback =
+          options.find((item) => item.toLowerCase() !== VALUE_STEP_LABEL.toLowerCase()) ??
+          options[0] ??
+          'Standard';
+        const updatedTasks = normalizedPlan.tasks.map((current) => {
+          if (current.id === task.id) {
+            return { ...current, milestoneType: normalized };
+          }
+          if (isValueStep && (current.milestoneType ?? '').toLowerCase() === VALUE_STEP_LABEL.toLowerCase()) {
+            return { ...current, milestoneType: fallback };
+          }
+          return current;
+        });
+        if (isValueStep) {
+          setInfoMessage('Only one Value Step can be assigned. Previous selection was reset.');
+        }
+        setTasks(updatedTasks);
+        return;
+      }
       updateTask(task.id, (current) => {
         if (field === 'startDate' || field === 'endDate') {
           const dateValue = value ? value : null;
@@ -1482,7 +1521,7 @@ export const InitiativePlanModule = ({
         return { ...current, [field]: value };
       });
     },
-    [autoProgressTaskIds, readOnly, updateTask]
+    [autoProgressTaskIds, milestoneTypes, normalizedPlan.tasks, readOnly, setInfoMessage, setTasks, updateTask]
   );
 
   const handleCapacityMenu = useCallback(
@@ -1818,6 +1857,31 @@ export const InitiativePlanModule = ({
                               />
                             </div>
                           );
+                        case 'milestoneType': {
+                          const options = milestoneTypes.length ? milestoneTypes : DEFAULT_MILESTONE_OPTIONS;
+                          const currentValue =
+                            options.find(
+                              (option) => option.toLowerCase() === (task.milestoneType ?? '').toLowerCase()
+                            ) ??
+                            task.milestoneType ??
+                            options[0] ??
+                            'Standard';
+                          return (
+                            <div key={`${task.id}-milestone`} className={styles.cell}>
+                              <select
+                                value={currentValue}
+                                disabled={readOnly}
+                                onChange={(event) => handleTaskFieldChange(task, 'milestoneType', event.target.value)}
+                              >
+                                {options.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        }
                         case 'description':
                           return (
                             <div

@@ -69,6 +69,14 @@ const sanitizeColor = (value: unknown) => {
   return trimmed || null;
 };
 
+const sanitizeMilestoneType = (value: unknown): string => {
+  if (typeof value !== 'string') {
+    return 'Standard';
+  }
+  const trimmed = value.trim();
+  return trimmed || 'Standard';
+};
+
 const ensureDateOrder = (start: string | null, end: string | null): [string | null, string | null] => {
   if (start && !end) {
     return [start, start];
@@ -155,7 +163,8 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     capacityMode: 'fixed',
     capacitySegments: [],
     indent: 0,
-    color: null
+    color: null,
+    milestoneType: 'Standard'
   };
   if (!value || typeof value !== 'object') {
     return base;
@@ -173,6 +182,7 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     capacitySegments?: unknown;
     indent?: unknown;
     color?: unknown;
+    milestoneType?: unknown;
   };
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
   let startDate = sanitizeDate(payload.startDate);
@@ -198,7 +208,8 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     capacityMode: mode,
     capacitySegments,
     indent: sanitizeIndent(payload.indent),
-    color: sanitizeColor(payload.color)
+    color: sanitizeColor(payload.color),
+    milestoneType: sanitizeMilestoneType(payload.milestoneType)
   };
 };
 
@@ -232,8 +243,21 @@ export const normalizePlanModel = (value: unknown): InitiativePlanModel => {
   }
   const payload = value as { tasks?: unknown; settings?: unknown };
   const tasksSource = Array.isArray(payload.tasks) ? payload.tasks : [];
+  let valueStepClaimed = false;
+  const tasks = tasksSource.map((task) => {
+    const sanitized = sanitizeTask(task);
+    const milestone = sanitizeMilestoneType(sanitized.milestoneType);
+    const isValueStep = milestone.toLowerCase() === 'value step';
+    if (isValueStep) {
+      if (valueStepClaimed) {
+        return { ...sanitized, milestoneType: 'Standard' };
+      }
+      valueStepClaimed = true;
+    }
+    return { ...sanitized, milestoneType: milestone };
+  });
   return {
-    tasks: tasksSource.map((task) => sanitizeTask(task)),
+    tasks,
     settings: sanitizeSettings(payload.settings)
   };
 };

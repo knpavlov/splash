@@ -50,6 +50,14 @@ const normalizeCapacityValue = (value: unknown): number | null => {
   return Math.max(0, Math.round(numeric * 100) / 100);
 };
 
+const normalizeMilestoneType = (value: unknown): string => {
+  if (typeof value !== 'string') {
+    return 'Standard';
+  }
+  const trimmed = value.trim();
+  return trimmed || 'Standard';
+};
+
 const normalizePlanSegment = (
   value: unknown,
   taskStart: string | null,
@@ -95,7 +103,8 @@ export const createEmptyPlanTask = (): InitiativePlanTask => ({
   capacityMode: 'fixed',
   capacitySegments: [],
   indent: 0,
-  color: null
+  color: null,
+  milestoneType: 'Standard'
 });
 
 const normalizePlanTask = (value: unknown): InitiativePlanTask => {
@@ -116,6 +125,7 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
     capacitySegments?: unknown;
     indent?: unknown;
     color?: unknown;
+    milestoneType?: unknown;
   };
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : base.id;
   let startDate = normalizeDateOnly(payload.startDate);
@@ -152,7 +162,8 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
     capacityMode,
     capacitySegments: segments,
     indent: clamp(Math.trunc(normalizeNumber(payload.indent) ?? 0), 0, PLAN_MAX_INDENT_LEVEL),
-    color: typeof payload.color === 'string' ? payload.color.trim() || null : null
+    color: typeof payload.color === 'string' ? payload.color.trim() || null : null,
+    milestoneType: normalizeMilestoneType(payload.milestoneType)
   };
 };
 
@@ -183,8 +194,20 @@ export const normalizePlanModel = (value: unknown): InitiativePlanModel => {
   }
   const payload = value as { tasks?: unknown; settings?: unknown };
   const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+  let valueStepLocked = false;
   return {
-    tasks: tasks.map((task) => normalizePlanTask(task)),
+    tasks: tasks.map((task) => {
+      const normalized = normalizePlanTask(task);
+      const milestone = normalizeMilestoneType(normalized.milestoneType);
+      const isValueStep = milestone.toLowerCase() === 'value step';
+      if (isValueStep) {
+        if (valueStepLocked) {
+          return { ...normalized, milestoneType: 'Standard' };
+        }
+        valueStepLocked = true;
+      }
+      return { ...normalized, milestoneType: milestone };
+    }),
     settings: normalizePlanSettings(payload.settings)
   };
 };

@@ -26,6 +26,10 @@ export interface InitiativeStagePayload {
   periodYear: number | null;
   l4Date?: string | null;
   financials: InitiativeStageFinancials;
+  valueStepTaskId: string | null;
+  additionalCommentary: string;
+  calculationLogic: Record<InitiativeFinancialKind, string>;
+  businessCaseFiles: InitiativeBusinessCaseFile[];
 }
 
 export type InitiativeStageMap = Record<InitiativeStageKey, InitiativeStagePayload>;
@@ -62,6 +66,7 @@ export interface InitiativePlanTask {
   capacitySegments: InitiativePlanCapacitySegment[];
   indent: number;
   color: string | null;
+  milestoneType: string | null;
 }
 
 export interface InitiativePlanSettings {
@@ -204,6 +209,15 @@ export interface InitiativeApprovalTask {
   roleTotal: number;
   roleApproved: number;
   rolePending: number;
+}
+
+export interface InitiativeBusinessCaseFile {
+  id: string;
+  fileName: string;
+  mimeType: string | null;
+  size: number;
+  dataUrl: string;
+  uploadedAt: string;
 }
 
 export interface InitiativeCommentThreadRow extends Record<string, unknown> {

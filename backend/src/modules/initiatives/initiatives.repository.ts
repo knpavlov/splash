@@ -1,8 +1,10 @@
+import { randomUUID } from 'crypto';
 import { postgresPool } from '../../shared/database/postgres.client.js';
 import {
   initiativeFinancialKinds,
   initiativeStageKeys,
   InitiativeFinancialEntry,
+  InitiativeBusinessCaseFile,
   InitiativeRecord,
   InitiativeRow,
   InitiativeStageMap,
@@ -98,6 +100,42 @@ const ensureFinancialEntry = (value: unknown): InitiativeFinancialEntry => {
   };
 };
 
+const ensureBusinessCaseFile = (value: unknown): InitiativeBusinessCaseFile | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    fileName?: unknown;
+    mimeType?: unknown;
+    size?: unknown;
+    dataUrl?: unknown;
+    uploadedAt?: unknown;
+  };
+  const fileName = typeof payload.fileName === 'string' ? payload.fileName.trim() : '';
+  const dataUrl = typeof payload.dataUrl === 'string' ? payload.dataUrl : '';
+  if (!fileName || !dataUrl) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
+  const mimeType =
+    typeof payload.mimeType === 'string' ? payload.mimeType.trim() || null : null;
+  const size =
+    typeof payload.size === 'number' && Number.isFinite(payload.size) ? Math.max(0, Math.trunc(payload.size)) : 0;
+  const uploadedAt =
+    typeof payload.uploadedAt === 'string' && payload.uploadedAt.trim()
+      ? payload.uploadedAt
+      : new Date().toISOString();
+  return {
+    id,
+    fileName,
+    mimeType,
+    size,
+    dataUrl,
+    uploadedAt
+  };
+};
+
 type PoolClientLike = {
   query: typeof postgresPool.query;
   release: () => void;
@@ -112,6 +150,16 @@ const createEmptyStagePayload = (): InitiativeStagePayload => ({
   periodMonth: null,
   periodYear: null,
   l4Date: null,
+  valueStepTaskId: null,
+  additionalCommentary: '',
+  calculationLogic: initiativeFinancialKinds.reduce(
+    (acc, kind) => {
+      acc[kind] = '';
+      return acc;
+    },
+    {} as InitiativeStagePayload['calculationLogic']
+  ),
+  businessCaseFiles: [],
   financials: initiativeFinancialKinds.reduce(
     (acc, kind) => {
       acc[kind] = [];
@@ -132,6 +180,10 @@ const ensureStagePayload = (value: unknown): InitiativeStagePayload => {
     periodYear?: unknown;
     l4Date?: unknown;
     financials?: unknown;
+    valueStepTaskId?: unknown;
+    additionalCommentary?: unknown;
+    calculationLogic?: unknown;
+    businessCaseFiles?: unknown;
   };
   const base = createEmptyStagePayload();
   base.name = typeof payload.name === 'string' ? payload.name.trim() : '';
@@ -139,6 +191,26 @@ const ensureStagePayload = (value: unknown): InitiativeStagePayload => {
   base.periodMonth = Number.isInteger(payload.periodMonth) ? Number(payload.periodMonth) : null;
   base.periodYear = Number.isInteger(payload.periodYear) ? Number(payload.periodYear) : null;
   base.l4Date = typeof payload.l4Date === 'string' ? payload.l4Date : null;
+  base.valueStepTaskId =
+    typeof payload.valueStepTaskId === 'string' && payload.valueStepTaskId.trim()
+      ? payload.valueStepTaskId.trim()
+      : null;
+  base.additionalCommentary =
+    typeof payload.additionalCommentary === 'string' ? payload.additionalCommentary.trim() : '';
+
+  const calcSource = payload.calculationLogic && typeof payload.calculationLogic === 'object'
+    ? (payload.calculationLogic as Record<string, unknown>)
+    : {};
+  base.calculationLogic = initiativeFinancialKinds.reduce((acc, kind) => {
+    const raw = calcSource[kind];
+    acc[kind] = typeof raw === 'string' ? raw.trim() : '';
+    return acc;
+  }, {} as InitiativeStagePayload['calculationLogic']);
+
+  const filesSource = Array.isArray(payload.businessCaseFiles) ? payload.businessCaseFiles : [];
+  base.businessCaseFiles = filesSource
+    .map((item) => ensureBusinessCaseFile(item))
+    .filter((item): item is InitiativeBusinessCaseFile => Boolean(item));
 
   if (payload.financials && typeof payload.financials === 'object') {
     const source = payload.financials as Record<string, unknown>;

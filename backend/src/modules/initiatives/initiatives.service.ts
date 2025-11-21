@@ -24,7 +24,8 @@ import {
   InitiativeCommentMessage,
   InitiativeCommentSelection,
   InitiativeCommentThreadRow,
-  InitiativeCommentMessageRow
+  InitiativeCommentMessageRow,
+  InitiativeBusinessCaseFile
 } from './initiatives.types.js';
 import { normalizePlanModel } from './initiativePlan.helpers.js';
 import {
@@ -128,12 +129,57 @@ const sanitizeFinancialEntry = (value: unknown): InitiativeFinancialEntry => {
   };
 };
 
+const sanitizeBusinessCaseFile = (value: unknown): InitiativeBusinessCaseFile | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    fileName?: unknown;
+    mimeType?: unknown;
+    size?: unknown;
+    dataUrl?: unknown;
+    uploadedAt?: unknown;
+  };
+  const fileName = sanitizeString(payload.fileName);
+  const dataUrl = typeof payload.dataUrl === 'string' ? payload.dataUrl : '';
+  if (!fileName || !dataUrl) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
+  const mimeType = sanitizeOptionalString(payload.mimeType);
+  const size =
+    typeof payload.size === 'number' && Number.isFinite(payload.size) ? Math.max(0, Math.trunc(payload.size)) : 0;
+  const uploadedAt =
+    typeof payload.uploadedAt === 'string' && payload.uploadedAt.trim()
+      ? payload.uploadedAt
+      : new Date().toISOString();
+  return {
+    id,
+    fileName,
+    mimeType,
+    size,
+    dataUrl,
+    uploadedAt
+  };
+};
+
 const createEmptyStagePayload = (): InitiativeStagePayload => ({
   name: '',
   description: '',
   periodMonth: null,
   periodYear: null,
   l4Date: null,
+  valueStepTaskId: null,
+  additionalCommentary: '',
+  calculationLogic: initiativeFinancialKinds.reduce(
+    (acc, kind) => {
+      acc[kind] = '';
+      return acc;
+    },
+    {} as InitiativeStagePayload['calculationLogic']
+  ),
+  businessCaseFiles: [],
   financials: initiativeFinancialKinds.reduce(
     (acc, kind) => {
       acc[kind] = [];
@@ -154,6 +200,10 @@ const sanitizeStage = (value: unknown): InitiativeStagePayload => {
     periodYear?: unknown;
     l4Date?: unknown;
     financials?: unknown;
+    valueStepTaskId?: unknown;
+    additionalCommentary?: unknown;
+    calculationLogic?: unknown;
+    businessCaseFiles?: unknown;
   };
   const result = createEmptyStagePayload();
   result.name = sanitizeString(payload.name);
@@ -164,6 +214,26 @@ const sanitizeStage = (value: unknown): InitiativeStagePayload => {
   result.periodYear = year ? Math.trunc(year) : null;
   const l4Date = sanitizeOptionalString(payload.l4Date);
   result.l4Date = l4Date;
+  result.valueStepTaskId =
+    typeof payload.valueStepTaskId === 'string' && payload.valueStepTaskId.trim()
+      ? payload.valueStepTaskId.trim()
+      : null;
+  result.additionalCommentary = sanitizeString(payload.additionalCommentary);
+
+  const calcSource =
+    payload.calculationLogic && typeof payload.calculationLogic === 'object'
+      ? (payload.calculationLogic as Record<string, unknown>)
+      : {};
+  result.calculationLogic = initiativeFinancialKinds.reduce((acc, kind) => {
+    const raw = calcSource[kind];
+    acc[kind] = typeof raw === 'string' ? raw.trim() : '';
+    return acc;
+  }, {} as InitiativeStagePayload['calculationLogic']);
+
+  const filesSource = Array.isArray(payload.businessCaseFiles) ? payload.businessCaseFiles : [];
+  result.businessCaseFiles = filesSource
+    .map((entry) => sanitizeBusinessCaseFile(entry))
+    .filter((entry): entry is InitiativeBusinessCaseFile => Boolean(entry));
 
   if (payload.financials && typeof payload.financials === 'object') {
     const source = payload.financials as Record<string, unknown>;
@@ -458,6 +528,12 @@ export class InitiativesService {
     const stages = sanitizeStageMap(input.stages);
     const stageState = sanitizeStageStateMap(input.stageState);
     const plan = normalizePlanModel(input.plan);
+    const valueStepTaskId =
+      plan.tasks.find((task) => (task.milestoneType ?? '').toLowerCase() === 'value step')?.id ?? null;
+    const normalizedStages = initiativeStageKeys.reduce((acc, key) => {
+      acc[key] = { ...stages[key], valueStepTaskId };
+      return acc;
+    }, {} as InitiativeStageMap);
     const activeStage = normalizeStageKey(input.activeStage);
     const l4Date = sanitizeOptionalString(input.l4Date) ?? stages.l4.l4Date ?? null;
 
@@ -471,7 +547,7 @@ export class InitiativesService {
       currentStatus,
       activeStage,
       l4Date,
-      stages,
+      stages: normalizedStages,
       stageState,
       plan
     };

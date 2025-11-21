@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/InitiativeProfile.module.css';
 import { ChevronIcon } from '../../../components/icons/ChevronIcon';
 import {
@@ -9,7 +9,8 @@ import {
   initiativeStageLabels,
   InitiativeStageState,
   initiativeFinancialKinds,
-  InitiativeFinancialKind
+  InitiativeFinancialKind,
+  InitiativePlanTask
 } from '../../../shared/types/initiative';
 import { Workstream, WorkstreamGateKey } from '../../../shared/types/workstream';
 import { AccountRecord } from '../../../shared/types/account';
@@ -62,6 +63,8 @@ type ValidationErrors = {
   periodYear?: boolean;
 };
 
+const VALUE_STEP_LABEL = 'Value Step';
+
 const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
   key,
   name: '',
@@ -69,6 +72,16 @@ const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
   periodMonth: null,
   periodYear: new Date().getFullYear(),
   l4Date: null,
+  valueStepTaskId: null,
+  additionalCommentary: '',
+  calculationLogic: initiativeFinancialKinds.reduce(
+    (acc, kind) => {
+      acc[kind] = '';
+      return acc;
+    },
+    {} as InitiativeStageData['calculationLogic']
+  ),
+  businessCaseFiles: [],
   financials: {
     'recurring-benefits': [],
     'recurring-costs': [],
@@ -156,8 +169,8 @@ const createEmptyInitiative = (workstreamId?: string): Initiative => {
     version: 1,
     createdAt: now,
     updatedAt: now,
-  stages,
-  stageState: createDefaultStageState(),
+    stages,
+    stageState: createDefaultStageState(),
     totals: calculateTotals(stages),
     plan: createEmptyPlanModel()
   };
@@ -168,7 +181,7 @@ const formatImpact = (value: number) =>
 
 const formatDate = (value: string | null) => {
   if (!value) {
-    return '�';
+    return '-';
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -192,7 +205,7 @@ const logFieldLabels: Record<string, string> = {
 
 const formatLogValue = (field: string, value: unknown): string => {
   if (value === null || value === undefined) {
-    return '�';
+    return '-';
   }
   if (field === 'recurringImpact') {
     const numeric = typeof value === 'number' ? value : Number(value);
@@ -341,6 +354,15 @@ export const InitiativeProfile = ({
     { status: 'draft', roundIndex: 0, comment: null };
   const selectedWorkstream = workstreams.find((ws) => ws.id === draft.workstreamId) ?? null;
   const stageGateKey = getGateKeyForStage(selectedStage);
+  const planValueStepTask =
+    useMemo(
+      () =>
+        draft.plan.tasks.find(
+          (task) => (task.milestoneType ?? '').toLowerCase() === VALUE_STEP_LABEL.toLowerCase()
+        ) ?? null,
+      [draft.plan.tasks]
+    );
+  const planValueStepTaskId = planValueStepTask?.id ?? null;
   const stageRounds = stageGateKey && selectedWorkstream ? selectedWorkstream.gates[stageGateKey]?.length ?? 0 : 0;
   const canSubmitStage = isStageEditable && currentStageState.status !== 'pending';
   const stageStatusLabel = (() => {
@@ -397,6 +419,22 @@ export const InitiativeProfile = ({
       contentRef.current.scrollTo({ top: Math.max(0, anchor.top - 120), behavior: 'smooth' });
     }
   }, [initialCommentThreadId, commentAnchors, isCommentMode]);
+
+  useEffect(() => {
+    setDraft((prev) => {
+      let changed = false;
+      const nextStages = { ...prev.stages };
+      initiativeStageKeys.forEach((key) => {
+        const stage = nextStages[key];
+        if (!stage || stage.valueStepTaskId === planValueStepTaskId) {
+          return;
+        }
+        nextStages[key] = { ...stage, valueStepTaskId: planValueStepTaskId };
+        changed = true;
+      });
+      return changed ? { ...prev, stages: nextStages } : prev;
+    });
+  }, [planValueStepTaskId]);
 
   const handleCommentToggle = () => {
     if (!commentsAvailable) {
@@ -540,11 +578,11 @@ export const InitiativeProfile = ({
 
   const handleSaveClick = async (closeAfterSave: boolean) => {
     if (!validateDraft()) {
-      setBanner({ type: 'error', text: '��������� ������������ ����.' });
+      setBanner({ type: 'error', text: 'Г‡Г ГЇГ®Г«Г­ГЁГІГҐ Г®ГЎГїГ§Г ГІГҐГ«ГјГ­Г»ГҐ ГЇГ®Г«Гї.' });
       return;
     }
     if (!hasWorkstreams) {
-      setBanner({ type: 'error', text: '�������� workstream, ������ ��� ��������� ����������.' });
+      setBanner({ type: 'error', text: 'Г‘Г®Г§Г¤Г Г©ГІГҐ workstream, ГЇГ°ГҐГ¦Г¤ГҐ Г·ГҐГ¬ Г¤Г®ГЎГ ГўГ«ГїГІГј ГЁГ­ГЁГ¶ГЁГ ГІГЁГўГ».' });
       return;
     }
     setIsSaving(true);
@@ -639,6 +677,23 @@ export const InitiativeProfile = ({
     });
     return calculateRunRate(monthKeys, netTotals);
   }, [draft]);
+
+  const formatTaskDateRange = (task: InitiativePlanTask | null) => {
+    if (!task) {
+      return '';
+    }
+    if (task.startDate && task.endDate) {
+      return task.startDate === task.endDate ? task.startDate : `${task.startDate} в†’ ${task.endDate}`;
+    }
+    return task.startDate ?? task.endDate ?? '';
+  };
+
+  const valueStepSummary = planValueStepTask
+    ? [planValueStepTask.name || VALUE_STEP_LABEL, formatTaskDateRange(planValueStepTask)]
+        .filter(Boolean)
+        .join(' вЂў ')
+    : 'Not set in plan';
+
   if (mode === 'view' && !initiative) {
     if (!dataLoaded) {
       return (
@@ -657,7 +712,7 @@ export const InitiativeProfile = ({
       </section>
     );
   }
-  const commentButtonLabel = isLoadingComments ? 'Loading comments�' : `Comments${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
+  const commentButtonLabel = isLoadingComments ? 'Loading comments...' : `Comments${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
   const profileContentClass = `${styles.profileContent}${hideBackLink ? ` ${styles.profileContentNoBack}` : ''}`;
   const buildProfileAnchor = (key: string, label?: string) => createCommentAnchor(`profile.${key}`, label);
   const buildStageAnchor = (key: string, label?: string) => createCommentAnchor(`stage.${selectedStage}.${key}`, label);
@@ -863,6 +918,36 @@ export const InitiativeProfile = ({
                 </option>
               ))}
             </select>
+          </label>
+        </div>
+
+        <div className={styles.valueStepRow}>
+          <label className={styles.fieldBlock} {...buildStageAnchor('value-step', 'Value Step')}>
+            <span className={styles.labelWithIcon}>
+              <span>Value Step</span>
+              <span
+                className={styles.helpIcon}
+                title="A value step is an activity after which no further action is required for the initiative to begin accruing value"
+                aria-label="Value step explanation"
+              >
+                ?
+              </span>
+            </span>
+            <input type="text" value={valueStepSummary} disabled />
+            <p className={styles.fieldHint}>Managed via the plan module.</p>
+          </label>
+
+          <label
+            className={styles.fieldBlock}
+            {...buildStageAnchor('additional-commentary', 'Additional commentary')}
+          >
+            <span>Additional Commentary</span>
+            <textarea
+              value={currentStage.additionalCommentary}
+              onChange={(event) => handleStageFieldChange('additionalCommentary', event.target.value)}
+              disabled={!isStageEditable}
+              rows={3}
+            />
           </label>
         </div>
 

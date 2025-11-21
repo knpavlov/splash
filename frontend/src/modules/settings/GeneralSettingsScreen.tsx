@@ -1,0 +1,133 @@
+import { useEffect, useMemo, useState } from 'react';
+import styles from '../../styles/GeneralSettingsScreen.module.css';
+import { usePlanSettingsState } from '../../app/state/AppStateContext';
+
+const DEFAULT_OPTIONS = ['Standard', 'Value Step', 'Change Management'];
+const VALUE_STEP_LABEL = 'Value Step';
+
+const normalizeOptions = (options: string[]) => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  const source = Array.isArray(options) ? options : [];
+  [...source, ...DEFAULT_OPTIONS].forEach((option) => {
+    if (typeof option !== 'string') {
+      return;
+    }
+    const trimmed = option.trim();
+    if (!trimmed) {
+      return;
+    }
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push(trimmed);
+  });
+  return result;
+};
+
+export const GeneralSettingsScreen = () => {
+  const { milestoneTypes, saveMilestoneTypes } = usePlanSettingsState();
+  const [draftOptions, setDraftOptions] = useState<string[]>(() => normalizeOptions(milestoneTypes));
+  const [newOption, setNewOption] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraftOptions(normalizeOptions(milestoneTypes));
+  }, [milestoneTypes]);
+
+  const normalizedOptions = useMemo(() => normalizeOptions(draftOptions), [draftOptions]);
+
+  const handleSave = () => {
+    const normalized = normalizeOptions(draftOptions);
+    setDraftOptions(normalized);
+    saveMilestoneTypes(normalized);
+    setMessage('Milestone types updated.');
+  };
+
+  const handleRemove = (index: number) => {
+    const target = normalizedOptions[index];
+    if (!target || target.toLowerCase() === VALUE_STEP_LABEL.toLowerCase()) {
+      return;
+    }
+    setDraftOptions((prev) => prev.filter((_, i) => i !== index));
+    setMessage(null);
+  };
+
+  const handleUpdate = (index: number, value: string) => {
+    setDraftOptions((prev) => prev.map((option, i) => (i === index ? value : option)));
+    setMessage(null);
+  };
+
+  const handleAdd = () => {
+    const trimmed = newOption.trim();
+    if (!trimmed) {
+      return;
+    }
+    setDraftOptions((prev) => [...prev, trimmed]);
+    setNewOption('');
+    setMessage(null);
+  };
+
+  return (
+    <section className={styles.wrapper}>
+      <header className={styles.header}>
+        <div>
+          <p className={styles.eyebrow}>General settings</p>
+          <h1>Program defaults</h1>
+          <p className={styles.subtitle}>Control shared options for initiative planning.</p>
+        </div>
+      </header>
+
+      <div className={styles.card}>
+        <div className={styles.cardHeader}>
+          <div>
+            <p className={styles.eyebrow}>Plan module</p>
+            <h3>Milestone types</h3>
+            <p className={styles.cardSubtitle}>
+              Update the options available in the plan table. Value Step is always required.
+            </p>
+          </div>
+          <button className={styles.primaryButton} type="button" onClick={handleSave}>
+            Save changes
+          </button>
+        </div>
+
+        <div className={styles.optionsGrid}>
+          {normalizedOptions.map((option, index) => (
+            <div key={`${option}${index}`} className={styles.optionRow}>
+              <input
+                value={option}
+                onChange={(event) => handleUpdate(index, event.target.value)}
+                className={styles.optionInput}
+              />
+              <button
+                type="button"
+                className={styles.removeButton}
+                onClick={() => handleRemove(index)}
+                disabled={option.toLowerCase() === VALUE_STEP_LABEL.toLowerCase()}
+                title={option.toLowerCase() === VALUE_STEP_LABEL.toLowerCase() ? 'Value Step cannot be removed' : ''}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className={styles.addRow}>
+          <input
+            value={newOption}
+            onChange={(event) => setNewOption(event.target.value)}
+            placeholder="Add another milestone type"
+          />
+          <button className={styles.secondaryButton} type="button" onClick={handleAdd}>
+            Add
+          </button>
+        </div>
+
+        {message && <p className={styles.success}>{message}</p>}
+      </div>
+    </section>
+  );
+};
