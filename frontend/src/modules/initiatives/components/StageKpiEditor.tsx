@@ -241,15 +241,41 @@ export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageK
                 </div>
                 {months.map((month) => {
                   const monthValue = distribution[month.key] ?? 0;
-                  const barHeight = Math.min(1, Math.abs(monthValue) / maxAbs) * 36;
+                  const ratio = Math.min(1, Math.abs(monthValue) / maxAbs);
+                  const positiveHeight = monthValue > 0 ? ratio * 100 : 0;
+                  const negativeHeight = monthValue < 0 ? ratio * 100 : 0;
                   return (
                     <div key={`${kpi.id}-${month.key}`} className={styles.colMonth}>
-                      <div className={styles.barCell}>
-                        <div
-                          className={`${styles.bar} ${monthValue < 0 ? styles.barNegative : ''}`}
-                          style={{ height: `${barHeight}px` }}
-                          aria-hidden
-                        />
+                      <div className={styles.chartContainer}>
+                        <div className={styles.chartBarGroup}>
+                          <div className={styles.stackWrapper}>
+                            <div className={styles.stackPositive}>
+                              <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
+                                {positiveHeight > 0 ? (
+                                  <div
+                                    className={styles.chartSegment}
+                                    style={{ height: `${positiveHeight}%` }}
+                                    aria-hidden
+                                  />
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className={styles.stackNegative}>
+                              <div className={`${styles.stackFill} ${styles.stackFillNegative}`}>
+                                {negativeHeight > 0 ? (
+                                  <div
+                                    className={`${styles.chartSegment} ${styles.chartSegmentNegative}`}
+                                    style={{ height: `${negativeHeight}%` }}
+                                    aria-hidden
+                                  />
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                          <div className={styles.chartZeroLine}>
+                            <span className={styles.chartZeroLineInner} />
+                          </div>
+                        </div>
                       </div>
                       <div className={styles.monthInputs}>
                         <input
@@ -260,7 +286,7 @@ export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageK
                         />
                         <button
                           type="button"
-                          className={styles.fillButton}
+                          className={styles.fillRightButton}
                           onClick={() => handleFillRight(kpi.id, month.key)}
                           disabled={disabled || distribution[month.key] === undefined}
                           title="Fill to the right"
