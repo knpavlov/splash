@@ -368,6 +368,16 @@ const cloneStagePayload = (stage: InitiativeStagePayload): InitiativeStagePayloa
   periodMonth: stage.periodMonth,
   periodYear: stage.periodYear,
   l4Date: stage.l4Date ?? null,
+  valueStepTaskId: stage.valueStepTaskId ?? null,
+  additionalCommentary: stage.additionalCommentary ?? '',
+  calculationLogic: initiativeFinancialKinds.reduce(
+    (acc, kind) => {
+      acc[kind] = stage.calculationLogic?.[kind] ?? '';
+      return acc;
+    },
+    {} as InitiativeStagePayload['calculationLogic']
+  ),
+  businessCaseFiles: [...(stage.businessCaseFiles ?? [])],
   financials: initiativeFinancialKinds.reduce(
     (acc, kind) => {
       acc[kind] = stage.financials[kind].map((entry) => ({
