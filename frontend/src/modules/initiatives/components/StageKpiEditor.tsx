@@ -27,11 +27,11 @@ const clampNumber = (value: string) => {
 export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageKpiEditorProps) => {
   const months = useMemo(() => buildMonthRange(stage), [stage]);
   const monthKeys = months.map((m) => m.key);
-  const monthColumnWidth = 110;
+  const monthColumnWidth = 96;
   const columnTemplate = useMemo(() => {
-    const metaTemplate = `200px 120px 140px 110px 140px`;
+    const metaTemplate = `minmax(200px, 1.1fr) minmax(110px, 0.7fr) minmax(130px, 0.8fr) minmax(110px, 0.7fr)`;
     const monthTemplate = `repeat(${Math.max(months.length, 1)}, ${monthColumnWidth}px)`;
-    const actionsWidth = `100px`;
+    const actionsWidth = `90px`;
     return `${metaTemplate} ${monthTemplate} ${actionsWidth}`;
   }, [months.length]);
 
@@ -63,6 +63,30 @@ export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageK
         }
         const distribution = { ...ensureDistributionKeys(kpi), [key]: clampNumber(value) };
         return { ...kpi, distribution };
+      })
+    );
+  };
+
+  const handleFillRight = (id: string, key: string) => {
+    const startIndex = monthKeys.indexOf(key);
+    if (startIndex === -1) {
+      return;
+    }
+    updateKpis((list) =>
+      list.map((kpi) => {
+        if (kpi.id !== id) {
+          return kpi;
+        }
+        const distribution = ensureDistributionKeys(kpi);
+        const value = distribution[key];
+        if (value === undefined) {
+          return kpi;
+        }
+        const nextDistribution = { ...distribution };
+        for (let index = startIndex + 1; index < monthKeys.length; index += 1) {
+          nextDistribution[monthKeys[index]] = value;
+        }
+        return { ...kpi, distribution: nextDistribution };
       })
     );
   };
@@ -149,9 +173,8 @@ export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageK
             <div className={styles.headerCell}>Unit</div>
             <div className={styles.headerCell}>Source</div>
             <div className={styles.headerCell}>Baseline</div>
-            <div className={styles.headerCell}>Trend</div>
             {months.map((month) => (
-              <div key={`head-${month.key}`} className={styles.headerCell}>
+              <div key={`head-${month.key}`} className={`${styles.headerCell} ${styles.monthHeader}`}>
                 {month.label} {month.year}
               </div>
             ))}
@@ -161,11 +184,6 @@ export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageK
             const distribution = ensureDistributionKeys(kpi);
             const values = monthKeys.map((m) => distribution[m] ?? 0);
             const maxAbs = Math.max(...values.map((v) => Math.abs(v)), 1);
-            const points = values.map((v, idx) => {
-              const x = (idx / Math.max(values.length - 1, 1)) * 100;
-              const y = 100 - (v / maxAbs) * 50 - 25;
-              return `${x},${y}`;
-            });
             return (
               <div key={kpi.id} className={styles.row} style={{ gridTemplateColumns: columnTemplate }}>
                 <div className={styles.colName}>
@@ -221,25 +239,38 @@ export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageK
                     }
                   />
                 </div>
-                <div className={styles.colSpark}>
-                  {values.length ? (
-                    <svg className={styles.sparkline} viewBox="0 0 100 100" preserveAspectRatio="none">
-                      <polyline points={points.join(' ')} fill="none" stroke="#2563eb" strokeWidth="2" />
-                    </svg>
-                  ) : (
-                    <div className={styles.sparklineEmpty}>No data</div>
-                  )}
-                </div>
-                {months.map((month) => (
-                  <div key={`${kpi.id}-${month.key}`} className={styles.colMonth}>
-                    <input
-                      type="number"
-                      value={formatNumber(distribution[month.key])}
-                      disabled={disabled}
-                      onChange={(event) => handleDistributionChange(kpi.id, month.key, event.target.value)}
-                    />
-                  </div>
-                ))}
+                {months.map((month) => {
+                  const monthValue = distribution[month.key] ?? 0;
+                  const barHeight = Math.min(1, Math.abs(monthValue) / maxAbs) * 36;
+                  return (
+                    <div key={`${kpi.id}-${month.key}`} className={styles.colMonth}>
+                      <div className={styles.barCell}>
+                        <div
+                          className={`${styles.bar} ${monthValue < 0 ? styles.barNegative : ''}`}
+                          style={{ height: `${barHeight}px` }}
+                          aria-hidden
+                        />
+                      </div>
+                      <div className={styles.monthInputs}>
+                        <input
+                          type="number"
+                          value={formatNumber(distribution[month.key])}
+                          disabled={disabled}
+                          onChange={(event) => handleDistributionChange(kpi.id, month.key, event.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className={styles.fillButton}
+                          onClick={() => handleFillRight(kpi.id, month.key)}
+                          disabled={disabled || distribution[month.key] === undefined}
+                          title="Fill to the right"
+                        >
+                          {'>>'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
                 <div className={styles.colActions}>
                   <button className={styles.removeButton} type="button" onClick={() => handleRemove(kpi.id)} disabled={disabled}>
                     Remove
