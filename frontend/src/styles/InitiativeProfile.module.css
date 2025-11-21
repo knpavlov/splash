@@ -192,6 +192,10 @@
   gap: 16px;
 }
 
+.supportingCard {
+  border-style: dashed;
+}
+
 .cardHeader {
   display: flex;
   align-items: flex-start;

@@ -1,0 +1,137 @@
+.wrapper {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.primaryButton {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #2563eb, #6366f1);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(59, 130, 246, 0.2);
+}
+
+.dropZone {
+  border: 2px dashed rgba(148, 163, 184, 0.6);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  color: #475569;
+  background: #f8fafc;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dropZoneActive {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.helper {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.error {
+  color: #b91c1c;
+  margin: 0;
+}
+
+.placeholder {
+  margin: 0;
+  color: #94a3b8;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.itemMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.itemName {
+  margin: 0;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.itemMetaText {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.itemComment {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.itemComment input {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+}
+
+.itemActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.secondaryButton {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: #fff;
+  color: #0f172a;
+  text-decoration: none;
+}
+
+.removeButton {
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: #fff5f5;
+  color: #b91c1c;
+  cursor: pointer;
+}

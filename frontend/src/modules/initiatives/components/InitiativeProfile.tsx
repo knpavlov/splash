@@ -33,6 +33,7 @@ import { createEmptyPlanModel } from '../plan/planModel';
 import { InitiativePlanModule } from './plan/InitiativePlanModule';
 import { StageKpiEditor } from './StageKpiEditor';
 import { snapshotsApi } from '../../snapshots/services/snapshotsApi';
+import { StageSupportingDocs } from './StageSupportingDocs';
 
 interface InitiativeProfileProps {
   mode: 'create' | 'view';
@@ -1123,6 +1124,22 @@ export const InitiativeProfile = ({
         )}
       </section>
 
+      <section className={`${styles.cardSection} ${styles.supportingCard}`} {...buildProfileAnchor('supporting-docs', 'Supporting documentation')}>
+        <header className={styles.cardHeader}>
+          <div className={styles.cardHeaderTitle}>
+            <div>
+              <h3>Supporting documentation</h3>
+              <p>Upload evidence and add a short note.</p>
+            </div>
+          </div>
+        </header>
+        <StageSupportingDocs
+          stage={currentStage}
+          disabled={!isStageEditable}
+          onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+        />
+      </section>
+
       <InitiativePlanModule
         plan={draft.plan}
         initiativeId={draft.id}
@@ -1249,6 +1266,7 @@ export const InitiativeProfile = ({
       </section>
   );
 };
+
 
 
 

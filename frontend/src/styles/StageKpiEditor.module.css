@@ -53,20 +53,29 @@
   overflow-x: auto;
 }
 
+.headerRow {
+  display: grid;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  background: #f8fafc;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
 .row {
   display: grid;
-  align-items: center;
-  gap: 8px;
+  gap: 6px;
+  align-items: stretch;
   padding: 8px;
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 12px;
   background: rgba(248, 250, 252, 0.9);
-  grid-template-columns: 180px 100px 120px 110px 90px repeat(auto-fit, minmax(90px, 1fr)) 80px;
 }
 
-.headerRow {
-  background: #f8fafc;
-  font-weight: 600;
+.headerCell {
+  white-space: nowrap;
 }
 
 .colName input,
@@ -89,15 +98,12 @@
   padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid rgba(148, 163, 184, 0.5);
-}
-
-.colSpark {
-  min-width: 90px;
+  background: #fff;
 }
 
 .sparkline {
   width: 100%;
-  height: 40px;
+  height: 32px;
 }
 
 .sparklineEmpty {
@@ -108,6 +114,7 @@
 .colActions {
   display: flex;
   justify-content: flex-end;
+  align-items: flex-start;
 }
 
 .removeButton {
@@ -119,9 +126,6 @@
   cursor: pointer;
 }
 
-@media (max-width: 1024px) {
-  .row {
-    grid-template-columns: 160px 90px 100px 90px 80px repeat(auto-fit, minmax(80px, 1fr)) 70px;
-  }
+.table {
+  overflow-x: auto;
 }
-

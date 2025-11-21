@@ -24,26 +24,16 @@ const clampNumber = (value: string) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
-const Sparkline = ({ values }: { values: number[] }) => {
-  if (!values.length) {
-    return <div className={styles.sparklineEmpty}>No data</div>;
-  }
-  const max = Math.max(...values.map((v) => Math.abs(v)), 1);
-  const points = values.map((v, idx) => {
-    const x = (idx / Math.max(values.length - 1, 1)) * 100;
-    const y = 100 - (v / max) * 50 - 25;
-    return `${x},${y}`;
-  });
-  return (
-    <svg className={styles.sparkline} viewBox="0 0 100 100" preserveAspectRatio="none">
-      <polyline points={points.join(' ')} fill="none" stroke="#2563eb" strokeWidth="2" />
-    </svg>
-  );
-};
-
 export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageKpiEditorProps) => {
   const months = useMemo(() => buildMonthRange(stage), [stage]);
   const monthKeys = months.map((m) => m.key);
+  const monthColumnWidth = 110;
+  const columnTemplate = useMemo(() => {
+    const metaTemplate = `200px 120px 140px 110px 140px`;
+    const monthTemplate = `repeat(${Math.max(months.length, 1)}, ${monthColumnWidth}px)`;
+    const actionsWidth = `100px`;
+    return `${metaTemplate} ${monthTemplate} ${actionsWidth}`;
+  }, [months.length]);
 
   const ensureDistributionKeys = (kpi: InitiativeStageKPI) => {
     const distribution = { ...kpi.distribution };
@@ -154,24 +144,30 @@ export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageK
         <p className={styles.placeholder}>No KPIs yet. Select one from the list or create a custom KPI.</p>
       ) : (
         <div className={styles.table}>
-          <div className={`${styles.row} ${styles.headerRow}`}>
-            <div className={styles.colName}>KPI</div>
-            <div className={styles.colUnit}>Unit</div>
-            <div className={styles.colSource}>Source</div>
-            <div className={styles.colBaseline}>Baseline</div>
-            <div className={styles.colSpark}>Trend</div>
+          <div className={styles.headerRow} style={{ gridTemplateColumns: columnTemplate }}>
+            <div className={styles.headerCell}>KPI</div>
+            <div className={styles.headerCell}>Unit</div>
+            <div className={styles.headerCell}>Source</div>
+            <div className={styles.headerCell}>Baseline</div>
+            <div className={styles.headerCell}>Trend</div>
             {months.map((month) => (
-              <div key={`head-${month.key}`} className={styles.colMonth}>
+              <div key={`head-${month.key}`} className={styles.headerCell}>
                 {month.label} {month.year}
               </div>
             ))}
-            <div className={styles.colActions}>Actions</div>
+            <div className={styles.headerCell}>Actions</div>
           </div>
           {(stage.kpis ?? []).map((kpi) => {
             const distribution = ensureDistributionKeys(kpi);
             const values = monthKeys.map((m) => distribution[m] ?? 0);
+            const maxAbs = Math.max(...values.map((v) => Math.abs(v)), 1);
+            const points = values.map((v, idx) => {
+              const x = (idx / Math.max(values.length - 1, 1)) * 100;
+              const y = 100 - (v / maxAbs) * 50 - 25;
+              return `${x},${y}`;
+            });
             return (
-              <div key={kpi.id} className={styles.row}>
+              <div key={kpi.id} className={styles.row} style={{ gridTemplateColumns: columnTemplate }}>
                 <div className={styles.colName}>
                   {kpi.isCustom ? (
                     <input
@@ -226,7 +222,13 @@ export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageK
                   />
                 </div>
                 <div className={styles.colSpark}>
-                  <Sparkline values={values} />
+                  {values.length ? (
+                    <svg className={styles.sparkline} viewBox="0 0 100 100" preserveAspectRatio="none">
+                      <polyline points={points.join(' ')} fill="none" stroke="#2563eb" strokeWidth="2" />
+                    </svg>
+                  ) : (
+                    <div className={styles.sparklineEmpty}>No data</div>
+                  )}
                 </div>
                 {months.map((month) => (
                   <div key={`${kpi.id}-${month.key}`} className={styles.colMonth}>
