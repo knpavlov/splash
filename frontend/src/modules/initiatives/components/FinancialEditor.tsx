@@ -941,7 +941,7 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
                 onChange={(event) => handleCalculationLogicChange(kind, event.target.value)}
                 disabled={disabled}
                 rows={3}
-                placeholder="Key assumptions, formulas, ownersвЂ¦"
+                placeholder="Key assumptions, formulas, owners"
               />
             </label>
           ))}

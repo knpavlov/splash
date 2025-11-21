@@ -282,6 +282,12 @@ export const InitiativeProfile = ({
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const tooltipHostRef = useRef<HTMLDivElement>(null);
+  const [valueStepTooltip, setValueStepTooltip] = useState<{ visible: boolean; x: number; y: number }>({
+    visible: false,
+    x: 0,
+    y: 0
+  });
   const initialCommentHandledRef = useRef(false);
   const commentAnchors = useCommentAnchors(commentThreads, contentRef);
   const changeLogLoadedKeyRef = useRef<string | null>(null);
@@ -578,11 +584,11 @@ export const InitiativeProfile = ({
 
   const handleSaveClick = async (closeAfterSave: boolean) => {
     if (!validateDraft()) {
-      setBanner({ type: 'error', text: 'Г‡Г ГЇГ®Г«Г­ГЁГІГҐ Г®ГЎГїГ§Г ГІГҐГ«ГјГ­Г»ГҐ ГЇГ®Г«Гї.' });
+      setBanner({ type: 'error', text: 'Please fill in all required fields.' });
       return;
     }
     if (!hasWorkstreams) {
-      setBanner({ type: 'error', text: 'Г‘Г®Г§Г¤Г Г©ГІГҐ workstream, ГЇГ°ГҐГ¦Г¤ГҐ Г·ГҐГ¬ Г¤Г®ГЎГ ГўГ«ГїГІГј ГЁГ­ГЁГ¶ГЁГ ГІГЁГўГ».' });
+      setBanner({ type: 'error', text: 'Create a workstream before saving an initiative.' });
       return;
     }
     setIsSaving(true);
@@ -683,7 +689,7 @@ export const InitiativeProfile = ({
       return '';
     }
     if (task.startDate && task.endDate) {
-      return task.startDate === task.endDate ? task.startDate : `${task.startDate} в†’ ${task.endDate}`;
+      return task.startDate === task.endDate ? task.startDate : `${task.startDate} -> ${task.endDate}`;
     }
     return task.startDate ?? task.endDate ?? '';
   };
@@ -691,8 +697,25 @@ export const InitiativeProfile = ({
   const valueStepSummary = planValueStepTask
     ? [planValueStepTask.name || VALUE_STEP_LABEL, formatTaskDateRange(planValueStepTask)]
         .filter(Boolean)
-        .join(' вЂў ')
+        .join(' | ')
     : 'Not set in plan';
+
+  const showValueStepTooltip = (event: React.MouseEvent) => {
+    const host = tooltipHostRef.current;
+    if (!host) {
+      return;
+    }
+    const rect = host.getBoundingClientRect();
+    setValueStepTooltip({
+      visible: true,
+      x: event.clientX - rect.left + 12,
+      y: event.clientY - rect.top + 12
+    });
+  };
+
+  const hideValueStepTooltip = () => {
+    setValueStepTooltip((prev) => ({ ...prev, visible: false }));
+  };
 
   if (mode === 'view' && !initiative) {
     if (!dataLoaded) {
@@ -921,20 +944,31 @@ export const InitiativeProfile = ({
           </label>
         </div>
 
-        <div className={styles.valueStepRow}>
+        <div className={styles.valueStepRow} ref={tooltipHostRef}>
           <label className={styles.fieldBlock} {...buildStageAnchor('value-step', 'Value Step')}>
             <span className={styles.labelWithIcon}>
               <span>Value Step</span>
               <span
                 className={styles.helpIcon}
-                title="A value step is an activity after which no further action is required for the initiative to begin accruing value"
+                onMouseEnter={showValueStepTooltip}
+                onMouseMove={showValueStepTooltip}
+                onMouseLeave={hideValueStepTooltip}
                 aria-label="Value step explanation"
+                role="presentation"
               >
                 ?
               </span>
             </span>
             <input type="text" value={valueStepSummary} disabled />
             <p className={styles.fieldHint}>Managed via the plan module.</p>
+            {valueStepTooltip.visible && (
+              <div
+                className={styles.tooltip}
+                style={{ left: `${valueStepTooltip.x}px`, top: `${valueStepTooltip.y}px` }}
+              >
+                A value step is an activity after which no further action is required for the initiative to begin accruing value.
+              </div>
+            )}
           </label>
 
           <label

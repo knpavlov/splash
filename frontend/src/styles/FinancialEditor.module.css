@@ -493,8 +493,8 @@
 
 .logicGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
 }
 
 .logicCard {
@@ -511,7 +511,10 @@
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 10px;
   padding: 10px;
-  min-height: 88px;
+  min-height: 120px;
+  resize: vertical;
+  width: 100%;
+  max-width: 100%;
 }
 
 .businessUpload {
