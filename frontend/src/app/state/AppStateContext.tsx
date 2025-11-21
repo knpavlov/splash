@@ -42,6 +42,72 @@ const PLAN_MILESTONE_STORAGE_KEY = 'initiative-plan:milestone-types';
 const DEFAULT_MILESTONE_TYPES = ['Standard', 'Value Step', 'Change Management'];
 const VALUE_STEP_LABEL = 'Value Step';
 
+const sanitizeMilestoneTypes = (options: string[]): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  const source = Array.isArray(options) ? options : [];
+  [...source, ...DEFAULT_MILESTONE_TYPES].forEach((option) => {
+    if (typeof option !== 'string') {
+      return;
+    }
+    const trimmed = option.trim();
+    if (!trimmed) {
+      return;
+    }
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push(trimmed);
+  });
+  return result;
+};
+
+const loadMilestoneTypes = (): string[] => {
+  if (typeof window === 'undefined') {
+    return DEFAULT_MILESTONE_TYPES;
+  }
+  const raw = window.localStorage.getItem(PLAN_MILESTONE_STORAGE_KEY);
+  if (!raw) {
+    return DEFAULT_MILESTONE_TYPES;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      const sanitized = sanitizeMilestoneTypes(parsed as string[]);
+      return sanitized.length ? sanitized : DEFAULT_MILESTONE_TYPES;
+    }
+  } catch {
+    return DEFAULT_MILESTONE_TYPES;
+  }
+  return DEFAULT_MILESTONE_TYPES;
+};
+
+const sanitizeNumber = (value: number) => (Number.isFinite(value) ? Number(value) : 0);
+
+const sanitizeBusinessCaseFile = (file: InitiativeBusinessCaseFile): InitiativeBusinessCaseFile | null => {
+  const fileName = typeof file.fileName === 'string' ? file.fileName.trim() : '';
+  const dataUrl = typeof file.dataUrl === 'string' ? file.dataUrl : '';
+  if (!fileName || !dataUrl) {
+    return null;
+  }
+  const mimeType = typeof file.mimeType === 'string' ? file.mimeType.trim() || null : null;
+  const size = Number.isFinite(file.size) ? Math.max(0, Number(file.size)) : 0;
+  const uploadedAt =
+    typeof file.uploadedAt === 'string' && file.uploadedAt.trim()
+      ? new Date(file.uploadedAt).toISOString()
+      : new Date().toISOString();
+  return {
+    id: typeof file.id === 'string' && file.id.trim() ? file.id.trim() : generateId(),
+    fileName,
+    mimeType,
+    size,
+    dataUrl,
+    uploadedAt
+  };
+};
+
 const normalizeParticipantOptional = (value: string | null | undefined): string | null => {
   if (value === null || value === undefined) {
     return null;
@@ -437,72 +503,6 @@ const sortWorkstreamsByUpdated = (items: Workstream[]) =>
 
 const sortInitiativesByUpdated = (items: Initiative[]) =>
   [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-const sanitizeNumber = (value: number) => (Number.isFinite(value) ? Number(value) : 0);
-
-const sanitizeBusinessCaseFile = (file: InitiativeBusinessCaseFile): InitiativeBusinessCaseFile | null => {
-  const fileName = typeof file.fileName === 'string' ? file.fileName.trim() : '';
-  const dataUrl = typeof file.dataUrl === 'string' ? file.dataUrl : '';
-  if (!fileName || !dataUrl) {
-    return null;
-  }
-  const mimeType = typeof file.mimeType === 'string' ? file.mimeType.trim() || null : null;
-  const size = Number.isFinite(file.size) ? Math.max(0, Number(file.size)) : 0;
-  const uploadedAt =
-    typeof file.uploadedAt === 'string' && file.uploadedAt.trim()
-      ? new Date(file.uploadedAt).toISOString()
-      : new Date().toISOString();
-  return {
-    id: typeof file.id === 'string' && file.id.trim() ? file.id.trim() : generateId(),
-    fileName,
-    mimeType,
-    size,
-    dataUrl,
-    uploadedAt
-  };
-};
-
-const sanitizeMilestoneTypes = (options: string[]): string[] => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  const source = Array.isArray(options) ? options : [];
-  [...source, ...DEFAULT_MILESTONE_TYPES].forEach((option) => {
-    if (typeof option !== 'string') {
-      return;
-    }
-    const trimmed = option.trim();
-    if (!trimmed) {
-      return;
-    }
-    const key = trimmed.toLowerCase();
-    if (seen.has(key)) {
-      return;
-    }
-    seen.add(key);
-    result.push(trimmed);
-  });
-  return result;
-};
-
-const loadMilestoneTypes = (): string[] => {
-  if (typeof window === 'undefined') {
-    return DEFAULT_MILESTONE_TYPES;
-  }
-  const raw = window.localStorage.getItem(PLAN_MILESTONE_STORAGE_KEY);
-  if (!raw) {
-    return DEFAULT_MILESTONE_TYPES;
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      const sanitized = sanitizeMilestoneTypes(parsed as string[]);
-      return sanitized.length ? sanitized : DEFAULT_MILESTONE_TYPES;
-    }
-  } catch {
-    return DEFAULT_MILESTONE_TYPES;
-  }
-  return DEFAULT_MILESTONE_TYPES;
-};
 
 const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
   const trimmedId = initiative.id.trim();
