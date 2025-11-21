@@ -53,6 +53,7 @@ type SnapshotSettingsRow = {
   timezone: string;
   schedule_hour: number;
   schedule_minute: number;
+  kpi_options?: unknown;
   updated_at: Date;
 };
 
@@ -78,12 +79,17 @@ export class SnapshotsRepository {
   private readonly settingsId = 1;
 
   private mapSettings(row: SnapshotSettingsRow) {
+    const kpiOptions =
+      Array.isArray(row.kpi_options) && row.kpi_options.every((item) => typeof item === 'string')
+        ? (row.kpi_options as string[])
+        : [];
     return {
       autoEnabled: Boolean(row.auto_enabled),
       retentionDays: Number(row.retention_days ?? 60),
       timezone: typeof row.timezone === 'string' && row.timezone.trim() ? row.timezone.trim() : 'Australia/Sydney',
       scheduleHour: Number.isInteger(row.schedule_hour) ? Number(row.schedule_hour) : 19,
       scheduleMinute: Number.isInteger(row.schedule_minute) ? Number(row.schedule_minute) : 0,
+      kpiOptions,
       updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : new Date().toISOString()
     };
   }
@@ -151,6 +157,7 @@ export class SnapshotsRepository {
               timezone,
               schedule_hour,
               schedule_minute,
+              kpi_options,
               updated_at
          FROM snapshot_settings
         WHERE id = $1
@@ -162,8 +169,8 @@ export class SnapshotsRepository {
       return this.mapSettings(row);
     }
     await postgresPool.query(
-      `INSERT INTO snapshot_settings (id, auto_enabled, retention_days, timezone, schedule_hour, schedule_minute)
-       VALUES ($1, FALSE, 60, 'Australia/Sydney', 19, 0)
+      `INSERT INTO snapshot_settings (id, auto_enabled, retention_days, timezone, schedule_hour, schedule_minute, kpi_options)
+       VALUES ($1, FALSE, 60, 'Australia/Sydney', 19, 0, '[]'::jsonb)
        ON CONFLICT (id) DO NOTHING;`,
       [this.settingsId]
     );
@@ -173,6 +180,7 @@ export class SnapshotsRepository {
               timezone,
               schedule_hour,
               schedule_minute,
+              kpi_options,
               updated_at
          FROM snapshot_settings
         WHERE id = $1
@@ -206,6 +214,10 @@ export class SnapshotsRepository {
     if (patch.schedule_minute !== undefined) {
       fields.push(`schedule_minute = $${++index}`);
       values.push(patch.schedule_minute);
+    }
+    if (patch.kpi_options !== undefined) {
+      fields.push(`kpi_options = $${++index}`);
+      values.push(patch.kpi_options);
     }
 
     const baseValues = [this.settingsId];

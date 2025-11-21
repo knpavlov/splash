@@ -4,6 +4,8 @@ import {
   initiativeStageKeys,
   Initiative,
   InitiativeBusinessCaseFile,
+  InitiativeSupportingDocument,
+  InitiativeStageKPI,
   InitiativeFinancialEntry,
   InitiativeStageData,
   InitiativeStageMap,
@@ -115,6 +117,71 @@ const normalizeBusinessCaseFile = (value: unknown): InitiativeBusinessCaseFile |
   return { id, fileName, mimeType, size, dataUrl, uploadedAt };
 };
 
+const normalizeSupportingDoc = (value: unknown): InitiativeSupportingDocument | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    fileName?: unknown;
+    mimeType?: unknown;
+    size?: unknown;
+    dataUrl?: unknown;
+    uploadedAt?: unknown;
+    comment?: unknown;
+  };
+  const fileName = typeof payload.fileName === 'string' ? payload.fileName.trim() : '';
+  const dataUrl = typeof payload.dataUrl === 'string' ? payload.dataUrl : '';
+  if (!fileName || !dataUrl) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : generateId();
+  const mimeType = typeof payload.mimeType === 'string' ? payload.mimeType.trim() || null : null;
+  const size = typeof payload.size === 'number' && Number.isFinite(payload.size) ? Math.max(0, payload.size) : 0;
+  const uploadedAt =
+    typeof payload.uploadedAt === 'string' && payload.uploadedAt.trim()
+      ? payload.uploadedAt
+      : new Date().toISOString();
+  const comment = typeof payload.comment === 'string' ? payload.comment.trim() : '';
+  return { id, fileName, mimeType, size, dataUrl, uploadedAt, comment };
+};
+
+const normalizeKpi = (value: unknown): InitiativeStageKPI | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    name?: unknown;
+    unit?: unknown;
+    source?: unknown;
+    isCustom?: unknown;
+    baseline?: unknown;
+    distribution?: unknown;
+  };
+  const name = typeof payload.name === 'string' ? payload.name.trim() : '';
+  if (!name) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : generateId();
+  const unit = typeof payload.unit === 'string' ? payload.unit.trim() : '';
+  const source = typeof payload.source === 'string' ? payload.source.trim() : '';
+  const isCustom = Boolean(payload.isCustom);
+  const baseline = typeof payload.baseline === 'number' && Number.isFinite(payload.baseline) ? payload.baseline : null;
+  const distribution: Record<string, number> = {};
+  if (payload.distribution && typeof payload.distribution === 'object') {
+    Object.entries(payload.distribution as Record<string, unknown>).forEach(([key, raw]) => {
+      const trimmedKey = key.trim();
+      const numeric = typeof raw === 'number' ? raw : Number(raw);
+      if (!trimmedKey || Number.isNaN(numeric)) {
+        return;
+      }
+      distribution[trimmedKey] = numeric;
+    });
+  }
+  return { id, name, unit, source, isCustom, baseline, distribution };
+};
+
 const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
   key,
   name: '',
@@ -132,6 +199,8 @@ const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
     {} as InitiativeStageData['calculationLogic']
   ),
   businessCaseFiles: [],
+  supportingDocs: [],
+  kpis: [],
   financials: initiativeFinancialKinds.reduce(
     (acc, kind) => {
       acc[kind] = [];
@@ -160,6 +229,8 @@ const normalizeStage = (key: InitiativeStageKey, value: unknown): InitiativeStag
     additionalCommentary?: unknown;
     calculationLogic?: unknown;
     businessCaseFiles?: unknown;
+    supportingDocs?: unknown;
+    kpis?: unknown;
   };
   stage.name = typeof payload.name === 'string' ? payload.name.trim() : '';
   stage.description = typeof payload.description === 'string' ? payload.description.trim() : '';
@@ -189,6 +260,12 @@ const normalizeStage = (key: InitiativeStageKey, value: unknown): InitiativeStag
   stage.businessCaseFiles = businessFiles
     .map((file) => normalizeBusinessCaseFile(file))
     .filter((file): file is InitiativeBusinessCaseFile => Boolean(file));
+  const supporting = Array.isArray(payload.supportingDocs) ? payload.supportingDocs : [];
+  stage.supportingDocs = supporting
+    .map((file) => normalizeSupportingDoc(file))
+    .filter((file): file is InitiativeSupportingDocument => Boolean(file));
+  const kpiSource = Array.isArray(payload.kpis) ? payload.kpis : [];
+  stage.kpis = kpiSource.map((entry) => normalizeKpi(entry)).filter((entry): entry is InitiativeStageKPI => Boolean(entry));
   if (payload.financials && typeof payload.financials === 'object') {
     const source = payload.financials as Record<string, unknown>;
     for (const kind of initiativeFinancialKinds) {

@@ -1,4 +1,4 @@
-import type { FinancialBlueprintRecord } from '../financials/financials.types.js';
+﻿import type { FinancialBlueprintRecord } from '../financials/financials.types.js';
 import type {
   InitiativePlanModel,
   InitiativeStageKey,
@@ -152,6 +152,7 @@ export interface SnapshotSettings {
   timezone: string;
   scheduleHour: number;
   scheduleMinute: number;
+  kpiOptions?: string[];
 }
 
 export interface SnapshotSettingsPayload extends SnapshotSettings {

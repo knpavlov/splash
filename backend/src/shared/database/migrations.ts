@@ -943,14 +943,20 @@ const createTables = async () => {
       timezone TEXT NOT NULL DEFAULT 'Australia/Sydney',
       schedule_hour INTEGER NOT NULL DEFAULT 19,
       schedule_minute INTEGER NOT NULL DEFAULT 0,
+      kpi_options JSONB NOT NULL DEFAULT '[]'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
   await postgresPool.query(`
-    INSERT INTO snapshot_settings (id, auto_enabled, retention_days, timezone, schedule_hour, schedule_minute)
-    VALUES (1, FALSE, 60, 'Australia/Sydney', 19, 0)
+    ALTER TABLE snapshot_settings
+      ADD COLUMN IF NOT EXISTS kpi_options JSONB NOT NULL DEFAULT '[]'::jsonb;
+  `);
+
+  await postgresPool.query(`
+    INSERT INTO snapshot_settings (id, auto_enabled, retention_days, timezone, schedule_hour, schedule_minute, kpi_options)
+    VALUES (1, FALSE, 60, 'Australia/Sydney', 19, 0, '[]'::jsonb)
     ON CONFLICT (id) DO NOTHING;
   `);
 };

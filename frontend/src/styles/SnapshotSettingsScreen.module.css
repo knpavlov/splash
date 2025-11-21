@@ -70,6 +70,26 @@
   color: #047857;
 }
 
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  align-items: center;
+}
+
+.kpiRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.kpiRow input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);

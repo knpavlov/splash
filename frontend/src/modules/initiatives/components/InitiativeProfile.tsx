@@ -31,6 +31,8 @@ import { useInitiativeComments } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../auth/AuthContext';
 import { createEmptyPlanModel } from '../plan/planModel';
 import { InitiativePlanModule } from './plan/InitiativePlanModule';
+import { StageKpiEditor } from './StageKpiEditor';
+import { snapshotsApi } from '../../snapshots/services/snapshotsApi';
 
 interface InitiativeProfileProps {
   mode: 'create' | 'view';
@@ -82,6 +84,8 @@ const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
     {} as InitiativeStageData['calculationLogic']
   ),
   businessCaseFiles: [],
+  supportingDocs: [],
+  kpis: [],
   financials: {
     'recurring-benefits': [],
     'recurring-costs': [],
@@ -199,6 +203,7 @@ const logFieldLabels: Record<string, string> = {
   recurringImpact: 'Recurring impact',
   created: 'Created',
   'stage-content': 'Stage details',
+  kpi: 'KPIs',
   'execution-plan': 'Timeline',
   updated: 'Update'
 };
@@ -260,6 +265,7 @@ export const InitiativeProfile = ({
   const [changeLog, setChangeLog] = useState<InitiativeEventEntry[]>([]);
   const [isLogLoading, setIsLogLoading] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [kpiOptions, setKpiOptions] = useState<string[]>([]);
   const { session } = useAuth();
   const commentActor = useMemo(
     () => (session ? { accountId: session.accountId, name: session.email } : undefined),
@@ -297,6 +303,17 @@ export const InitiativeProfile = ({
     setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
+  useEffect(() => {
+    const loadKpiOptions = async () => {
+      try {
+        const settings = await snapshotsApi.getSettings();
+        setKpiOptions((settings.kpiOptions ?? []).map((item) => item.trim()).filter(Boolean));
+      } catch (error) {
+        console.error('Failed to load KPI options:', error);
+      }
+    };
+    void loadKpiOptions();
+  }, []);
   useEffect(() => {
     if (initiative) {
       setDraft(initiative);
@@ -1071,6 +1088,35 @@ export const InitiativeProfile = ({
           <FinancialEditor
             stage={currentStage}
             disabled={!isStageEditable}
+            onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+            commentScope={selectedStage}
+          />
+        )}
+      </section>
+
+      <section className={styles.cardSection} {...buildProfileAnchor('kpis', 'KPIs')}>
+        <header className={styles.cardHeader}>
+          <div className={styles.cardHeaderTitle}>
+            <button
+              className={styles.sectionToggle}
+              type="button"
+              onClick={() => handleSectionToggle('kpis')}
+              aria-expanded={!(collapsedSections['kpis'] ?? false)}
+              aria-label={collapsedSections['kpis'] ? 'Expand KPIs' : 'Collapse KPIs'}
+            >
+              <ChevronIcon direction={collapsedSections['kpis'] ? 'right' : 'down'} size={16} />
+            </button>
+            <div>
+              <h3>KPIs</h3>
+              <p>Track KPIs with monthly values per stage.</p>
+            </div>
+          </div>
+        </header>
+        {!(collapsedSections['kpis'] ?? false) && (
+          <StageKpiEditor
+            stage={currentStage}
+            disabled={!isStageEditable}
+            kpiOptions={kpiOptions}
             onChange={(nextStage) => updateStage(selectedStage, nextStage)}
             commentScope={selectedStage}
           />

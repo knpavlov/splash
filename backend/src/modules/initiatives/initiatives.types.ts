@@ -30,6 +30,8 @@ export interface InitiativeStagePayload {
   additionalCommentary: string;
   calculationLogic: Record<InitiativeFinancialKind, string>;
   businessCaseFiles: InitiativeBusinessCaseFile[];
+  supportingDocs: InitiativeSupportingDocument[];
+  kpis: InitiativeStageKPI[];
 }
 
 export type InitiativeStageMap = Record<InitiativeStageKey, InitiativeStagePayload>;
@@ -218,6 +220,26 @@ export interface InitiativeBusinessCaseFile {
   size: number;
   dataUrl: string;
   uploadedAt: string;
+}
+
+export interface InitiativeSupportingDocument {
+  id: string;
+  fileName: string;
+  mimeType: string | null;
+  size: number;
+  dataUrl: string;
+  uploadedAt: string;
+  comment: string;
+}
+
+export interface InitiativeStageKPI {
+  id: string;
+  name: string;
+  unit: string;
+  source: string;
+  isCustom: boolean;
+  baseline: number | null;
+  distribution: Record<string, number>;
 }
 
 export interface InitiativeCommentThreadRow extends Record<string, unknown> {

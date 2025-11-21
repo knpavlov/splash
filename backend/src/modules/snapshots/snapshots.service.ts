@@ -448,6 +448,7 @@ export class SnapshotsService {
       scheduleMinute: settings.scheduleMinute,
       minimumRetentionDays: this.minimumRetentionDays,
       defaultTimezone: 'Australia/Sydney',
+      kpiOptions: settings.kpiOptions ?? [],
       nextRunAt: schedulerNext ? schedulerNext.toISOString() : null,
       lastAutomaticSnapshot: lastAuto
         ? {
@@ -474,13 +475,23 @@ export class SnapshotsService {
     };
   }
 
-  async updateSettings(patch: Partial<{ enabled: boolean; retentionDays: number; timezone: string; scheduleHour: number; scheduleMinute: number }>) {
+  async updateSettings(
+    patch: Partial<{
+      enabled: boolean;
+      retentionDays: number;
+      timezone: string;
+      scheduleHour: number;
+      scheduleMinute: number;
+      kpiOptions: string[];
+    }>
+  ) {
     const resolved: Partial<{
       auto_enabled: boolean;
       retention_days: number;
       timezone: string;
       schedule_hour: number;
       schedule_minute: number;
+      kpi_options: string[];
     }> = {};
 
     if (patch.enabled !== undefined) {
@@ -513,6 +524,14 @@ export class SnapshotsService {
         throw new Error('INVALID_TIME');
       }
       resolved.schedule_minute = Math.floor(minute);
+    }
+    if (patch.kpiOptions !== undefined) {
+      resolved.kpi_options = Array.isArray(patch.kpiOptions)
+        ? patch.kpiOptions
+            .filter((item): item is string => typeof item === 'string')
+            .map((item) => item.trim())
+            .filter((item) => Boolean(item))
+        : [];
     }
 
     const next = await this.repository.updateSettings(resolved);

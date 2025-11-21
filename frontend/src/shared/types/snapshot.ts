@@ -166,6 +166,7 @@ export interface SnapshotSettingsPayload {
   timezone: string;
   scheduleHour: number;
   scheduleMinute: number;
+  kpiOptions: string[];
   nextRunAt: string | null;
   lastAutomaticSnapshot: ProgramSnapshotSummary | null;
   storage: SnapshotStorageStats;

@@ -11,6 +11,8 @@ import {
   InitiativeBusinessCaseFile,
   InitiativeFinancialKind,
   InitiativeStageKey,
+  InitiativeSupportingDocument,
+  InitiativeStageKPI,
   initiativeStageKeys,
   initiativeFinancialKinds
 } from '../../shared/types/initiative';
@@ -105,6 +107,61 @@ const sanitizeBusinessCaseFile = (file: InitiativeBusinessCaseFile): InitiativeB
     size,
     dataUrl,
     uploadedAt
+  };
+};
+
+const sanitizeSupportingDoc = (file: InitiativeSupportingDocument): InitiativeSupportingDocument | null => {
+  const fileName = typeof file.fileName === 'string' ? file.fileName.trim() : '';
+  const dataUrl = typeof file.dataUrl === 'string' ? file.dataUrl : '';
+  if (!fileName || !dataUrl) {
+    return null;
+  }
+  const mimeType = typeof file.mimeType === 'string' ? file.mimeType.trim() || null : null;
+  const size = Number.isFinite(file.size) ? Math.max(0, Number(file.size)) : 0;
+  const uploadedAt =
+    typeof file.uploadedAt === 'string' && file.uploadedAt.trim()
+      ? new Date(file.uploadedAt).toISOString()
+      : new Date().toISOString();
+  const comment = typeof file.comment === 'string' ? file.comment.trim() : '';
+  return {
+    id: typeof file.id === 'string' && file.id.trim() ? file.id.trim() : generateId(),
+    fileName,
+    mimeType,
+    size,
+    dataUrl,
+    uploadedAt,
+    comment
+  };
+};
+
+const sanitizeKpi = (kpi: InitiativeStageKPI): InitiativeStageKPI | null => {
+  const name = typeof kpi.name === 'string' ? kpi.name.trim() : '';
+  if (!name) {
+    return null;
+  }
+  const unit = typeof kpi.unit === 'string' ? kpi.unit.trim() : '';
+  const source = typeof kpi.source === 'string' ? kpi.source.trim() : '';
+  const baseline =
+    typeof kpi.baseline === 'number' && Number.isFinite(kpi.baseline) ? Number(kpi.baseline) : null;
+  const distribution: Record<string, number> = {};
+  if (kpi.distribution && typeof kpi.distribution === 'object') {
+    Object.entries(kpi.distribution).forEach(([key, value]) => {
+      const trimmed = key.trim();
+      const numeric = Number(value);
+      if (!trimmed || Number.isNaN(numeric)) {
+        return;
+      }
+      distribution[trimmed] = numeric;
+    });
+  }
+  return {
+    id: typeof kpi.id === 'string' && kpi.id.trim() ? kpi.id.trim() : generateId(),
+    name,
+    unit,
+    source,
+    isCustom: Boolean(kpi.isCustom),
+    baseline,
+    distribution
   };
 };
 
@@ -523,6 +580,16 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
           .map((file) => sanitizeBusinessCaseFile(file))
           .filter((file): file is InitiativeBusinessCaseFile => Boolean(file))
       : [];
+    const supportingDocs = Array.isArray(stage?.supportingDocs)
+      ? stage.supportingDocs
+          .map((file) => sanitizeSupportingDoc(file))
+          .filter((file): file is InitiativeSupportingDocument => Boolean(file))
+      : [];
+    const kpis = Array.isArray(stage?.kpis)
+      ? stage.kpis
+          .map((entry) => sanitizeKpi(entry as InitiativeStageKPI))
+          .filter((entry): entry is InitiativeStageKPI => Boolean(entry))
+      : [];
     acc[key] = {
       ...stage,
       name: stage.name.trim(),
@@ -535,6 +602,8 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
         return logicAcc;
       }, {} as Record<InitiativeFinancialKind, string>),
       businessCaseFiles,
+      supportingDocs,
+      kpis,
       financials: initiativeFinancialKinds.reduce((finAcc, kind) => {
         finAcc[kind] = stage.financials[kind].map((entry) => ({
           ...entry,

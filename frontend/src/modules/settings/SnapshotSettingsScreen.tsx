@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/SnapshotSettingsScreen.module.css';
 import { snapshotsApi } from '../snapshots/services/snapshotsApi';
 import {
@@ -53,6 +53,7 @@ interface SnapshotFormState {
   timezone: string;
   scheduleHour: number;
   scheduleMinute: number;
+  kpiOptions: string[];
 }
 
 const buildFormState = (settings: SnapshotSettingsPayload | null): SnapshotFormState => ({
@@ -60,7 +61,8 @@ const buildFormState = (settings: SnapshotSettingsPayload | null): SnapshotFormS
   retentionDays: settings?.retentionDays ?? Math.max(settings?.minimumRetentionDays ?? 30, 60),
   timezone: settings?.timezone ?? settings?.defaultTimezone ?? 'Australia/Sydney',
   scheduleHour: settings?.scheduleHour ?? 19,
-  scheduleMinute: settings?.scheduleMinute ?? 0
+  scheduleMinute: settings?.scheduleMinute ?? 0,
+  kpiOptions: settings?.kpiOptions ?? []
 });
 
 export const SnapshotSettingsScreen = () => {
@@ -74,6 +76,7 @@ export const SnapshotSettingsScreen = () => {
   const [latestSnapshotLoading, setLatestSnapshotLoading] = useState(false);
   const [latestSnapshotError, setLatestSnapshotError] = useState<string | null>(null);
   const [manualCaptureBusy, setManualCaptureBusy] = useState(false);
+  const [newKpiOption, setNewKpiOption] = useState('');
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -83,7 +86,7 @@ export const SnapshotSettingsScreen = () => {
       setForm(buildFormState(payload));
       setError(null);
     } catch (err) {
-      console.error('Failed to load snapshot settings:', err);
+      console.error('Failed to load Settings:', err);
       setError('Unable to load settings. Check the API connectivity and retry.');
     } finally {
       setLoading(false);
@@ -145,6 +148,25 @@ export const SnapshotSettingsScreen = () => {
     }));
   };
 
+  const handleAddKpiOption = () => {
+    const trimmed = newKpiOption.trim();
+    if (!trimmed) {
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      kpiOptions: Array.from(new Set([...prev.kpiOptions, trimmed]))
+    }));
+    setNewKpiOption('');
+  };
+
+  const handleRemoveKpiOption = (option: string) => {
+    setForm((prev) => ({
+      ...prev,
+      kpiOptions: prev.kpiOptions.filter((item) => item !== option)
+    }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setMessage(null);
@@ -154,14 +176,15 @@ export const SnapshotSettingsScreen = () => {
         retentionDays: form.retentionDays,
         timezone: form.timezone,
         scheduleHour: form.scheduleHour,
-        scheduleMinute: form.scheduleMinute
+        scheduleMinute: form.scheduleMinute,
+        kpiOptions: form.kpiOptions
       });
       setSettings(payload);
       setForm(buildFormState(payload));
       setMessage('Settings saved successfully.');
       setError(null);
     } catch (err) {
-      console.error('Failed to save snapshot settings:', err);
+      console.error('Failed to save Settings:', err);
       setError('Unable to save settings. Review input values and try again.');
     } finally {
       setSaving(false);
@@ -260,7 +283,7 @@ export const SnapshotSettingsScreen = () => {
     <section className={styles.wrapper}>
       <header className={styles.header}>
         <div>
-          <h1>Snapshot settings</h1>
+          <h1>Settings</h1>
           <p className={styles.subtitle}>
             Control how and when the platform captures program-wide snapshots. Use these snapshots to highlight trends,
             power comparative dashboards, and keep audit trails for governance reviews.
@@ -281,6 +304,48 @@ export const SnapshotSettingsScreen = () => {
 
       {error && <p className={styles.errorBanner}>{error}</p>}
       {message && <p className={styles.successBanner}>{message}</p>}
+
+      <section className={styles.card}>
+        <header className={styles.cardHeader}>
+          <div>
+            <p className={styles.cardEyebrow}>KPI catalog</p>
+            <h3>Shared KPI options</h3>
+            <p className={styles.subtitle}>These KPIs appear in the initiative KPI selector.</p>
+          </div>
+          <button type="button" className={styles.primaryButton} onClick={handleSave} disabled={loading || saving}>
+            {saving ? 'Saving...' : 'Save changes'}
+          </button>
+        </header>
+        <div className={styles.kpiGrid}>
+          {(form.kpiOptions ?? []).map((option) => (
+            <div key={option} className={styles.kpiRow}>
+              <input
+                value={option}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    kpiOptions: prev.kpiOptions.map((item) => (item === option ? next : item))
+                  }));
+                }}
+              />
+              <button className={styles.removeButton} type="button" onClick={() => handleRemoveKpiOption(option)}>
+                Remove
+              </button>
+            </div>
+          ))}
+          <div className={styles.kpiRow}>
+            <input
+              value={newKpiOption}
+              onChange={(event) => setNewKpiOption(event.target.value)}
+              placeholder="Add KPI option"
+            />
+            <button className={styles.secondaryButton} type="button" onClick={handleAddKpiOption}>
+              Add
+            </button>
+          </div>
+        </div>
+      </section>
 
       <div className={styles.layout}>
         <form className={styles.form} onSubmit={(event) => event.preventDefault()}>
@@ -419,7 +484,7 @@ export const SnapshotSettingsScreen = () => {
                 <p className={styles.statLabel}>Captured</p>
                 <p className={styles.statValue}>{dateTimeFormatter.format(new Date(latestSnapshot.capturedAt))}</p>
                 <p className={styles.statMeta}>
-                  {latestSnapshot.trigger === 'auto' ? 'Automatic run' : 'Manual request'} ·{' '}
+                  {latestSnapshot.trigger === 'auto' ? 'Automatic run' : 'Manual request'} В·{' '}
                   {formatBytes(latestSnapshot.payloadSizeBytes)}
                 </p>
               </article>
@@ -429,7 +494,7 @@ export const SnapshotSettingsScreen = () => {
                   {numberFormatter.format(snapshotMetrics?.initiatives ?? 0)} initiatives
                 </p>
                 <p className={styles.statMeta}>
-                  {numberFormatter.format(snapshotMetrics?.workstreams ?? 0)} workstreams •{' '}
+                  {numberFormatter.format(snapshotMetrics?.workstreams ?? 0)} workstreams вЂў{' '}
                   {numberFormatter.format(snapshotMetrics?.participants ?? 0)} participants
                 </p>
               </article>
@@ -437,7 +502,7 @@ export const SnapshotSettingsScreen = () => {
                 <p className={styles.statLabel}>Recurring impact</p>
                 <p className={styles.statValue}>{impactFormatter.format(snapshotTotals?.recurringImpact ?? 0)}</p>
                 <p className={styles.statMeta}>
-                  Recurring benefits {impactFormatter.format(snapshotTotals?.recurringBenefits ?? 0)} • Costs{' '}
+                  Recurring benefits {impactFormatter.format(snapshotTotals?.recurringBenefits ?? 0)} вЂў Costs{' '}
                   {impactFormatter.format(snapshotTotals?.recurringCosts ?? 0)}
                 </p>
               </article>
@@ -581,14 +646,14 @@ export const SnapshotSettingsScreen = () => {
                         <td>{initiative.workstreamName ?? 'Unassigned'}</td>
                         <td>{initiative.activeStage.toUpperCase()}</td>
                         <td>{initiative.currentStatus || 'Unknown'}</td>
-                        <td>{initiative.ownerName ?? '—'}</td>
+                        <td>{initiative.ownerName ?? 'вЂ”'}</td>
                         <td>{impactFormatter.format(initiative.totals.recurringImpact ?? 0)}</td>
                         <td>{impactFormatter.format(initiative.totals.recurringCosts ?? 0)}</td>
                         <td>{impactFormatter.format(initiative.totals.oneoffBenefits ?? 0)}</td>
                         <td>{impactFormatter.format(initiative.totals.oneoffCosts ?? 0)}</td>
                         <td>
                           {initiative.timeline.startDate && initiative.timeline.endDate
-                            ? `${new Date(initiative.timeline.startDate).toLocaleDateString()} – ${new Date(
+                            ? `${new Date(initiative.timeline.startDate).toLocaleDateString()} вЂ“ ${new Date(
                                 initiative.timeline.endDate
                               ).toLocaleDateString()} (${initiative.timeline.durationDays ?? '?'} d)`
                             : 'No plan'}
@@ -613,3 +678,5 @@ export const SnapshotSettingsScreen = () => {
     </section>
   );
 };
+
+

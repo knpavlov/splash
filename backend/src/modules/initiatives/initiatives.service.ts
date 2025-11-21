@@ -25,7 +25,9 @@ import {
   InitiativeCommentSelection,
   InitiativeCommentThreadRow,
   InitiativeCommentMessageRow,
-  InitiativeBusinessCaseFile
+  InitiativeBusinessCaseFile,
+  InitiativeSupportingDocument,
+  InitiativeStageKPI
 } from './initiatives.types.js';
 import { normalizePlanModel } from './initiativePlan.helpers.js';
 import {
@@ -164,6 +166,73 @@ const sanitizeBusinessCaseFile = (value: unknown): InitiativeBusinessCaseFile | 
   };
 };
 
+const sanitizeSupportingDoc = (value: unknown): InitiativeSupportingDocument | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    fileName?: unknown;
+    mimeType?: unknown;
+    size?: unknown;
+    dataUrl?: unknown;
+    uploadedAt?: unknown;
+    comment?: unknown;
+  };
+  const fileName = sanitizeString(payload.fileName);
+  const dataUrl = typeof payload.dataUrl === 'string' ? payload.dataUrl : '';
+  if (!fileName || !dataUrl) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
+  const mimeType = sanitizeOptionalString(payload.mimeType);
+  const size =
+    typeof payload.size === 'number' && Number.isFinite(payload.size) ? Math.max(0, Math.trunc(payload.size)) : 0;
+  const uploadedAt =
+    typeof payload.uploadedAt === 'string' && payload.uploadedAt.trim()
+      ? payload.uploadedAt
+      : new Date().toISOString();
+  const comment = sanitizeString(payload.comment);
+  return { id, fileName, mimeType, size, dataUrl, uploadedAt, comment };
+};
+
+const sanitizeKpi = (value: unknown): InitiativeStageKPI | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    name?: unknown;
+    unit?: unknown;
+    source?: unknown;
+    isCustom?: unknown;
+    baseline?: unknown;
+    distribution?: unknown;
+  };
+  const name = sanitizeString(payload.name);
+  if (!name) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
+  const unit = sanitizeString(payload.unit);
+  const source = sanitizeString(payload.source);
+  const isCustom = Boolean(payload.isCustom);
+  const baseline =
+    typeof payload.baseline === 'number' && Number.isFinite(payload.baseline) ? Number(payload.baseline) : null;
+  const distribution: Record<string, number> = {};
+  if (payload.distribution && typeof payload.distribution === 'object') {
+    for (const [key, raw] of Object.entries(payload.distribution as Record<string, unknown>)) {
+      const trimmedKey = key.trim();
+      const numeric = typeof raw === 'number' ? raw : Number(raw);
+      if (!trimmedKey || Number.isNaN(numeric)) {
+        continue;
+      }
+      distribution[trimmedKey] = numeric;
+    }
+  }
+  return { id, name, unit, source, isCustom, baseline, distribution };
+};
+
 const createEmptyStagePayload = (): InitiativeStagePayload => ({
   name: '',
   description: '',
@@ -180,6 +249,8 @@ const createEmptyStagePayload = (): InitiativeStagePayload => ({
     {} as InitiativeStagePayload['calculationLogic']
   ),
   businessCaseFiles: [],
+  supportingDocs: [],
+  kpis: [],
   financials: initiativeFinancialKinds.reduce(
     (acc, kind) => {
       acc[kind] = [];
@@ -204,6 +275,8 @@ const sanitizeStage = (value: unknown): InitiativeStagePayload => {
     additionalCommentary?: unknown;
     calculationLogic?: unknown;
     businessCaseFiles?: unknown;
+    supportingDocs?: unknown;
+    kpis?: unknown;
   };
   const result = createEmptyStagePayload();
   result.name = sanitizeString(payload.name);
@@ -234,6 +307,14 @@ const sanitizeStage = (value: unknown): InitiativeStagePayload => {
   result.businessCaseFiles = filesSource
     .map((entry) => sanitizeBusinessCaseFile(entry))
     .filter((entry): entry is InitiativeBusinessCaseFile => Boolean(entry));
+
+  const supportingSource = Array.isArray(payload.supportingDocs) ? payload.supportingDocs : [];
+  result.supportingDocs = supportingSource
+    .map((entry) => sanitizeSupportingDoc(entry))
+    .filter((entry): entry is InitiativeSupportingDocument => Boolean(entry));
+
+  const kpiSource = Array.isArray(payload.kpis) ? payload.kpis : [];
+  result.kpis = kpiSource.map((entry) => sanitizeKpi(entry)).filter((entry): entry is InitiativeStageKPI => Boolean(entry));
 
   if (payload.financials && typeof payload.financials === 'object') {
     const source = payload.financials as Record<string, unknown>;
@@ -378,6 +459,8 @@ const cloneStagePayload = (stage: InitiativeStagePayload): InitiativeStagePayloa
     {} as InitiativeStagePayload['calculationLogic']
   ),
   businessCaseFiles: [...(stage.businessCaseFiles ?? [])],
+  supportingDocs: [...(stage.supportingDocs ?? [])],
+  kpis: [...(stage.kpis ?? [])],
   financials: initiativeFinancialKinds.reduce(
     (acc, kind) => {
       acc[kind] = stage.financials[kind].map((entry) => ({
@@ -1143,6 +1226,21 @@ export class InitiativesService {
         field: 'execution-plan',
         previousValue: { digest: hashPayload(previousPlan) },
         nextValue: { digest: hashPayload(nextPlan) }
+      });
+    }
+
+    const extractStageKpis = (record: InitiativeRecord) =>
+      initiativeStageKeys.reduce((acc, key) => {
+        acc[key] = record.stages[key]?.kpis ?? [];
+        return acc;
+      }, {} as Record<InitiativeStageKey, unknown>);
+    const previousKpis = JSON.stringify(extractStageKpis(previous));
+    const nextKpis = JSON.stringify(extractStageKpis(next));
+    if (previousKpis !== nextKpis) {
+      trackedFields.push({
+        field: 'kpi',
+        previousValue: { digest: hashPayload(previousKpis) },
+        nextValue: { digest: hashPayload(nextKpis) }
       });
     }
 

@@ -23,7 +23,16 @@ const buildQueryString = (params?: Record<string, string | number | undefined | 
 
 export const snapshotsApi = {
   getSettings: () => apiRequest<SnapshotSettingsPayload>('/snapshots/settings'),
-  updateSettings: (payload: Partial<{ enabled: boolean; retentionDays: number; timezone: string; scheduleHour: number; scheduleMinute: number }>) =>
+  updateSettings: (
+    payload: Partial<{
+      enabled: boolean;
+      retentionDays: number;
+      timezone: string;
+      scheduleHour: number;
+      scheduleMinute: number;
+      kpiOptions: string[];
+    }>
+  ) =>
     apiRequest<SnapshotSettingsPayload>('/snapshots/settings', {
       method: 'PUT',
       body: payload
