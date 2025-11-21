@@ -346,13 +346,13 @@ export const FinancialTreeScreen = () => {
       return null;
     }
     const positions = new Map<string, { depth: number; x: number; y: number }>();
-    const cardWidth = 190;
+    const cardWidth = 200;
     const columnWidth = cardWidth;
-    const columnGap = 70;
-    const cardHeight = 150;
-    const verticalGap = 120;
-    const horizontalPadding = 30;
-    const verticalPadding = 30;
+    const columnGap = 56;
+    const cardHeight = 132;
+    const verticalGap = 140;
+    const horizontalPadding = 18;
+    const verticalPadding = 18;
     let leafIndex = 0;
 
     const compute = (node: TreeNode, depth: number): number => {
@@ -377,7 +377,19 @@ export const FinancialTreeScreen = () => {
     };
 
     compute(rootNode, 0);
-    const totalHeight = Math.max(leafIndex - 1, 0) * verticalGap + cardHeight + verticalPadding * 2;
+    const rootPosition = positions.get(rootNode.line.id);
+    const targetRootY = 20;
+    const offsetToTarget = rootPosition ? targetRootY - rootPosition.y : 0;
+    const minYBeforeOffset = Math.min(...Array.from(positions.values()).map((pos) => pos.y));
+    const minYAfterTarget = minYBeforeOffset + offsetToTarget;
+    const safetyOffset = minYAfterTarget < verticalPadding ? verticalPadding - minYAfterTarget : 0;
+    const yOffset = offsetToTarget + safetyOffset;
+    positions.forEach((value, key) => {
+      positions.set(key, { ...value, y: value.y + yOffset });
+    });
+    const yValues = Array.from(positions.values());
+    const maxY = Math.max(...yValues.map((pos) => pos.y + cardHeight));
+    const totalHeight = maxY + verticalPadding;
     const depthValues = Array.from(positions.values()).map((pos) => pos.depth);
     const maxDepth = depthValues.length ? Math.max(...depthValues) : 0;
     const width = horizontalPadding * 2 + (maxDepth + 1) * (columnWidth + columnGap);
@@ -497,17 +509,17 @@ export const FinancialTreeScreen = () => {
               return null;
             }
             const scale = maxAbsValue || 1;
-            const barHeight = (value: number) => {
+            const barWidth = (value: number) => {
               if (!scale || value === 0) {
                 return '0%';
               }
               const ratio = Math.abs(value) / scale;
-              const percentage = Math.max(8, Math.min(100, ratio * 100));
+              const percentage = Math.max(10, Math.min(100, ratio * 100));
               return `${percentage}%`;
             };
             const delta =
               node.baseValue === 0 ? null : Math.min(999, Math.max(-999, node.totalValue / node.baseValue - 1));
-            const formattedDelta = delta === null ? '—' : `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(0)}%`;
+            const formattedDelta = delta === null ? 'N/A' : `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(0)}%`;
             return (
               <div
                 key={id}
@@ -522,34 +534,32 @@ export const FinancialTreeScreen = () => {
                   <h4>{node.line.name}</h4>
                 </header>
                 <div className={styles.barChart}>
-                  <div className={styles.barColumn}>
-                    <div className={styles.barValueRow}>
-                      <div className={styles.barValue}>{formatCurrency(node.baseValue)}</div>
-                    </div>
+                  <div className={styles.barRow}>
+                    <span className={styles.barLabel}>Base</span>
                     <div className={styles.barTrack}>
                       <div
                         className={`${styles.barFill} ${styles.barFillBase} ${
                           node.baseValue < 0 ? styles.barNegative : ''
                         }`}
-                        style={{ height: barHeight(node.baseValue) }}
+                        style={{ width: barWidth(node.baseValue) }}
                       />
                     </div>
-                    <span className={styles.barLabel}>Base</span>
+                    <div className={styles.barValue}>{formatCurrency(node.baseValue)}</div>
                   </div>
-                  <div className={`${styles.barColumn} ${styles.barColumnEmphasis}`}>
-                    <div className={styles.barValueRow}>
-                      <div className={styles.barValue}>{formatCurrency(node.totalValue)}</div>
-                      <div className={styles.deltaBadge}>{formattedDelta}</div>
-                    </div>
+                  <div className={`${styles.barRow} ${styles.barRowEmphasis}`}>
+                    <span className={styles.barLabel}>With initiatives</span>
                     <div className={styles.barTrack}>
                       <div
                         className={`${styles.barFill} ${styles.barFillTotal} ${
                           node.totalValue < 0 ? styles.barNegative : ''
                         }`}
-                        style={{ height: barHeight(node.totalValue) }}
+                        style={{ width: barWidth(node.totalValue) }}
                       />
                     </div>
-                    <span className={styles.barLabel}>With initiatives</span>
+                    <div className={styles.barValueRow}>
+                      <div className={styles.barValue}>{formatCurrency(node.totalValue)}</div>
+                      <div className={styles.deltaBadge}>{formattedDelta}</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -560,3 +570,4 @@ export const FinancialTreeScreen = () => {
     </section>
   );
 };
+

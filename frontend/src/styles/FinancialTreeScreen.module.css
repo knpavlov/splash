@@ -2,23 +2,25 @@
 .screen {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 24px 32px;
+  gap: 12px;
+  padding: 18px 22px;
 }
 
 .header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 24px;
+  letter-spacing: -0.01em;
 }
 
 .header p {
-  margin: 4px 0 0;
+  margin: 4px 0 2px;
   color: #475569;
+  font-size: 14px;
 }
 
 .filters {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   align-items: flex-end;
   flex-wrap: wrap;
 }
@@ -29,12 +31,12 @@
   flex-direction: column;
   font-size: 12px;
   color: #475569;
-  gap: 6px;
+  gap: 4px;
 }
 
 .filters select {
   padding: 6px 10px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #cbd5f5;
   font-size: 14px;
 }
@@ -45,7 +47,7 @@
 
 .dropdownTrigger {
   padding: 8px 12px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #cbd5f5;
   background: white;
   cursor: pointer;
@@ -56,9 +58,9 @@
   top: 40px;
   left: 0;
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
-  padding: 12px;
+  border-radius: 10px;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+  padding: 10px;
   width: 220px;
   display: flex;
   flex-direction: column;
@@ -69,14 +71,14 @@
 .warningText {
   color: #b45309;
   background: rgba(251, 191, 36, 0.2);
-  padding: 16px 20px;
-  border-radius: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
 }
 
 .warningText button {
   margin-top: 12px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 8px 14px;
   background: linear-gradient(135deg, #2563eb, #3b82f6);
   color: white;
@@ -86,19 +88,19 @@
 
 .errorBanner {
   padding: 12px 16px;
-  border-radius: 12px;
+  border-radius: 10px;
   background: rgba(248, 113, 113, 0.2);
   color: #b91c1c;
 }
 
 .treeWrapper {
   overflow-x: auto;
-  padding: 0 0 20px;
+  padding: 0 0 12px;
 }
 
 .treeCanvas {
   position: relative;
-  margin-top: 12px;
+  margin-top: 6px;
 }
 
 .treeSvg {
@@ -108,80 +110,87 @@
 
 .connectorPath {
   fill: none;
-  stroke: rgba(148, 163, 184, 0.6);
-  stroke-width: 2px;
+  stroke: rgba(148, 163, 184, 0.5);
+  stroke-width: 1.5px;
 }
 
 .nodeCard {
   position: absolute;
-  width: 210px;
   background: white;
-  border-radius: 14px;
-  padding: 12px 14px 16px;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px 12px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .nodeCard header {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .nodeCard h4 {
-  margin: 4px 0 0;
-  font-size: 15px;
+  margin: 2px 0 0;
+  font-size: 14px;
   color: #0f172a;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .barChart {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 4px;
-}
-
-.barColumn {
-  flex: 1;
-  display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 2px;
 }
 
-.barColumnEmphasis {
-  position: relative;
+.barRow {
+  display: grid;
+  grid-template-columns: 78px 1fr auto;
+  column-gap: 8px;
+  align-items: center;
+}
+
+.barRowEmphasis {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
 .barValue {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #0f172a;
+  text-align: right;
 }
 
 .barValueRow {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
 .barTrack {
-  width: 46px;
-  height: 95px;
-  border-radius: 12px;
+  width: 100%;
+  height: 14px;
+  border-radius: 8px;
   background: #f8fafc;
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 6px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 3px 4px;
+  overflow: hidden;
 }
 
 .barFill {
-  width: 100%;
-  border-radius: 6px 6px 0 0;
-  transition: height 0.2s ease;
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.2s ease;
 }
 
 .barFillBase {
@@ -198,13 +207,12 @@
 
 .barLabel {
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #64748b;
-  min-height: 28px;
-  display: flex;
+  color: #475569;
+  display: inline-flex;
   align-items: center;
-  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .deltaBadge {
