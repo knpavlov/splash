@@ -662,8 +662,14 @@ const PlanVsActualChart = ({
     ...actualData.map((stat) => stat.negativeTotal)
   );
   const totalSpan = maxPositive + maxNegative || 1;
-  const positiveShare = maxPositive ? maxPositive / totalSpan : 0.5;
-  const negativeShare = maxNegative ? maxNegative / totalSpan : 0.5;
+  const positiveShare = maxPositive ? maxPositive / totalSpan : 0;
+  const negativeShare = maxNegative ? maxNegative / totalSpan : 0;
+  const noData = !positiveShare && !negativeShare;
+  const positiveBase = noData ? 0.5 : positiveShare;
+  const negativeBase = noData ? 0.5 : negativeShare;
+  const baseTotal = positiveBase + negativeBase || 1;
+  const positivePortion = positiveBase / baseTotal;
+  const negativePortion = negativeBase / baseTotal;
   const positiveScale = maxPositive || 1;
   const negativeScale = maxNegative || 1;
   const chartRef = useRef<HTMLDivElement | null>(null);
@@ -707,8 +713,8 @@ const PlanVsActualChart = ({
               : (negativeScale ? Math.min(1, Math.abs(net) / negativeScale) : 0);
           const y =
             net >= 0
-              ? (1 - ratio) * positiveShare * 100
-              : positiveShare * 100 + ratio * negativeShare * 100;
+              ? (1 - ratio) * positivePortion * 100
+              : positivePortion * 100 + ratio * negativePortion * 100;
           return { x: index + 0.5, y };
         })
       : [];
@@ -738,7 +744,7 @@ const PlanVsActualChart = ({
         const negativeRatioActual = negativeScale ? Math.min(1, actual.negativeTotal / negativeScale) : 0;
         const planNet = plan.positiveTotal - plan.negativeTotal;
         const lineMarker =
-          showPlanAsLine && positiveShare > 0
+          showPlanAsLine && positivePortion > 0
             ? planNet >= 0
               ? { area: 'positive' as const, offset: (1 - Math.min(1, planNet / positiveScale)) * 100 }
               : { area: 'negative' as const, offset: Math.min(1, Math.abs(planNet) / negativeScale) * 100 }
@@ -751,7 +757,7 @@ const PlanVsActualChart = ({
           <div key={month.key} className={styles.chartCell} {...chartAnchor}>
             <div className={styles.chartBarGroup}>
               <div className={styles.dualStackWrapper}>
-                <div className={styles.dualPositive} style={{ height: `${positiveShare * 100}%` }}>
+                <div className={styles.dualPositive} style={{ height: `${positivePortion * 100}%` }}>
                   <div className={styles.dualBarRow}>
                     {!showPlanAsLine && (
                       <div className={`${styles.dualBar} ${styles.planBar}`} style={{ height: `${positiveRatioPlan * 100}%` }}>
@@ -800,7 +806,7 @@ const PlanVsActualChart = ({
                     <div className={styles.planLineDot} style={{ bottom: `${lineMarker.offset}%` }} />
                   )}
                 </div>
-                <div className={styles.dualNegative} style={{ height: `${negativeShare * 100}%` }}>
+                <div className={styles.dualNegative} style={{ height: `${negativePortion * 100}%` }}>
                   <div className={`${styles.dualBarRow} ${styles.dualBarRowNegative}`}>
                     {!showPlanAsLine && (
                       <div
@@ -853,7 +859,7 @@ const PlanVsActualChart = ({
                   )}
                 </div>
               </div>
-              <div className={styles.chartZeroLine} style={{ top: `${positiveShare * 100}%` }} />
+              <div className={styles.chartZeroLine} style={{ top: `${positivePortion * 100}%` }} />
             </div>
           </div>
         );
