@@ -748,12 +748,7 @@ const PlanVsActualChart = ({
           `${month.label} ${month.year} plan vs actual`
         );
         return (
-          <div
-            key={month.key}
-            className={styles.chartCell}
-            style={{ gridColumn: index + 2, gridRow: 1 }}
-            {...chartAnchor}
-          >
+          <div key={month.key} className={styles.chartCell} {...chartAnchor}>
             <div className={styles.chartBarGroup}>
               <div className={styles.dualStackWrapper}>
                 <div className={styles.dualPositive} style={{ height: `${positiveShare * 100}%` }}>
@@ -781,7 +776,7 @@ const PlanVsActualChart = ({
                       className={`${styles.dualBar} ${styles.actualBar}`}
                       style={{
                         height: `${positiveRatioActual * 100}%`,
-                        width: showPlanAsLine ? '64%' : undefined
+                        width: showPlanAsLine ? '46%' : undefined
                       }}
                     >
                       <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
@@ -833,7 +828,7 @@ const PlanVsActualChart = ({
                       className={`${styles.dualBar} ${styles.actualBar}`}
                       style={{
                         height: `${negativeRatioActual * 100}%`,
-                        width: showPlanAsLine ? '64%' : undefined
+                        width: showPlanAsLine ? '46%' : undefined
                       }}
                     >
                       <div className={`${styles.stackFill} ${styles.stackFillNegative}`}>
