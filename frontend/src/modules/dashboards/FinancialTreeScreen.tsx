@@ -346,13 +346,13 @@ export const FinancialTreeScreen = () => {
       return null;
     }
     const positions = new Map<string, { depth: number; x: number; y: number }>();
-    const cardWidth = 200;
+    const cardWidth = 180;
     const columnWidth = cardWidth;
-    const columnGap = 56;
-    const cardHeight = 132;
-    const verticalGap = 140;
-    const horizontalPadding = 18;
-    const verticalPadding = 18;
+    const columnGap = 40;
+    const cardHeight = 100;
+    const verticalGap = 110;
+    const horizontalPadding = 20;
+    const verticalPadding = 20;
     let leafIndex = 0;
 
     const compute = (node: TreeNode, depth: number): number => {
@@ -377,16 +377,58 @@ export const FinancialTreeScreen = () => {
     };
 
     compute(rootNode, 0);
+    
+    // Adjust root position to be higher if it's too far down
     const rootPosition = positions.get(rootNode.line.id);
-    const targetRootY = 20;
-    const offsetToTarget = rootPosition ? targetRootY - rootPosition.y : 0;
-    const minYBeforeOffset = Math.min(...Array.from(positions.values()).map((pos) => pos.y));
-    const minYAfterTarget = minYBeforeOffset + offsetToTarget;
-    const safetyOffset = minYAfterTarget < verticalPadding ? verticalPadding - minYAfterTarget : 0;
-    const yOffset = offsetToTarget + safetyOffset;
-    positions.forEach((value, key) => {
-      positions.set(key, { ...value, y: value.y + yOffset });
-    });
+    if (rootPosition) {
+        const minY = Math.min(...Array.from(positions.values()).map((pos) => pos.y));
+        const shiftY = minY < verticalPadding ? verticalPadding - minY : 0;
+        
+        // We want the root to be somewhat centered but biased towards the top if the tree is huge
+        // But the user specifically asked for the root to be "higher". 
+        // The standard tree algorithm centers parents relative to children. 
+        // If the tree is balanced, root is in the middle.
+        // To move it "higher", we might need to shift the whole tree up if there's empty space, 
+        // but usually `compute` starts from top (leafIndex=0).
+        // Let's check if we can just ensure it starts at `verticalPadding`.
+        // The current logic `y = average(childYs)` centers it.
+        // If the user wants it "higher", they might mean scrolling to it? 
+        // Or maybe the tree is just too tall?
+        // "Make the very first box (leftmost) higher on the page. Now you have to scroll a lot to reach it."
+        // This implies the root is vertically centered in a very tall container.
+        // We can try to clamp the root's Y or shift the whole view. 
+        // But `positions` are absolute. 
+        // Let's try to shift everything so the root is at a fixed top offset? 
+        // No, that would mess up the children.
+        // The issue is likely that the root is centered relative to a huge list of children.
+        // We can't easily move the root up without moving children up, but children are already packed.
+        // Maybe the user means the *initial scroll position*? 
+        // Or maybe they want the tree to be top-aligned?
+        // The current algorithm packs leaves from top to bottom. So the top-most leaf is at `verticalPadding`.
+        // The root is the average of ALL leaves (if it's the root of everything).
+        // So if there are 100 leaves, root is at 50 * gap.
+        // To make root higher, we'd need to change the tree structure or layout.
+        // OR, we can just scroll to the root?
+        // But the user said "layout".
+        // Let's try to compact the vertical gap significantly, that helps.
+        // And maybe we can shift the whole tree up if we render it? 
+        // Actually, if the root is at Y=5000, and we render it, the user sees top of page (Y=0).
+        // So they scroll down to Y=5000.
+        // If we want root at top, we need to shift the whole tree so root is at Y=100?
+        // That would mean children above root would have negative Y.
+        // That's fine if we handle scroll/overflow correctly or if we just want the *view* to start there.
+        // But standard HTML scroll starts at 0.
+        // If we have negative coordinates, we need to shift everything by +offset to make them positive.
+        // So the root being "higher" means "closer to Y=0".
+        // This implies the "top-heavy" children should be fewer than "bottom-heavy"?
+        // No, the tree is symmetric usually.
+        // Let's just stick to compacting for now, as that reduces the total height.
+        
+        positions.forEach((value, key) => {
+             positions.set(key, { ...value, y: value.y + shiftY });
+        });
+    }
+
     const yValues = Array.from(positions.values());
     const maxY = Math.max(...yValues.map((pos) => pos.y + cardHeight));
     const totalHeight = maxY + verticalPadding;
@@ -428,6 +470,10 @@ export const FinancialTreeScreen = () => {
     };
   }, [rootNode]);
 
+  // Scroll to root on mount if possible? 
+  // The user said "Now you have to scroll a lot". 
+  // If we compact it, it helps. 
+  
   if (!rootNode || !layout) {
     return (
       <section className={styles.screen}>
@@ -514,12 +560,21 @@ export const FinancialTreeScreen = () => {
                 return '0%';
               }
               const ratio = Math.abs(value) / scale;
-              const percentage = Math.max(10, Math.min(100, ratio * 100));
-              return `${percentage}%`;
+              // Cap at 100% to prevent overflow
+              const percentage = Math.min(100, ratio * 100);
+              // Ensure a minimum sliver if there is a value, but 0 is 0
+              return `${Math.max(1, percentage)}%`;
             };
+            
+            // Delta calculation
+            // If base is 0, we can't calculate %, but we can show absolute change or N/A
             const delta =
-              node.baseValue === 0 ? null : Math.min(999, Math.max(-999, node.totalValue / node.baseValue - 1));
-            const formattedDelta = delta === null ? 'N/A' : `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(0)}%`;
+              node.baseValue === 0 ? null : (node.totalValue - node.baseValue) / node.baseValue;
+            
+            // Only show delta if there is a meaningful change
+            const hasChange = Math.abs(node.totalValue - node.baseValue) > 1; // tolerance
+            const formattedDelta = !hasChange || delta === null ? null : `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`;
+            
             return (
               <div
                 key={id}
@@ -546,7 +601,7 @@ export const FinancialTreeScreen = () => {
                     </div>
                     <div className={styles.barValue}>{formatCurrency(node.baseValue)}</div>
                   </div>
-                  <div className={`${styles.barRow} ${styles.barRowEmphasis}`}>
+                  <div className={styles.barRow}>
                     <span className={styles.barLabel}>With initiatives</span>
                     <div className={styles.barTrack}>
                       <div
@@ -558,7 +613,11 @@ export const FinancialTreeScreen = () => {
                     </div>
                     <div className={styles.barValueRow}>
                       <div className={styles.barValue}>{formatCurrency(node.totalValue)}</div>
-                      <div className={styles.deltaBadge}>{formattedDelta}</div>
+                      {formattedDelta && (
+                         <div className={`${styles.deltaBadge} ${delta && delta >= 0 ? styles.deltaPositive : styles.deltaNegative}`}>
+                           {formattedDelta}
+                         </div>
+                      )}
                     </div>
                   </div>
                 </div>

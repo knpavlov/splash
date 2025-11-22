@@ -117,21 +117,22 @@
 .nodeCard {
   position: absolute;
   background: white;
-  border-radius: 10px;
-  padding: 10px 12px 12px;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  border: 1px solid #e2e8f0;
 }
 
 .nodeCard header {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .nodeCard h4 {
-  margin: 2px 0 0;
-  font-size: 14px;
+  margin: 0;
+  font-size: 13px;
   color: #0f172a;
   font-weight: 600;
   white-space: nowrap;
@@ -142,72 +143,70 @@
 .barChart {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   margin-top: 2px;
 }
 
 .barRow {
   display: grid;
-  grid-template-columns: 78px 1fr auto;
-  column-gap: 8px;
+  grid-template-columns: 65px 1fr auto;
+  column-gap: 6px;
   align-items: center;
 }
 
 .barRowEmphasis {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 6px 8px;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  /* Removed background */
+  padding: 0;
+  border: none;
 }
 
 .barValue {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: #0f172a;
   text-align: right;
+  min-width: 30px;
 }
 
 .barValueRow {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   justify-content: flex-end;
 }
 
 .barTrack {
   width: 100%;
-  height: 14px;
-  border-radius: 8px;
-  background: #f8fafc;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+  height: 8px;
+  border-radius: 4px;
+  background: #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 3px 4px;
   overflow: hidden;
 }
 
 .barFill {
   height: 100%;
-  border-radius: 6px;
+  border-radius: 4px;
   transition: width 0.2s ease;
 }
 
 .barFillBase {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  background: #94a3b8;
 }
 
 .barFillTotal {
-  background: linear-gradient(180deg, #0ea5e9 0%, #0f9ed2 100%);
+  background: #3b82f6;
 }
 
 .barNegative {
-  background: linear-gradient(180deg, #f97316 0%, #ea580c 100%) !important;
+  background: #ef4444 !important;
 }
 
 .barLabel {
-  font-size: 11px;
-  color: #475569;
+  font-size: 10px;
+  color: #64748b;
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
@@ -216,10 +215,15 @@
 }
 
 .deltaBadge {
-  border: 1px solid rgba(15, 23, 42, 0.2);
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #0f172a;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 2px;
+}
+
+.deltaPositive {
+  color: #16a34a;
+}
+
+.deltaNegative {
+  color: #dc2626;
 }
