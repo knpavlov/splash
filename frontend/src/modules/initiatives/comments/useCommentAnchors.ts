@@ -28,7 +28,7 @@ export const useCommentAnchors = (
       return;
     }
     const rect = element.getBoundingClientRect();
-    setContainerSize({ width: rect.width, height: rect.height });
+    setContainerSize({ width: rect.width, height: element.scrollHeight || rect.height });
   }, [containerRef]);
 
   useLayoutEffect(() => {
@@ -55,6 +55,10 @@ export const useCommentAnchors = (
       return new Map<string, CommentAnchorBox>();
     }
     const containerRect = container.getBoundingClientRect();
+    const scrollTop = container.scrollTop;
+    const scrollLeft = container.scrollLeft;
+    const fullHeight = container.scrollHeight || containerRect.height;
+    const fullWidth = container.scrollWidth || containerRect.width;
     const map = new Map<string, CommentAnchorBox>();
     for (const thread of threads) {
       let rect: DOMRect | null = null;
@@ -78,15 +82,15 @@ export const useCommentAnchors = (
         }
       }
       if ((!rect || rect.width < 2 || rect.height < 2) && thread.selection) {
-        const baseWidth = thread.selection.pageWidth || containerSize.width;
-        const baseHeight = thread.selection.pageHeight || containerSize.height;
-        const scaleX = containerSize.width / baseWidth;
-        const scaleY = containerSize.height / baseHeight;
+        const baseWidth = thread.selection.pageWidth || fullWidth;
+        const baseHeight = thread.selection.pageHeight || fullHeight;
+        const scaleX = fullWidth / baseWidth;
+        const scaleY = fullHeight / baseHeight;
         const width = Math.max(thread.selection.width * scaleX, 24);
         const height = Math.max(thread.selection.height * scaleY, 24);
         rect = new DOMRect(
-          containerRect.left + thread.selection.left * scaleX,
-          containerRect.top + thread.selection.top * scaleY,
+          containerRect.left + thread.selection.left * scaleX - scrollLeft,
+          containerRect.top + thread.selection.top * scaleY - scrollTop,
           width,
           height
         );
@@ -94,16 +98,14 @@ export const useCommentAnchors = (
       if (!rect) {
         continue;
       }
-      const top = rect.top - containerRect.top;
-      const left = rect.left - containerRect.left;
+      const top = rect.top - containerRect.top + scrollTop;
+      const left = rect.left - containerRect.left + scrollLeft;
       map.set(thread.id, {
         top,
         left,
         width: rect.width,
         height: rect.height,
-        topRatio: containerSize.height
-          ? Math.min(1, Math.max(0, (top + rect.height / 2) / containerSize.height))
-          : 0
+        topRatio: fullHeight ? Math.min(1, Math.max(0, top / fullHeight)) : 0
       });
     }
     return map;

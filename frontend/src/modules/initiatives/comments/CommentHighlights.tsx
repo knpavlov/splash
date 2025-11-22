@@ -28,7 +28,7 @@ export const CommentHighlights = ({
     }
     const updateSize = () => {
       const rect = element.getBoundingClientRect();
-      setContainerSize({ width: rect.width, height: rect.height });
+      setContainerSize({ width: rect.width, height: element.scrollHeight || rect.height });
     };
     updateSize();
     if (typeof ResizeObserver !== 'undefined') {

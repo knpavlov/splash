@@ -53,7 +53,7 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
       if (!node) {
         return;
       }
-      const updateHeight = () => setListHeight(node.clientHeight);
+      const updateHeight = () => setListHeight(Math.max(node.scrollHeight, node.clientHeight));
       updateHeight();
       if (typeof ResizeObserver !== 'undefined') {
         const observer = new ResizeObserver(updateHeight);

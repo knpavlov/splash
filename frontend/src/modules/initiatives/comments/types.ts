@@ -6,6 +6,7 @@ export interface CommentSelectionTarget {
   targetPath: string | null;
   selection: InitiativeCommentSelection;
   cursor?: { x: number; y: number };
+  mode?: 'element' | 'region';
 }
 
 export interface CommentSelectionDraft extends CommentSelectionTarget {

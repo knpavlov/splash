@@ -41,10 +41,12 @@ export const CommentInputPopover = ({
     const hostRect = containerRef.current.getBoundingClientRect();
     const width = 320;
     const margin = 10;
-    const x = anchorPoint?.x ?? hostRect.width / 2;
-    const y = anchorPoint?.y ?? hostRect.height / 2;
-    const top = Math.min(Math.max(y + margin, margin), Math.max(hostRect.height - 20, margin));
-    const left = Math.min(Math.max(x - width / 2, margin), Math.max(hostRect.width - width - margin, margin));
+    const scrollTop = containerRef.current.scrollTop;
+    const scrollLeft = containerRef.current.scrollLeft;
+    const x = (anchorPoint?.x ?? hostRect.width / 2) + scrollLeft;
+    const y = (anchorPoint?.y ?? hostRect.height / 2) + scrollTop;
+    const top = Math.max(y + margin, margin);
+    const left = Math.max(Math.min(x - width / 2, hostRect.width - width - margin + scrollLeft), margin + scrollLeft);
     setPosition({ top, left });
   }, [anchorPoint, containerRef, draft]);
 

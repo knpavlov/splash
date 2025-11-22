@@ -1254,6 +1254,11 @@ export const InitiativeProfile = ({
         containerRef={contentRef}
         sidebarRef={sidebarRef}
         onSelect={handleSelectionTarget}
+        onExit={() => {
+          setIsCommentMode(false);
+          clearPendingSelection();
+          setActiveThreadId(null);
+        }}
       />
     </div>
     {isCommentMode && commentsAvailable && (

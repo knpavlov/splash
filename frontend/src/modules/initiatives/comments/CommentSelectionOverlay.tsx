@@ -7,6 +7,7 @@ interface CommentSelectionOverlayProps {
   containerRef: React.RefObject<HTMLElement>;
   sidebarRef?: React.RefObject<HTMLElement>;
   onSelect: (target: CommentSelectionTarget) => void;
+  onExit?: () => void;
 }
 
 const deriveLabel = (element: HTMLElement): string | null => {
@@ -50,13 +51,15 @@ export const CommentSelectionOverlay = ({
   isActive,
   containerRef,
   sidebarRef,
-  onSelect
+  onSelect,
+  onExit
 }: CommentSelectionOverlayProps) => {
   const dragRef = useRef<{
     startX: number;
     startY: number;
     target: HTMLElement | null;
     hasMoved: boolean;
+    forceRegion: boolean;
   } | null>(null);
   const [selectionBox, setSelectionBox] = useState<{ top: number; left: number; width: number; height: number } | null>(
     null
@@ -91,14 +94,20 @@ export const CommentSelectionOverlay = ({
       );
     };
 
-    const normalizeBox = (rect: DOMRect, host: DOMRect) => ({
-      top: rect.top - host.top,
-      left: rect.left - host.left,
-      width: rect.width,
-      height: rect.height,
-      pageWidth: host.width,
-      pageHeight: host.height
-    });
+    const normalizeBox = (rect: DOMRect, host: DOMRect) => {
+      const scrollTop = container.scrollTop;
+      const scrollLeft = container.scrollLeft;
+      const pageWidth = container.scrollWidth || host.width;
+      const pageHeight = container.scrollHeight || host.height;
+      return {
+        top: rect.top - host.top + scrollTop,
+        left: rect.left - host.left + scrollLeft,
+        width: rect.width,
+        height: rect.height,
+        pageWidth,
+        pageHeight
+      };
+    };
 
     const handleTextSelection = (hostRect: DOMRect): CommentSelectionTarget | null => {
       const selection = window.getSelection?.();
@@ -135,6 +144,7 @@ export const CommentSelectionOverlay = ({
         targetLabel,
         targetPath,
         selection: box,
+        mode: 'element',
         cursor: {
           x: Math.min(Math.max(box.left + box.width / 2, 0), hostRect.width),
           y: Math.min(box.top + box.height, hostRect.height)
@@ -165,6 +175,7 @@ export const CommentSelectionOverlay = ({
         targetLabel,
         targetPath,
         selection: box,
+        mode: anchor ? 'element' : 'region',
         cursor: {
           x: Math.min(Math.max(box.left + box.width / 2, 0), hostRect.width),
           y: Math.min(box.top + box.height, hostRect.height)
@@ -187,7 +198,8 @@ export const CommentSelectionOverlay = ({
         startX: event.clientX,
         startY: event.clientY,
         target,
-        hasMoved: false
+        hasMoved: false,
+        forceRegion: event.altKey
       };
       setSelectionBox(null);
     };
@@ -206,8 +218,10 @@ export const CommentSelectionOverlay = ({
         return;
       }
       const hostRect = container.getBoundingClientRect();
-      const left = Math.min(state.startX, event.clientX) - hostRect.left;
-      const top = Math.min(state.startY, event.clientY) - hostRect.top;
+      const scrollLeft = container.scrollLeft;
+      const scrollTop = container.scrollTop;
+      const left = Math.min(state.startX, event.clientX) - hostRect.left + scrollLeft;
+      const top = Math.min(state.startY, event.clientY) - hostRect.top + scrollTop;
       const width = Math.max(Math.abs(deltaX), 8);
       const height = Math.max(Math.abs(deltaY), 8);
       setSelectionBox({
@@ -242,17 +256,22 @@ export const CommentSelectionOverlay = ({
         const width = Math.max(Math.abs(event.clientX - state.startX), 12);
         const height = Math.max(Math.abs(event.clientY - state.startY), 12);
         const box = normalizeBox(new DOMRect(left, top, width, height), hostRect);
-        const anchor = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-comment-anchor]') ?? state.target;
+        const anchor = state.forceRegion
+          ? null
+          : (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-comment-anchor]') ?? state.target;
         const fallbackLabel = deriveLabel(anchor ?? container);
         const targetId =
           (anchor?.dataset.commentAnchor && anchor.dataset.commentAnchor.trim()) ||
-          buildDomPath(anchor ?? container);
-        const targetLabel = (anchor?.dataset.commentLabel && anchor.dataset.commentLabel.trim()) || fallbackLabel;
+          buildDomPath(anchor ?? container) ||
+          `region-${Date.now()}`;
+        const targetLabel =
+          (anchor?.dataset.commentLabel && anchor.dataset.commentLabel.trim()) || (state.forceRegion ? 'Selected area' : fallbackLabel);
         onSelect({
           targetId,
           targetLabel,
           targetPath: buildDomPath(anchor ?? container),
           selection: box,
+          mode: anchor ? 'element' : 'region',
           cursor: {
             x: Math.min(Math.max(box.left + box.width / 2, 0), hostRect.width),
             y: Math.min(box.top + box.height, hostRect.height)
@@ -300,7 +319,14 @@ export const CommentSelectionOverlay = ({
   return (
     <>
       <div className={styles.overlayNotice}>
-        <p>Select text or drag to mark an area. A comment box will appear near your cursor.</p>
+        <p>
+          Select text or drag to mark an area. Hold Alt while dragging to save a free region. A comment box will appear near your cursor.
+        </p>
+        {onExit && (
+          <button className={styles.overlayExit} type="button" onClick={onExit}>
+            Exit comment mode
+          </button>
+        )}
       </div>
       {selectionBox && (
         <div
