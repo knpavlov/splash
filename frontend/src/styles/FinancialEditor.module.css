@@ -314,7 +314,7 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 10px;
-  padding: 0 6px;
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -324,20 +324,25 @@
 
 .dualBar {
   flex: 1 1 0;
-  background: rgba(148, 163, 184, 0.08);
+  background: transparent;
   border-radius: 6px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.15);
+  box-shadow: none;
+  overflow: hidden;
 }
 
 .planBar {
-  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.15);
+  box-shadow: none;
 }
 
 .actualBar {
-  box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.18);
+  box-shadow: none;
+}
+
+.dualBar .stackFill {
+  padding: 0;
 }
 
 .planLineDot,
