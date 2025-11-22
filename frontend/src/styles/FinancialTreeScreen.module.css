@@ -1,4 +1,3 @@
-
 .screen {
   display: flex;
   flex-direction: column;
@@ -26,7 +25,7 @@
 }
 
 .filters label,
-.filters > div {
+.filters>div {
   display: flex;
   flex-direction: column;
   font-size: 12px;
@@ -143,8 +142,8 @@
 .barChart {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 2px;
+  gap: 1px;
+  margin-top: 4px;
 }
 
 .barRow {
@@ -177,8 +176,8 @@
 
 .barTrack {
   width: 100%;
-  height: 8px;
-  border-radius: 4px;
+  height: 16px;
+  border-radius: 1px;
   background: #f1f5f9;
   display: flex;
   align-items: center;
@@ -188,7 +187,7 @@
 
 .barFill {
   height: 100%;
-  border-radius: 4px;
+  border-radius: 0;
   transition: width 0.2s ease;
 }
 
@@ -226,4 +225,8 @@
 
 .deltaNegative {
   color: #dc2626;
+}
+
+.deltaNeutral {
+  color: #94a3b8;
 }
