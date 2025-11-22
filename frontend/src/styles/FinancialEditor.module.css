@@ -282,16 +282,21 @@
   align-self: stretch;
   height: 210px;
   width: 100%;
+  overflow: visible;
 }
 
 .planLine polyline {
   fill: none;
   stroke: #0ea5e9;
-  stroke-width: 0.6;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
 
 .planLine circle {
   fill: #0ea5e9;
+  stroke: #e0f2fe;
+  stroke-width: 0.4;
 }
 
 .dualStackWrapper {
