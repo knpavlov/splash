@@ -140,44 +140,6 @@
 }
 
 .barChart {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-top: 4px;
-}
-
-.barRow {
-  display: grid;
-  grid-template-columns: 65px 1fr auto;
-  column-gap: 6px;
-  align-items: center;
-}
-
-.barRowEmphasis {
-  /* Removed background */
-  padding: 0;
-  border: none;
-}
-
-.barValue {
-  font-size: 10px;
-  font-weight: 600;
-  color: #0f172a;
-  text-align: right;
-  min-width: 30px;
-}
-
-.barValueRow {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  justify-content: flex-end;
-}
-
-.barTrack {
-  width: 100%;
-  height: 16px;
-  border-radius: 1px;
   background: #f1f5f9;
   display: flex;
   align-items: center;

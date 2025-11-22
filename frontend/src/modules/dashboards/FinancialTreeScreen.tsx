@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import styles from '../../styles/FinancialTreeScreen.module.css';
 import { useFinancialsState, useInitiativesState } from '../../app/state/AppStateContext';
 import { FinancialLineItem } from '../../shared/types/financials';
@@ -320,35 +320,16 @@ export const FinancialTreeScreen = () => {
     return max;
   }, [rootNode]);
 
-  if (!blueprint && loading) {
-    return (
-      <section className={styles.screen}>
-        <p>Loading P&amp;L blueprint...</p>
-      </section>
-    );
-  }
-
-  if (!blueprint && !loading) {
-    return (
-      <section className={styles.screen}>
-        <div className={styles.warningText}>
-          <p>The Financials blueprint is not available yet. Configure it first to unlock this dashboard.</p>
-          <button type="button" onClick={() => void refresh()}>
-            Reload blueprint
-          </button>
-        </div>
-      </section>
-    );
-  }
+  const treeWrapperRef = useRef<HTMLDivElement>(null);
 
   const layout = useMemo(() => {
     if (!rootNode) {
       return null;
     }
     const positions = new Map<string, { depth: number; x: number; y: number }>();
-    const cardWidth = 180;
+    const cardWidth = 220;
     const columnWidth = cardWidth;
-    const columnGap = 40;
+    const columnGap = 32;
     const cardHeight = 100;
     const verticalGap = 110;
     const horizontalPadding = 20;
@@ -378,56 +359,14 @@ export const FinancialTreeScreen = () => {
 
     compute(rootNode, 0);
 
-    // Adjust root position to be higher if it's too far down
-    const rootPosition = positions.get(rootNode.line.id);
-    if (rootPosition) {
-      const minY = Math.min(...Array.from(positions.values()).map((pos) => pos.y));
-      const shiftY = minY < verticalPadding ? verticalPadding - minY : 0;
-
-      // We want the root to be somewhat centered but biased towards the top if the tree is huge
-      // But the user specifically asked for the root to be "higher". 
-      // The standard tree algorithm centers parents relative to children. 
-      // If the tree is balanced, root is in the middle.
-      // To move it "higher", we might need to shift the whole tree up if there's empty space, 
-      // but usually `compute` starts from top (leafIndex=0).
-      // Let's check if we can just ensure it starts at `verticalPadding`.
-      // The current logic `y = average(childYs)` centers it.
-      // If the user wants it "higher", they might mean scrolling to it? 
-      // Or maybe the tree is just too tall?
-      // "Make the very first box (leftmost) higher on the page. Now you have to scroll a lot to reach it."
-      // This implies the root is vertically centered in a very tall container.
-      // We can try to clamp the root's Y or shift the whole view. 
-      // But `positions` are absolute. 
-      // Let's try to shift everything so the root is at a fixed top offset? 
-      // No, that would mess up the children.
-      // The issue is likely that the root is centered relative to a huge list of children.
-      // We can't easily move the root up without moving children up, but children are already packed.
-      // Maybe the user means the *initial scroll position*? 
-      // Or maybe they want the tree to be top-aligned?
-      // The current algorithm packs leaves from top to bottom. So the top-most leaf is at `verticalPadding`.
-      // The root is the average of ALL leaves (if it's the root of everything).
-      // So if there are 100 leaves, root is at 50 * gap.
-      // To make root higher, we'd need to change the tree structure or layout.
-      // OR, we can just scroll to the root?
-      // But the user said "layout".
-      // Let's try to compact the vertical gap significantly, that helps.
-      // And maybe we can shift the whole tree up if we render it? 
-      // Actually, if the root is at Y=5000, and we render it, the user sees top of page (Y=0).
-      // So they scroll down to Y=5000.
-      // If we want root at top, we need to shift the whole tree so root is at Y=100?
-      // That would mean children above root would have negative Y.
-      // That's fine if we handle scroll/overflow correctly or if we just want the *view* to start there.
-      // But standard HTML scroll starts at 0.
-      // If we have negative coordinates, we need to shift everything by +offset to make them positive.
-      // So the root being "higher" means "closer to Y=0".
-      // This implies the "top-heavy" children should be fewer than "bottom-heavy"?
-      // No, the tree is symmetric usually.
-      // Let's just stick to compacting for now, as that reduces the total height.
-
-      positions.forEach((value, key) => {
-        positions.set(key, { ...value, y: value.y + shiftY });
-      });
-    }
+    // Shift tree so root is vertically centered in the view or at least visible
+    // We will use scroll to position it, so we just ensure it starts at a reasonable Y.
+    // But if the tree is "balanced" vertically around the root, and we want the root at the top,
+    // we might need to shift Y values if they are negative.
+    // Our compute function starts leafIndex at 0, so min Y is verticalPadding.
+    // So all Ys are positive. The root will be at the average Y of its children.
+    // If there are many children, root Y will be large.
+    // We will rely on scroll to bring it into view.
 
     const yValues = Array.from(positions.values());
     const maxY = Math.max(...yValues.map((pos) => pos.y + cardHeight));
@@ -466,22 +405,46 @@ export const FinancialTreeScreen = () => {
       height: totalHeight,
       cardWidth,
       cardHeight,
-      connectors
+      connectors,
+      rootY: positions.get(rootNode.line.id)?.y ?? 0
     };
   }, [rootNode]);
 
-  // Scroll to root on mount if possible? 
-  // The user said "Now you have to scroll a lot". 
-  // If we compact it, it helps. 
+  // Scroll to root on mount/layout update
+  useEffect(() => {
+    if (layout && treeWrapperRef.current) {
+      const wrapper = treeWrapperRef.current;
+      const rootCenter = layout.rootY + layout.cardHeight / 2;
+      const viewHeight = wrapper.clientHeight;
+      // Position root in the top 20% of the view
+      const scrollTop = Math.max(0, rootCenter - viewHeight * 0.2);
+      wrapper.scrollTop = scrollTop;
+    }
+  }, [layout]);
 
-  if (!rootNode || !layout) {
+  if (!blueprint && loading) {
     return (
       <section className={styles.screen}>
-        <p className={styles.warningText}>
-          The Financials blueprint is not available yet. Configure it first to unlock this dashboard.
-        </p>
+        <p>Loading P&amp;L blueprint...</p>
       </section>
     );
+  }
+
+  if (!blueprint && !loading) {
+    return (
+      <section className={styles.screen}>
+        <div className={styles.warningText}>
+          <p>The Financials blueprint is not available yet. Configure it first to unlock this dashboard.</p>
+          <button type="button" onClick={() => void refresh()}>
+            Reload blueprint
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  if (!layout || !rootNode) {
+    return null;
   }
 
   return (
@@ -542,7 +505,7 @@ export const FinancialTreeScreen = () => {
           Unable to refresh blueprint data automatically. The view may be stale.
         </div>
       )}
-      <div className={styles.treeWrapper}>
+      <div className={styles.treeWrapper} ref={treeWrapperRef}>
         <div className={styles.treeCanvas} style={{ width: layout.width, height: layout.height }}>
           <svg className={styles.treeSvg} width={layout.width} height={layout.height}>
             {layout.connectors.map((connector) => (
