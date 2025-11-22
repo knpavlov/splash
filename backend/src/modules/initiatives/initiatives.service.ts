@@ -108,7 +108,8 @@ const sanitizeFinancialEntry = (value: unknown): InitiativeFinancialEntry => {
       label: '',
       category: '',
       lineCode: null,
-      distribution: {}
+      distribution: {},
+      actuals: {}
     };
   }
   const payload = value as {
@@ -117,6 +118,7 @@ const sanitizeFinancialEntry = (value: unknown): InitiativeFinancialEntry => {
     category?: unknown;
     lineCode?: unknown;
     distribution?: unknown;
+    actuals?: unknown;
   };
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
   const label = sanitizeString(payload.label);
@@ -127,7 +129,8 @@ const sanitizeFinancialEntry = (value: unknown): InitiativeFinancialEntry => {
     label,
     category,
     lineCode,
-    distribution: sanitizeDistribution(payload.distribution)
+    distribution: sanitizeDistribution(payload.distribution),
+    actuals: sanitizeDistribution(payload.actuals)
   };
 };
 
@@ -468,7 +471,8 @@ const cloneStagePayload = (stage: InitiativeStagePayload): InitiativeStagePayloa
         label: entry.label,
         category: entry.category,
         lineCode: entry.lineCode ?? null,
-        distribution: { ...entry.distribution }
+        distribution: { ...entry.distribution },
+        actuals: { ...(entry.actuals ?? {}) }
       }));
       return acc;
     },

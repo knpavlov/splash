@@ -15,7 +15,7 @@ import {
 import { Workstream, WorkstreamGateKey } from '../../../shared/types/workstream';
 import { AccountRecord } from '../../../shared/types/account';
 import { StageGatePanel } from './StageGatePanel';
-import { FinancialEditor } from './FinancialEditor';
+import { FinancialActuals, FinancialEditor } from './FinancialEditor';
 import { generateId } from '../../../shared/ui/generateId';
 import { DomainResult } from '../../../shared/types/results';
 import { resolveAccountName } from '../../../shared/utils/accountName';
@@ -769,6 +769,7 @@ export const InitiativeProfile = ({
   const stageProgressCollapsed = collapsedSections['stage-progress'] ?? false;
   const stageDetailsCollapsed = collapsedSections['stage-details'] ?? false;
   const financialCollapsed = collapsedSections['financial'] ?? false;
+  const actualsCollapsed = collapsedSections['pnl-actuals'] ?? false;
   const changeLogCollapsed = collapsedSections['change-log'] ?? false;
   const stageTitle = initiativeStageLabels[selectedStage].replace(/\s+Gate$/i, '');
 
@@ -1100,6 +1101,37 @@ export const InitiativeProfile = ({
             disabled={!isStageEditable}
             onChange={(nextStage) => updateStage(selectedStage, nextStage)}
             commentScope={selectedStage}
+          />
+        )}
+      </section>
+
+      <section
+        className={`${styles.cardSection} ${styles.financialCard}`}
+        {...buildProfileAnchor('pnl-actuals', 'P&L actuals')}
+      >
+        <header className={styles.cardHeader}>
+          <div className={styles.cardHeaderTitle}>
+            <button
+              className={styles.sectionToggle}
+              type="button"
+              onClick={() => handleSectionToggle('pnl-actuals')}
+              aria-expanded={!actualsCollapsed}
+              aria-label={actualsCollapsed ? 'Expand P&L actuals' : 'Collapse P&L actuals'}
+            >
+              <ChevronIcon direction={actualsCollapsed ? 'right' : 'down'} size={16} />
+            </button>
+            <div>
+              <h3>P&amp;L actuals</h3>
+              <p>Input realised benefits and costs side-by-side with plan.</p>
+            </div>
+          </div>
+        </header>
+        {!actualsCollapsed && (
+          <FinancialActuals
+            stage={currentStage}
+            disabled={!isStageEditable}
+            onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+            commentScope={`${selectedStage}-actuals`}
           />
         )}
       </section>

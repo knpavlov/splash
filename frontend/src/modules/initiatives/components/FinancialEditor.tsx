@@ -9,6 +9,7 @@ import {
 } from '../../../shared/types/initiative';
 import { generateId } from '../../../shared/ui/generateId';
 import {
+  buildKindActualMonthlyTotals,
   buildKindMonthlyTotals,
   buildMonthRange,
   calculateRunRate,
@@ -56,6 +57,27 @@ const SECTION_COLORS: Record<InitiativeFinancialKind, string> = {
   'oneoff-benefits': '#3b82f6',
   'recurring-costs': '#ef4444',
   'oneoff-costs': '#f97316'
+};
+
+const buildEntryColorMap = (stage: InitiativeStageData) => {
+  const map: Record<string, string> = {};
+  const buildPalette = (groups: InitiativeFinancialKind[], lighten: boolean) => {
+    groups.forEach((kind) => {
+      const entries = stage.financials[kind];
+      if (!entries.length) {
+        return;
+      }
+      const range = 0.85;
+      entries.forEach((entry, index) => {
+        const ratio = entries.length === 1 ? 0.5 : index / (entries.length - 1);
+        const offset = lighten ? 0.2 + ratio * range : -(0.2 + ratio * range);
+        map[entry.id] = shadeColor(SECTION_COLORS[kind], offset);
+      });
+    });
+  };
+  buildPalette(benefitKinds, true);
+  buildPalette(costKinds, false);
+  return map;
 };
 
 const shadeColor = (hex: string, amount: number) => {
@@ -132,6 +154,48 @@ interface ChartMonthStack {
   positiveTotal: number;
   negativeTotal: number;
 }
+
+const buildChartStacks = (
+  months: MonthDescriptor[],
+  stage: InitiativeStageData,
+  activeKindSet: Set<InitiativeFinancialKind>,
+  entryColorLookup: Record<string, string>,
+  valueSelector: (entry: InitiativeFinancialEntry) => Record<string, number>
+): ChartMonthStack[] =>
+  months.map((month) => {
+    const positiveSegments: ChartSegment[] = [];
+    const negativeSegments: ChartSegment[] = [];
+    for (const kind of initiativeFinancialKinds) {
+      if (!activeKindSet.has(kind)) {
+        continue;
+      }
+      const isCost = costKinds.includes(kind);
+      for (const entry of stage.financials[kind]) {
+        const distribution = valueSelector(entry) ?? {};
+        const raw = distribution[month.key] ?? 0;
+        if (!raw) {
+          continue;
+        }
+        const oriented = raw * (isCost ? -1 : 1);
+        const target = oriented >= 0 ? positiveSegments : negativeSegments;
+        target.push({
+          value: Math.abs(oriented),
+          color: entryColorLookup[entry.id] ?? SECTION_COLORS[kind],
+          label: entry.label || 'Line item',
+          rawValue: oriented
+        });
+      }
+    }
+    const positiveTotal = positiveSegments.reduce((sum, segment) => sum + segment.value, 0);
+    const negativeTotal = negativeSegments.reduce((sum, segment) => sum + segment.value, 0);
+    return {
+      key: month.key,
+      positiveSegments,
+      negativeSegments,
+      positiveTotal,
+      negativeTotal
+    };
+  });
 
 const CombinedChart = ({
   months,
@@ -491,6 +555,325 @@ const EntryRow = ({
     </div>
   );
 };
+
+const ReadOnlyPlanRow = ({
+  entry,
+  months,
+  gridTemplateColumns,
+  anchorAttributes
+}: {
+  entry: InitiativeFinancialEntry;
+  months: MonthDescriptor[];
+  gridTemplateColumns: string;
+  anchorAttributes?: CommentAnchorAttributes;
+}) => {
+  return (
+    <div className={`${styles.sheetRow} ${styles.readOnlyRow}`} style={{ gridTemplateColumns }} {...anchorAttributes}>
+      <div className={`${styles.categoryCell} ${styles.readOnlyCategory}`}>
+        <div className={styles.readOnlyHeader}>
+          <span className={styles.readOnlyLabel}>{entry.label || 'Line item'}</span>
+          <span className={styles.rowTag}>Plan</span>
+        </div>
+        {entry.lineCode && <span className={styles.readOnlyMeta}>{entry.lineCode}</span>}
+      </div>
+      {months.map((month) => (
+        <div key={month.key} className={`${styles.sheetCell} ${styles.readOnlyCell}`}>
+          <input type="number" value={entry.distribution[month.key] ?? ''} disabled />
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const ActualsRow = ({
+  entry,
+  months,
+  disabled,
+  gridTemplateColumns,
+  onChange,
+  anchorAttributes
+}: {
+  entry: InitiativeFinancialEntry;
+  months: MonthDescriptor[];
+  disabled: boolean;
+  gridTemplateColumns: string;
+  onChange: (entry: InitiativeFinancialEntry) => void;
+  anchorAttributes?: CommentAnchorAttributes;
+}) => {
+  const updateActualMonth = (key: string, value: string) => {
+    const numeric = Number(value);
+    const actuals = { ...(entry.actuals ?? {}) };
+    if (value === '') {
+      delete actuals[key];
+    } else if (Number.isFinite(numeric)) {
+      actuals[key] = numeric;
+    }
+    onChange({ ...entry, actuals });
+  };
+
+  return (
+    <div className={`${styles.sheetRow} ${styles.actualsRow}`} style={{ gridTemplateColumns }} {...anchorAttributes}>
+      <div className={`${styles.categoryCell} ${styles.actualsCategory}`}>
+        <div className={styles.readOnlyHeader}>
+          <span className={styles.readOnlyLabel}>Actuals</span>
+          <span className={`${styles.rowTag} ${styles.actualTag}`}>Input</span>
+        </div>
+        <p className={styles.actualsHint}>{entry.label || 'Line item'}</p>
+      </div>
+      {months.map((month) => (
+        <label key={month.key} className={`${styles.sheetCell} ${styles.actualsCell}`}>
+          <input
+            type="number"
+            value={(entry.actuals ?? {})[month.key] ?? ''}
+            onChange={(event) => updateActualMonth(month.key, event.target.value)}
+            disabled={disabled}
+          />
+        </label>
+      ))}
+    </div>
+  );
+};
+
+interface PlanVsActualChartProps {
+  months: MonthDescriptor[];
+  gridTemplateColumns: string;
+  planData: ChartMonthStack[];
+  actualData: ChartMonthStack[];
+  showPlanAsLine: boolean;
+  anchorScope?: string;
+}
+
+const PlanVsActualChart = ({
+  months,
+  gridTemplateColumns,
+  planData,
+  actualData,
+  showPlanAsLine,
+  anchorScope
+}: PlanVsActualChartProps) => {
+  const maxPositive = Math.max(
+    0,
+    ...planData.map((stat) => stat.positiveTotal),
+    ...actualData.map((stat) => stat.positiveTotal)
+  );
+  const maxNegative = Math.max(
+    0,
+    ...planData.map((stat) => stat.negativeTotal),
+    ...actualData.map((stat) => stat.negativeTotal)
+  );
+  const totalSpan = maxPositive + maxNegative || 1;
+  const positiveShare = maxPositive ? maxPositive / totalSpan : 0.5;
+  const negativeShare = maxNegative ? maxNegative / totalSpan : 0.5;
+  const positiveScale = maxPositive || 1;
+  const negativeScale = maxNegative || 1;
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  const [tooltip, setTooltip] = useState<{
+    label: string;
+    value: number;
+    left: number;
+    top: number;
+    tag: 'Plan' | 'Actual';
+  } | null>(null);
+
+  const handleSegmentHover = (
+    event: React.MouseEvent<HTMLDivElement>,
+    segment: ChartSegment,
+    position: 'positive' | 'negative',
+    tag: 'Plan' | 'Actual'
+  ) => {
+    const container = chartRef.current;
+    if (!container) {
+      return;
+    }
+    const containerRect = container.getBoundingClientRect();
+    const segmentRect = event.currentTarget.getBoundingClientRect();
+    const left = segmentRect.left + segmentRect.width / 2 - containerRect.left;
+    const top =
+      position === 'positive'
+        ? segmentRect.top - containerRect.top - 8
+        : segmentRect.bottom - containerRect.top + 8;
+    setTooltip({ label: segment.label, value: segment.rawValue, left, top, tag });
+  };
+
+  const clearTooltip = () => setTooltip(null);
+
+  const linePoints =
+    showPlanAsLine && months.length > 0
+      ? planData.map((month, index) => {
+          const net = month.positiveTotal - month.negativeTotal;
+          const ratio =
+            net >= 0
+              ? (positiveScale ? Math.min(1, net / positiveScale) : 0)
+              : (negativeScale ? Math.min(1, Math.abs(net) / negativeScale) : 0);
+          const y =
+            net >= 0
+              ? (1 - ratio) * positiveShare * 100
+              : positiveShare * 100 + ratio * negativeShare * 100;
+          return { x: index + 0.5, y };
+        })
+      : [];
+
+  return (
+    <div className={`${styles.chartRow} ${styles.comparisonChart}`} style={{ gridTemplateColumns }} ref={chartRef}>
+      <div className={styles.chartLegend}>Plan vs actuals</div>
+      {showPlanAsLine && linePoints.length > 0 && (
+        <svg
+          className={styles.planLine}
+          viewBox={`0 0 ${months.length} 100`}
+          preserveAspectRatio="none"
+          style={{ gridColumn: `2 / span ${months.length}`, gridRow: 1 }}
+        >
+          <polyline points={linePoints.map((point) => `${point.x},${point.y}`).join(' ')} />
+          {linePoints.map((point, index) => (
+            <circle key={`${point.x}-${index}`} cx={point.x} cy={point.y} r={0.7} />
+          ))}
+        </svg>
+      )}
+      {months.map((month, index) => {
+        const plan = planData[index];
+        const actual = actualData[index];
+        const positiveRatioPlan = positiveScale ? Math.min(1, plan.positiveTotal / positiveScale) : 0;
+        const negativeRatioPlan = negativeScale ? Math.min(1, plan.negativeTotal / negativeScale) : 0;
+        const positiveRatioActual = positiveScale ? Math.min(1, actual.positiveTotal / positiveScale) : 0;
+        const negativeRatioActual = negativeScale ? Math.min(1, actual.negativeTotal / negativeScale) : 0;
+        const planNet = plan.positiveTotal - plan.negativeTotal;
+        const lineMarker =
+          showPlanAsLine && positiveShare > 0
+            ? planNet >= 0
+              ? { area: 'positive' as const, offset: (1 - Math.min(1, planNet / positiveScale)) * 100 }
+              : { area: 'negative' as const, offset: Math.min(1, Math.abs(planNet) / negativeScale) * 100 }
+            : null;
+        const chartAnchor = createCommentAnchor(
+          `${anchorScope ?? 'financial-chart'}.${month.key}`,
+          `${month.label} ${month.year} plan vs actual`
+        );
+        return (
+          <div
+            key={month.key}
+            className={styles.chartCell}
+            style={{ gridColumn: index + 2, gridRow: 1 }}
+            {...chartAnchor}
+          >
+            <div className={styles.chartBarGroup}>
+              <div className={styles.dualStackWrapper}>
+                <div className={styles.dualPositive} style={{ height: `${positiveShare * 100}%` }}>
+                  <div className={styles.dualBarRow}>
+                    {!showPlanAsLine && (
+                      <div className={`${styles.dualBar} ${styles.planBar}`} style={{ height: `${positiveRatioPlan * 100}%` }}>
+                        <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
+                          {plan.positiveSegments.map((segment, segmentIndex) => {
+                            const height = (segment.value / positiveScale) * 100;
+                            return (
+                              <div
+                                key={`${month.key}-plan-pos-${segmentIndex}`}
+                                className={styles.chartSegment}
+                                style={{ height: `${height}%`, background: segment.color }}
+                                onMouseEnter={(event) => handleSegmentHover(event, segment, 'positive', 'Plan')}
+                                onMouseMove={(event) => handleSegmentHover(event, segment, 'positive', 'Plan')}
+                                onMouseLeave={clearTooltip}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      className={`${styles.dualBar} ${styles.actualBar}`}
+                      style={{
+                        height: `${positiveRatioActual * 100}%`,
+                        width: showPlanAsLine ? '64%' : undefined
+                      }}
+                    >
+                      <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
+                        {actual.positiveSegments.map((segment, segmentIndex) => {
+                          const height = (segment.value / positiveScale) * 100;
+                          return (
+                            <div
+                              key={`${month.key}-actual-pos-${segmentIndex}`}
+                              className={styles.chartSegment}
+                              style={{ height: `${height}%`, background: segment.color }}
+                              onMouseEnter={(event) => handleSegmentHover(event, segment, 'positive', 'Actual')}
+                              onMouseMove={(event) => handleSegmentHover(event, segment, 'positive', 'Actual')}
+                              onMouseLeave={clearTooltip}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  {lineMarker && lineMarker.area === 'positive' && (
+                    <div className={styles.planLineDot} style={{ bottom: `${lineMarker.offset}%` }} />
+                  )}
+                </div>
+                <div className={styles.dualNegative} style={{ height: `${negativeShare * 100}%` }}>
+                  <div className={`${styles.dualBarRow} ${styles.dualBarRowNegative}`}>
+                    {!showPlanAsLine && (
+                      <div
+                        className={`${styles.dualBar} ${styles.planBar}`}
+                        style={{ height: `${negativeRatioPlan * 100}%` }}
+                      >
+                        <div className={`${styles.stackFill} ${styles.stackFillNegative}`}>
+                          {plan.negativeSegments.map((segment, segmentIndex) => {
+                            const height = (segment.value / negativeScale) * 100;
+                            return (
+                              <div
+                                key={`${month.key}-plan-neg-${segmentIndex}`}
+                                className={styles.chartSegment}
+                                style={{ height: `${height}%`, background: segment.color }}
+                                onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative', 'Plan')}
+                                onMouseMove={(event) => handleSegmentHover(event, segment, 'negative', 'Plan')}
+                                onMouseLeave={clearTooltip}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      className={`${styles.dualBar} ${styles.actualBar}`}
+                      style={{
+                        height: `${negativeRatioActual * 100}%`,
+                        width: showPlanAsLine ? '64%' : undefined
+                      }}
+                    >
+                      <div className={`${styles.stackFill} ${styles.stackFillNegative}`}>
+                        {actual.negativeSegments.map((segment, segmentIndex) => {
+                          const height = (segment.value / negativeScale) * 100;
+                          return (
+                            <div
+                              key={`${month.key}-actual-neg-${segmentIndex}`}
+                              className={styles.chartSegment}
+                              style={{ height: `${height}%`, background: segment.color }}
+                              onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative', 'Actual')}
+                              onMouseMove={(event) => handleSegmentHover(event, segment, 'negative', 'Actual')}
+                              onMouseLeave={clearTooltip}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  {lineMarker && lineMarker.area === 'negative' && (
+                    <div className={styles.planLineDotNegative} style={{ top: `${lineMarker.offset}%` }} />
+                  )}
+                </div>
+              </div>
+              <div className={styles.chartZeroLine} style={{ top: `${positiveShare * 100}%` }} />
+            </div>
+          </div>
+        );
+      })}
+      {tooltip && (
+        <div className={styles.chartTooltip} style={{ left: tooltip.left, top: tooltip.top }}>
+          <strong>{tooltip.label || 'Line item'}</strong>
+          <span>{formatCurrency(Math.abs(tooltip.value))}</span>
+          <span className={styles.tooltipTag}>{tooltip.tag}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: FinancialEditorProps) => {
   const months = useMemo<MonthDescriptor[]>(() => buildMonthRange(stage), [stage]);
   const scopeKey = commentScope ?? stage.key ?? 'stage';
@@ -581,26 +964,7 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
     };
   }, []);
 
-  const entryColorMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    const buildPalette = (groups: InitiativeFinancialKind[], lighten: boolean) => {
-      groups.forEach((kind) => {
-        const entries = stage.financials[kind];
-        if (!entries.length) {
-          return;
-        }
-        const range = 0.85;
-        entries.forEach((entry, index) => {
-          const ratio = entries.length === 1 ? 0.5 : index / (entries.length - 1);
-          const offset = lighten ? 0.2 + ratio * range : -(0.2 + ratio * range);
-          map[entry.id] = shadeColor(SECTION_COLORS[kind], offset);
-        });
-      });
-    };
-    buildPalette(benefitKinds, true);
-    buildPalette(costKinds, false);
-    return map;
-  }, [stage.financials]);
+  const entryColorMap = useMemo(() => buildEntryColorMap(stage), [stage.financials]);
 
   const handleCalculationLogicChange = (kind: InitiativeFinancialKind, value: string) => {
     onChange({ ...stage, calculationLogic: { ...calculationLogic, [kind]: value } });
@@ -698,41 +1062,8 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
   };
 
   const chartData = useMemo<ChartMonthStack[]>(
-    () =>
-      months.map((month) => {
-        const positiveSegments: ChartSegment[] = [];
-        const negativeSegments: ChartSegment[] = [];
-        for (const kind of initiativeFinancialKinds) {
-          if (!activeKindSet.has(kind)) {
-            continue;
-          }
-          const isCost = costKinds.includes(kind);
-          for (const entry of stage.financials[kind]) {
-            const raw = entry.distribution[month.key] ?? 0;
-            if (!raw) {
-              continue;
-            }
-            const oriented = raw * (isCost ? -1 : 1);
-            const target = oriented >= 0 ? positiveSegments : negativeSegments;
-            target.push({
-              value: Math.abs(oriented),
-              color: entryColorMap[entry.id] ?? SECTION_COLORS[kind],
-              label: entry.label || 'Line item',
-              rawValue: oriented
-            });
-          }
-        }
-        const positiveTotal = positiveSegments.reduce((sum, segment) => sum + segment.value, 0);
-        const negativeTotal = negativeSegments.reduce((sum, segment) => sum + segment.value, 0);
-        return {
-          key: month.key,
-          positiveSegments,
-          negativeSegments,
-          positiveTotal,
-          negativeTotal
-        };
-      }),
-    [activeKindSet, months, stage.financials, entryColorMap]
+    () => buildChartStacks(months, stage, activeKindSet, entryColorMap, (entry) => entry.distribution),
+    [activeKindSet, months, stage, entryColorMap]
   );
 
   const impactTotals = useMemo(() => {
@@ -797,7 +1128,8 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
         label: '',
         category: '',
         lineCode: null,
-        distribution: {}
+        distribution: {},
+        actuals: {}
       }
     ]);
   };
@@ -1027,6 +1359,274 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
             ))}
           </ul>
         )}
+      </div>
+    </section>
+  );
+};
+
+export const FinancialActuals = ({ stage, disabled, onChange, commentScope }: FinancialEditorProps) => {
+  const months = useMemo<MonthDescriptor[]>(() => buildMonthRange(stage), [stage]);
+  const scopeKey = commentScope ?? stage.key ?? 'stage';
+  const gridTemplateColumns = useMemo(
+    () => `200px repeat(${Math.max(months.length, 1)}, minmax(110px, 1fr))`,
+    [months.length]
+  );
+  const { blueprint: financialBlueprint } = useFinancialsState();
+  const fiscalStartMonth = financialBlueprint?.fiscalYear?.startMonth ?? DEFAULT_FISCAL_YEAR_START_MONTH;
+  const [includeOneOff, setIncludeOneOff] = useState(true);
+  const [showPlanAsLine, setShowPlanAsLine] = useState(false);
+  const activeBenefitKinds = useMemo<InitiativeFinancialKind[]>(
+    () => (includeOneOff ? benefitKinds : ['recurring-benefits']),
+    [includeOneOff]
+  );
+  const activeCostKinds = useMemo<InitiativeFinancialKind[]>(
+    () => (includeOneOff ? costKinds : ['recurring-costs']),
+    [includeOneOff]
+  );
+  const activeKindSet = useMemo(
+    () => new Set<InitiativeFinancialKind>([...activeBenefitKinds, ...activeCostKinds]),
+    [activeBenefitKinds, activeCostKinds]
+  );
+  const monthKeys = useMemo(() => months.map((month) => month.key), [months]);
+
+  const kindMonthlyTotals = useMemo(
+    () =>
+      initiativeFinancialKinds.reduce(
+        (acc, kind) => {
+          acc[kind] = buildKindMonthlyTotals(stage, kind);
+          return acc;
+        },
+        {} as Record<InitiativeFinancialKind, Record<string, number>>
+      ),
+    [stage]
+  );
+
+  const actualKindMonthlyTotals = useMemo(
+    () =>
+      initiativeFinancialKinds.reduce(
+        (acc, kind) => {
+          acc[kind] = buildKindActualMonthlyTotals(stage, kind);
+          return acc;
+        },
+        {} as Record<InitiativeFinancialKind, Record<string, number>>
+      ),
+    [stage]
+  );
+
+  const planImpactTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    months.forEach((month) => {
+      const benefits = activeBenefitKinds.reduce(
+        (sum, kind) => sum + (kindMonthlyTotals[kind][month.key] ?? 0),
+        0
+      );
+      const costs = activeCostKinds.reduce((sum, kind) => sum + (kindMonthlyTotals[kind][month.key] ?? 0), 0);
+      totals[month.key] = benefits - costs;
+    });
+    return totals;
+  }, [months, kindMonthlyTotals, activeBenefitKinds, activeCostKinds]);
+
+  const actualImpactTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    months.forEach((month) => {
+      const benefits = activeBenefitKinds.reduce(
+        (sum, kind) => sum + (actualKindMonthlyTotals[kind][month.key] ?? 0),
+        0
+      );
+      const costs = activeCostKinds.reduce(
+        (sum, kind) => sum + (actualKindMonthlyTotals[kind][month.key] ?? 0),
+        0
+      );
+      totals[month.key] = benefits - costs;
+    });
+    return totals;
+  }, [months, actualKindMonthlyTotals, activeBenefitKinds, activeCostKinds]);
+
+  const entryColorMap = useMemo(() => buildEntryColorMap(stage), [stage.financials]);
+  const actualEntryColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    Object.entries(entryColorMap).forEach(([id, color]) => {
+      map[id] = shadeColor(color, 0.25);
+    });
+    return map;
+  }, [entryColorMap]);
+
+  const planChartData = useMemo<ChartMonthStack[]>(
+    () => buildChartStacks(months, stage, activeKindSet, entryColorMap, (entry) => entry.distribution),
+    [months, stage, activeKindSet, entryColorMap]
+  );
+
+  const actualChartData = useMemo<ChartMonthStack[]>(
+    () => buildChartStacks(months, stage, activeKindSet, actualEntryColorMap, (entry) => entry.actuals ?? {}),
+    [months, stage, activeKindSet, actualEntryColorMap]
+  );
+
+  const planRunRate = calculateRunRate(monthKeys, planImpactTotals);
+  const actualRunRate = calculateRunRate(monthKeys, actualImpactTotals);
+  const planSummaries = useMemo(
+    () => calculateYearSummaries(planImpactTotals, fiscalStartMonth),
+    [planImpactTotals, fiscalStartMonth]
+  );
+  const actualSummaries = useMemo(
+    () => calculateYearSummaries(actualImpactTotals, fiscalStartMonth),
+    [actualImpactTotals, fiscalStartMonth]
+  );
+
+  const updateEntries = (
+    kind: InitiativeFinancialKind,
+    updater: (entries: InitiativeFinancialEntry[]) => InitiativeFinancialEntry[]
+  ) => {
+    const nextEntries = updater(stage.financials[kind]);
+    onChange({ ...stage, financials: { ...stage.financials, [kind]: nextEntries } });
+  };
+
+  const handleActualChange = (kind: InitiativeFinancialKind, nextEntry: InitiativeFinancialEntry) => {
+    updateEntries(kind, (entries) => entries.map((entry) => (entry.id === nextEntry.id ? nextEntry : entry)));
+  };
+
+  const showEmptyState = Array.from(activeKindSet).every((kind) => stage.financials[kind].length === 0);
+
+  return (
+    <section
+      className={styles.financialBoard}
+      {...createCommentAnchor(`financial.${scopeKey}.actuals`, 'P&L actuals board')}
+    >
+      <header className={styles.financialHeading}>
+        <div>
+          <h3>P&amp;L actuals</h3>
+          <p>Track realised impact against your outlook month by month.</p>
+        </div>
+        <div className={styles.actualsToggles}>
+          <label
+            className={styles.oneOffToggle}
+            {...createCommentAnchor(`financial.${scopeKey}.actuals.toggle.oneoff`, 'Include one-off actuals toggle')}
+          >
+            <input
+              type="checkbox"
+              checked={includeOneOff}
+              onChange={(event) => setIncludeOneOff(event.target.checked)}
+            />
+            <span>Include one-off items</span>
+          </label>
+          <label
+            className={styles.oneOffToggle}
+            {...createCommentAnchor(`financial.${scopeKey}.actuals.toggle.line`, 'Toggle plan line view')}
+          >
+            <input
+              type="checkbox"
+              checked={showPlanAsLine}
+              onChange={(event) => setShowPlanAsLine(event.target.checked)}
+            />
+            <span>Show plan as line</span>
+          </label>
+        </div>
+      </header>
+
+      <p className={styles.actualsLead}>
+        Plan values are mirrored from Financial outlook and stay locked here. Use the rows beneath to record actuals.
+      </p>
+
+      <div className={styles.metricsRow}>
+        <SummaryList
+          title="Plan (FY)"
+          items={planSummaries.fiscal}
+          anchorAttributes={createCommentAnchor(
+            `financial.${scopeKey}.actuals.summary.plan`,
+            'Plan fiscal totals snapshot'
+          )}
+        />
+        <SummaryList
+          title="Actuals (FY)"
+          items={actualSummaries.fiscal}
+          anchorAttributes={createCommentAnchor(
+            `financial.${scopeKey}.actuals.summary.actual`,
+            'Actual fiscal totals snapshot'
+          )}
+        />
+        <div className={styles.metricCard}>
+          <span>Plan run rate (last 12 months)</span>
+          <strong>{formatCurrency(planRunRate)}</strong>
+        </div>
+        <div className={styles.metricCard}>
+          <span>Actual run rate (last 12 months)</span>
+          <strong>{formatCurrency(actualRunRate)}</strong>
+          <p className={styles.metricNote}>
+            Delta vs plan: {formatCurrency(actualRunRate - planRunRate)}
+          </p>
+        </div>
+      </div>
+
+      <div className={styles.sheetWrapper}>
+        <div className={styles.sheetScroller}>
+          <PlanVsActualChart
+            months={months}
+            gridTemplateColumns={gridTemplateColumns}
+            planData={planChartData}
+            actualData={actualChartData}
+            showPlanAsLine={showPlanAsLine}
+            anchorScope={`financial.${scopeKey}.actuals.chart`}
+          />
+          <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
+            <div className={styles.categoryHeader}>Line item</div>
+            {months.map((month) => (
+              <div key={month.key} className={styles.monthHeader}>
+                {month.label} {month.year}
+              </div>
+            ))}
+          </div>
+
+          {showEmptyState && (
+            <p className={styles.placeholder}>
+              No plan lines yet. Add entries in Financial outlook to start capturing actuals.
+            </p>
+          )}
+
+          {!showEmptyState &&
+            initiativeFinancialKinds.map((kind) => {
+              if (!activeKindSet.has(kind)) {
+                return null;
+              }
+              return (
+                <Fragment key={kind}>
+                  <div
+                    className={styles.kindDivider}
+                    {...createCommentAnchor(`financial.${scopeKey}.actuals.section.${kind}`, SECTION_LABELS[kind])}
+                  >
+                    <span>{SECTION_LABELS[kind]}</span>
+                    <span className={styles.kindMeta}>Synced from outlook</span>
+                  </div>
+                  {stage.financials[kind].length === 0 ? (
+                    <p className={styles.placeholder}>No plan lines for this bucket.</p>
+                  ) : (
+                    stage.financials[kind].map((entry) => (
+                      <Fragment key={entry.id}>
+                        <ReadOnlyPlanRow
+                          entry={entry}
+                          months={months}
+                          gridTemplateColumns={gridTemplateColumns}
+                          anchorAttributes={createCommentAnchor(
+                            `financial.${scopeKey}.actuals.plan.${entry.id}`,
+                            entry.label || SECTION_LABELS[kind]
+                          )}
+                        />
+                        <ActualsRow
+                          entry={entry}
+                          months={months}
+                          gridTemplateColumns={gridTemplateColumns}
+                          disabled={disabled}
+                          onChange={(nextEntry) => handleActualChange(kind, nextEntry)}
+                          anchorAttributes={createCommentAnchor(
+                            `financial.${scopeKey}.actuals.entry.${entry.id}`,
+                            `${entry.label || SECTION_LABELS[kind]} actuals`
+                          )}
+                        />
+                      </Fragment>
+                    ))
+                  )}
+                </Fragment>
+              );
+            })}
+        </div>
       </div>
     </section>
   );

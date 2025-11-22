@@ -15,6 +15,7 @@ export interface InitiativeFinancialEntry {
   category: string;
   lineCode: string | null;
   distribution: Record<string, number>;
+  actuals: Record<string, number>;
 }
 
 export type InitiativeStageFinancials = Record<InitiativeFinancialKind, InitiativeFinancialEntry[]>;

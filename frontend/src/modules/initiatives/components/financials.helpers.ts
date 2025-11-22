@@ -33,18 +33,26 @@ export const buildMonthRange = (stage: InitiativeStageData) => {
   const end = endCandidate.getTime() < now.getTime() ? defaultEnd : endCandidate;
 
   let earliestTime: number | null = null;
+  let latestTime: number | null = null;
   for (const kind of initiativeFinancialKinds) {
     stage.financials[kind].forEach((entry) => {
-      Object.keys(entry.distribution).forEach((key) => {
-        const parsed = parseMonthKey(key);
-        if (!parsed) {
-          return;
-        }
-        const timestamp = parsed.date.getTime();
-        if (!earliestTime || timestamp < earliestTime) {
-          earliestTime = timestamp;
-        }
-      });
+      const scanKeys = (source: Record<string, number>) => {
+        Object.keys(source).forEach((key) => {
+          const parsed = parseMonthKey(key);
+          if (!parsed) {
+            return;
+          }
+          const timestamp = parsed.date.getTime();
+          if (!earliestTime || timestamp < earliestTime) {
+            earliestTime = timestamp;
+          }
+          if (!latestTime || timestamp > latestTime) {
+            latestTime = timestamp;
+          }
+        });
+      };
+      scanKeys(entry.distribution);
+      scanKeys(entry.actuals ?? {});
     });
   }
 
@@ -53,6 +61,10 @@ export const buildMonthRange = (stage: InitiativeStageData) => {
     start = new Date(earliestTime);
   }
   const months: { key: string; label: string; year: number; index: number }[] = [];
+
+  if (typeof latestTime === 'number' && latestTime > end.getTime()) {
+    end.setTime(latestTime);
+  }
   const cursor = new Date(start);
   let index = 0;
   while (cursor.getTime() <= end.getTime() && months.length < 360) {
@@ -68,10 +80,14 @@ export const buildMonthRange = (stage: InitiativeStageData) => {
   return months;
 };
 
-export const aggregateEntryMonths = (entries: InitiativeFinancialEntry[]) => {
+export const aggregateEntryMonths = (
+  entries: InitiativeFinancialEntry[],
+  selector: (entry: InitiativeFinancialEntry) => Record<string, number> = (entry) => entry.distribution
+) => {
   const totals: Record<string, number> = {};
   for (const entry of entries) {
-    for (const [monthKey, rawValue] of Object.entries(entry.distribution)) {
+    const source = selector(entry) ?? {};
+    for (const [monthKey, rawValue] of Object.entries(source)) {
       const numeric = Number(rawValue);
       if (!Number.isFinite(numeric)) {
         continue;
@@ -84,6 +100,9 @@ export const aggregateEntryMonths = (entries: InitiativeFinancialEntry[]) => {
 
 export const buildKindMonthlyTotals = (stage: InitiativeStageData, kind: InitiativeFinancialKind) =>
   aggregateEntryMonths(stage.financials[kind]);
+
+export const buildKindActualMonthlyTotals = (stage: InitiativeStageData, kind: InitiativeFinancialKind) =>
+  aggregateEntryMonths(stage.financials[kind], (entry) => entry.actuals ?? {});
 
 export const calculateRunRate = (monthKeys: string[], totals: Record<string, number>, windowSize = 12) => {
   if (!monthKeys.length) {

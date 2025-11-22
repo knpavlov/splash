@@ -73,6 +73,7 @@ const normalizeFinancialEntry = (value: unknown): InitiativeFinancialEntry | nul
     category?: unknown;
     lineCode?: unknown;
     distribution?: unknown;
+    actuals?: unknown;
   };
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : null;
   if (!id) {
@@ -86,7 +87,8 @@ const normalizeFinancialEntry = (value: unknown): InitiativeFinancialEntry | nul
     label,
     category,
     lineCode,
-    distribution: normalizeDistribution(payload.distribution)
+    distribution: normalizeDistribution(payload.distribution),
+    actuals: normalizeDistribution(payload.actuals)
   };
 };
 
