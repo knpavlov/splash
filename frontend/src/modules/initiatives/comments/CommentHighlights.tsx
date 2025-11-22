@@ -80,6 +80,7 @@ export const CommentHighlights = ({
         <button
           key={box.id}
           type="button"
+          data-comment-highlight
           className={`${styles.highlight} ${box.id === activeThreadId ? styles.highlightActive : ''}`}
           style={{ top: box.top, left: box.left, width: box.width, height: box.height }}
           onClick={(event) => {

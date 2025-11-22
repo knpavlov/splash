@@ -61,19 +61,23 @@ export const useCommentAnchors = (
       if (thread.targetId) {
         const anchor = container.querySelector<HTMLElement>(`[data-comment-anchor="${cssEscape(thread.targetId)}"]`);
         if (anchor) {
-          rect = anchor.getBoundingClientRect();
+          const candidate = anchor.getBoundingClientRect();
+          if (candidate.width > 2 && candidate.height > 2) {
+            rect = candidate;
+          }
         } else {
           try {
             const fallback = container.querySelector<HTMLElement>(thread.targetId);
             if (fallback) {
-              rect = fallback.getBoundingClientRect();
+              const candidate = fallback.getBoundingClientRect();
+              rect = candidate.width > 2 && candidate.height > 2 ? candidate : null;
             }
           } catch {
             // targetId is not a valid selector, ignore
           }
         }
       }
-      if (!rect && thread.selection) {
+      if ((!rect || rect.width < 2 || rect.height < 2) && thread.selection) {
         const baseWidth = thread.selection.pageWidth || containerSize.width;
         const baseHeight = thread.selection.pageHeight || containerSize.height;
         const scaleX = containerSize.width / baseWidth;
@@ -97,7 +101,9 @@ export const useCommentAnchors = (
         left,
         width: rect.width,
         height: rect.height,
-        topRatio: containerSize.height ? Math.min(1, Math.max(0, top / containerSize.height)) : 0
+        topRatio: containerSize.height
+          ? Math.min(1, Math.max(0, (top + rect.height / 2) / containerSize.height))
+          : 0
       });
     }
     return map;

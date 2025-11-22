@@ -1,4 +1,7 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { CheckIcon } from '../../../components/icons/CheckIcon';
+import { CloseIcon } from '../../../components/icons/CloseIcon';
+import { SendIcon } from '../../../components/icons/SendIcon';
 import styles from '../../../styles/InitiativeComments.module.css';
 import { InitiativeCommentThread } from '../../../shared/types/initiative';
 import { CommentSelectionDraft } from './types';
@@ -9,7 +12,6 @@ interface CommentSidebarProps {
   isSaving: boolean;
   error: string | null;
   pendingSelection: CommentSelectionDraft | null;
-  onSubmitPending: (body: string) => Promise<void>;
   onCancelPending: () => void;
   onReply: (threadId: string, body: string) => Promise<void>;
   onClose: () => void;
@@ -19,10 +21,9 @@ interface CommentSidebarProps {
   anchorMap: Map<string, { topRatio: number }>;
 }
 
-const formatDateTime = (value: string) =>
-  new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+const formatDate = (value: string) => new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(value));
 
-const defaultCardHeight = 220;
+const defaultCardHeight = 180;
 
 export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
   (
@@ -32,7 +33,6 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
       isSaving,
       error,
       pendingSelection,
-      onSubmitPending,
       onCancelPending,
       onReply,
       onClose,
@@ -43,7 +43,6 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
     },
     ref
   ) => {
-    const [draft, setDraft] = useState('');
     const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
     const [cardHeights, setCardHeights] = useState<Record<string, number>>({});
     const listRef = useRef<HTMLDivElement>(null);
@@ -80,15 +79,6 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
 
     const orderedThreads = useMemo(() => threads.map((thread, index) => ({ thread, index: index + 1 })), [threads]);
 
-    const handleSubmitPending = async () => {
-      if (!pendingSelection || !draft.trim()) {
-        return;
-      }
-      const text = draft.trim();
-      await onSubmitPending(text);
-      setDraft('');
-    };
-
     const handleReply = async (threadId: string) => {
       const body = (replyDrafts[threadId] ?? '').trim();
       if (!body) {
@@ -102,7 +92,7 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
       if (!pendingSelection) {
         return (
           <div className={styles.pendingEmpty}>
-            <p>Click any interface element to start a new comment.</p>
+            <p>Select text or drag an area to start a new comment.</p>
           </div>
         );
       }
@@ -114,38 +104,25 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
               <p className={styles.pendingTarget}>{pendingSelection.targetLabel ?? pendingSelection.targetPath}</p>
             </div>
             <button
-              className={styles.pendingCancel}
+              className={styles.iconButton}
               type="button"
+              aria-label="Cancel draft"
+              title="Cancel draft"
               onClick={() => {
-                setDraft('');
                 onCancelPending();
               }}
             >
-              Cancel
+              <CloseIcon width={16} height={16} />
             </button>
           </div>
-          <textarea
-            className={styles.textarea}
-            rows={3}
-            placeholder="Describe your feedback..."
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-          />
-          <button
-            className={styles.primaryButton}
-            type="button"
-            disabled={!draft.trim() || isSaving}
-            onClick={handleSubmitPending}
-          >
-            {isSaving ? 'Saving…' : 'Save'}
-          </button>
+          <p className={styles.pendingHint}>Type in the inline popover that appeared near your selection.</p>
         </div>
       );
     };
 
     const layoutEntries = useMemo(() => {
       const height = Math.max(listHeight, 1);
-      const gap = 18;
+      const gap = 14;
       let cursor = 0;
       return orderedThreads.map(({ thread, index }) => {
         const anchor = anchorMap.get(thread.id);
@@ -165,10 +142,16 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
         <header className={styles.sidebarHeader}>
           <div>
             <p className={styles.sidebarTitle}>Comments</p>
-            <p className={styles.sidebarSubtitle}>Annotation mode is enabled</p>
+            <p className={styles.sidebarSubtitle}>Inline notes stay aligned to the page</p>
           </div>
-          <button className={styles.sidebarClose} type="button" onClick={onClose}>
-            Close
+          <button
+            className={styles.iconButton}
+            type="button"
+            aria-label="Close comments"
+            title="Close comments"
+            onClick={onClose}
+          >
+            <CloseIcon width={16} height={16} />
           </button>
         </header>
 
@@ -202,7 +185,7 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
                   <div>
                     <p className={styles.threadTarget}>{thread.targetLabel ?? thread.targetPath ?? 'UI element'}</p>
                     <p className={styles.threadMeta}>
-                      {thread.createdByName ?? 'Unknown user'} · {formatDateTime(thread.createdAt)}
+                      {thread.createdByName ?? 'Unknown user'} • {formatDate(thread.createdAt)}
                     </p>
                   </div>
                   <span className={isResolved ? styles.statusResolved : styles.statusOpen}>
@@ -213,7 +196,7 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
                   {thread.comments.map((message) => (
                     <article key={message.id} className={styles.message}>
                       <p className={styles.messageMeta}>
-                        {message.authorName ?? 'Unnamed'} · {formatDateTime(message.createdAt)}
+                        {message.authorName ?? 'Unnamed'} • {formatDate(message.createdAt)}
                       </p>
                       <p className={styles.messageBody}>{message.body}</p>
                     </article>
@@ -229,20 +212,24 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
                   />
                   <div className={styles.replyActions}>
                     <button
-                      className={styles.secondaryButton}
+                      className={styles.iconButton}
                       type="button"
                       disabled={!(replyDrafts[thread.id] ?? '').trim() || isSaving}
                       onClick={() => handleReply(thread.id)}
+                      aria-label="Send reply"
+                      title="Send reply"
                     >
-                      {isSaving ? 'Sending…' : 'Reply'}
+                      <SendIcon width={16} height={16} />
                     </button>
                     <button
-                      className={styles.tertiaryButton}
+                      className={styles.iconButton}
                       type="button"
                       disabled={isSaving}
                       onClick={() => onToggleResolved(thread.id, !isResolved)}
+                      aria-label={isResolved ? 'Mark as open' : 'Mark as addressed'}
+                      title={isResolved ? 'Mark as open' : 'Mark as addressed'}
                     >
-                      {isResolved ? 'Mark as open' : 'Mark as addressed'}
+                      <CheckIcon width={16} height={16} />
                     </button>
                   </div>
                 </div>

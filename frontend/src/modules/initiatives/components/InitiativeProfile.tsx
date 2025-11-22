@@ -24,6 +24,7 @@ import { buildKindMonthlyTotals, buildMonthRange, calculateRunRate } from './fin
 import { CommentSidebar } from '../comments/CommentSidebar';
 import { CommentSelectionOverlay } from '../comments/CommentSelectionOverlay';
 import { CommentHighlights } from '../comments/CommentHighlights';
+import { CommentInputPopover } from '../comments/CommentInputPopover';
 import { CommentSelectionDraft, CommentSelectionTarget } from '../comments/types';
 import { useCommentAnchors } from '../comments/useCommentAnchors';
 import { createCommentAnchor } from '../comments/commentAnchors';
@@ -460,13 +461,21 @@ export const InitiativeProfile = ({
     });
   }, [planValueStepTaskId]);
 
+  const clearPendingSelection = useCallback(() => {
+    setPendingSelection(null);
+    const selection = window.getSelection?.();
+    if (selection && selection.removeAllRanges) {
+      selection.removeAllRanges();
+    }
+  }, []);
+
   const handleCommentToggle = () => {
     if (!commentsAvailable) {
       return;
     }
     setIsCommentMode((prev) => {
       if (prev) {
-        setPendingSelection(null);
+        clearPendingSelection();
         setActiveThreadId(null);
       }
       return !prev;
@@ -498,10 +507,10 @@ export const InitiativeProfile = ({
         body
       });
       if (created) {
-        setPendingSelection(null);
+        clearPendingSelection();
       }
     },
-    [commentsAvailable, createComment, pendingSelection]
+    [clearPendingSelection, commentsAvailable, createComment, pendingSelection]
   );
 
   const handleReplyComment = useCallback(
@@ -1205,7 +1214,8 @@ export const InitiativeProfile = ({
                 );
               })}
             </ul>
-          ))}      </section>
+          ))}
+      </section>
 
       <footer className={styles.footer}>
         <button className={styles.secondaryButton} onClick={() => onBack(draft.workstreamId)} type="button">
@@ -1232,50 +1242,46 @@ export const InitiativeProfile = ({
           </>
         )}
       </footer>
-      </div>
-      {isCommentMode && commentsAvailable && (
-          <CommentSidebar
-            ref={sidebarRef}
-            threads={commentThreads}
-            isLoading={isLoadingComments}
-            isSaving={isSavingComment}
-            error={commentError}
-            pendingSelection={pendingSelection}
-            onSubmitPending={handleSubmitComment}
-            onCancelPending={() => setPendingSelection(null)}
-            onReply={handleReplyComment}
-            onClose={() => {
-              setIsCommentMode(false);
-              setPendingSelection(null);
-              setActiveThreadId(null);
-            }}
-            onSelectThread={setActiveThreadId}
-            activeThreadId={activeThreadId}
-            onToggleResolved={async (threadId, next) => {
-              await toggleResolved(threadId, next);
-            }}
-            anchorMap={commentAnchors}
-          />
-        )}
-        <CommentSelectionOverlay
-          isActive={isCommentMode && commentsAvailable}
-          containerRef={contentRef}
-          sidebarRef={sidebarRef}
-          onSelect={handleSelectionTarget}
-        />
-      </section>
-  );
+      <CommentInputPopover
+        containerRef={contentRef}
+        draft={pendingSelection}
+        isSaving={isSavingComment}
+        onSubmit={handleSubmitComment}
+        onCancel={clearPendingSelection}
+      />
+      <CommentSelectionOverlay
+        isActive={isCommentMode && commentsAvailable}
+        containerRef={contentRef}
+        sidebarRef={sidebarRef}
+        onSelect={handleSelectionTarget}
+      />
+    </div>
+    {isCommentMode && commentsAvailable && (
+      <CommentSidebar
+        ref={sidebarRef}
+        threads={commentThreads}
+        isLoading={isLoadingComments}
+        isSaving={isSavingComment}
+        error={commentError}
+        pendingSelection={pendingSelection}
+        onCancelPending={clearPendingSelection}
+        onReply={handleReplyComment}
+        onClose={() => {
+          setIsCommentMode(false);
+          clearPendingSelection();
+          setActiveThreadId(null);
+        }}
+        onSelectThread={setActiveThreadId}
+        activeThreadId={activeThreadId}
+        onToggleResolved={async (threadId, next) => {
+          await toggleResolved(threadId, next);
+        }}
+        anchorMap={commentAnchors}
+      />
+    )}
+  </section>
+);
 };
-
-
-
-
-
-
-
-
-
-
 
 
 

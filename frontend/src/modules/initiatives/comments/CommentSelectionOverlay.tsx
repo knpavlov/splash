@@ -1,4 +1,4 @@
-﻿import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from '../../../styles/InitiativeComments.module.css';
 import { CommentSelectionTarget } from './types';
 
@@ -20,12 +20,15 @@ const deriveLabel = (element: HTMLElement): string | null => {
   }
   const text = element.textContent?.trim();
   if (text) {
-    return text.slice(0, 120);
+    return text.slice(0, 160);
   }
   return element.tagName.toLowerCase();
 };
 
-const buildDomPath = (element: HTMLElement): string => {
+const buildDomPath = (element: HTMLElement | null): string => {
+  if (!element) {
+    return 'body';
+  }
   const segments: string[] = [];
   let current: HTMLElement | null = element;
   while (current && segments.length < 6 && current.tagName.toLowerCase() !== 'body') {
@@ -49,55 +52,244 @@ export const CommentSelectionOverlay = ({
   sidebarRef,
   onSelect
 }: CommentSelectionOverlayProps) => {
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    target: HTMLElement | null;
+    hasMoved: boolean;
+  } | null>(null);
+  const [selectionBox, setSelectionBox] = useState<{ top: number; left: number; width: number; height: number } | null>(
+    null
+  );
+
   useEffect(() => {
     if (!isActive) {
       return;
     }
-    const handleClick = (event: MouseEvent) => {
-      const container = containerRef.current;
-      if (!container) {
-        return;
-      }
-      const sidebar = sidebarRef?.current;
-      if (sidebar && sidebar.contains(event.target as Node)) {
-        return;
-      }
-      if (!container.contains(event.target as Node)) {
-        return;
-      }
-      const rawTarget = (event.target as HTMLElement) ?? null;
-      const anchor = rawTarget?.closest<HTMLElement>('[data-comment-anchor]');
-      const target = anchor ?? rawTarget;
+
+    const resetSelection = () => {
+      dragRef.current = null;
+      setSelectionBox(null);
+    };
+
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const shouldIgnoreTarget = (target: HTMLElement | null) => {
       if (!target) {
-        return;
+        return false;
       }
-      const containerRect = container.getBoundingClientRect();
-      const targetRect = target.getBoundingClientRect();
-      event.preventDefault();
-      event.stopPropagation();
-      const selection = {
-        top: targetRect.top - containerRect.top,
-        left: targetRect.left - containerRect.left,
-        width: targetRect.width,
-        height: targetRect.height,
-        pageWidth: containerRect.width,
-        pageHeight: containerRect.height
-      };
-      const targetId =
-        (anchor?.dataset.commentAnchor && anchor.dataset.commentAnchor.trim()) || buildDomPath(target);
+      if (sidebarRef?.current && sidebarRef.current.contains(target)) {
+        return true;
+      }
+      return Boolean(
+        target.closest('[data-comment-popover]') ||
+          target.closest('[data-comment-panel]') ||
+          target.closest('[data-comment-highlight]')
+      );
+    };
+
+    const normalizeBox = (rect: DOMRect, host: DOMRect) => ({
+      top: rect.top - host.top,
+      left: rect.left - host.left,
+      width: rect.width,
+      height: rect.height,
+      pageWidth: host.width,
+      pageHeight: host.height
+    });
+
+    const handleTextSelection = (hostRect: DOMRect): CommentSelectionTarget | null => {
+      const selection = window.getSelection?.();
+      if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+        return null;
+      }
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      if (!rect || (!rect.width && !rect.height)) {
+        return null;
+      }
+      const intersects =
+        rect.bottom >= hostRect.top &&
+        rect.top <= hostRect.bottom &&
+        rect.right >= hostRect.left &&
+        rect.left <= hostRect.right;
+      if (!intersects) {
+        return null;
+      }
+      const rawElement =
+        (range.commonAncestorContainer as HTMLElement | null) ?? range.startContainer?.parentElement ?? null;
+      const anchor = rawElement?.closest<HTMLElement>('[data-comment-anchor]');
+      const target = anchor ?? rawElement ?? container;
+      const targetId = (anchor?.dataset.commentAnchor && anchor.dataset.commentAnchor.trim()) || buildDomPath(target);
+      const labelFromSelection = selection.toString().trim().slice(0, 160);
       const targetLabel =
-        (anchor?.dataset.commentLabel && anchor.dataset.commentLabel.trim()) || deriveLabel(target);
+        (anchor?.dataset.commentLabel && anchor.dataset.commentLabel.trim()) ||
+        labelFromSelection ||
+        deriveLabel(target);
       const targetPath = buildDomPath(target);
-      onSelect({
+      const box = normalizeBox(rect, hostRect);
+      return {
         targetId,
         targetLabel,
         targetPath,
-        selection
+        selection: box,
+        cursor: {
+          x: Math.min(Math.max(box.left + box.width / 2, 0), hostRect.width),
+          y: Math.min(box.top + box.height, hostRect.height)
+        }
+      };
+    };
+
+    const buildTargetFromElement = (hostRect: DOMRect, rawTarget: HTMLElement | null): CommentSelectionTarget | null => {
+      if (!rawTarget) {
+        return null;
+      }
+      const anchor = rawTarget.closest<HTMLElement>('[data-comment-anchor]');
+      const target = anchor ?? rawTarget;
+      const rect = target.getBoundingClientRect();
+      if (!rect) {
+        return null;
+      }
+      const box = normalizeBox(rect, hostRect);
+      const targetId =
+        (anchor?.dataset.commentAnchor && anchor.dataset.commentAnchor.trim()) || buildDomPath(target);
+      const targetLabel =
+        (anchor?.dataset.commentLabel && anchor.dataset.commentLabel.trim()) ||
+        deriveLabel(target) ||
+        deriveLabel(container);
+      const targetPath = buildDomPath(target);
+      return {
+        targetId,
+        targetLabel,
+        targetPath,
+        selection: box,
+        cursor: {
+          x: Math.min(Math.max(box.left + box.width / 2, 0), hostRect.width),
+          y: Math.min(box.top + box.height, hostRect.height)
+        }
+      };
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (shouldIgnoreTarget(target)) {
+        return;
+      }
+      if (!container.contains(target)) {
+        return;
+      }
+      if (event.button !== 0) {
+        return;
+      }
+      dragRef.current = {
+        startX: event.clientX,
+        startY: event.clientY,
+        target,
+        hasMoved: false
+      };
+      setSelectionBox(null);
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const state = dragRef.current;
+      if (!state) {
+        return;
+      }
+      const deltaX = event.clientX - state.startX;
+      const deltaY = event.clientY - state.startY;
+      if (Math.abs(deltaX) + Math.abs(deltaY) > 6) {
+        state.hasMoved = true;
+      }
+      if (!state.hasMoved) {
+        return;
+      }
+      const hostRect = container.getBoundingClientRect();
+      const left = Math.min(state.startX, event.clientX) - hostRect.left;
+      const top = Math.min(state.startY, event.clientY) - hostRect.top;
+      const width = Math.max(Math.abs(deltaX), 8);
+      const height = Math.max(Math.abs(deltaY), 8);
+      setSelectionBox({
+        top,
+        left,
+        width,
+        height
       });
     };
-    document.addEventListener('click', handleClick, true);
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (shouldIgnoreTarget(event.target as HTMLElement | null)) {
+        resetSelection();
+        return;
+      }
+      const hostRect = container.getBoundingClientRect();
+      const targetFromText = handleTextSelection(hostRect);
+      if (targetFromText) {
+        event.preventDefault();
+        event.stopPropagation();
+        onSelect(targetFromText);
+        resetSelection();
+        return;
+      }
+
+      const state = dragRef.current;
+      if (state?.hasMoved) {
+        event.preventDefault();
+        event.stopPropagation();
+        const left = Math.min(state.startX, event.clientX);
+        const top = Math.min(state.startY, event.clientY);
+        const width = Math.max(Math.abs(event.clientX - state.startX), 12);
+        const height = Math.max(Math.abs(event.clientY - state.startY), 12);
+        const box = normalizeBox(new DOMRect(left, top, width, height), hostRect);
+        const anchor = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-comment-anchor]') ?? state.target;
+        const fallbackLabel = deriveLabel(anchor ?? container);
+        const targetId =
+          (anchor?.dataset.commentAnchor && anchor.dataset.commentAnchor.trim()) ||
+          buildDomPath(anchor ?? container);
+        const targetLabel = (anchor?.dataset.commentLabel && anchor.dataset.commentLabel.trim()) || fallbackLabel;
+        onSelect({
+          targetId,
+          targetLabel,
+          targetPath: buildDomPath(anchor ?? container),
+          selection: box,
+          cursor: {
+            x: Math.min(Math.max(box.left + box.width / 2, 0), hostRect.width),
+            y: Math.min(box.top + box.height, hostRect.height)
+          }
+        });
+        resetSelection();
+        return;
+      }
+
+      const targetFromClick = buildTargetFromElement(
+        hostRect,
+        (event.target as HTMLElement | null) ?? state?.target ?? null
+      );
+      if (targetFromClick) {
+        event.preventDefault();
+        event.stopPropagation();
+        onSelect(targetFromClick);
+      }
+      resetSelection();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        resetSelection();
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('pointermove', handlePointerMove, true);
+    document.addEventListener('pointerup', handlePointerUp, true);
+    document.addEventListener('keydown', handleKeyDown, true);
+
     return () => {
-      document.removeEventListener('click', handleClick, true);
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('pointermove', handlePointerMove, true);
+      document.removeEventListener('pointerup', handlePointerUp, true);
+      document.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [containerRef, sidebarRef, isActive, onSelect]);
 
@@ -106,10 +298,21 @@ export const CommentSelectionOverlay = ({
   }
 
   return (
-    <div className={styles.overlayNotice}>
-      <p>Comment mode is active. Click any UI element to anchor your note.</p>
-    </div>
+    <>
+      <div className={styles.overlayNotice}>
+        <p>Select text or drag to mark an area. A comment box will appear near your cursor.</p>
+      </div>
+      {selectionBox && (
+        <div
+          className={styles.selectionGhost}
+          style={{
+            top: selectionBox.top,
+            left: selectionBox.left,
+            width: selectionBox.width,
+            height: selectionBox.height
+          }}
+        />
+      )}
+    </>
   );
 };
-
-

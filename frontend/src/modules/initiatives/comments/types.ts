@@ -5,6 +5,7 @@ export interface CommentSelectionTarget {
   targetLabel: string | null;
   targetPath: string | null;
   selection: InitiativeCommentSelection;
+  cursor?: { x: number; y: number };
 }
 
 export interface CommentSelectionDraft extends CommentSelectionTarget {
