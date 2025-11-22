@@ -705,34 +705,42 @@ const PlanVsActualChart = ({
 
   const linePoints =
     showPlanAsLine && months.length > 0
-      ? planData.map((month, index) => {
-          const net = month.positiveTotal - month.negativeTotal;
-          if (net >= 0) {
-            const ratio = positiveScale ? Math.min(1, net / positiveScale) : 0;
-            const y = (1 - ratio) * positivePortion * 100;
+      ? (() => {
+          const maxAbsNet = Math.max(
+            1,
+            ...planData.map((month) => Math.abs(month.positiveTotal - month.negativeTotal))
+          );
+          return planData.map((month, index) => {
+            const net = month.positiveTotal - month.negativeTotal;
+            const ratio = Math.max(-1, Math.min(1, net / maxAbsNet));
+            const y = 50 - ratio * 48; // center at 50, leave small top/bottom margin
             return { x: index + 0.5, y };
-          }
-          const ratio = negativeScale ? Math.min(1, Math.abs(net) / negativeScale) : 0;
-          const y = positivePortion * 100 + ratio * negativePortion * 100;
-          return { x: index + 0.5, y };
-        })
+          });
+        })()
       : [];
 
   return (
     <div className={`${styles.chartRow} ${styles.comparisonChart}`} style={{ gridTemplateColumns }} ref={chartRef}>
       <div className={styles.chartLegend}>Plan vs actuals</div>
       {showPlanAsLine && linePoints.length > 0 && (
-        <svg
-          className={styles.planLine}
-          viewBox={`0 0 ${months.length} 100`}
-          preserveAspectRatio="none"
-          style={{ gridColumn: `2 / span ${months.length}`, gridRow: 1 }}
+        <div
+          style={{
+            gridColumn: `2 / span ${months.length}`,
+            gridRow: 1,
+            position: 'relative'
+          }}
         >
-          <polyline points={linePoints.map((point) => `${point.x},${point.y}`).join(' ')} strokeWidth={1.2} />
-          {linePoints.map((point, index) => (
-            <circle key={`${point.x}-${index}`} cx={point.x} cy={point.y} r={0.9} />
-          ))}
-        </svg>
+          <svg className={styles.planLine} viewBox={`0 0 ${months.length} 100`} preserveAspectRatio="none">
+            <polyline
+              points={linePoints.map((point) => `${point.x},${point.y}`).join(' ')}
+              strokeWidth={1.2}
+              fill="none"
+            />
+            {linePoints.map((point, index) => (
+              <circle key={`${point.x}-${index}`} cx={point.x} cy={point.y} r={0.9} />
+            ))}
+          </svg>
+        </div>
       )}
       {months.map((month, index) => {
         const plan = planData[index];
