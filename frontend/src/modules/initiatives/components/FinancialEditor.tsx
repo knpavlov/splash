@@ -742,6 +742,10 @@ const PlanVsActualChart = ({
         const negativeRatioPlan = negativeScale ? Math.min(1, plan.negativeTotal / negativeScale) : 0;
         const positiveRatioActual = positiveScale ? Math.min(1, actual.positiveTotal / positiveScale) : 0;
         const negativeRatioActual = negativeScale ? Math.min(1, actual.negativeTotal / negativeScale) : 0;
+        const positivePlanScale = plan.positiveTotal || 1;
+        const negativePlanScale = plan.negativeTotal || 1;
+        const positiveActualScale = actual.positiveTotal || 1;
+        const negativeActualScale = actual.negativeTotal || 1;
         const planNet = plan.positiveTotal - plan.negativeTotal;
         const lineMarker =
           showPlanAsLine && positivePortion > 0
@@ -763,7 +767,7 @@ const PlanVsActualChart = ({
                       <div className={`${styles.dualBar} ${styles.planBar}`} style={{ height: `${positiveRatioPlan * 100}%` }}>
                         <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
                           {plan.positiveSegments.map((segment, segmentIndex) => {
-                            const height = (segment.value / positiveScale) * 100;
+                            const height = (segment.value / positivePlanScale) * 100;
                             return (
                               <div
                                 key={`${month.key}-plan-pos-${segmentIndex}`}
@@ -787,7 +791,7 @@ const PlanVsActualChart = ({
                     >
                       <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
                         {actual.positiveSegments.map((segment, segmentIndex) => {
-                          const height = (segment.value / positiveScale) * 100;
+                          const height = (segment.value / positiveActualScale) * 100;
                           return (
                             <div
                               key={`${month.key}-actual-pos-${segmentIndex}`}
@@ -815,7 +819,7 @@ const PlanVsActualChart = ({
                       >
                         <div className={`${styles.stackFill} ${styles.stackFillNegative}`}>
                           {plan.negativeSegments.map((segment, segmentIndex) => {
-                            const height = (segment.value / negativeScale) * 100;
+                            const height = (segment.value / negativePlanScale) * 100;
                             return (
                               <div
                                 key={`${month.key}-plan-neg-${segmentIndex}`}
@@ -839,7 +843,7 @@ const PlanVsActualChart = ({
                     >
                       <div className={`${styles.stackFill} ${styles.stackFillNegative}`}>
                         {actual.negativeSegments.map((segment, segmentIndex) => {
-                          const height = (segment.value / negativeScale) * 100;
+                          const height = (segment.value / negativeActualScale) * 100;
                           return (
                             <div
                               key={`${month.key}-actual-neg-${segmentIndex}`}
