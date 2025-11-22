@@ -53,7 +53,7 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
       if (!node) {
         return;
       }
-      const updateHeight = () => setListHeight(Math.max(node.scrollHeight, node.clientHeight));
+      const updateHeight = () => setListHeight(node.clientHeight || node.getBoundingClientRect().height);
       updateHeight();
       if (typeof ResizeObserver !== 'undefined') {
         const observer = new ResizeObserver(updateHeight);
@@ -169,10 +169,13 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
           )}
           {layoutEntries.map(({ thread, index, marginTop }) => {
             const isResolved = Boolean(thread.resolvedAt);
+            const threadClass = `${styles.threadCard} ${thread.id === activeThreadId ? styles.threadActive : ''} ${
+              isResolved ? styles.threadResolved : ''
+            }`;
             return (
               <section
                 key={thread.id}
-                className={`${styles.threadCard} ${thread.id === activeThreadId ? styles.threadActive : ''}`}
+                className={threadClass}
                 style={{ marginTop }}
                 ref={registerCardRef(thread.id)}
                 onMouseEnter={() => onSelectThread?.(thread.id)}
@@ -184,20 +187,24 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
                   <span className={styles.threadBadge}>{index}</span>
                   <div>
                     <p className={styles.threadTarget}>{thread.targetLabel ?? thread.targetPath ?? 'UI element'}</p>
-                    <p className={styles.threadMeta}>
-                      {thread.createdByName ?? 'Unknown user'} • {formatDate(thread.createdAt)}
-                    </p>
+                    {!isResolved && (
+                      <p className={styles.threadMeta}>
+                        {thread.createdByName ?? 'Unknown user'} • {formatDate(thread.createdAt)}
+                      </p>
+                    )}
                   </div>
                   <span className={isResolved ? styles.statusResolved : styles.statusOpen}>
-                    {isResolved ? 'Addressed' : 'Open'}
+                    {isResolved ? 'Resolved' : 'Open'}
                   </span>
                 </div>
                 <div className={styles.messageList}>
                   {thread.comments.map((message) => (
                     <article key={message.id} className={styles.message}>
-                      <p className={styles.messageMeta}>
-                        {message.authorName ?? 'Unnamed'} • {formatDate(message.createdAt)}
-                      </p>
+                      {!isResolved && (
+                        <p className={styles.messageMeta}>
+                          {message.authorName ?? 'Unnamed'} • {formatDate(message.createdAt)}
+                        </p>
+                      )}
                       <p className={styles.messageBody}>{message.body}</p>
                     </article>
                   ))}

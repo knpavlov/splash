@@ -152,24 +152,39 @@ export const CommentSelectionOverlay = ({
       };
     };
 
+    const findTightElement = (start: HTMLElement | null): HTMLElement | null => {
+      let current: HTMLElement | null = start;
+      let best: { node: HTMLElement; area: number } | null = null;
+      while (current && current !== container && current.tagName.toLowerCase() !== 'body') {
+        const rect = current.getBoundingClientRect();
+        const area = rect.width * rect.height;
+        if (rect.width > 4 && rect.height > 4 && (!best || area < best.area)) {
+          best = { node: current, area };
+        }
+        current = current.parentElement;
+      }
+      return best?.node ?? start;
+    };
+
     const buildTargetFromElement = (hostRect: DOMRect, rawTarget: HTMLElement | null): CommentSelectionTarget | null => {
       if (!rawTarget) {
         return null;
       }
-      const anchor = rawTarget.closest<HTMLElement>('[data-comment-anchor]');
-      const target = anchor ?? rawTarget;
-      const rect = target.getBoundingClientRect();
+      const preciseTarget = findTightElement(rawTarget);
+      const anchor = preciseTarget?.closest<HTMLElement>('[data-comment-anchor]');
+      const target = anchor ?? preciseTarget;
+      const rect = target?.getBoundingClientRect();
       if (!rect) {
         return null;
       }
       const box = normalizeBox(rect, hostRect);
       const targetId =
-        (anchor?.dataset.commentAnchor && anchor.dataset.commentAnchor.trim()) || buildDomPath(target);
+        (anchor?.dataset.commentAnchor && anchor.dataset.commentAnchor.trim()) || buildDomPath(target ?? container);
       const targetLabel =
         (anchor?.dataset.commentLabel && anchor.dataset.commentLabel.trim()) ||
-        deriveLabel(target) ||
+        deriveLabel(target ?? container) ||
         deriveLabel(container);
-      const targetPath = buildDomPath(target);
+      const targetPath = buildDomPath(target ?? container);
       return {
         targetId,
         targetLabel,
