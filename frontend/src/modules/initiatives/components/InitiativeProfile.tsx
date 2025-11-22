@@ -24,6 +24,7 @@ import { buildKindMonthlyTotals, buildMonthRange, calculateRunRate } from './fin
 import { CommentSidebar } from '../comments/CommentSidebar';
 import { CommentSelectionOverlay } from '../comments/CommentSelectionOverlay';
 import { CommentHighlights } from '../comments/CommentHighlights';
+import { CommentInputPopover } from '../comments/CommentInputPopover';
 import { CommentSelectionDraft, CommentSelectionTarget } from '../comments/types';
 import { useCommentAnchors } from '../comments/useCommentAnchors';
 import { createCommentAnchor } from '../comments/commentAnchors';
@@ -460,6 +461,12 @@ export const InitiativeProfile = ({
     });
   }, [planValueStepTaskId]);
 
+  const [popoverState, setPopoverState] = useState<{ visible: boolean; top: number; left: number }>({
+    visible: false,
+    top: 0,
+    left: 0
+  });
+
   const handleCommentToggle = () => {
     if (!commentsAvailable) {
       return;
@@ -467,6 +474,7 @@ export const InitiativeProfile = ({
     setIsCommentMode((prev) => {
       if (prev) {
         setPendingSelection(null);
+        setPopoverState({ visible: false, top: 0, left: 0 });
         setActiveThreadId(null);
       }
       return !prev;
@@ -479,6 +487,17 @@ export const InitiativeProfile = ({
         return;
       }
       setPendingSelection({ ...target, stageKey: selectedStage });
+
+      // Calculate popover position relative to the container (profileContent)
+      // target.selection is already relative to container
+      const top = target.selection.top + target.selection.height + 10;
+      const left = target.selection.left;
+
+      setPopoverState({
+        visible: true,
+        top,
+        left
+      });
       setActiveThreadId(null);
     },
     [commentsAvailable, selectedStage]
@@ -499,10 +518,16 @@ export const InitiativeProfile = ({
       });
       if (created) {
         setPendingSelection(null);
+        setPopoverState((prev) => ({ ...prev, visible: false }));
       }
     },
     [commentsAvailable, createComment, pendingSelection]
   );
+
+  const handleCancelComment = () => {
+    setPendingSelection(null);
+    setPopoverState((prev) => ({ ...prev, visible: false }));
+  };
 
   const handleReplyComment = useCallback(
     async (threadId: string, body: string) => {
@@ -714,8 +739,8 @@ export const InitiativeProfile = ({
 
   const valueStepSummary = planValueStepTask
     ? [planValueStepTask.name || VALUE_STEP_LABEL, formatTaskDateRange(planValueStepTask)]
-        .filter(Boolean)
-        .join(' | ')
+      .filter(Boolean)
+      .join(' | ')
     : 'Not set in plan';
 
   const showValueStepTooltip = (event: React.MouseEvent) => {
@@ -776,6 +801,12 @@ export const InitiativeProfile = ({
             anchors={commentAnchors}
           />
         )}
+        <CommentInputPopover
+          visible={popoverState.visible}
+          position={popoverState}
+          onSubmit={handleSubmitComment}
+          onCancel={handleCancelComment}
+        />
         <div className={styles.topActions}>
           {!hideBackLink && (
             <button className={styles.backLink} onClick={() => onBack(draft.workstreamId)} type="button">
@@ -813,457 +844,457 @@ export const InitiativeProfile = ({
           </div>
         </div>
 
-      <section className={styles.cardSection} {...buildProfileAnchor('stage-gates', 'Stage progression')}>
-        <header className={styles.cardHeader}>
-          <div className={styles.cardHeaderTitle}>
-            <button
-              className={styles.sectionToggle}
-              type="button"
-              onClick={() => handleSectionToggle('stage-progress')}
-              aria-expanded={!stageProgressCollapsed}
-              aria-label={stageProgressCollapsed ? 'Expand stage progression' : 'Collapse stage progression'}
-            >
-              <ChevronIcon direction={stageProgressCollapsed ? 'right' : 'down'} size={16} />
-            </button>
-            <div>
-              <h3>Stage progression</h3>
-              <p>Track each L gate and review status in one place.</p>
-            </div>
-          </div>
-        </header>
-        {!stageProgressCollapsed && (
-          <StageGatePanel
-            activeStage={draft.activeStage}
-            selectedStage={selectedStage}
-            stages={draft.stages}
-            stageState={draft.stageState}
-            initiativeName={draft.name}
-            onSelectStage={handleStageChange}
-            workstream={selectedWorkstream}
-          />
-        )}
-      </section>
-
-      {banner && (
-        <div className={banner.type === 'info' ? styles.bannerInfo : styles.bannerError}>{banner.text}</div>
-      )}
-
-      <div className={styles.stagePanel}>
-        <header className={styles.stageHeader}>
-          <div className={styles.stageHeaderLeft}>
-            <button
-              className={styles.sectionToggle}
-              type="button"
-              onClick={() => handleSectionToggle('stage-details')}
-              aria-expanded={!stageDetailsCollapsed}
-              aria-label={stageDetailsCollapsed ? 'Expand stage details' : 'Collapse stage details'}
-            >
-              <ChevronIcon direction={stageDetailsCollapsed ? 'right' : 'down'} size={16} />
-            </button>
-            <div>
-              <h3>{stageTitle}</h3>
-              {!isStageEditable && <p className={styles.stageHint}>Fields are read-only for this gate.</p>}
-            </div>
-          </div>
-          <div className={styles.stageActions}>
-            {mode === 'view' && initiative && isStageEditable && !stageLocked && (
+        <section className={styles.cardSection} {...buildProfileAnchor('stage-gates', 'Stage progression')}>
+          <header className={styles.cardHeader}>
+            <div className={styles.cardHeaderTitle}>
               <button
-                className={styles.secondaryButton}
-                onClick={handleSubmitClick}
-                disabled={isSubmitting || !canSubmitStage}
+                className={styles.sectionToggle}
                 type="button"
+                onClick={() => handleSectionToggle('stage-progress')}
+                aria-expanded={!stageProgressCollapsed}
+                aria-label={stageProgressCollapsed ? 'Expand stage progression' : 'Collapse stage progression'}
               >
-                {currentStageState.status === 'pending'
-                  ? 'Waiting for approvals'
-                  : isSubmitting
-                    ? 'Submitting...'
-                    : 'Submit for next gate'}
+                <ChevronIcon direction={stageProgressCollapsed ? 'right' : 'down'} size={16} />
               </button>
-            )}
-          </div>
-        </header>
-        {!stageDetailsCollapsed && (
-          <>
-        <div className={styles.stageStatusRow} {...buildStageAnchor('status', 'Stage status')}>
-          <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
-            {stageStatusLabel}
-          </span>
-          <span className={styles.stageStatusMeta}>{stageStatusDetails}</span>
-        </div>
-        {currentStageState.comment && currentStageState.status !== 'draft' && (
-          <div className={styles.stageAlert}>
-            <strong>Reviewer note:</strong>
-            <p>{currentStageState.comment}</p>
-          </div>
+              <div>
+                <h3>Stage progression</h3>
+                <p>Track each L gate and review status in one place.</p>
+              </div>
+            </div>
+          </header>
+          {!stageProgressCollapsed && (
+            <StageGatePanel
+              activeStage={draft.activeStage}
+              selectedStage={selectedStage}
+              stages={draft.stages}
+              stageState={draft.stageState}
+              initiativeName={draft.name}
+              onSelectStage={handleStageChange}
+              workstream={selectedWorkstream}
+            />
+          )}
+        </section>
+
+        {banner && (
+          <div className={banner.type === 'info' ? styles.bannerInfo : styles.bannerError}>{banner.text}</div>
         )}
 
-        {stageLocked && <p className={styles.lockedNote}>Complete previous gates before editing this stage.</p>}
-
-        <label
-          className={`${styles.fieldBlock} ${errors.stageName ? styles.fieldError : ''}`}
-          {...buildStageAnchor('name', 'Stage name')}
-        >
-          <span>Stage name</span>
-          <input
-            type="text"
-            className={errors.stageName ? styles.inputError : undefined}
-            value={currentStage.name}
-            onChange={(event) => handleStageFieldChange('name', event.target.value)}
-            disabled={!isStageEditable}
-          />
-        </label>
-
-        <div className={styles.stageMetaGrid}>
-          <label
-            className={`${styles.fieldBlock} ${errors.workstream ? styles.fieldError : ''}`}
-            {...buildProfileAnchor('meta.workstream', 'Workstream')}
-          >
-            <span>Workstream</span>
-            <select
-              className={errors.workstream ? styles.inputError : undefined}
-              value={draft.workstreamId}
-              onChange={(event) => handleFieldChange('workstreamId', event.target.value)}
-              disabled={!hasWorkstreams}
-            >
-              {!hasWorkstreams && <option value="">Create a workstream first</option>}
-              {workstreams.map((ws) => (
-                <option key={ws.id} value={ws.id}>
-                  {ws.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={styles.fieldBlock} {...buildProfileAnchor('meta.status', 'Current status')}>
-            <span>Current status</span>
-            <input
-              type="text"
-              value={draft.currentStatus}
-              onChange={(event) => handleFieldChange('currentStatus', event.target.value)}
-            />
-          </label>
-          <label className={styles.fieldBlock} {...buildProfileAnchor('meta.l4-target', 'Portfolio L4 date')}>
-            <span>Target L4 date</span>
-            <input
-              type="date"
-              value={draft.l4Date ?? ''}
-              onChange={(event) => handleFieldChange('l4Date', event.target.value || null)}
-            />
-          </label>
-          <label className={styles.fieldBlock} {...buildProfileAnchor('meta.owner-account', 'Owner account')}>
-            <span>Initiative owner</span>
-            <select value={draft.ownerAccountId ?? ''} onChange={(event) => handleOwnerSelect(event.target.value)}>
-              <option value="">No linked account</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {resolveAccountName(account) || account.email}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className={styles.valueStepRow} ref={tooltipHostRef}>
-          <label className={styles.fieldBlock} {...buildStageAnchor('value-step', 'Value Step')}>
-            <span className={styles.labelWithIcon}>
-              <span>Value Step</span>
-              <span
-                className={styles.helpIcon}
-                onMouseEnter={showValueStepTooltip}
-                onMouseMove={showValueStepTooltip}
-                onMouseLeave={hideValueStepTooltip}
-                aria-label="Value step explanation"
-                role="presentation"
+        <div className={styles.stagePanel}>
+          <header className={styles.stageHeader}>
+            <div className={styles.stageHeaderLeft}>
+              <button
+                className={styles.sectionToggle}
+                type="button"
+                onClick={() => handleSectionToggle('stage-details')}
+                aria-expanded={!stageDetailsCollapsed}
+                aria-label={stageDetailsCollapsed ? 'Expand stage details' : 'Collapse stage details'}
               >
-                ?
-              </span>
-            </span>
-            <input type="text" value={valueStepSummary} disabled />
-            <p className={styles.fieldHint}>Managed via the plan module.</p>
-            {valueStepTooltip.visible && (
-              <div
-                className={styles.tooltip}
-                style={{ left: `${valueStepTooltip.x}px`, top: `${valueStepTooltip.y}px` }}
-              >
-                A value step is an activity after which no further action is required for the initiative to begin accruing value.
+                <ChevronIcon direction={stageDetailsCollapsed ? 'right' : 'down'} size={16} />
+              </button>
+              <div>
+                <h3>{stageTitle}</h3>
+                {!isStageEditable && <p className={styles.stageHint}>Fields are read-only for this gate.</p>}
               </div>
-            )}
-          </label>
+            </div>
+            <div className={styles.stageActions}>
+              {mode === 'view' && initiative && isStageEditable && !stageLocked && (
+                <button
+                  className={styles.secondaryButton}
+                  onClick={handleSubmitClick}
+                  disabled={isSubmitting || !canSubmitStage}
+                  type="button"
+                >
+                  {currentStageState.status === 'pending'
+                    ? 'Waiting for approvals'
+                    : isSubmitting
+                      ? 'Submitting...'
+                      : 'Submit for next gate'}
+                </button>
+              )}
+            </div>
+          </header>
+          {!stageDetailsCollapsed && (
+            <>
+              <div className={styles.stageStatusRow} {...buildStageAnchor('status', 'Stage status')}>
+                <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
+                  {stageStatusLabel}
+                </span>
+                <span className={styles.stageStatusMeta}>{stageStatusDetails}</span>
+              </div>
+              {currentStageState.comment && currentStageState.status !== 'draft' && (
+                <div className={styles.stageAlert}>
+                  <strong>Reviewer note:</strong>
+                  <p>{currentStageState.comment}</p>
+                </div>
+              )}
 
-          <label
-            className={styles.fieldBlock}
-            {...buildStageAnchor('additional-commentary', 'Additional commentary')}
-          >
-            <span>Additional Commentary</span>
-            <textarea
-              value={currentStage.additionalCommentary}
-              onChange={(event) => handleStageFieldChange('additionalCommentary', event.target.value)}
-              disabled={!isStageEditable}
-              rows={3}
-            />
-          </label>
-        </div>
+              {stageLocked && <p className={styles.lockedNote}>Complete previous gates before editing this stage.</p>}
 
-        <label
-          className={`${styles.fieldBlock} ${errors.stageDescription ? styles.fieldError : ''}`}
-          {...buildStageAnchor('description', 'Stage description')}
-        >
-          <span>Description</span>
-          <textarea
-            className={errors.stageDescription ? styles.inputError : undefined}
-            value={currentStage.description}
-            onChange={(event) => handleStageFieldChange('description', event.target.value)}
-            disabled={!isStageEditable}
-            rows={4}
-          />
-        </label>
+              <label
+                className={`${styles.fieldBlock} ${errors.stageName ? styles.fieldError : ''}`}
+                {...buildStageAnchor('name', 'Stage name')}
+              >
+                <span>Stage name</span>
+                <input
+                  type="text"
+                  className={errors.stageName ? styles.inputError : undefined}
+                  value={currentStage.name}
+                  onChange={(event) => handleStageFieldChange('name', event.target.value)}
+                  disabled={!isStageEditable}
+                />
+              </label>
 
-        <div className={styles.periodRow}>
-          <label
-            className={errors.periodMonth ? styles.fieldError : undefined}
-            {...buildStageAnchor('period-month', 'Period month')}
-          >
-            <span>Period month</span>
-            <select
-              className={errors.periodMonth ? styles.inputError : undefined}
-              value={currentStage.periodMonth ?? ''}
-              onChange={(event) => handleStageFieldChange('periodMonth', Number(event.target.value) || null)}
-              disabled={!isStageEditable}
-            >
-              <option value="">Not set</option>
-              {Array.from({ length: 12 }).map((_, index) => (
-                <option key={index + 1} value={index + 1}>
-                  {new Date(2000, index, 1).toLocaleString('en-US', { month: 'short' })}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label
-            className={errors.periodYear ? styles.fieldError : undefined}
-            {...buildStageAnchor('period-year', 'Period year')}
-          >
-            <span>Period year</span>
-            <input
-              type="number"
-              className={errors.periodYear ? styles.inputError : undefined}
-              value={currentStage.periodYear ?? ''}
-              onChange={(event) => handleStageFieldChange('periodYear', Number(event.target.value) || null)}
-              disabled={!isStageEditable}
-            />
-          </label>
-          {selectedStage === 'l4' && (
-            <label {...buildStageAnchor('stage-l4-date', 'Stage L4 date')}>
-              <span>L4 date</span>
-              <input
-                type="date"
-                value={currentStage.l4Date ?? ''}
-                onChange={(event) => handleStageFieldChange('l4Date', event.target.value)}
-                disabled={!isStageEditable}
-              />
-            </label>
+              <div className={styles.stageMetaGrid}>
+                <label
+                  className={`${styles.fieldBlock} ${errors.workstream ? styles.fieldError : ''}`}
+                  {...buildProfileAnchor('meta.workstream', 'Workstream')}
+                >
+                  <span>Workstream</span>
+                  <select
+                    className={errors.workstream ? styles.inputError : undefined}
+                    value={draft.workstreamId}
+                    onChange={(event) => handleFieldChange('workstreamId', event.target.value)}
+                    disabled={!hasWorkstreams}
+                  >
+                    {!hasWorkstreams && <option value="">Create a workstream first</option>}
+                    {workstreams.map((ws) => (
+                      <option key={ws.id} value={ws.id}>
+                        {ws.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.fieldBlock} {...buildProfileAnchor('meta.status', 'Current status')}>
+                  <span>Current status</span>
+                  <input
+                    type="text"
+                    value={draft.currentStatus}
+                    onChange={(event) => handleFieldChange('currentStatus', event.target.value)}
+                  />
+                </label>
+                <label className={styles.fieldBlock} {...buildProfileAnchor('meta.l4-target', 'Portfolio L4 date')}>
+                  <span>Target L4 date</span>
+                  <input
+                    type="date"
+                    value={draft.l4Date ?? ''}
+                    onChange={(event) => handleFieldChange('l4Date', event.target.value || null)}
+                  />
+                </label>
+                <label className={styles.fieldBlock} {...buildProfileAnchor('meta.owner-account', 'Owner account')}>
+                  <span>Initiative owner</span>
+                  <select value={draft.ownerAccountId ?? ''} onChange={(event) => handleOwnerSelect(event.target.value)}>
+                    <option value="">No linked account</option>
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {resolveAccountName(account) || account.email}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className={styles.valueStepRow} ref={tooltipHostRef}>
+                <label className={styles.fieldBlock} {...buildStageAnchor('value-step', 'Value Step')}>
+                  <span className={styles.labelWithIcon}>
+                    <span>Value Step</span>
+                    <span
+                      className={styles.helpIcon}
+                      onMouseEnter={showValueStepTooltip}
+                      onMouseMove={showValueStepTooltip}
+                      onMouseLeave={hideValueStepTooltip}
+                      aria-label="Value step explanation"
+                      role="presentation"
+                    >
+                      ?
+                    </span>
+                  </span>
+                  <input type="text" value={valueStepSummary} disabled />
+                  <p className={styles.fieldHint}>Managed via the plan module.</p>
+                  {valueStepTooltip.visible && (
+                    <div
+                      className={styles.tooltip}
+                      style={{ left: `${valueStepTooltip.x}px`, top: `${valueStepTooltip.y}px` }}
+                    >
+                      A value step is an activity after which no further action is required for the initiative to begin accruing value.
+                    </div>
+                  )}
+                </label>
+
+                <label
+                  className={styles.fieldBlock}
+                  {...buildStageAnchor('additional-commentary', 'Additional commentary')}
+                >
+                  <span>Additional Commentary</span>
+                  <textarea
+                    value={currentStage.additionalCommentary}
+                    onChange={(event) => handleStageFieldChange('additionalCommentary', event.target.value)}
+                    disabled={!isStageEditable}
+                    rows={3}
+                  />
+                </label>
+              </div>
+
+              <label
+                className={`${styles.fieldBlock} ${errors.stageDescription ? styles.fieldError : ''}`}
+                {...buildStageAnchor('description', 'Stage description')}
+              >
+                <span>Description</span>
+                <textarea
+                  className={errors.stageDescription ? styles.inputError : undefined}
+                  value={currentStage.description}
+                  onChange={(event) => handleStageFieldChange('description', event.target.value)}
+                  disabled={!isStageEditable}
+                  rows={4}
+                />
+              </label>
+
+              <div className={styles.periodRow}>
+                <label
+                  className={errors.periodMonth ? styles.fieldError : undefined}
+                  {...buildStageAnchor('period-month', 'Period month')}
+                >
+                  <span>Period month</span>
+                  <select
+                    className={errors.periodMonth ? styles.inputError : undefined}
+                    value={currentStage.periodMonth ?? ''}
+                    onChange={(event) => handleStageFieldChange('periodMonth', Number(event.target.value) || null)}
+                    disabled={!isStageEditable}
+                  >
+                    <option value="">Not set</option>
+                    {Array.from({ length: 12 }).map((_, index) => (
+                      <option key={index + 1} value={index + 1}>
+                        {new Date(2000, index, 1).toLocaleString('en-US', { month: 'short' })}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label
+                  className={errors.periodYear ? styles.fieldError : undefined}
+                  {...buildStageAnchor('period-year', 'Period year')}
+                >
+                  <span>Period year</span>
+                  <input
+                    type="number"
+                    className={errors.periodYear ? styles.inputError : undefined}
+                    value={currentStage.periodYear ?? ''}
+                    onChange={(event) => handleStageFieldChange('periodYear', Number(event.target.value) || null)}
+                    disabled={!isStageEditable}
+                  />
+                </label>
+                {selectedStage === 'l4' && (
+                  <label {...buildStageAnchor('stage-l4-date', 'Stage L4 date')}>
+                    <span>L4 date</span>
+                    <input
+                      type="date"
+                      value={currentStage.l4Date ?? ''}
+                      onChange={(event) => handleStageFieldChange('l4Date', event.target.value)}
+                      disabled={!isStageEditable}
+                    />
+                  </label>
+                )}
+              </div>
+
+            </>
           )}
         </div>
 
-          </>
-        )}
-      </div>
-
-      <section className={`${styles.cardSection} ${styles.financialCard}`} {...buildProfileAnchor('financial-outlook', 'Financial outlook')}>
-        <header className={styles.cardHeader}>
-          <div className={styles.cardHeaderTitle}>
-            <button
-              className={styles.sectionToggle}
-              type="button"
-              onClick={() => handleSectionToggle('financial')}
-              aria-expanded={!financialCollapsed}
-              aria-label={financialCollapsed ? 'Expand financial outlook' : 'Collapse financial outlook'}
-            >
-              <ChevronIcon direction={financialCollapsed ? 'right' : 'down'} size={16} />
-            </button>
-            <div>
-              <h3>Financial outlook</h3>
-              <p>Balance recurring and one-off impacts for this stage.</p>
+        <section className={`${styles.cardSection} ${styles.financialCard}`} {...buildProfileAnchor('financial-outlook', 'Financial outlook')}>
+          <header className={styles.cardHeader}>
+            <div className={styles.cardHeaderTitle}>
+              <button
+                className={styles.sectionToggle}
+                type="button"
+                onClick={() => handleSectionToggle('financial')}
+                aria-expanded={!financialCollapsed}
+                aria-label={financialCollapsed ? 'Expand financial outlook' : 'Collapse financial outlook'}
+              >
+                <ChevronIcon direction={financialCollapsed ? 'right' : 'down'} size={16} />
+              </button>
+              <div>
+                <h3>Financial outlook</h3>
+                <p>Balance recurring and one-off impacts for this stage.</p>
+              </div>
             </div>
-          </div>
-        </header>
-        {!financialCollapsed && (
-          <FinancialEditor
+          </header>
+          {!financialCollapsed && (
+            <FinancialEditor
+              stage={currentStage}
+              disabled={!isStageEditable}
+              onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+              commentScope={selectedStage}
+            />
+          )}
+        </section>
+
+        <section className={styles.cardSection} {...buildProfileAnchor('kpis', 'KPIs')}>
+          <header className={styles.cardHeader}>
+            <div className={styles.cardHeaderTitle}>
+              <button
+                className={styles.sectionToggle}
+                type="button"
+                onClick={() => handleSectionToggle('kpis')}
+                aria-expanded={!(collapsedSections['kpis'] ?? false)}
+                aria-label={collapsedSections['kpis'] ? 'Expand KPIs' : 'Collapse KPIs'}
+              >
+                <ChevronIcon direction={collapsedSections['kpis'] ? 'right' : 'down'} size={16} />
+              </button>
+              <div>
+                <h3>KPIs</h3>
+                <p>Track KPIs with monthly values per stage.</p>
+              </div>
+            </div>
+          </header>
+          {!(collapsedSections['kpis'] ?? false) && (
+            <StageKpiEditor
+              stage={currentStage}
+              disabled={!isStageEditable}
+              kpiOptions={kpiOptions}
+              onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+              commentScope={selectedStage}
+            />
+          )}
+        </section>
+
+        <section className={`${styles.cardSection} ${styles.supportingCard}`} {...buildProfileAnchor('supporting-docs', 'Supporting documentation')}>
+          <header className={styles.cardHeader}>
+            <div className={styles.cardHeaderTitle}>
+              <div>
+                <h3>Supporting documentation</h3>
+                <p>Upload evidence and add a short note.</p>
+              </div>
+            </div>
+          </header>
+          <StageSupportingDocs
             stage={currentStage}
             disabled={!isStageEditable}
             onChange={(nextStage) => updateStage(selectedStage, nextStage)}
-            commentScope={selectedStage}
           />
-        )}
-      </section>
+        </section>
 
-      <section className={styles.cardSection} {...buildProfileAnchor('kpis', 'KPIs')}>
-        <header className={styles.cardHeader}>
-          <div className={styles.cardHeaderTitle}>
-            <button
-              className={styles.sectionToggle}
-              type="button"
-              onClick={() => handleSectionToggle('kpis')}
-              aria-expanded={!(collapsedSections['kpis'] ?? false)}
-              aria-label={collapsedSections['kpis'] ? 'Expand KPIs' : 'Collapse KPIs'}
-            >
-              <ChevronIcon direction={collapsedSections['kpis'] ? 'right' : 'down'} size={16} />
-            </button>
-            <div>
-              <h3>KPIs</h3>
-              <p>Track KPIs with monthly values per stage.</p>
-            </div>
-          </div>
-        </header>
-        {!(collapsedSections['kpis'] ?? false) && (
-          <StageKpiEditor
-            stage={currentStage}
-            disabled={!isStageEditable}
-            kpiOptions={kpiOptions}
-            onChange={(nextStage) => updateStage(selectedStage, nextStage)}
-            commentScope={selectedStage}
-          />
-        )}
-      </section>
-
-      <section className={`${styles.cardSection} ${styles.supportingCard}`} {...buildProfileAnchor('supporting-docs', 'Supporting documentation')}>
-        <header className={styles.cardHeader}>
-          <div className={styles.cardHeaderTitle}>
-            <div>
-              <h3>Supporting documentation</h3>
-              <p>Upload evidence and add a short note.</p>
-            </div>
-          </div>
-        </header>
-        <StageSupportingDocs
-          stage={currentStage}
-          disabled={!isStageEditable}
-          onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+        <InitiativePlanModule
+          plan={draft.plan}
+          initiativeId={draft.id}
+          allInitiatives={allInitiatives}
+          onChange={handlePlanChange}
+          readOnly={isReadOnlyMode}
+          focusTaskId={focusPlanTaskId}
+          openFullscreen={openPlanFullscreen}
+          onFocusHandled={onPlanFocusClear}
         />
-      </section>
 
-      <InitiativePlanModule
-        plan={draft.plan}
-        initiativeId={draft.id}
-        allInitiatives={allInitiatives}
-        onChange={handlePlanChange}
-        readOnly={isReadOnlyMode}
-        focusTaskId={focusPlanTaskId}
-        openFullscreen={openPlanFullscreen}
-        onFocusHandled={onPlanFocusClear}
-      />
-
-      <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
-        <header className={styles.changeLogHeader}>
-          <button
-            className={styles.sectionToggle}
-            type="button"
-            onClick={() => handleSectionToggle('change-log')}
-            aria-expanded={!changeLogCollapsed}
-            aria-label={changeLogCollapsed ? 'Expand change log' : 'Collapse change log'}
-          >
-            <ChevronIcon direction={changeLogCollapsed ? 'right' : 'down'} size={16} />
-          </button>
-          <h4>Change log</h4>
-        </header>
-        {!changeLogCollapsed &&
-          (isLogLoading ? (
-            <p className={styles.placeholder}>Loading change log...</p>
-          ) : changeLog.length === 0 ? (
-            <p className={styles.placeholder}>No changes recorded yet.</p>
-          ) : (
-            <ul className={styles.changeLogList}>
-              {changeLog.map((entry) => {
-                const summaryParts = entry.changes
-                  .map((change) => {
-                    const label = logFieldLabels[change.field] ?? change.field;
-                    if (change.field === 'created') {
-                      return 'Initiative created';
-                    }
-                    if (change.field === 'stage-content') {
-                      return 'Stage content updated';
-                    }
-                    if (change.field === 'execution-plan') {
-                      return 'Timeline updated';
-                    }
-                    if (change.field === 'updated') {
-                      return 'Details updated';
-                    }
-                    const previous = formatLogValue(change.field, change.previousValue);
-                    const next = formatLogValue(change.field, change.nextValue);
-                    if (previous === next) {
-                      return null;
-                    }
-                    return `${label}: ${previous} > ${next}`;
-                  })
-                  .filter((value): value is string => Boolean(value));
-                const summary = summaryParts.length ? summaryParts.join('; ') : 'Updated';
-                return (
-                  <li key={entry.id} className={styles.changeLogLine}>
-                    <span className={styles.logTime}>{new Date(entry.createdAt).toLocaleString()}</span>
-                    <span className={styles.logActor}>{entry.actorName ?? 'System'}</span>
-                    <span className={styles.logSummary}>{summary}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          ))}      </section>
-
-      <footer className={styles.footer}>
-        <button className={styles.secondaryButton} onClick={() => onBack(draft.workstreamId)} type="button">
-          {isReadOnlyMode ? 'Close' : 'Cancel'}
-        </button>
-        {!isReadOnlyMode && mode === 'view' && (
-          <button className={styles.dangerButton} onClick={handleDeleteClick} disabled={isDeleting} type="button">
-            {isDeleting ? 'Deleting...' : 'Delete'}
-          </button>
-        )}
-        {!isReadOnlyMode && (
-          <>
+        <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
+          <header className={styles.changeLogHeader}>
             <button
-              className={styles.secondaryButton}
-              onClick={() => handleSaveClick(false)}
-              disabled={isSaving}
+              className={styles.sectionToggle}
               type="button"
+              onClick={() => handleSectionToggle('change-log')}
+              aria-expanded={!changeLogCollapsed}
+              aria-label={changeLogCollapsed ? 'Expand change log' : 'Collapse change log'}
             >
-              {isSaving ? 'Saving...' : 'Save'}
+              <ChevronIcon direction={changeLogCollapsed ? 'right' : 'down'} size={16} />
             </button>
-            <button className={styles.primaryButton} onClick={() => handleSaveClick(true)} disabled={isSaving} type="button">
-              {isSaving ? 'Saving...' : 'Save and close'}
+            <h4>Change log</h4>
+          </header>
+          {!changeLogCollapsed &&
+            (isLogLoading ? (
+              <p className={styles.placeholder}>Loading change log...</p>
+            ) : changeLog.length === 0 ? (
+              <p className={styles.placeholder}>No changes recorded yet.</p>
+            ) : (
+              <ul className={styles.changeLogList}>
+                {changeLog.map((entry) => {
+                  const summaryParts = entry.changes
+                    .map((change) => {
+                      const label = logFieldLabels[change.field] ?? change.field;
+                      if (change.field === 'created') {
+                        return 'Initiative created';
+                      }
+                      if (change.field === 'stage-content') {
+                        return 'Stage content updated';
+                      }
+                      if (change.field === 'execution-plan') {
+                        return 'Timeline updated';
+                      }
+                      if (change.field === 'updated') {
+                        return 'Details updated';
+                      }
+                      const previous = formatLogValue(change.field, change.previousValue);
+                      const next = formatLogValue(change.field, change.nextValue);
+                      if (previous === next) {
+                        return null;
+                      }
+                      return `${label}: ${previous} > ${next}`;
+                    })
+                    .filter((value): value is string => Boolean(value));
+                  const summary = summaryParts.length ? summaryParts.join('; ') : 'Updated';
+                  return (
+                    <li key={entry.id} className={styles.changeLogLine}>
+                      <span className={styles.logTime}>{new Date(entry.createdAt).toLocaleString()}</span>
+                      <span className={styles.logActor}>{entry.actorName ?? 'System'}</span>
+                      <span className={styles.logSummary}>{summary}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ))}      </section>
+
+        <footer className={styles.footer}>
+          <button className={styles.secondaryButton} onClick={() => onBack(draft.workstreamId)} type="button">
+            {isReadOnlyMode ? 'Close' : 'Cancel'}
+          </button>
+          {!isReadOnlyMode && mode === 'view' && (
+            <button className={styles.dangerButton} onClick={handleDeleteClick} disabled={isDeleting} type="button">
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </button>
-          </>
-        )}
-      </footer>
+          )}
+          {!isReadOnlyMode && (
+            <>
+              <button
+                className={styles.secondaryButton}
+                onClick={() => handleSaveClick(false)}
+                disabled={isSaving}
+                type="button"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button className={styles.primaryButton} onClick={() => handleSaveClick(true)} disabled={isSaving} type="button">
+                {isSaving ? 'Saving...' : 'Save and close'}
+              </button>
+            </>
+          )}
+        </footer>
       </div>
       {isCommentMode && commentsAvailable && (
-          <CommentSidebar
-            ref={sidebarRef}
-            threads={commentThreads}
-            isLoading={isLoadingComments}
-            isSaving={isSavingComment}
-            error={commentError}
-            pendingSelection={pendingSelection}
-            onSubmitPending={handleSubmitComment}
-            onCancelPending={() => setPendingSelection(null)}
-            onReply={handleReplyComment}
-            onClose={() => {
-              setIsCommentMode(false);
-              setPendingSelection(null);
-              setActiveThreadId(null);
-            }}
-            onSelectThread={setActiveThreadId}
-            activeThreadId={activeThreadId}
-            onToggleResolved={async (threadId, next) => {
-              await toggleResolved(threadId, next);
-            }}
-            anchorMap={commentAnchors}
-          />
-        )}
-        <CommentSelectionOverlay
-          isActive={isCommentMode && commentsAvailable}
-          containerRef={contentRef}
-          sidebarRef={sidebarRef}
-          onSelect={handleSelectionTarget}
+        <CommentSidebar
+          ref={sidebarRef}
+          threads={commentThreads}
+          isLoading={isLoadingComments}
+          isSaving={isSavingComment}
+          error={commentError}
+          pendingSelection={null}
+          onSubmitPending={handleSubmitComment}
+          onCancelPending={() => setPendingSelection(null)}
+          onReply={handleReplyComment}
+          onClose={() => {
+            setIsCommentMode(false);
+            setPendingSelection(null);
+            setActiveThreadId(null);
+          }}
+          onSelectThread={setActiveThreadId}
+          activeThreadId={activeThreadId}
+          onToggleResolved={async (threadId, next) => {
+            await toggleResolved(threadId, next);
+          }}
+          anchorMap={commentAnchors}
         />
-      </section>
+      )}
+      <CommentSelectionOverlay
+        isActive={isCommentMode && commentsAvailable}
+        containerRef={contentRef}
+        sidebarRef={sidebarRef}
+        onSelect={handleSelectionTarget}
+      />
+    </section>
   );
 };
 

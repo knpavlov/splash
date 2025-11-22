@@ -58,22 +58,45 @@ export const useCommentAnchors = (
     const map = new Map<string, CommentAnchorBox>();
     for (const thread of threads) {
       let rect: DOMRect | null = null;
+      let anchorRect: DOMRect | null = null;
+
       if (thread.targetId) {
         const anchor = container.querySelector<HTMLElement>(`[data-comment-anchor="${cssEscape(thread.targetId)}"]`);
         if (anchor) {
-          rect = anchor.getBoundingClientRect();
+          anchorRect = anchor.getBoundingClientRect();
         } else {
           try {
             const fallback = container.querySelector<HTMLElement>(thread.targetId);
             if (fallback) {
-              rect = fallback.getBoundingClientRect();
+              anchorRect = fallback.getBoundingClientRect();
             }
           } catch {
             // targetId is not a valid selector, ignore
           }
         }
       }
-      if (!rect && thread.selection) {
+
+      if (anchorRect) {
+        if (thread.selection) {
+          const baseWidth = thread.selection.pageWidth || anchorRect.width;
+          const baseHeight = thread.selection.pageHeight || anchorRect.height;
+          // Avoid division by zero
+          const scaleX = baseWidth ? anchorRect.width / baseWidth : 1;
+          const scaleY = baseHeight ? anchorRect.height / baseHeight : 1;
+
+          const width = Math.max(thread.selection.width * scaleX, 24);
+          const height = Math.max(thread.selection.height * scaleY, 24);
+
+          rect = new DOMRect(
+            anchorRect.left + thread.selection.left * scaleX,
+            anchorRect.top + thread.selection.top * scaleY,
+            width,
+            height
+          );
+        } else {
+          rect = anchorRect;
+        }
+      } else if (thread.selection) {
         const baseWidth = thread.selection.pageWidth || containerSize.width;
         const baseHeight = thread.selection.pageHeight || containerSize.height;
         const scaleX = containerSize.width / baseWidth;
@@ -87,6 +110,7 @@ export const useCommentAnchors = (
           height
         );
       }
+
       if (!rect) {
         continue;
       }
