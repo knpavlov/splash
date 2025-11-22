@@ -16,7 +16,7 @@ interface CommentSidebarProps {
   onSelectThread?: (threadId: string | null) => void;
   activeThreadId?: string | null;
   onToggleResolved: (threadId: string, nextState: boolean) => Promise<void>;
-  anchorMap: Map<string, { topRatio: number }>;
+  anchorMap: Map<string, { topRatio: number; top: number }>;
 }
 
 const formatDateTime = (value: string) =>
@@ -144,21 +144,28 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
     };
 
     const layoutEntries = useMemo(() => {
-      const height = Math.max(listHeight, 1);
-      const gap = 18;
+      // We want to position cards at their anchor's top position.
+      // If multiple cards are close, we stack them to prevent overlap.
+      const gap = 12;
       let cursor = 0;
+
       return orderedThreads.map(({ thread, index }) => {
         const anchor = anchorMap.get(thread.id);
-        const ratio = anchor?.topRatio ?? index / Math.max(1, orderedThreads.length);
         const cardHeight = cardHeights[thread.id] ?? defaultCardHeight;
-        const maxStart = Math.max(0, height - cardHeight);
-        const preferredTop = Math.min(maxStart, Math.max(0, ratio * height));
+
+        // Preferred top is the anchor's top position (relative to container)
+        // If no anchor, we might want to put it at the top or bottom, or just after previous
+        // For now, if no anchor, use cursor.
+        const preferredTop = anchor ? anchor.top : cursor;
+
+        // Ensure we don't overlap with previous card
         const top = Math.max(cursor, preferredTop);
-        const marginTop = Math.max(0, top - cursor);
+
         cursor = top + cardHeight + gap;
-        return { thread, index, marginTop };
+
+        return { thread, index, top };
       });
-    }, [anchorMap, orderedThreads, cardHeights, listHeight]);
+    }, [anchorMap, orderedThreads, cardHeights]);
 
     return (
       <aside className={styles.sidebar} ref={ref} data-comment-panel>
@@ -184,13 +191,13 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
               <p>Add the first annotation to guide the initiative owner.</p>
             </div>
           )}
-          {layoutEntries.map(({ thread, index, marginTop }) => {
+          {layoutEntries.map(({ thread, index, top }) => {
             const isResolved = Boolean(thread.resolvedAt);
             return (
               <section
                 key={thread.id}
                 className={`${styles.threadCard} ${thread.id === activeThreadId ? styles.threadActive : ''}`}
-                style={{ marginTop }}
+                style={{ position: 'absolute', top, left: 0, right: 0 }}
                 ref={registerCardRef(thread.id)}
                 onMouseEnter={() => onSelectThread?.(thread.id)}
                 onMouseLeave={() => onSelectThread?.(null)}
@@ -229,20 +236,35 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
                   />
                   <div className={styles.replyActions}>
                     <button
-                      className={styles.secondaryButton}
+                      className={styles.iconButton}
                       type="button"
+                      title="Reply"
                       disabled={!(replyDrafts[thread.id] ?? '').trim() || isSaving}
                       onClick={() => handleReply(thread.id)}
                     >
-                      {isSaving ? 'Sending…' : 'Reply'}
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                      </svg>
                     </button>
                     <button
-                      className={styles.tertiaryButton}
+                      className={styles.iconButton}
                       type="button"
+                      title={isResolved ? 'Mark as open' : 'Mark as addressed'}
                       disabled={isSaving}
                       onClick={() => onToggleResolved(thread.id, !isResolved)}
                     >
-                      {isResolved ? 'Mark as open' : 'Mark as addressed'}
+                      {isResolved ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="15" y1="9" x2="9" y2="15"></line>
+                          <line x1="9" y1="9" x2="15" y2="15"></line>
+                        </svg>
+                      )}
                     </button>
                   </div>
                 </div>

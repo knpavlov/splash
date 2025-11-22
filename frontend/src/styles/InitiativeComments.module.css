@@ -132,265 +132,450 @@
   border-radius: 12px;
   padding: 6px 10px;
   background: rgba(59, 130, 246, 0.15);
-  color: #1d4ed8;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 12px;
-}
 
-.threadList {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  position: relative;
-}
-
-.helperText {
-  margin: 0;
-  font-size: 13px;
-  color: #94a3b8;
-}
-
-.emptyState {
-  border: 1px dashed rgba(226, 232, 240, 0.8);
-  border-radius: 18px;
-  padding: 16px;
-  text-align: center;
-  color: #94a3b8;
-  font-size: 13px;
-}
-
-.threadCard {
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 12px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.95);
-  transition: all 0.2s ease;
-}
-
-.threadActive {
-  border-color: #2563eb;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
-}
-
-.threadHeader {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.threadBadge {
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  background: #1d4ed8;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.threadTarget {
-  margin: 0;
-  font-weight: 600;
-  color: #0f172a;
-  font-size: 13px;
-}
-
-.threadMeta {
-  margin: 0;
-  font-size: 11px;
-  color: #94a3b8;
-}
-
-.statusOpen,
-.statusResolved {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.2);
-  color: #475569;
-  margin-left: auto;
-}
-
-.statusResolved {
-  background: rgba(34, 197, 94, 0.15);
-  color: #15803d;
-}
-
-.messageList {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.message {
-  border-radius: 8px;
-  background: rgba(248, 250, 252, 0.9);
-  padding: 8px;
-}
-
-.messageMeta {
-  margin: 0 0 2px;
-  font-size: 11px;
-  color: #94a3b8;
-}
-
-.messageBody {
-  margin: 0;
-  font-size: 13px;
-  color: #0f172a;
-  line-height: 1.4;
-}
-
-.replyBox {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.highlightLayer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.highlight {
-  position: absolute;
-  border: 2px dashed rgba(59, 130, 246, 0.9);
-  border-radius: 8px;
-  background: rgba(191, 219, 254, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: auto;
-  cursor: pointer;
-  transition: box-shadow 0.2s ease;
-}
-
-.highlightActive {
-  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.6);
-}
-
-.highlight span {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #1d4ed8;
-  border: 2px solid #fff;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 12px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
-}
-
-.overlayNotice {
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(15, 23, 42, 0.9);
-  color: #fff;
-  padding: 10px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  pointer-events: none;
-  z-index: 50;
-  text-align: center;
-}
-
-/* Popover Styles */
-.popoverContainer {
-  position: absolute;
-  z-index: 1000;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  padding: 12px;
-  width: 300px;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  animation: popoverFadeIn 0.15s ease-out;
-}
-
-@keyframes popoverFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
+  .sidebar {
+    width: 320px;
+    background: #fff;
+    border-left: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+    /* Needed for absolute positioning of cards */
   }
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  .sidebarHeader {
+    padding: 16px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fafc;
+    z-index: 10;
+    /* Keep header above scrolling content if needed */
   }
-}
 
-.popoverTextarea {
-  width: 100%;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  border-radius: 8px;
-  padding: 8px;
-  font-size: 14px;
-  font-family: inherit;
-  resize: none;
-  outline: none;
-  transition: border-color 0.2s;
-}
+  .sidebarTitle {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+  }
 
-.popoverTextarea:focus {
-  border-color: #2563eb;
-}
+  .sidebarSubtitle {
+    font-size: 12px;
+    color: #64748b;
+    margin: 2px 0 0;
+  }
 
-.popoverActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
+  .sidebarClose {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
 
-.popoverCancel {
-  background: none;
-  border: none;
-  color: #64748b;
-  font-size: 13px;
-  cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 6px;
-}
+  .sidebarClose:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+  }
 
-.popoverCancel:hover {
-  background: #f1f5f9;
-  color: #475569;
-}
+  .errorMessage {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(254, 226, 226, 0.7);
+    color: #b91c1c;
+    font-size: 13px;
+  }
 
-.popoverSubmit {
-  background: #2563eb;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
+  .pendingCard {
+    border: 1px dashed rgba(148, 163, 184, 0.7);
+    border-radius: 16px;
+    padding: 12px;
+    background: rgba(248, 250, 252, 0.9);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
-.popoverSubmit:hover {
-  background: #1d4ed8;
-}
+  .pendingHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
 
-.popoverSubmit:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
+  .pendingLabel {
+    margin: 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+  }
+
+  .pendingTarget {
+    margin: 2px 0 0;
+    font-weight: 600;
+    color: #0f172a;
+  }
+
+  .pendingCancel {
+    border: none;
+    background: none;
+    color: #94a3b8;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .pendingEmpty {
+    border: 1px dashed rgba(226, 232, 240, 0.8);
+    border-radius: 16px;
+    padding: 16px;
+    font-size: 13px;
+    color: #94a3b8;
+    text-align: center;
+  }
+
+  .textarea {
+    width: 100%;
+    border: 1px solid rgba(148, 163, 184, 0.6);
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-size: 14px;
+    resize: vertical;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    border: none;
+    border-radius: 12px;
+    padding: 6px 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .primaryButton {
+    align-self: flex-start;
+    background: linear-gradient(120deg, #2563eb, #38bdf8);
+    color: #fff;
+  }
+
+  .secondaryButton {
+    align-self: flex-end;
+    background: rgba(226, 232, 240, 0.6);
+    color: #0f172a;
+  }
+
+  .tertiaryButton {
+    border: none;
+    border-radius: 12px;
+    padding: 6px 10px;
+    background: rgba(59, 130, 246, 0.15);
+    color: #1d4ed8;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .threadList {
+    flex: 1;
+    position: relative;
+    /* Context for absolute positioning */
+    overflow-y: auto;
+    /* Allow sidebar to scroll independently if needed, though we want it to match content */
+    /* Actually, if we want it to match content, it shouldn't scroll independently unless it's sticky. 
+     But we are using absolute positioning relative to the list. 
+     If the list is as tall as the content, it works. */
+    padding: 0 12px;
+  }
+
+  .helperText {
+    margin: 0;
+    font-size: 13px;
+    color: #94a3b8;
+  }
+
+  .emptyState {
+    border: 1px dashed rgba(226, 232, 240, 0.8);
+    border-radius: 18px;
+    padding: 16px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 13px;
+  }
+
+  .threadCard {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    /* Reduced radius */
+    padding: 12px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    width: calc(100% - 24px);
+    /* Account for padding */
+  }
+
+  .threadActive {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.1), 0 2px 4px -1px rgba(59, 130, 246, 0.06);
+    transform: translateX(-4px);
+  }
+
+  .threadHeader {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .threadBadge {
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    min-width: 20px;
+    text-align: center;
+  }
+
+  .threadTarget {
+    font-size: 12px;
+    font-weight: 500;
+    color: #1e293b;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .threadMeta {
+    font-size: 11px;
+    color: #94a3b8;
+    margin: 2px 0 0;
+  }
+
+  .statusOpen {
+    font-size: 10px;
+    color: #f59e0b;
+    background: #fffbeb;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .statusResolved {
+    font-size: 10px;
+    color: #10b981;
+    background: #ecfdf5;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .messageList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .message {
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.5;
+  }
+
+  .messageMeta {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 2px;
+  }
+
+  .messageBody {
+    margin: 0;
+    white-space: pre-wrap;
+  }
+
+  .replyBox {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 8px;
+  }
+
+  .replyActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .iconButton {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #64748b;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .iconButton:hover {
+    background: #f1f5f9;
+    color: #334155;
+  }
+
+  .iconButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .highlightLayer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .highlight {
+    position: absolute;
+    border: 2px dashed rgba(59, 130, 246, 0.9);
+    border-radius: 8px;
+    background: rgba(191, 219, 254, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    cursor: pointer;
+    transition: box-shadow 0.2s ease;
+  }
+
+  .highlightActive {
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.6);
+  }
+
+  .highlight span {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #1d4ed8;
+    border: 2px solid #fff;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 12px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+  }
+
+  .overlayNotice {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 23, 42, 0.9);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    pointer-events: none;
+    z-index: 50;
+    text-align: center;
+  }
+
+  /* Popover Styles */
+  .popoverContainer {
+    position: absolute;
+    z-index: 1000;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    padding: 12px;
+    width: 280px;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: popoverFadeIn 0.15s ease-out;
+  }
+
+  @keyframes popoverFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .popoverTextarea {
+    width: 100%;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 13px;
+    resize: none;
+    outline: none;
+    font-family: inherit;
+  }
+
+  .popoverTextarea:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  }
+
+  .popoverActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .popoverCancel {
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: #64748b;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+
+  .popoverCancel:hover {
+    background: #f1f5f9;
+    color: #334155;
+  }
+
+  .popoverSubmit {
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .popoverSubmit:hover {
+    background: #2563eb;
+  }
+
+  .popoverSubmit:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+  }
 }

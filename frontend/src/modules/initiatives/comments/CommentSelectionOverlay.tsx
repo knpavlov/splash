@@ -183,11 +183,17 @@ export const CommentSelectionOverlay = ({
         (anchor?.dataset.commentLabel && anchor.dataset.commentLabel.trim()) || deriveLabel(finalTarget);
       const targetPath = buildDomPath(finalTarget);
 
+      const popoverCoordinates = {
+        top: rect.top - containerRect.top + rect.height + 10,
+        left: rect.left - containerRect.left
+      };
+
       onSelect({
         targetId,
         targetLabel,
         targetPath,
-        selection: selectionData
+        selection: selectionData,
+        popoverCoordinates
       });
     };
 

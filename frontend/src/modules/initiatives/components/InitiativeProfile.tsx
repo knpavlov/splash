@@ -489,9 +489,9 @@ export const InitiativeProfile = ({
       setPendingSelection({ ...target, stageKey: selectedStage });
 
       // Calculate popover position relative to the container (profileContent)
-      // target.selection is already relative to container
-      const top = target.selection.top + target.selection.height + 10;
-      const left = target.selection.left;
+      // Use provided popoverCoordinates if available (container-relative), otherwise fallback
+      const top = target.popoverCoordinates?.top ?? (target.selection.top + target.selection.height + 10);
+      const left = target.popoverCoordinates?.left ?? target.selection.left;
 
       setPopoverState({
         visible: true,
