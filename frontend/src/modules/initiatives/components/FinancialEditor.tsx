@@ -776,20 +776,20 @@ const PlanVsActualChart = ({
     () =>
       showPlanAsLine && months.length > 0
         ? planData.map((month, index) => {
-            const net = month.positiveTotal - month.negativeTotal;
-            const isPositive = net >= 0;
-            const scale = isPositive ? positiveScale : negativeScale;
-            const area = isPositive ? positiveAreaPx : negativeAreaPx;
-            const ratio = scale ? Math.min(1, Math.abs(net) / scale) : 0;
-            const y = isPositive ? zeroLinePx - ratio * area : zeroLinePx + ratio * area;
-            return {
-              x: lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2,
-              y: Number.isFinite(y) ? y : zeroLinePx,
-              value: net,
-              label: `${months[index].label} ${months[index].year}`,
-              tag: 'Plan impact'
-            };
-          })
+          const net = month.positiveTotal - month.negativeTotal;
+          const isPositive = net >= 0;
+          const scale = isPositive ? positiveScale : negativeScale;
+          const area = isPositive ? positiveAreaPx : negativeAreaPx;
+          const ratio = scale ? Math.min(1, Math.abs(net) / scale) : 0;
+          const y = isPositive ? zeroLinePx - ratio * area : zeroLinePx + ratio * area;
+          return {
+            x: (lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2) - lineLayout.left,
+            y: Number.isFinite(y) ? y : zeroLinePx,
+            value: net,
+            label: `${months[index].label} ${months[index].year}`,
+            tag: 'Plan impact'
+          };
+        })
         : [],
     [
       showPlanAsLine,
@@ -813,7 +813,7 @@ const PlanVsActualChart = ({
       const ratio = positiveScale ? Math.min(1, month.positiveTotal / positiveScale) : 0;
       const y = zeroLinePx - ratio * positiveAreaPx;
       return {
-        x: lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2,
+        x: (lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2) - lineLayout.left,
         y: Number.isFinite(y) ? y : zeroLinePx,
         value: month.positiveTotal,
         label: `${months[index].label} ${months[index].year}`,
@@ -824,7 +824,7 @@ const PlanVsActualChart = ({
       const ratio = negativeScale ? Math.min(1, month.negativeTotal / negativeScale) : 0;
       const y = zeroLinePx + ratio * negativeAreaPx;
       return {
-        x: lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2,
+        x: (lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2) - lineLayout.left,
         y: Number.isFinite(y) ? y : zeroLinePx,
         value: -month.negativeTotal,
         label: `${months[index].label} ${months[index].year}`,
@@ -865,15 +865,15 @@ const PlanVsActualChart = ({
           !showPlanAsLine && planPoint
             ? planNet >= 0 && positiveArea > 0
               ? {
-                  area: 'positive' as const,
-                  offset: Math.min(100, Math.max(0, ((zeroLine - planPoint.y) / (positiveArea || 1)) * 100))
-                }
+                area: 'positive' as const,
+                offset: Math.min(100, Math.max(0, ((zeroLine - planPoint.y) / (positiveArea || 1)) * 100))
+              }
               : planNet < 0 && negativeArea > 0
-              ? {
+                ? {
                   area: 'negative' as const,
                   offset: Math.min(100, Math.max(0, ((planPoint.y - zeroLine) / (negativeArea || 1)) * 100))
                 }
-              : null
+                : null
             : null;
         const chartAnchor = createCommentAnchor(
           `${anchorScope ?? 'financial-chart'}.${month.key}`,
@@ -1799,13 +1799,13 @@ export const FinancialActuals = ({ stage, disabled, onChange, commentScope }: Fi
         <div className={styles.sheetScroller}>
           <PlanVsActualChart
             months={months}
-          gridTemplateColumns={gridTemplateColumns}
-          planData={planChartData}
-          actualData={actualChartData}
-          showPlanAsLine={showPlanAsLine}
-          planLineMode={planLineMode}
-          anchorScope={`financial.${scopeKey}.actuals.chart`}
-        />
+            gridTemplateColumns={gridTemplateColumns}
+            planData={planChartData}
+            actualData={actualChartData}
+            showPlanAsLine={showPlanAsLine}
+            planLineMode={planLineMode}
+            anchorScope={`financial.${scopeKey}.actuals.chart`}
+          />
           <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
             <div className={styles.categoryHeader}>Line item</div>
             {months.map((month) => (
