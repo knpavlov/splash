@@ -105,7 +105,8 @@ export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageK
         source: 'System',
         isCustom: false,
         baseline: null,
-        distribution: {}
+        distribution: {},
+        actuals: {}
       }
     ]);
   };
@@ -120,7 +121,8 @@ export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageK
         source: '',
         isCustom: true,
         baseline: null,
-        distribution: {}
+        distribution: {},
+        actuals: {}
       }
     ]);
   };

@@ -185,5 +185,6 @@ export interface InitiativeStageKPI {
   isCustom: boolean;
   baseline: number | null;
   distribution: Record<string, number>;
+  actuals: Record<string, number>;
 }
 

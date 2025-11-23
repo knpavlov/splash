@@ -241,6 +241,7 @@ export interface InitiativeStageKPI {
   isCustom: boolean;
   baseline: number | null;
   distribution: Record<string, number>;
+  actuals: Record<string, number>;
 }
 
 export interface InitiativeCommentThreadRow extends Record<string, unknown> {

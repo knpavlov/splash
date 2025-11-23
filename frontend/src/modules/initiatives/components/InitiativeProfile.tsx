@@ -33,6 +33,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { createEmptyPlanModel } from '../plan/planModel';
 import { InitiativePlanModule } from './plan/InitiativePlanModule';
 import { StageKpiEditor } from './StageKpiEditor';
+import { StageKpiActuals } from './StageKpiActuals';
 import { snapshotsApi } from '../../snapshots/services/snapshotsApi';
 import { StageSupportingDocs } from './StageSupportingDocs';
 
@@ -1161,6 +1162,34 @@ export const InitiativeProfile = ({
             kpiOptions={kpiOptions}
             onChange={(nextStage) => updateStage(selectedStage, nextStage)}
             commentScope={selectedStage}
+          />
+        )}
+      </section>
+
+      <section className={styles.cardSection} {...buildProfileAnchor('kpi-actuals', 'KPI actuals')}>
+        <header className={styles.cardHeader}>
+          <div className={styles.cardHeaderTitle}>
+            <button
+              className={styles.sectionToggle}
+              type="button"
+              onClick={() => handleSectionToggle('kpi-actuals')}
+              aria-expanded={!(collapsedSections['kpi-actuals'] ?? false)}
+              aria-label={collapsedSections['kpi-actuals'] ? 'Expand KPI actuals' : 'Collapse KPI actuals'}
+            >
+              <ChevronIcon direction={collapsedSections['kpi-actuals'] ? 'right' : 'down'} size={16} />
+            </button>
+            <div>
+              <h3>KPI actuals</h3>
+              <p>Mirror KPI plans and capture actual results.</p>
+            </div>
+          </div>
+        </header>
+        {!(collapsedSections['kpi-actuals'] ?? false) && (
+          <StageKpiActuals
+            stage={currentStage}
+            disabled={!isStageEditable}
+            onChange={(nextStage) => updateStage(selectedStage, nextStage)}
+            commentScope={`${selectedStage}-kpi-actuals`}
           />
         )}
       </section>

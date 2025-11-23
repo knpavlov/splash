@@ -160,6 +160,7 @@ const normalizeKpi = (value: unknown): InitiativeStageKPI | null => {
     isCustom?: unknown;
     baseline?: unknown;
     distribution?: unknown;
+    actuals?: unknown;
   };
   const name = typeof payload.name === 'string' ? payload.name.trim() : '';
   if (!name) {
@@ -181,7 +182,8 @@ const normalizeKpi = (value: unknown): InitiativeStageKPI | null => {
       distribution[trimmedKey] = numeric;
     });
   }
-  return { id, name, unit, source, isCustom, baseline, distribution };
+  const actuals = normalizeDistribution(payload.actuals);
+  return { id, name, unit, source, isCustom, baseline, distribution, actuals };
 };
 
 const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({

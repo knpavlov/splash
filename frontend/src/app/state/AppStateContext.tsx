@@ -144,6 +144,7 @@ const sanitizeKpi = (kpi: InitiativeStageKPI): InitiativeStageKPI | null => {
   const baseline =
     typeof kpi.baseline === 'number' && Number.isFinite(kpi.baseline) ? Number(kpi.baseline) : null;
   const distribution: Record<string, number> = {};
+  const actuals: Record<string, number> = {};
   if (kpi.distribution && typeof kpi.distribution === 'object') {
     Object.entries(kpi.distribution).forEach(([key, value]) => {
       const trimmed = key.trim();
@@ -154,6 +155,16 @@ const sanitizeKpi = (kpi: InitiativeStageKPI): InitiativeStageKPI | null => {
       distribution[trimmed] = numeric;
     });
   }
+  if (kpi.actuals && typeof kpi.actuals === 'object') {
+    Object.entries(kpi.actuals).forEach(([key, value]) => {
+      const trimmed = key.trim();
+      const numeric = Number(value);
+      if (!trimmed || Number.isNaN(numeric)) {
+        return;
+      }
+      actuals[trimmed] = numeric;
+    });
+  }
   return {
     id: typeof kpi.id === 'string' && kpi.id.trim() ? kpi.id.trim() : generateId(),
     name,
@@ -161,7 +172,8 @@ const sanitizeKpi = (kpi: InitiativeStageKPI): InitiativeStageKPI | null => {
     source,
     isCustom: Boolean(kpi.isCustom),
     baseline,
-    distribution
+    distribution,
+    actuals
   };
 };
 

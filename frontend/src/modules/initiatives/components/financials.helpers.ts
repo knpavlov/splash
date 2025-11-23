@@ -55,6 +55,25 @@ export const buildMonthRange = (stage: InitiativeStageData) => {
       scanKeys(entry.actuals ?? {});
     });
   }
+  (stage.kpis ?? []).forEach((kpi) => {
+    const scanKeys = (source: Record<string, number>) => {
+      Object.keys(source ?? {}).forEach((key) => {
+        const parsed = parseMonthKey(key);
+        if (!parsed) {
+          return;
+        }
+        const timestamp = parsed.date.getTime();
+        if (!earliestTime || timestamp < earliestTime) {
+          earliestTime = timestamp;
+        }
+        if (!latestTime || timestamp > latestTime) {
+          latestTime = timestamp;
+        }
+      });
+    };
+    scanKeys(kpi.distribution ?? {});
+    scanKeys(kpi.actuals ?? {});
+  });
 
   let start = now;
   if (typeof earliestTime === 'number' && earliestTime < now.getTime()) {

@@ -142,14 +142,14 @@ const SummaryList = ({
   );
 };
 
-interface ChartSegment {
+export interface ChartSegment {
   value: number;
   color: string;
   label: string;
   rawValue: number;
 }
 
-interface ChartMonthStack {
+export interface ChartMonthStack {
   key: string;
   positiveSegments: ChartSegment[];
   negativeSegments: ChartSegment[];
@@ -644,16 +644,20 @@ interface PlanVsActualChartProps {
   showPlanAsLine: boolean;
   planLineMode: 'impact' | 'split';
   anchorScope?: string;
+  legendLabel?: string;
+  formatValue?: (value: number) => string;
 }
 
-const PlanVsActualChart = ({
+export const PlanVsActualChart = ({
   months,
   gridTemplateColumns,
   planData,
   actualData,
   showPlanAsLine,
   planLineMode,
-  anchorScope
+  anchorScope,
+  legendLabel,
+  formatValue
 }: PlanVsActualChartProps) => {
   const maxPositive = Math.max(
     0,
@@ -734,6 +738,7 @@ const PlanVsActualChart = ({
     tag: string;
     signed?: boolean;
   } | null>(null);
+  const renderValue = formatValue ?? formatCurrency;
 
   const handleSegmentHover = (
     event: React.MouseEvent<HTMLDivElement>,
@@ -847,7 +852,7 @@ const PlanVsActualChart = ({
 
   return (
     <div className={`${styles.chartRow} ${styles.comparisonChart}`} style={{ gridTemplateColumns }} ref={chartRef}>
-      <div className={styles.chartLegend}>Plan vs actuals</div>
+      <div className={styles.chartLegend}>{legendLabel ?? 'Plan vs actuals'}</div>
       {months.map((month, index) => {
         const plan = planData[index];
         const actual = actualData[index];
@@ -1095,7 +1100,7 @@ const PlanVsActualChart = ({
       {tooltip && (
         <div className={styles.chartTooltip} style={{ left: tooltip.left, top: tooltip.top }}>
           <strong>{tooltip.label || 'Line item'}</strong>
-          <span>{tooltip.signed ? formatCurrency(tooltip.value) : formatCurrency(Math.abs(tooltip.value))}</span>
+          <span>{tooltip.signed ? renderValue(tooltip.value) : renderValue(Math.abs(tooltip.value))}</span>
           <span className={styles.tooltipTag}>{tooltip.tag}</span>
         </div>
       )}

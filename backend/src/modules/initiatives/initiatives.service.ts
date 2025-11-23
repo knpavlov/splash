@@ -211,6 +211,7 @@ const sanitizeKpi = (value: unknown): InitiativeStageKPI | null => {
     isCustom?: unknown;
     baseline?: unknown;
     distribution?: unknown;
+    actuals?: unknown;
   };
   const name = sanitizeString(payload.name);
   if (!name) {
@@ -222,18 +223,9 @@ const sanitizeKpi = (value: unknown): InitiativeStageKPI | null => {
   const isCustom = Boolean(payload.isCustom);
   const baseline =
     typeof payload.baseline === 'number' && Number.isFinite(payload.baseline) ? Number(payload.baseline) : null;
-  const distribution: Record<string, number> = {};
-  if (payload.distribution && typeof payload.distribution === 'object') {
-    for (const [key, raw] of Object.entries(payload.distribution as Record<string, unknown>)) {
-      const trimmedKey = key.trim();
-      const numeric = typeof raw === 'number' ? raw : Number(raw);
-      if (!trimmedKey || Number.isNaN(numeric)) {
-        continue;
-      }
-      distribution[trimmedKey] = numeric;
-    }
-  }
-  return { id, name, unit, source, isCustom, baseline, distribution };
+  const distribution = sanitizeDistribution(payload.distribution);
+  const actuals = sanitizeDistribution(payload.actuals);
+  return { id, name, unit, source, isCustom, baseline, distribution, actuals };
 };
 
 const createEmptyStagePayload = (): InitiativeStagePayload => ({
@@ -463,7 +455,11 @@ const cloneStagePayload = (stage: InitiativeStagePayload): InitiativeStagePayloa
   ),
   businessCaseFiles: [...(stage.businessCaseFiles ?? [])],
   supportingDocs: [...(stage.supportingDocs ?? [])],
-  kpis: [...(stage.kpis ?? [])],
+  kpis: (stage.kpis ?? []).map((kpi) => ({
+    ...kpi,
+    distribution: { ...(kpi.distribution ?? {}) },
+    actuals: { ...(kpi.actuals ?? {}) }
+  })),
   financials: initiativeFinancialKinds.reduce(
     (acc, kind) => {
       acc[kind] = stage.financials[kind].map((entry) => ({
