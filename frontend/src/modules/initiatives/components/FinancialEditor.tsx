@@ -332,61 +332,6 @@ const CombinedChart = ({
           <span className={styles.tooltipTag}>{tooltip.value >= 0 ? 'Benefit' : 'Cost'}</span>
         </div>
       )}
-      {showPlanAsLine && planLineMode === 'split' && (splitLinePoints.benefits.length > 0 || splitLinePoints.costs.length > 0) && (
-        <div
-          className={styles.planLineLayer}
-          style={{ left: `${CATEGORY_COLUMN_WIDTH}px`, width: `${lineViewportWidth}px`, height: `${chartHeightPx}px` }}
-        >
-          <svg
-            className={`${styles.planLine} ${styles.planLineBenefit}`}
-            viewBox={`0 0 ${lineViewportWidth} ${chartHeightPx}`}
-            preserveAspectRatio="none"
-          >
-            <polyline
-              points={splitLinePoints.benefits.map((point) => `${point.x},${point.y}`).join(' ')}
-              strokeWidth={1.8}
-              fill="none"
-              vectorEffect="non-scaling-stroke"
-            />
-            {splitLinePoints.benefits.map((point, index) => (
-              <circle
-                key={`benefit-${point.x}-${index}`}
-                cx={point.x}
-                cy={point.y}
-                r={3}
-                vectorEffect="non-scaling-stroke"
-                onMouseEnter={(event) => handlePlanPointHover(event, point)}
-                onMouseMove={(event) => handlePlanPointHover(event, point)}
-                onMouseLeave={clearTooltip}
-              />
-            ))}
-          </svg>
-          <svg
-            className={`${styles.planLine} ${styles.planLineCost}`}
-            viewBox={`0 0 ${lineViewportWidth} ${chartHeightPx}`}
-            preserveAspectRatio="none"
-          >
-            <polyline
-              points={splitLinePoints.costs.map((point) => `${point.x},${point.y}`).join(' ')}
-              strokeWidth={1.8}
-              fill="none"
-              vectorEffect="non-scaling-stroke"
-            />
-            {splitLinePoints.costs.map((point, index) => (
-              <circle
-                key={`cost-${point.x}-${index}`}
-                cx={point.x}
-                cy={point.y}
-                r={3}
-                vectorEffect="non-scaling-stroke"
-                onMouseEnter={(event) => handlePlanPointHover(event, point)}
-                onMouseMove={(event) => handlePlanPointHover(event, point)}
-                onMouseLeave={clearTooltip}
-              />
-            ))}
-          </svg>
-        </div>
-      )}
     </div>
   );
 };
