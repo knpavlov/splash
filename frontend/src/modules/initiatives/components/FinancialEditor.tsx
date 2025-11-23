@@ -705,18 +705,17 @@ const PlanVsActualChart = ({
 
   const linePoints =
     showPlanAsLine && months.length > 0
-      ? (() => {
-          const maxAbsNet = Math.max(
-            1,
-            ...planData.map((month) => Math.abs(month.positiveTotal - month.negativeTotal))
-          );
-          return planData.map((month, index) => {
-            const net = month.positiveTotal - month.negativeTotal;
-            const ratio = Math.max(-1, Math.min(1, net / maxAbsNet));
-            const y = 50 - ratio * 48; // center at 50, leave small top/bottom margin
+      ? planData.map((month, index) => {
+          const net = month.positiveTotal - month.negativeTotal;
+          if (net >= 0) {
+            const ratio = positiveScale ? Math.min(1, net / positiveScale) : 0;
+            const y = (1 - ratio) * positivePortion * 100;
             return { x: index + 0.5, y };
-          });
-        })()
+          }
+          const ratio = negativeScale ? Math.min(1, Math.abs(net) / negativeScale) : 0;
+          const y = positivePortion * 100 + ratio * negativePortion * 100;
+          return { x: index + 0.5, y };
+        })
       : [];
 
   return (
