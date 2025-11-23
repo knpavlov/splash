@@ -720,7 +720,7 @@ const PlanVsActualChart = ({
     });
   }, [months, chartWidth]);
 
-  const lineViewportWidth = Math.max(1, lineLayout.width || chartWidth - CATEGORY_COLUMN_WIDTH);
+  const lineViewportWidth = Math.max(1, lineLayout.width || chartWidth - lineLayout.left);
   const fallbackColumnWidth = lineViewportWidth / Math.max(months.length, 1);
   const zeroLinePx = positivePortion * chartHeightPx;
   const positiveAreaPx = zeroLinePx;
@@ -999,7 +999,11 @@ const PlanVsActualChart = ({
       {showPlanAsLine && planLineMode === 'impact' && impactLinePoints.length > 0 && (
         <div
           className={styles.planLineLayer}
-          style={{ left: `${CATEGORY_COLUMN_WIDTH}px`, width: `${lineViewportWidth}px`, height: `${chartHeightPx}px` }}
+          style={{
+            left: `${lineLayout.left}px`,
+            width: `${lineViewportWidth}px`,
+            height: `${chartHeightPx}px`
+          }}
         >
           <svg
             className={styles.planLine}
@@ -1032,7 +1036,11 @@ const PlanVsActualChart = ({
         (splitLinePoints.benefits.length > 0 || splitLinePoints.costs.length > 0) && (
           <div
             className={styles.planLineLayer}
-            style={{ left: `${CATEGORY_COLUMN_WIDTH}px`, width: `${lineViewportWidth}px`, height: `${chartHeightPx}px` }}
+            style={{
+              left: `${lineLayout.left}px`,
+              width: `${lineViewportWidth}px`,
+              height: `${chartHeightPx}px`
+            }}
           >
             <svg
               className={`${styles.planLine} ${styles.planLineBenefit}`}
