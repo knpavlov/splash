@@ -332,6 +332,61 @@ const CombinedChart = ({
           <span className={styles.tooltipTag}>{tooltip.value >= 0 ? 'Benefit' : 'Cost'}</span>
         </div>
       )}
+      {showPlanAsLine && planLineMode === 'split' && (splitLinePoints.benefits.length > 0 || splitLinePoints.costs.length > 0) && (
+        <div
+          className={styles.planLineLayer}
+          style={{ left: `${CATEGORY_COLUMN_WIDTH}px`, width: `${lineViewportWidth}px`, height: `${chartHeightPx}px` }}
+        >
+          <svg
+            className={`${styles.planLine} ${styles.planLineBenefit}`}
+            viewBox={`0 0 ${lineViewportWidth} ${chartHeightPx}`}
+            preserveAspectRatio="none"
+          >
+            <polyline
+              points={splitLinePoints.benefits.map((point) => `${point.x},${point.y}`).join(' ')}
+              strokeWidth={1.8}
+              fill="none"
+              vectorEffect="non-scaling-stroke"
+            />
+            {splitLinePoints.benefits.map((point, index) => (
+              <circle
+                key={`benefit-${point.x}-${index}`}
+                cx={point.x}
+                cy={point.y}
+                r={3}
+                vectorEffect="non-scaling-stroke"
+                onMouseEnter={(event) => handlePlanPointHover(event, point)}
+                onMouseMove={(event) => handlePlanPointHover(event, point)}
+                onMouseLeave={clearTooltip}
+              />
+            ))}
+          </svg>
+          <svg
+            className={`${styles.planLine} ${styles.planLineCost}`}
+            viewBox={`0 0 ${lineViewportWidth} ${chartHeightPx}`}
+            preserveAspectRatio="none"
+          >
+            <polyline
+              points={splitLinePoints.costs.map((point) => `${point.x},${point.y}`).join(' ')}
+              strokeWidth={1.8}
+              fill="none"
+              vectorEffect="non-scaling-stroke"
+            />
+            {splitLinePoints.costs.map((point, index) => (
+              <circle
+                key={`cost-${point.x}-${index}`}
+                cx={point.x}
+                cy={point.y}
+                r={3}
+                vectorEffect="non-scaling-stroke"
+                onMouseEnter={(event) => handlePlanPointHover(event, point)}
+                onMouseMove={(event) => handlePlanPointHover(event, point)}
+                onMouseLeave={clearTooltip}
+              />
+            ))}
+          </svg>
+        </div>
+      )}
     </div>
   );
 };
@@ -642,6 +697,7 @@ interface PlanVsActualChartProps {
   planData: ChartMonthStack[];
   actualData: ChartMonthStack[];
   showPlanAsLine: boolean;
+  planLineMode: 'impact' | 'split';
   anchorScope?: string;
 }
 
@@ -651,6 +707,7 @@ const PlanVsActualChart = ({
   planData,
   actualData,
   showPlanAsLine,
+  planLineMode,
   anchorScope
 }: PlanVsActualChartProps) => {
   const maxPositive = Math.max(
@@ -701,7 +758,7 @@ const PlanVsActualChart = ({
     value: number;
     left: number;
     top: number;
-    tag: 'Plan' | 'Actual';
+    tag: string;
     signed?: boolean;
   } | null>(null);
 
@@ -725,7 +782,10 @@ const PlanVsActualChart = ({
     setTooltip({ label: segment.label, value: segment.rawValue, left, top, tag, signed: false });
   };
 
-  const handlePlanPointHover = (event: React.MouseEvent<SVGCircleElement>, point: { value: number; label: string }) => {
+  const handlePlanPointHover = (
+    event: React.MouseEvent<SVGCircleElement>,
+    point: { value: number; label: string; tag: string }
+  ) => {
     const container = chartRef.current;
     if (!container) {
       return;
@@ -734,12 +794,12 @@ const PlanVsActualChart = ({
     const targetRect = event.currentTarget.getBoundingClientRect();
     const left = targetRect.left + targetRect.width / 2 - containerRect.left;
     const top = targetRect.top - containerRect.top - 10;
-    setTooltip({ label: point.label, value: point.value, left, top, tag: 'Plan', signed: true });
+    setTooltip({ label: point.label, value: point.value, left, top, tag: point.tag, signed: true });
   };
 
   const clearTooltip = () => setTooltip(null);
 
-  const linePoints = useMemo(
+  const impactLinePoints = useMemo(
     () =>
       showPlanAsLine && months.length > 0
         ? planData.map((month, index) => {
@@ -753,7 +813,8 @@ const PlanVsActualChart = ({
               x: index * lineColumnWidth + lineColumnWidth / 2,
               y: Number.isFinite(y) ? y : zeroLinePx,
               value: net,
-              label: `${months[index].label} ${months[index].year}`
+              label: `${months[index].label} ${months[index].year}`,
+              tag: 'Plan impact'
             };
           })
         : [],
@@ -770,6 +831,45 @@ const PlanVsActualChart = ({
     ]
   );
 
+  const splitLinePoints = useMemo(() => {
+    if (!showPlanAsLine || months.length === 0) {
+      return { benefits: [] as typeof impactLinePoints, costs: [] as typeof impactLinePoints };
+    }
+    const benefits = planData.map((month, index) => {
+      const ratio = positiveScale ? Math.min(1, month.positiveTotal / positiveScale) : 0;
+      const y = zeroLinePx - ratio * positiveAreaPx;
+      return {
+        x: index * lineColumnWidth + lineColumnWidth / 2,
+        y: Number.isFinite(y) ? y : zeroLinePx,
+        value: month.positiveTotal,
+        label: `${months[index].label} ${months[index].year}`,
+        tag: 'Plan benefits'
+      };
+    });
+    const costs = planData.map((month, index) => {
+      const ratio = negativeScale ? Math.min(1, month.negativeTotal / negativeScale) : 0;
+      const y = zeroLinePx + ratio * negativeAreaPx;
+      return {
+        x: index * lineColumnWidth + lineColumnWidth / 2,
+        y: Number.isFinite(y) ? y : zeroLinePx,
+        value: -month.negativeTotal,
+        label: `${months[index].label} ${months[index].year}`,
+        tag: 'Plan costs'
+      };
+    });
+    return { benefits, costs };
+  }, [
+    showPlanAsLine,
+    months,
+    planData,
+    positiveScale,
+    negativeScale,
+    positiveAreaPx,
+    negativeAreaPx,
+    zeroLinePx,
+    lineColumnWidth
+  ]);
+
   return (
     <div className={`${styles.chartRow} ${styles.comparisonChart}`} style={{ gridTemplateColumns }} ref={chartRef}>
       <div className={styles.chartLegend}>Plan vs actuals</div>
@@ -785,7 +885,7 @@ const PlanVsActualChart = ({
         const positiveActualScale = actual.positiveTotal || 1;
         const negativeActualScale = actual.negativeTotal || 1;
         const planNet = plan.positiveTotal - plan.negativeTotal;
-        const planPoint = linePoints[index];
+        const planPoint = impactLinePoints[index];
         const lineMarker =
           !showPlanAsLine && planPoint
             ? planNet >= 0 && positiveArea > 0
@@ -920,7 +1020,7 @@ const PlanVsActualChart = ({
           </div>
         );
       })}
-      {showPlanAsLine && linePoints.length > 0 && (
+      {showPlanAsLine && planLineMode === 'impact' && impactLinePoints.length > 0 && (
         <div
           className={styles.planLineLayer}
           style={{ left: `${CATEGORY_COLUMN_WIDTH}px`, width: `${lineViewportWidth}px`, height: `${chartHeightPx}px` }}
@@ -931,12 +1031,12 @@ const PlanVsActualChart = ({
             preserveAspectRatio="none"
           >
             <polyline
-              points={linePoints.map((point) => `${point.x},${point.y}`).join(' ')}
+              points={impactLinePoints.map((point) => `${point.x},${point.y}`).join(' ')}
               strokeWidth={1.8}
               fill="none"
               vectorEffect="non-scaling-stroke"
             />
-            {linePoints.map((point, index) => (
+            {impactLinePoints.map((point, index) => (
               <circle
                 key={`${point.x}-${index}`}
                 cx={point.x}
@@ -1462,6 +1562,7 @@ export const FinancialActuals = ({ stage, disabled, onChange, commentScope }: Fi
   const { blueprint: financialBlueprint } = useFinancialsState();
   const fiscalStartMonth = financialBlueprint?.fiscalYear?.startMonth ?? DEFAULT_FISCAL_YEAR_START_MONTH;
   const [includeOneOff, setIncludeOneOff] = useState(true);
+  const [planLineMode, setPlanLineMode] = useState<'impact' | 'split'>('impact');
   const [showPlanAsLine, setShowPlanAsLine] = useState(false);
   const activeBenefitKinds = useMemo<InitiativeFinancialKind[]>(
     () => (includeOneOff ? benefitKinds : ['recurring-benefits']),
@@ -1607,6 +1708,15 @@ export const FinancialActuals = ({ stage, disabled, onChange, commentScope }: Fi
             />
             <span>Show plan as line</span>
           </label>
+          {showPlanAsLine && (
+            <label className={`${styles.oneOffToggle} ${styles.lineModeToggle}`}>
+              <span>Line mode</span>
+              <select value={planLineMode} onChange={(event) => setPlanLineMode(event.target.value as 'impact' | 'split')}>
+                <option value="impact">Single line (impact)</option>
+                <option value="split">Two lines (benefits vs costs)</option>
+              </select>
+            </label>
+          )}
         </div>
       </header>
 
@@ -1648,12 +1758,13 @@ export const FinancialActuals = ({ stage, disabled, onChange, commentScope }: Fi
         <div className={styles.sheetScroller}>
           <PlanVsActualChart
             months={months}
-            gridTemplateColumns={gridTemplateColumns}
-            planData={planChartData}
-            actualData={actualChartData}
-            showPlanAsLine={showPlanAsLine}
-            anchorScope={`financial.${scopeKey}.actuals.chart`}
-          />
+          gridTemplateColumns={gridTemplateColumns}
+          planData={planChartData}
+          actualData={actualChartData}
+          showPlanAsLine={showPlanAsLine}
+          planLineMode={planLineMode}
+          anchorScope={`financial.${scopeKey}.actuals.chart`}
+        />
           <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>
             <div className={styles.categoryHeader}>Line item</div>
             {months.map((month) => (

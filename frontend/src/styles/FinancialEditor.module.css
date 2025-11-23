@@ -312,6 +312,26 @@
   pointer-events: auto;
 }
 
+.planLineBenefit polyline,
+.planLineBenefit circle {
+  stroke: #0ea5e9;
+  fill: #0ea5e9;
+}
+
+.planLineCost polyline,
+.planLineCost circle {
+  stroke: #ef4444;
+  fill: #ef4444;
+}
+
+.lineModeToggle select {
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: #fff;
+  font-size: 12px;
+}
+
 .dualStackWrapper {
   position: absolute;
   inset: 0;
