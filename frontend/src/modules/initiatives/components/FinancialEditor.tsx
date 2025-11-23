@@ -707,13 +707,13 @@ const PlanVsActualChart = ({
     showPlanAsLine && months.length > 0
       ? planData.map((month, index) => {
           const net = month.positiveTotal - month.negativeTotal;
-          if (net >= 0) {
-            const ratio = positiveScale ? Math.min(1, net / positiveScale) : 0;
-            const y = (1 - ratio) * positivePortion * 100;
-            return { x: index + 0.5, y };
-          }
-          const ratio = negativeScale ? Math.min(1, Math.abs(net) / negativeScale) : 0;
-          const y = positivePortion * 100 + ratio * negativePortion * 100;
+          const ratio =
+            net >= 0
+              ? positiveScale ? Math.min(1, net / positiveScale) : 0
+              : negativeScale ? Math.min(1, Math.abs(net) / negativeScale) : 0;
+          const signedRatio = net >= 0 ? ratio : -ratio;
+          // Map -1..1 to chart height with small padding
+          const y = 50 - signedRatio * 48;
           return { x: index + 0.5, y };
         })
       : [];
@@ -726,7 +726,8 @@ const PlanVsActualChart = ({
           style={{
             gridColumn: `2 / span ${months.length}`,
             gridRow: 1,
-            position: 'relative'
+            position: 'relative',
+            height: '210px'
           }}
         >
           <svg className={styles.planLine} viewBox={`0 0 ${months.length} 100`} preserveAspectRatio="none">
