@@ -68,26 +68,23 @@ const buildActualColorMap = (planMap: Record<string, string>) =>
   }, {} as Record<string, string>);
 
 const buildKpiChartStacks = (
-  months: { key: string }[],
-  kpis: InitiativeStageKPI[],
-  colorLookup: Record<string, string>,
+  months: { key: string; label: string; year: number }[],
+  kpi: InitiativeStageKPI,
+  planColor: string,
   selector: (kpi: InitiativeStageKPI) => Record<string, number>
 ): ChartMonthStack[] =>
   months.map((month) => {
     const positiveSegments: ChartSegment[] = [];
     const negativeSegments: ChartSegment[] = [];
-    for (const kpi of kpis) {
-      const source = selector(kpi) ?? {};
-      const raw = source[month.key] ?? 0;
-      if (!raw) {
-        continue;
-      }
+    const source = selector(kpi) ?? {};
+    const raw = source[month.key] ?? 0;
+    if (raw) {
       const target = raw >= 0 ? positiveSegments : negativeSegments;
       target.push({
         value: Math.abs(raw),
         rawValue: raw,
-        color: colorLookup[kpi.id] ?? KPI_COLORS[0],
-        label: kpi.name || 'KPI'
+        color: planColor,
+        label: `${kpi.name || 'KPI'} (${month.label} ${month.year})`
       });
     }
     const positiveTotal = positiveSegments.reduce((sum, segment) => sum + segment.value, 0);
@@ -124,16 +121,6 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
 
   const kpiColorMap = useMemo(() => buildKpiColorMap(scopedKpis), [scopedKpis]);
   const actualColorMap = useMemo(() => buildActualColorMap(kpiColorMap), [kpiColorMap]);
-
-  const planChartData = useMemo(
-    () => buildKpiChartStacks(months, scopedKpis, kpiColorMap, (kpi) => kpi.distribution ?? {}),
-    [months, scopedKpis, kpiColorMap]
-  );
-
-  const actualChartData = useMemo(
-    () => buildKpiChartStacks(months, scopedKpis, actualColorMap, (kpi) => kpi.actuals ?? {}),
-    [months, scopedKpis, actualColorMap]
-  );
 
   const updateKpis = (updater: (list: InitiativeStageKPI[]) => InitiativeStageKPI[]) => {
     onChange({ ...stage, kpis: updater(stage.kpis ?? []) });
@@ -210,18 +197,6 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
 
       <div className={chartStyles.sheetWrapper}>
         <div className={chartStyles.sheetScroller}>
-          <PlanVsActualChart
-            months={months}
-            gridTemplateColumns={chartTemplate}
-            planData={planChartData}
-            actualData={actualChartData}
-            showPlanAsLine={showPlanAsLine}
-            planLineMode="impact"
-            anchorScope={`kpi.${scopeKey}.actuals.chart`}
-            legendLabel="Plan vs actuals (KPIs)"
-            formatValue={(value) => kpiNumberFormatter.format(value)}
-          />
-
           <div className={kpiStyles.headerRow} style={{ gridTemplateColumns: columnTemplate }}>
             <div className={kpiStyles.headerCell}>KPI</div>
             <div className={kpiStyles.headerCell}>Unit</div>
@@ -241,11 +216,33 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
             </p>
           ) : (
             scopedKpis.map((kpi) => {
-              const planValues = monthKeys.map((key) => kpi.distribution[key] ?? 0);
-              const maxAbs = Math.max(...planValues.map((v) => Math.abs(v)), 1);
               const actuals = { ...(kpi.actuals ?? {}) };
+              const planChartData = buildKpiChartStacks(
+                months,
+                kpi,
+                kpiColorMap[kpi.id],
+                (target) => target.distribution ?? {}
+              );
+              const actualChartData = buildKpiChartStacks(
+                months,
+                kpi,
+                actualColorMap[kpi.id],
+                (target) => target.actuals ?? {}
+              );
               return (
                 <Fragment key={kpi.id}>
+                  <PlanVsActualChart
+                    months={months}
+                    gridTemplateColumns={chartTemplate}
+                    planData={planChartData}
+                    actualData={actualChartData}
+                    showPlanAsLine={showPlanAsLine}
+                    planLineMode="impact"
+                    anchorScope={`kpi.${scopeKey}.actuals.chart.${kpi.id}`}
+                    legendLabel={`Plan vs actuals · ${kpi.name || 'KPI'}`}
+                    formatValue={(value) => kpiNumberFormatter.format(value)}
+                  />
+
                   <div
                     className={`${kpiStyles.row} ${kpiStyles.planRow}`}
                     style={{ gridTemplateColumns: columnTemplate }}
@@ -267,53 +264,13 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
                     <div className={kpiStyles.colBaseline}>
                       <input type="number" value={formatNumber(kpi.baseline)} disabled readOnly />
                     </div>
-                    {months.map((month) => {
-                      const monthValue = kpi.distribution[month.key] ?? 0;
-                      const ratio = Math.min(1, Math.abs(monthValue) / maxAbs);
-                      const positiveHeight = monthValue > 0 ? ratio * 100 : 0;
-                      const negativeHeight = monthValue < 0 ? ratio * 100 : 0;
-                      return (
-                        <div key={`${kpi.id}-${month.key}-plan`} className={kpiStyles.colMonth}>
-                          <div className={kpiStyles.chartContainer}>
-                            <div className={kpiStyles.chartBarGroup}>
-                              <div className={kpiStyles.stackWrapper}>
-                                <div className={kpiStyles.stackPositive}>
-                                  <div className={kpiStyles.stackFill}>
-                                    {positiveHeight > 0 ? (
-                                      <div
-                                        className={kpiStyles.chartSegment}
-                                        style={{ height: `${positiveHeight}%`, background: kpiColorMap[kpi.id] }}
-                                        aria-hidden
-                                      />
-                                    ) : null}
-                                  </div>
-                                </div>
-                                <div className={kpiStyles.stackNegative}>
-                                  <div className={kpiStyles.stackFill}>
-                                    {negativeHeight > 0 ? (
-                                      <div
-                                        className={`${kpiStyles.chartSegment} ${kpiStyles.chartSegmentNegative}`}
-                                        style={{ height: `${negativeHeight}%`, background: kpiColorMap[kpi.id] }}
-                                        aria-hidden
-                                      />
-                                    ) : null}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className={kpiStyles.chartZeroLine}>
-                                <span className={kpiStyles.chartZeroLineInner} />
-                              </div>
-                            </div>
-                          </div>
-                          <div className={kpiStyles.monthInputs}>
-                            <input type="number" value={formatNumber(kpi.distribution[month.key])} disabled readOnly />
-                            <button type="button" className={kpiStyles.fillRightButton} disabled>
-                              {'>>'}
-                            </button>
-                          </div>
+                    {months.map((month) => (
+                      <div key={`${kpi.id}-${month.key}-plan`} className={kpiStyles.colMonth}>
+                        <div className={kpiStyles.monthInputs} style={{ gridTemplateColumns: '1fr' }}>
+                          <input type="number" value={formatNumber(kpi.distribution[month.key])} disabled readOnly />
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                     <div className={kpiStyles.colActions}>
                       <span className={kpiStyles.lockTag}>Locked</span>
                     </div>
