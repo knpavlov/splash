@@ -681,6 +681,11 @@ const PlanVsActualChart = ({
   const negativeArea = (1 - positivePortion) * 100;
   const chartHeightPx = 210;
   const [chartWidth, setChartWidth] = useState(0);
+  const [lineLayout, setLineLayout] = useState<{ left: number; width: number; xs: number[] }>({
+    left: CATEGORY_COLUMN_WIDTH,
+    width: 0,
+    xs: []
+  });
   useLayoutEffect(() => {
     const node = chartRef.current;
     if (!node) {
@@ -692,8 +697,31 @@ const PlanVsActualChart = ({
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-  const lineViewportWidth = Math.max(1, chartWidth - CATEGORY_COLUMN_WIDTH);
-  const lineColumnWidth = lineViewportWidth / Math.max(months.length, 1);
+  useLayoutEffect(() => {
+    const container = chartRef.current;
+    if (!container) {
+      return;
+    }
+    const cells = Array.from(container.querySelectorAll('[data-month-index]')) as HTMLElement[];
+    if (!cells.length || cells.length !== months.length) {
+      return;
+    }
+    const containerRect = container.getBoundingClientRect();
+    const firstRect = cells[0].getBoundingClientRect();
+    const lastRect = cells[cells.length - 1].getBoundingClientRect();
+    const xs = cells.map((cell) => {
+      const rect = cell.getBoundingClientRect();
+      return rect.left - containerRect.left + rect.width / 2;
+    });
+    setLineLayout({
+      left: firstRect.left - containerRect.left,
+      width: lastRect.right - firstRect.left,
+      xs
+    });
+  }, [months, chartWidth]);
+
+  const lineViewportWidth = Math.max(1, lineLayout.width || chartWidth - CATEGORY_COLUMN_WIDTH);
+  const fallbackColumnWidth = lineViewportWidth / Math.max(months.length, 1);
   const zeroLinePx = positivePortion * chartHeightPx;
   const positiveAreaPx = zeroLinePx;
   const negativeAreaPx = chartHeightPx - zeroLinePx;
@@ -755,7 +783,7 @@ const PlanVsActualChart = ({
             const ratio = scale ? Math.min(1, Math.abs(net) / scale) : 0;
             const y = isPositive ? zeroLinePx - ratio * area : zeroLinePx + ratio * area;
             return {
-              x: index * lineColumnWidth + lineColumnWidth / 2,
+              x: lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2,
               y: Number.isFinite(y) ? y : zeroLinePx,
               value: net,
               label: `${months[index].label} ${months[index].year}`,
@@ -772,7 +800,8 @@ const PlanVsActualChart = ({
       positiveAreaPx,
       negativeAreaPx,
       zeroLinePx,
-      lineColumnWidth
+      lineLayout.xs,
+      fallbackColumnWidth
     ]
   );
 
@@ -784,7 +813,7 @@ const PlanVsActualChart = ({
       const ratio = positiveScale ? Math.min(1, month.positiveTotal / positiveScale) : 0;
       const y = zeroLinePx - ratio * positiveAreaPx;
       return {
-        x: index * lineColumnWidth + lineColumnWidth / 2,
+        x: lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2,
         y: Number.isFinite(y) ? y : zeroLinePx,
         value: month.positiveTotal,
         label: `${months[index].label} ${months[index].year}`,
@@ -795,7 +824,7 @@ const PlanVsActualChart = ({
       const ratio = negativeScale ? Math.min(1, month.negativeTotal / negativeScale) : 0;
       const y = zeroLinePx + ratio * negativeAreaPx;
       return {
-        x: index * lineColumnWidth + lineColumnWidth / 2,
+        x: lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2,
         y: Number.isFinite(y) ? y : zeroLinePx,
         value: -month.negativeTotal,
         label: `${months[index].label} ${months[index].year}`,
@@ -812,7 +841,8 @@ const PlanVsActualChart = ({
     positiveAreaPx,
     negativeAreaPx,
     zeroLinePx,
-    lineColumnWidth
+    lineLayout.xs,
+    fallbackColumnWidth
   ]);
 
   return (
@@ -854,6 +884,7 @@ const PlanVsActualChart = ({
             key={month.key}
             className={styles.chartCell}
             style={{ gridRow: 1, gridColumn: index + 2 }}
+            data-month-index={index}
             {...chartAnchor}
           >
             <div className={styles.chartBarGroup}>

@@ -312,13 +312,21 @@
   pointer-events: auto;
 }
 
-.planLineBenefit polyline,
+.planLineBenefit polyline {
+  stroke: #0ea5e9;
+  fill: none;
+}
+
 .planLineBenefit circle {
   stroke: #0ea5e9;
   fill: #0ea5e9;
 }
 
-.planLineCost polyline,
+.planLineCost polyline {
+  stroke: #ef4444;
+  fill: none;
+}
+
 .planLineCost circle {
   stroke: #ef4444;
   fill: #ef4444;
