@@ -248,6 +248,7 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
                     monthStartColumn={5}
                     legendSpanColumns={4}
                     height={70}
+                    className={kpiStyles.chartGap}
                   />
 
                   <div

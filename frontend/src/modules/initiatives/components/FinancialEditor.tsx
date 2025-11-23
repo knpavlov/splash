@@ -649,6 +649,8 @@ interface PlanVsActualChartProps {
   monthStartColumn?: number;
   legendSpanColumns?: number;
   height?: number;
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 export const PlanVsActualChart = ({
@@ -663,7 +665,9 @@ export const PlanVsActualChart = ({
   formatValue,
   monthStartColumn = 2,
   legendSpanColumns = 1,
-  height
+  height,
+  className,
+  style
 }: PlanVsActualChartProps) => {
   const maxPositive = Math.max(
     0,
@@ -857,7 +861,11 @@ export const PlanVsActualChart = ({
   ]);
 
   return (
-    <div className={`${styles.chartRow} ${styles.comparisonChart}`} style={{ gridTemplateColumns }} ref={chartRef}>
+    <div
+      className={`${styles.chartRow} ${styles.comparisonChart} ${className ?? ''}`}
+      style={{ gridTemplateColumns, minHeight: chartHeightPx, ...style }}
+      ref={chartRef}
+    >
       <div className={styles.chartLegend} style={{ gridColumn: `1 / span ${legendSpanColumns}` }}>
         {legendLabel ?? 'Plan vs actuals'}
       </div>
@@ -900,7 +908,7 @@ export const PlanVsActualChart = ({
             data-month-index={index}
             {...chartAnchor}
           >
-            <div className={styles.chartBarGroup}>
+            <div className={styles.chartBarGroup} style={{ height: chartHeightPx }}>
               <div className={styles.dualStackWrapper}>
                 <div className={styles.dualPositive} style={{ height: `${positivePortion * 100}%` }}>
                   <div className={styles.dualBarRow}>
