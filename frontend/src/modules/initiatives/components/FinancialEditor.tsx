@@ -1,4 +1,4 @@
-﻿import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/FinancialEditor.module.css';
 import {
   InitiativeBusinessCaseFile,
@@ -677,6 +677,24 @@ const PlanVsActualChart = ({
   const zeroLine = positivePortion * 100;
   const positiveArea = zeroLine;
   const negativeArea = (1 - positivePortion) * 100;
+  const chartHeightPx = 210;
+  const [chartWidth, setChartWidth] = useState(0);
+  useLayoutEffect(() => {
+    const node = chartRef.current;
+    if (!node) {
+      return;
+    }
+    const measure = () => setChartWidth(node.getBoundingClientRect().width);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  const lineViewportWidth = Math.max(1, chartWidth - CATEGORY_COLUMN_WIDTH);
+  const lineColumnWidth = lineViewportWidth / Math.max(months.length, 1);
+  const zeroLinePx = positivePortion * chartHeightPx;
+  const positiveAreaPx = zeroLinePx;
+  const negativeAreaPx = chartHeightPx - zeroLinePx;
   const chartRef = useRef<HTMLDivElement | null>(null);
   const [tooltip, setTooltip] = useState<{
     label: string;
@@ -728,18 +746,28 @@ const PlanVsActualChart = ({
             const net = month.positiveTotal - month.negativeTotal;
             const isPositive = net >= 0;
             const scale = isPositive ? positiveScale : negativeScale;
-            const area = isPositive ? positiveArea : negativeArea;
+            const area = isPositive ? positiveAreaPx : negativeAreaPx;
             const ratio = scale ? Math.min(1, Math.abs(net) / scale) : 0;
-            const y = isPositive ? zeroLine - ratio * area : zeroLine + ratio * area;
+            const y = isPositive ? zeroLinePx - ratio * area : zeroLinePx + ratio * area;
             return {
-              x: index + 0.5,
-              y: Number.isFinite(y) ? y : zeroLine,
+              x: index * lineColumnWidth + lineColumnWidth / 2,
+              y: Number.isFinite(y) ? y : zeroLinePx,
               value: net,
               label: `${months[index].label} ${months[index].year}`
             };
           })
         : [],
-    [showPlanAsLine, months, planData, positiveScale, negativeScale, positiveArea, negativeArea, zeroLine]
+    [
+      showPlanAsLine,
+      months,
+      planData,
+      positiveScale,
+      negativeScale,
+      positiveAreaPx,
+      negativeAreaPx,
+      zeroLinePx,
+      lineColumnWidth
+    ]
   );
 
   return (
@@ -759,7 +787,7 @@ const PlanVsActualChart = ({
         const planNet = plan.positiveTotal - plan.negativeTotal;
         const planPoint = linePoints[index];
         const lineMarker =
-          showPlanAsLine && planPoint
+          !showPlanAsLine && planPoint
             ? planNet >= 0 && positiveArea > 0
               ? {
                   area: 'positive' as const,
@@ -893,15 +921,28 @@ const PlanVsActualChart = ({
         );
       })}
       {showPlanAsLine && linePoints.length > 0 && (
-        <div className={styles.planLineLayer} style={{ left: `${CATEGORY_COLUMN_WIDTH}px` }}>
-          <svg className={styles.planLine} viewBox={`0 0 ${months.length} 100`} preserveAspectRatio="none">
-            <polyline points={linePoints.map((point) => `${point.x},${point.y}`).join(' ')} strokeWidth={1.2} fill="none" />
+        <div
+          className={styles.planLineLayer}
+          style={{ left: `${CATEGORY_COLUMN_WIDTH}px`, width: `${lineViewportWidth}px`, height: `${chartHeightPx}px` }}
+        >
+          <svg
+            className={styles.planLine}
+            viewBox={`0 0 ${lineViewportWidth} ${chartHeightPx}`}
+            preserveAspectRatio="none"
+          >
+            <polyline
+              points={linePoints.map((point) => `${point.x},${point.y}`).join(' ')}
+              strokeWidth={1.8}
+              fill="none"
+              vectorEffect="non-scaling-stroke"
+            />
             {linePoints.map((point, index) => (
               <circle
                 key={`${point.x}-${index}`}
                 cx={point.x}
                 cy={point.y}
-                r={0.9}
+                r={3}
+                vectorEffect="non-scaling-stroke"
                 onMouseEnter={(event) => handlePlanPointHover(event, point)}
                 onMouseMove={(event) => handlePlanPointHover(event, point)}
                 onMouseLeave={clearTooltip}
@@ -1384,7 +1425,7 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
                 <div>
                   <p className={styles.fileName}>{file.fileName}</p>
                   <p className={styles.fileMeta}>
-                    {Math.max(1, Math.round((file.size ?? 0) / 1024))} KB В·{' '}
+                    {Math.max(1, Math.round((file.size ?? 0) / 1024))} KB ·{' '}
                     {new Date(file.uploadedAt).toLocaleString()}
                   </p>
                 </div>
