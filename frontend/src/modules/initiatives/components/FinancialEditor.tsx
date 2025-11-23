@@ -646,6 +646,9 @@ interface PlanVsActualChartProps {
   anchorScope?: string;
   legendLabel?: string;
   formatValue?: (value: number) => string;
+  monthStartColumn?: number;
+  legendSpanColumns?: number;
+  height?: number;
 }
 
 export const PlanVsActualChart = ({
@@ -657,7 +660,10 @@ export const PlanVsActualChart = ({
   planLineMode,
   anchorScope,
   legendLabel,
-  formatValue
+  formatValue,
+  monthStartColumn = 2,
+  legendSpanColumns = 1,
+  height
 }: PlanVsActualChartProps) => {
   const maxPositive = Math.max(
     0,
@@ -683,7 +689,7 @@ export const PlanVsActualChart = ({
   const zeroLine = positivePortion * 100;
   const positiveArea = zeroLine;
   const negativeArea = (1 - positivePortion) * 100;
-  const chartHeightPx = 210;
+  const chartHeightPx = height ?? 210;
   const [chartWidth, setChartWidth] = useState(0);
   const [lineLayout, setLineLayout] = useState<{ left: number; width: number; xs: number[] }>({
     left: CATEGORY_COLUMN_WIDTH,
@@ -852,7 +858,9 @@ export const PlanVsActualChart = ({
 
   return (
     <div className={`${styles.chartRow} ${styles.comparisonChart}`} style={{ gridTemplateColumns }} ref={chartRef}>
-      <div className={styles.chartLegend}>{legendLabel ?? 'Plan vs actuals'}</div>
+      <div className={styles.chartLegend} style={{ gridColumn: `1 / span ${legendSpanColumns}` }}>
+        {legendLabel ?? 'Plan vs actuals'}
+      </div>
       {months.map((month, index) => {
         const plan = planData[index];
         const actual = actualData[index];
@@ -888,7 +896,7 @@ export const PlanVsActualChart = ({
           <div
             key={month.key}
             className={styles.chartCell}
-            style={{ gridRow: 1, gridColumn: index + 2 }}
+            style={{ gridRow: 1, gridColumn: index + monthStartColumn }}
             data-month-index={index}
             {...chartAnchor}
           >

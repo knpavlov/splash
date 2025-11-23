@@ -114,7 +114,11 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
     return `${metaTemplate} ${monthTemplate} ${actionsWidth}`;
   }, [months.length]);
   const chartTemplate = useMemo(
-    () => `550px repeat(${Math.max(months.length, 1)}, ${monthColumnWidth}px)`,
+    () => {
+      const metaTemplate = `minmax(200px, 1.1fr) minmax(110px, 0.7fr) minmax(130px, 0.8fr) minmax(110px, 0.7fr)`;
+      const monthTemplate = `repeat(${Math.max(months.length, 1)}, ${monthColumnWidth}px)`;
+      return `${metaTemplate} ${monthTemplate}`;
+    },
     [months.length]
   );
   const [showPlanAsLine, setShowPlanAsLine] = useState(false);
@@ -241,6 +245,9 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
                     anchorScope={`kpi.${scopeKey}.actuals.chart.${kpi.id}`}
                     legendLabel={`Plan vs actuals · ${kpi.name || 'KPI'}`}
                     formatValue={(value) => kpiNumberFormatter.format(value)}
+                    monthStartColumn={5}
+                    legendSpanColumns={4}
+                    height={70}
                   />
 
                   <div
