@@ -59,6 +59,8 @@ const SECTION_COLORS: Record<InitiativeFinancialKind, string> = {
   'oneoff-costs': '#f97316'
 };
 
+const CATEGORY_COLUMN_WIDTH = 200;
+
 const buildEntryColorMap = (stage: InitiativeStageData) => {
   const map: Record<string, string> = {};
   const buildPalette = (groups: InitiativeFinancialKind[], lighten: boolean) => {
@@ -672,6 +674,9 @@ const PlanVsActualChart = ({
   const negativePortion = negativeBase / baseTotal;
   const positiveScale = maxPositive || 1;
   const negativeScale = maxNegative || 1;
+  const zeroLine = positivePortion * 100;
+  const positiveArea = zeroLine;
+  const negativeArea = (1 - positivePortion) * 100;
   const chartRef = useRef<HTMLDivElement | null>(null);
   const [tooltip, setTooltip] = useState<{
     label: string;
@@ -679,6 +684,7 @@ const PlanVsActualChart = ({
     left: number;
     top: number;
     tag: 'Plan' | 'Actual';
+    signed?: boolean;
   } | null>(null);
 
   const handleSegmentHover = (
@@ -698,50 +704,47 @@ const PlanVsActualChart = ({
       position === 'positive'
         ? segmentRect.top - containerRect.top - 8
         : segmentRect.bottom - containerRect.top + 8;
-    setTooltip({ label: segment.label, value: segment.rawValue, left, top, tag });
+    setTooltip({ label: segment.label, value: segment.rawValue, left, top, tag, signed: false });
+  };
+
+  const handlePlanPointHover = (event: React.MouseEvent<SVGCircleElement>, point: { value: number; label: string }) => {
+    const container = chartRef.current;
+    if (!container) {
+      return;
+    }
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = event.currentTarget.getBoundingClientRect();
+    const left = targetRect.left + targetRect.width / 2 - containerRect.left;
+    const top = targetRect.top - containerRect.top - 10;
+    setTooltip({ label: point.label, value: point.value, left, top, tag: 'Plan', signed: true });
   };
 
   const clearTooltip = () => setTooltip(null);
 
-  const linePoints =
-    showPlanAsLine && months.length > 0
-      ? planData.map((month, index) => {
-          const net = month.positiveTotal - month.negativeTotal;
-          const ratio =
-            net >= 0
-              ? positiveScale ? Math.min(1, net / positiveScale) : 0
-              : negativeScale ? Math.min(1, Math.abs(net) / negativeScale) : 0;
-          const signedRatio = net >= 0 ? ratio : -ratio;
-          // Map -1..1 to chart height with small padding
-          const y = 50 - signedRatio * 48;
-          return { x: index + 0.5, y };
-        })
-      : [];
+  const linePoints = useMemo(
+    () =>
+      showPlanAsLine && months.length > 0
+        ? planData.map((month, index) => {
+            const net = month.positiveTotal - month.negativeTotal;
+            const isPositive = net >= 0;
+            const scale = isPositive ? positiveScale : negativeScale;
+            const area = isPositive ? positiveArea : negativeArea;
+            const ratio = scale ? Math.min(1, Math.abs(net) / scale) : 0;
+            const y = isPositive ? zeroLine - ratio * area : zeroLine + ratio * area;
+            return {
+              x: index + 0.5,
+              y: Number.isFinite(y) ? y : zeroLine,
+              value: net,
+              label: `${months[index].label} ${months[index].year}`
+            };
+          })
+        : [],
+    [showPlanAsLine, months, planData, positiveScale, negativeScale, positiveArea, negativeArea, zeroLine]
+  );
 
   return (
     <div className={`${styles.chartRow} ${styles.comparisonChart}`} style={{ gridTemplateColumns }} ref={chartRef}>
       <div className={styles.chartLegend}>Plan vs actuals</div>
-      {showPlanAsLine && linePoints.length > 0 && (
-        <div
-          style={{
-            gridColumn: `2 / span ${months.length}`,
-            gridRow: 1,
-            position: 'relative',
-            height: '210px'
-          }}
-        >
-          <svg className={styles.planLine} viewBox={`0 0 ${months.length} 100`} preserveAspectRatio="none">
-            <polyline
-              points={linePoints.map((point) => `${point.x},${point.y}`).join(' ')}
-              strokeWidth={1.2}
-              fill="none"
-            />
-            {linePoints.map((point, index) => (
-              <circle key={`${point.x}-${index}`} cx={point.x} cy={point.y} r={0.9} />
-            ))}
-          </svg>
-        </div>
-      )}
       {months.map((month, index) => {
         const plan = planData[index];
         const actual = actualData[index];
@@ -754,18 +757,32 @@ const PlanVsActualChart = ({
         const positiveActualScale = actual.positiveTotal || 1;
         const negativeActualScale = actual.negativeTotal || 1;
         const planNet = plan.positiveTotal - plan.negativeTotal;
+        const planPoint = linePoints[index];
         const lineMarker =
-          showPlanAsLine && positivePortion > 0
-            ? planNet >= 0
-              ? { area: 'positive' as const, offset: (1 - Math.min(1, planNet / positiveScale)) * 100 }
-              : { area: 'negative' as const, offset: Math.min(1, Math.abs(planNet) / negativeScale) * 100 }
+          showPlanAsLine && planPoint
+            ? planNet >= 0 && positiveArea > 0
+              ? {
+                  area: 'positive' as const,
+                  offset: Math.min(100, Math.max(0, ((zeroLine - planPoint.y) / (positiveArea || 1)) * 100))
+                }
+              : planNet < 0 && negativeArea > 0
+              ? {
+                  area: 'negative' as const,
+                  offset: Math.min(100, Math.max(0, ((planPoint.y - zeroLine) / (negativeArea || 1)) * 100))
+                }
+              : null
             : null;
         const chartAnchor = createCommentAnchor(
           `${anchorScope ?? 'financial-chart'}.${month.key}`,
           `${month.label} ${month.year} plan vs actual`
         );
         return (
-          <div key={month.key} className={styles.chartCell} {...chartAnchor}>
+          <div
+            key={month.key}
+            className={styles.chartCell}
+            style={{ gridRow: 1, gridColumn: index + 2 }}
+            {...chartAnchor}
+          >
             <div className={styles.chartBarGroup}>
               <div className={styles.dualStackWrapper}>
                 <div className={styles.dualPositive} style={{ height: `${positivePortion * 100}%` }}>
@@ -875,10 +892,28 @@ const PlanVsActualChart = ({
           </div>
         );
       })}
+      {showPlanAsLine && linePoints.length > 0 && (
+        <div className={styles.planLineLayer} style={{ left: `${CATEGORY_COLUMN_WIDTH}px` }}>
+          <svg className={styles.planLine} viewBox={`0 0 ${months.length} 100`} preserveAspectRatio="none">
+            <polyline points={linePoints.map((point) => `${point.x},${point.y}`).join(' ')} strokeWidth={1.2} fill="none" />
+            {linePoints.map((point, index) => (
+              <circle
+                key={`${point.x}-${index}`}
+                cx={point.x}
+                cy={point.y}
+                r={0.9}
+                onMouseEnter={(event) => handlePlanPointHover(event, point)}
+                onMouseMove={(event) => handlePlanPointHover(event, point)}
+                onMouseLeave={clearTooltip}
+              />
+            ))}
+          </svg>
+        </div>
+      )}
       {tooltip && (
         <div className={styles.chartTooltip} style={{ left: tooltip.left, top: tooltip.top }}>
           <strong>{tooltip.label || 'Line item'}</strong>
-          <span>{formatCurrency(Math.abs(tooltip.value))}</span>
+          <span>{tooltip.signed ? formatCurrency(tooltip.value) : formatCurrency(Math.abs(tooltip.value))}</span>
           <span className={styles.tooltipTag}>{tooltip.tag}</span>
         </div>
       )}
@@ -890,7 +925,7 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
   const months = useMemo<MonthDescriptor[]>(() => buildMonthRange(stage), [stage]);
   const scopeKey = commentScope ?? stage.key ?? 'stage';
   const gridTemplateColumns = useMemo(
-    () => `200px repeat(${Math.max(months.length, 1)}, minmax(110px, 1fr))`,
+    () => `${CATEGORY_COLUMN_WIDTH}px repeat(${Math.max(months.length, 1)}, minmax(110px, 1fr))`,
     [months.length]
   );
   const { blueprint: financialBlueprint, loading: blueprintLoading } = useFinancialsState();
@@ -1380,7 +1415,7 @@ export const FinancialActuals = ({ stage, disabled, onChange, commentScope }: Fi
   const months = useMemo<MonthDescriptor[]>(() => buildMonthRange(stage), [stage]);
   const scopeKey = commentScope ?? stage.key ?? 'stage';
   const gridTemplateColumns = useMemo(
-    () => `200px repeat(${Math.max(months.length, 1)}, minmax(110px, 1fr))`,
+    () => `${CATEGORY_COLUMN_WIDTH}px repeat(${Math.max(months.length, 1)}, minmax(110px, 1fr))`,
     [months.length]
   );
   const { blueprint: financialBlueprint } = useFinancialsState();

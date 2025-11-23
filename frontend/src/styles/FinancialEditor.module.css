@@ -275,11 +275,20 @@
   position: relative;
 }
 
+.planLineLayer {
+  position: absolute;
+  top: 12px;
+  right: 0;
+  left: 0;
+  height: 210px;
+  z-index: 3;
+  pointer-events: none;
+}
+
 .planLine {
   position: absolute;
   inset: 0;
   z-index: 3;
-  pointer-events: none;
   width: 100%;
   height: 100%;
   overflow: visible;
@@ -293,12 +302,14 @@
   stroke-linejoin: round;
   stroke-linecap: round;
   opacity: 0.95;
+  pointer-events: none;
 }
 
 .planLine circle {
   fill: #0ea5e9;
   stroke: #e0f2fe;
   stroke-width: 0.4;
+  pointer-events: auto;
 }
 
 .dualStackWrapper {
