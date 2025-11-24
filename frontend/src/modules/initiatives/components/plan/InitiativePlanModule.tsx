@@ -5,7 +5,6 @@ import { useParticipantsState, usePlanSettingsState } from '../../../../app/stat
 import styles from '../../../../styles/InitiativePlanModule.module.css';
 import {
   Initiative,
-  InitiativePlanBaseline,
   InitiativePlanCapacitySegment,
   InitiativePlanModel,
   InitiativePlanTask
@@ -33,10 +32,6 @@ interface InitiativePlanModuleProps {
   focusTaskId?: string | null;
   openFullscreen?: boolean;
   onFocusHandled?: () => void;
-  baselinePlan?: InitiativePlanModel | null;
-  variant?: 'plan' | 'actuals';
-  title?: string;
-  subtitle?: string;
 }
 
 const ROW_HEIGHT = 60;
@@ -58,13 +53,10 @@ const DEFAULT_MILESTONE_OPTIONS = ['Standard', 'Value Step', 'Change Management'
 const VALUE_STEP_LABEL = 'Value Step';
 type TableColumnId =
   | 'drag'
-  | 'archive'
   | 'name'
   | 'milestoneType'
   | 'description'
-  | 'planStart'
   | 'start'
-  | 'planEnd'
   | 'end'
   | 'responsible'
   | 'progress'
@@ -79,7 +71,7 @@ interface TableColumnConfig {
   resizable: boolean;
 }
 
-const PLAN_COLUMNS: TableColumnConfig[] = [
+const TABLE_COLUMNS: TableColumnConfig[] = [
   { id: 'drag', label: '', defaultWidth: 36, minWidth: 36, maxWidth: 36, resizable: false },
   { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 60, maxWidth: 480, resizable: true },
   { id: 'milestoneType', label: 'Milestone type', defaultWidth: 170, minWidth: 120, maxWidth: 260, resizable: true },
@@ -91,37 +83,20 @@ const PLAN_COLUMNS: TableColumnConfig[] = [
   { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 60, maxWidth: 280, resizable: true }
 ] as const;
 
-const ACTUALS_COLUMNS: TableColumnConfig[] = [
-  { id: 'drag', label: '', defaultWidth: 32, minWidth: 32, maxWidth: 32, resizable: false },
-  { id: 'archive', label: '', defaultWidth: 46, minWidth: 40, maxWidth: 60, resizable: false },
-  { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 60, maxWidth: 480, resizable: true },
-  { id: 'milestoneType', label: 'Milestone type', defaultWidth: 160, minWidth: 120, maxWidth: 260, resizable: true },
-  { id: 'description', label: 'Description', defaultWidth: 240, minWidth: 70, maxWidth: 520, resizable: true },
-  { id: 'planStart', label: 'Plan start', defaultWidth: 130, minWidth: 70, maxWidth: 200, resizable: true },
-  { id: 'start', label: 'Actual start', defaultWidth: 150, minWidth: 70, maxWidth: 260, resizable: true },
-  { id: 'planEnd', label: 'Plan end', defaultWidth: 130, minWidth: 70, maxWidth: 200, resizable: true },
-  { id: 'end', label: 'Actual end', defaultWidth: 150, minWidth: 70, maxWidth: 260, resizable: true },
-  { id: 'responsible', label: 'Responsible', defaultWidth: 200, minWidth: 70, maxWidth: 320, resizable: true },
-  { id: 'progress', label: 'Status %', defaultWidth: 140, minWidth: 45, maxWidth: 220, resizable: true },
-  { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 60, maxWidth: 280, resizable: true }
-] as const;
-
-const buildDefaultColumnWidths = (columns: TableColumnConfig[]) =>
-  columns.reduce<Record<TableColumnId, number>>((acc, column) => {
+const buildDefaultColumnWidths = () =>
+  TABLE_COLUMNS.reduce<Record<TableColumnId, number>>((acc, column) => {
     acc[column.id] = column.defaultWidth;
     return acc;
   }, {} as Record<TableColumnId, number>);
 
-const buildColumnMap = (columns: TableColumnConfig[]) =>
-  columns.reduce<Record<TableColumnId, TableColumnConfig>>((acc, column) => {
-    acc[column.id] = column;
-    return acc;
-  }, {} as Record<TableColumnId, TableColumnConfig>);
+const TABLE_COLUMN_MAP = TABLE_COLUMNS.reduce<Record<TableColumnId, TableColumnConfig>>((acc, column) => {
+  acc[column.id] = column;
+  return acc;
+}, {} as Record<TableColumnId, TableColumnConfig>);
 
-const COLUMN_STORAGE_NAMESPACE = {
-  plan: 'initiative-plan:columns',
-  actuals: 'initiative-plan-actuals:columns'
-} as const;
+const DEFAULT_COLUMN_ORDER = TABLE_COLUMNS.map((column) => column.id);
+
+const COLUMN_STORAGE_NAMESPACE = 'initiative-plan:columns';
 
 type DragMode = 'move' | 'resize-start' | 'resize-end';
 
@@ -137,30 +112,12 @@ export const InitiativePlanModule = ({
   readOnly = false,
   focusTaskId = null,
   openFullscreen = false,
-  onFocusHandled,
-  baselinePlan = null,
-  variant = 'plan',
-  title,
-  subtitle
+  onFocusHandled
 }: InitiativePlanModuleProps) => {
   const { list: participants } = useParticipantsState();
   const { milestoneTypes } = usePlanSettingsState();
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
-  const baselinePlanNormalized = useMemo(
-    () => (baselinePlan ? sanitizePlanModel(baselinePlan) : null),
-    [baselinePlan]
-  );
   const { session } = useAuth();
-  const isActuals = variant === 'actuals';
-  const baseColumns = useMemo(() => (isActuals ? ACTUALS_COLUMNS : PLAN_COLUMNS), [isActuals]);
-  const baseColumnMap = useMemo(() => buildColumnMap(baseColumns), [baseColumns]);
-  const defaultColumnOrder = useMemo(() => baseColumns.map((column) => column.id), [baseColumns]);
-  const resolvedTitle = title ?? (isActuals ? 'Implementation plan - actuals' : 'Implementation plan');
-  const resolvedSubtitle =
-    subtitle ??
-    (isActuals
-      ? 'Capture actual delivery, compare against the baseline plan, and visualise variance.'
-      : 'Build a detailed execution plan with a live Gantt chart.');
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(
     () => (normalizedPlan.tasks[0]?.id ? [normalizedPlan.tasks[0].id] : [])
   );
@@ -171,11 +128,9 @@ export const InitiativePlanModule = ({
   const [capacityEditor, setCapacityEditor] = useState<CapacityEditorState | null>(null);
   const isCapacityEditorActive = capacityEditor !== null;
   const [showCapacityOverlay, setShowCapacityOverlay] = useState(false);
-  const [columnWidths, setColumnWidths] = useState<Record<TableColumnId, number>>(
-    () => buildDefaultColumnWidths(baseColumns)
-  );
+  const [columnWidths, setColumnWidths] = useState<Record<TableColumnId, number>>(() => buildDefaultColumnWidths());
   const [columnPrefsLoaded, setColumnPrefsLoaded] = useState(false);
-  const [columnOrder, setColumnOrder] = useState<TableColumnId[]>(defaultColumnOrder);
+  const [columnOrder, setColumnOrder] = useState<TableColumnId[]>(DEFAULT_COLUMN_ORDER);
   const [descriptionTooltip, setDescriptionTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const [planHeight, setPlanHeight] = useState(PLAN_HEIGHT_DEFAULT);
   const [planHeightLoaded, setPlanHeightLoaded] = useState(false);
@@ -198,8 +153,6 @@ export const InitiativePlanModule = ({
   const selectedTaskId = selectedTaskIds[0] ?? null;
   const selectedTaskIdsSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
   const [dragColumnId, setDragColumnId] = useState<TableColumnId | null>(null);
-  const [showBaselines, setShowBaselines] = useState(true);
-  const [showArchived, setShowArchived] = useState(true);
   const setSelectedTaskId = useCallback((taskId: string | null) => {
     setSelectedTaskIds(taskId ? [taskId] : []);
   }, []);
@@ -268,14 +221,13 @@ export const InitiativePlanModule = ({
   const focusHandledRef = useRef<string | null>(null);
 
   const userKey = session?.accountId ?? 'guest';
-  const columnNamespace = isActuals ? COLUMN_STORAGE_NAMESPACE.actuals : COLUMN_STORAGE_NAMESPACE.plan;
-  const columnStorageKey = useMemo(() => `${columnNamespace}:${userKey}`, [columnNamespace, userKey]);
-  const heightStorageKey = useMemo(() => `${columnNamespace}:height:${userKey}`, [columnNamespace, userKey]);
+  const columnStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:${userKey}`, [userKey]);
+  const heightStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:height:${userKey}`, [userKey]);
   const resourceHeightStorageKey = useMemo(
-    () => `${columnNamespace}:resource-height:${userKey}`,
-    [columnNamespace, userKey]
+    () => `${COLUMN_STORAGE_NAMESPACE}:resource-height:${userKey}`,
+    [userKey]
   );
-  const columnOrderStorageKey = useMemo(() => `${columnNamespace}:order:${userKey}`, [columnNamespace, userKey]);
+  const columnOrderStorageKey = useMemo(() => `${COLUMN_STORAGE_NAMESPACE}:order:${userKey}`, [userKey]);
 
   useEffect(() => {
     setColumnPrefsLoaded(false);
@@ -283,7 +235,7 @@ export const InitiativePlanModule = ({
       setColumnPrefsLoaded(true);
       return;
     }
-    const defaults = buildDefaultColumnWidths(baseColumns);
+    const defaults = buildDefaultColumnWidths();
     const raw = window.localStorage.getItem(columnStorageKey);
     if (!raw) {
       setColumnWidths(defaults);
@@ -294,7 +246,7 @@ export const InitiativePlanModule = ({
       const parsed = JSON.parse(raw) as Partial<Record<TableColumnId, number>> | null;
       const sanitized = { ...defaults };
       if (parsed) {
-        for (const column of baseColumns) {
+        for (const column of TABLE_COLUMNS) {
           const value = parsed[column.id];
           if (typeof value === 'number' && Number.isFinite(value)) {
             sanitized[column.id] = clamp(value, column.minWidth, column.maxWidth);
@@ -307,7 +259,7 @@ export const InitiativePlanModule = ({
     } finally {
       setColumnPrefsLoaded(true);
     }
-  }, [baseColumns, columnStorageKey]);
+  }, [columnStorageKey]);
 
   useEffect(() => {
     if (!columnPrefsLoaded || typeof window === 'undefined') {
@@ -318,27 +270,25 @@ export const InitiativePlanModule = ({
 
   useEffect(() => {
     if (typeof window === 'undefined') {
-      setColumnOrder(defaultColumnOrder);
       return;
     }
     const raw = window.localStorage.getItem(columnOrderStorageKey);
     if (!raw) {
-      setColumnOrder(defaultColumnOrder);
+      setColumnOrder(DEFAULT_COLUMN_ORDER);
       return;
     }
     try {
       const parsed = JSON.parse(raw) as TableColumnId[];
       if (Array.isArray(parsed)) {
-        const filtered = parsed.filter((id): id is TableColumnId => Boolean(baseColumnMap[id]));
+        const filtered = parsed.filter((id): id is TableColumnId => Boolean(TABLE_COLUMN_MAP[id]));
         const seen = new Set<TableColumnId>(filtered);
-        const merged = [...filtered, ...defaultColumnOrder.filter((id) => !seen.has(id))];
+        const merged = [...filtered, ...DEFAULT_COLUMN_ORDER.filter((id) => !seen.has(id))];
         setColumnOrder(merged);
-        return;
       }
     } catch {
+      setColumnOrder(DEFAULT_COLUMN_ORDER);
     }
-    setColumnOrder(defaultColumnOrder);
-  }, [baseColumnMap, columnOrderStorageKey, defaultColumnOrder]);
+  }, [columnOrderStorageKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -400,19 +350,7 @@ export const InitiativePlanModule = ({
 
   const pxPerDay = useMemo(() => getZoomScale(normalizedPlan.settings.zoomLevel), [normalizedPlan.settings.zoomLevel]);
 
-  const workingTasks = useMemo(
-    () => (isActuals && !showArchived ? normalizedPlan.tasks.filter((task) => !task.archived) : normalizedPlan.tasks),
-    [isActuals, normalizedPlan.tasks, showArchived]
-  );
-
-  const timelineRange = useMemo(() => {
-    const rangeTasks =
-      isActuals && showBaselines && baselinePlanNormalized
-        ? [...workingTasks, ...baselinePlanNormalized.tasks]
-        : workingTasks;
-    const source = rangeTasks.length ? rangeTasks : workingTasks;
-    return buildTimelineRange(source, pxPerDay);
-  }, [baselinePlanNormalized, isActuals, pxPerDay, showBaselines, workingTasks]);
+  const timelineRange = useMemo(() => buildTimelineRange(normalizedPlan, pxPerDay), [normalizedPlan, pxPerDay]);
 
   const orderedColumns = useMemo(() => {
     const seen = new Set<TableColumnId>();
@@ -421,43 +359,29 @@ export const InitiativePlanModule = ({
       if (seen.has(columnId)) {
         return;
       }
-      const column = baseColumnMap[columnId];
+      const column = TABLE_COLUMN_MAP[columnId];
       if (column) {
         sequence.push(column);
         seen.add(columnId);
       }
     });
-    baseColumns.forEach((column) => {
+    TABLE_COLUMNS.forEach((column) => {
       if (!seen.has(column.id)) {
         sequence.push(column);
       }
     });
     return sequence;
-  }, [baseColumnMap, baseColumns, columnOrder]);
-
-  const visibleColumns = useMemo(
-    () =>
-      orderedColumns.filter((column) => {
-        if (!isActuals) {
-          return true;
-        }
-        if (!showBaselines && (column.id === 'planStart' || column.id === 'planEnd')) {
-          return false;
-        }
-        return true;
-      }),
-    [isActuals, orderedColumns, showBaselines]
-  );
+  }, [columnOrder]);
 
   const tableGridTemplate = useMemo(
     () =>
-      visibleColumns
+      orderedColumns
         .map((column) => {
           const width = columnWidths[column.id] ?? column.defaultWidth;
           return `${width}px`;
         })
         .join(' '),
-    [columnWidths, visibleColumns]
+    [columnWidths, orderedColumns]
   );
 
   const selectedTask = useMemo(
@@ -480,18 +404,18 @@ export const InitiativePlanModule = ({
 
   const taskHasChildren = useMemo(() => {
     const map = new Map<string, boolean>();
-    workingTasks.forEach((task, index) => {
-      const next = workingTasks[index + 1];
+    normalizedPlan.tasks.forEach((task, index) => {
+      const next = normalizedPlan.tasks[index + 1];
       map.set(task.id, Boolean(next && next.indent > task.indent));
     });
     return map;
-  }, [workingTasks]);
+  }, [normalizedPlan.tasks]);
 
   const visibleTasks = useMemo(() => {
     const hiddenStack: number[] = [];
     const collapsed = collapsedTaskIds;
     const result: InitiativePlanTask[] = [];
-    workingTasks.forEach((task) => {
+    normalizedPlan.tasks.forEach((task) => {
       while (hiddenStack.length && task.indent <= hiddenStack[hiddenStack.length - 1]) {
         hiddenStack.pop();
       }
@@ -504,7 +428,7 @@ export const InitiativePlanModule = ({
       }
     });
     return result;
-  }, [collapsedTaskIds, workingTasks]);
+  }, [collapsedTaskIds, normalizedPlan.tasks]);
 
   const ensureTaskAncestorsExpanded = useCallback(
     (taskId: string) => {
@@ -703,19 +627,6 @@ export const InitiativePlanModule = ({
       indent: Math.max(0, task.indent - 1)
     }));
   }, [readOnly, selectedTaskId, updateTask]);
-
-  const toggleArchiveTask = useCallback(
-    (taskId: string) => {
-      if (readOnly) {
-        return;
-      }
-      updateTask(taskId, (task) => ({
-        ...task,
-        archived: !task.archived
-      }));
-    },
-    [readOnly, updateTask]
-  );
 
   const moveTaskBlock = useCallback(
     (sourceId: string, targetId: string | null) => {
@@ -1418,21 +1329,6 @@ export const InitiativePlanModule = ({
     });
   }, []);
 
-  const formatShortDateLabel = useCallback((value: string | null) => {
-    if (!value) {
-      return 'Not set';
-    }
-    const parsed = parseDate(value);
-    if (!parsed) {
-      return 'Not set';
-    }
-    return parsed.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  }, []);
-
   const showTimelineTooltip = useCallback(
     (event: React.PointerEvent<HTMLDivElement>, task: InitiativePlanTask) => {
       const elementRect = event.currentTarget.getBoundingClientRect();
@@ -1458,66 +1354,6 @@ export const InitiativePlanModule = ({
   const hideTimelineTooltip = useCallback(() => {
     setTimelineTooltip(null);
   }, []);
-
-  const resolveBaselineForTask = useCallback(
-    (task: InitiativePlanTask): InitiativePlanBaseline | null => {
-      if (!isActuals) {
-        return null;
-      }
-      if (task.baseline) {
-        return task.baseline;
-      }
-      const targetId = task.sourceTaskId ?? task.id;
-      const fallback =
-        baselinePlanNormalized?.tasks.find((candidate) => candidate.id === targetId) ?? null;
-      if (!fallback) {
-        return null;
-      }
-      return {
-        name: fallback.name,
-        description: fallback.description,
-        startDate: fallback.startDate,
-        endDate: fallback.endDate,
-        responsible: fallback.responsible,
-        milestoneType: fallback.milestoneType,
-        requiredCapacity: fallback.requiredCapacity ?? null
-      };
-    },
-    [baselinePlanNormalized, isActuals]
-  );
-
-  const isFieldChanged = useCallback(
-    (task: InitiativePlanTask, field: keyof InitiativePlanBaseline) => {
-      const baseline = resolveBaselineForTask(task);
-      if (!baseline) {
-        return false;
-      }
-      switch (field) {
-        case 'startDate':
-          return baseline.startDate !== task.startDate;
-        case 'endDate':
-          return baseline.endDate !== task.endDate;
-        case 'name':
-          return (baseline.name ?? '') !== (task.name ?? '');
-        case 'description':
-          return (baseline.description ?? '') !== (task.description ?? '');
-        case 'responsible':
-          return (baseline.responsible ?? '') !== (task.responsible ?? '');
-        case 'milestoneType':
-          return (baseline.milestoneType ?? '') !== (task.milestoneType ?? '');
-        case 'requiredCapacity':
-          return (baseline.requiredCapacity ?? null) !== (task.requiredCapacity ?? null);
-        default:
-          return false;
-      }
-    },
-    [resolveBaselineForTask]
-  );
-
-  const isTaskNew = useCallback(
-    (task: InitiativePlanTask) => isActuals && !resolveBaselineForTask(task),
-    [isActuals, resolveBaselineForTask]
-  );
 
   const toggleTaskCollapse = useCallback(
     (taskId: string) => {
@@ -1613,30 +1449,6 @@ export const InitiativePlanModule = ({
       setTasks(nextTasks);
     }
   }, [normalizedPlan.tasks, progressMeta, readOnly, setTasks]);
-
-  const valueStepMetrics = useMemo(() => {
-    if (!isActuals) {
-      return null;
-    }
-    const actualValueStep =
-      normalizedPlan.tasks.find(
-        (task) => (task.milestoneType ?? '').toLowerCase() === VALUE_STEP_LABEL.toLowerCase()
-      ) ?? null;
-    const baseline = actualValueStep ? resolveBaselineForTask(actualValueStep) : null;
-    const plannedEndValue = baseline?.endDate ?? null;
-    const actualEndDate = actualValueStep?.endDate ? parseDate(actualValueStep.endDate) : null;
-    const plannedEndDate = plannedEndValue ? parseDate(plannedEndValue) : null;
-    const daysToValue = actualEndDate ? diffInDays(new Date(), actualEndDate) : null;
-    const monthsToValue = daysToValue === null ? null : Math.max(0, Math.round(daysToValue / 30));
-    const deviation =
-      actualEndDate && plannedEndDate ? diffInDays(plannedEndDate, actualEndDate) : null;
-    return {
-      actualEndDate,
-      plannedEndDate,
-      monthsToValue,
-      deviation
-    };
-  }, [isActuals, normalizedPlan.tasks, resolveBaselineForTask]);
 
   const handleTaskFieldChange = useCallback(
     (task: InitiativePlanTask, field: keyof InitiativePlanTask, value: string) => {
@@ -1882,7 +1694,7 @@ export const InitiativePlanModule = ({
       <div className={styles.infoBanner}>
         <span>{infoMessage}</span>
         <button type="button" onClick={() => setInfoMessage(null)}>
-          x
+          ├Ч
         </button>
       </div>
     ) : null;
@@ -1903,62 +1715,13 @@ export const InitiativePlanModule = ({
       onToggle={() => setResourceCollapsed((prev) => !prev)}
     />
   );
-  const actualsDashboard =
-    isActuals && !isCollapsed ? (
-      <div className={styles.metricsBar}>
-        <div className={styles.metricCard}>
-          <span className={styles.metricLabel}>Value step completion</span>
-          <strong>
-            {valueStepMetrics?.actualEndDate
-              ? formatShortDateLabel(valueStepMetrics.actualEndDate.toISOString().slice(0, 10))
-              : 'Not set'}
-          </strong>
-          <small>
-            Plan:{' '}
-            {valueStepMetrics?.plannedEndDate
-              ? formatShortDateLabel(valueStepMetrics.plannedEndDate.toISOString().slice(0, 10))
-              : '-'}
-          </small>
-        </div>
-        <div className={styles.metricCard}>
-          <span className={styles.metricLabel}>Months to value step</span>
-          <strong>
-            {valueStepMetrics?.monthsToValue !== null && valueStepMetrics?.monthsToValue !== undefined
-              ? `${valueStepMetrics.monthsToValue}`
-              : '-'}
-          </strong>
-          <small>Based on actual target date</small>
-        </div>
-        <div className={styles.metricCard}>
-          <span className={styles.metricLabel}>Schedule delta</span>
-          <strong
-            className={
-              valueStepMetrics?.deviation !== null && valueStepMetrics?.deviation !== undefined
-                ? valueStepMetrics.deviation > 0
-                  ? styles.metricNegative
-                  : valueStepMetrics.deviation < 0
-                    ? styles.metricPositive
-                    : ''
-                : undefined
-            }
-          >
-            {valueStepMetrics?.deviation !== null && valueStepMetrics?.deviation !== undefined
-              ? `${valueStepMetrics.deviation > 0 ? '+' : ''}${valueStepMetrics.deviation} days`
-              : '-'}
-          </strong>
-          <small>vs baseline plan</small>
-        </div>
-      </div>
-    ) : null;
 
   if (!isCollapsed) {
     const planBodyElement = (
-      <>
-        {actualsDashboard}
-        <div
-          className={styles.planBody}
-          style={isFullscreen ? { height: '100%' } : { height: `${planHeight}px` }}
-        >
+      <div
+        className={styles.planBody}
+        style={isFullscreen ? { height: '100%' } : { height: `${planHeight}px` }}
+      >
         <div
           className={styles.tablePanel}
           style={{ width: `${normalizedPlan.settings.splitRatio * 100}%` }}
@@ -1972,7 +1735,7 @@ export const InitiativePlanModule = ({
               className={styles.tableHeader}
               style={{ gridTemplateColumns: tableGridTemplate }}
             >
-              {visibleColumns.map((column) => (
+              {orderedColumns.map((column) => (
                 <div
                   key={`header-${column.id}`}
                   className={`${styles.columnHeader} ${
@@ -2017,21 +1780,12 @@ export const InitiativePlanModule = ({
                 };
                 const inputDisplayValue =
                   draftValue !== undefined ? draftValue : String(Number.isFinite(baseProgressValue) ? baseProgressValue : 0);
-                const baseline = resolveBaselineForTask(task);
-                const taskIsNew = isTaskNew(task);
-                const startChanged = isFieldChanged(task, 'startDate');
-                const endChanged = isFieldChanged(task, 'endDate');
-                const nameChanged = isFieldChanged(task, 'name');
-                const descChanged = isFieldChanged(task, 'description');
-                const responsibleChanged = isFieldChanged(task, 'responsible');
-                const milestoneChanged = isFieldChanged(task, 'milestoneType');
-                const capacityChanged = isFieldChanged(task, 'requiredCapacity');
                 return (
                   <div
                     key={task.id}
                     className={`${styles.tableRow} ${rowDepthClass} ${
                       selectedTaskIdsSet.has(task.id) ? styles.rowSelected : ''
-                    } ${isActuals && task.archived ? styles.rowArchived : ''}`}
+                    }`}
                     style={{ gridTemplateColumns: tableGridTemplate, height: `${ROW_HEIGHT}px` }}
                     onClick={(event) => handleTaskSelect(task.id, event)}
                     onDragOver={(event) => {
@@ -2052,7 +1806,7 @@ export const InitiativePlanModule = ({
                       }
                     }}
                   >
-                    {visibleColumns.map((column) => {
+                    {orderedColumns.map((column) => {
                       switch (column.id) {
                         case 'drag':
                           return (
@@ -2062,50 +1816,19 @@ export const InitiativePlanModule = ({
                               className={styles.dragHandle}
                               draggable={!readOnly}
                               onDragStart={(event) => {
-                            setDragTaskId(task.id);
-                            event.dataTransfer.setData('text/plain', task.id);
-                            event.dataTransfer.effectAllowed = 'move';
-                          }}
-                          onDragEnd={() => setDragTaskId(null)}
-                          aria-label="Drag to reorder"
-                        >
-                              <span aria-hidden="true">::</span>
-                        </button>
-                      );
-                        case 'archive':
-                          if (!isActuals) {
-                            return null;
-                          }
-                          return (
-                            <div key={`${task.id}-archive`} className={styles.cell}>
-                              <button
-                                type="button"
-                                className={`${styles.archiveButton} ${task.archived ? styles.archiveActive : ''}`}
-                                disabled={readOnly}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  toggleArchiveTask(task.id);
-                                }}
-                              >
-                                {task.archived ? 'Archived' : 'Archive'}
-                              </button>
-                            </div>
+                                setDragTaskId(task.id);
+                                event.dataTransfer.setData('text/plain', task.id);
+                                event.dataTransfer.effectAllowed = 'move';
+                              }}
+                              onDragEnd={() => setDragTaskId(null)}
+                              aria-label="Drag to reorder"
+                            >
+                              <span aria-hidden="true">??</span>
+                            </button>
                           );
                         case 'name':
                           return (
-                            <div
-                              key={`${task.id}-name`}
-                              className={`${styles.taskNameCell} ${nameChanged ? styles.changedCell : ''}`}
-                              onMouseEnter={(event) => {
-                                if (nameChanged && baseline) {
-                                  showDescriptionTooltip(
-                                    `Plan: ${baseline.name || 'Untitled task'}`,
-                                    event.currentTarget
-                                  );
-                                }
-                              }}
-                              onMouseLeave={hideDescriptionTooltip}
-                            >
+                            <div key={`${task.id}-name`} className={styles.taskNameCell}>
                               {hasChildren ? (
                                 <button
                                   type="button"
@@ -2132,8 +1855,6 @@ export const InitiativePlanModule = ({
                                 onChange={(event) => handleTaskFieldChange(task, 'name', event.target.value)}
                                 onFocus={hideDescriptionTooltip}
                               />
-                              {taskIsNew ? <span className={styles.newBadge}>New</span> : null}
-                              {nameChanged && !taskIsNew && <span className={styles.changeDot} />}
                             </div>
                           );
                         case 'milestoneType': {
@@ -2146,19 +1867,7 @@ export const InitiativePlanModule = ({
                             options[0] ??
                             'Standard';
                           return (
-                            <div
-                              key={`${task.id}-milestone`}
-                              className={`${styles.cell} ${milestoneChanged ? styles.changedCell : ''}`}
-                              onMouseEnter={(event) => {
-                                if (milestoneChanged && baseline) {
-                                  showDescriptionTooltip(
-                                    `Plan: ${baseline.milestoneType || 'Standard'}`,
-                                    event.currentTarget
-                                  );
-                                }
-                              }}
-                              onMouseLeave={hideDescriptionTooltip}
-                            >
+                            <div key={`${task.id}-milestone`} className={styles.cell}>
                               <select
                                 value={currentValue}
                                 disabled={readOnly}
@@ -2170,7 +1879,6 @@ export const InitiativePlanModule = ({
                                   </option>
                                 ))}
                               </select>
-                              {milestoneChanged && !taskIsNew && <span className={styles.changeDot} />}
                             </div>
                           );
                         }
@@ -2178,13 +1886,8 @@ export const InitiativePlanModule = ({
                           return (
                             <div
                               key={`${task.id}-description`}
-                              className={`${styles.cell} ${descChanged ? styles.changedCell : ''}`}
-                              onMouseEnter={(event) =>
-                                showDescriptionTooltip(
-                                  descChanged && baseline ? baseline.description : task.description,
-                                  event.currentTarget
-                                )
-                              }
+                              className={styles.cell}
+                              onMouseEnter={(event) => showDescriptionTooltip(task.description, event.currentTarget)}
                               onMouseLeave={hideDescriptionTooltip}
                             >
                               <input
@@ -2194,71 +1897,28 @@ export const InitiativePlanModule = ({
                                 placeholder="Short summary"
                                 onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
                               />
-                              {descChanged && !taskIsNew && <span className={styles.changeDot} />}
-                            </div>
-                          );
-                        case 'planStart':
-                          return (
-                            <div key={`${task.id}-plan-start`} className={`${styles.cell} ${styles.baselineCell}`}>
-                              <span className={styles.baselineValue}>
-                                {showBaselines && baseline ? formatShortDateLabel(baseline.startDate) : '-'}
-                              </span>
                             </div>
                           );
                         case 'start':
                           return (
-                            <div
-                              key={`${task.id}-start`}
-                              className={`${styles.cell} ${startChanged ? styles.changedCell : ''}`}
-                              onMouseEnter={(event) => {
-                                if (startChanged && baseline) {
-                                  showDescriptionTooltip(
-                                    `Plan start: ${formatTimelineDate(baseline.startDate)}`,
-                                    event.currentTarget
-                                  );
-                                }
-                              }}
-                              onMouseLeave={hideDescriptionTooltip}
-                            >
+                            <div key={`${task.id}-start`} className={styles.cell}>
                               <input
                                 type="date"
                                 value={task.startDate ?? ''}
                                 disabled={readOnly}
                                 onChange={(event) => handleTaskFieldChange(task, 'startDate', event.target.value)}
                               />
-                              {startChanged && !taskIsNew && <span className={styles.changeDot} />}
-                            </div>
-                          );
-                        case 'planEnd':
-                          return (
-                            <div key={`${task.id}-plan-end`} className={`${styles.cell} ${styles.baselineCell}`}>
-                              <span className={styles.baselineValue}>
-                                {showBaselines && baseline ? formatShortDateLabel(baseline.endDate) : '-'}
-                              </span>
                             </div>
                           );
                         case 'end':
                           return (
-                            <div
-                              key={`${task.id}-end`}
-                              className={`${styles.cell} ${endChanged ? styles.changedCell : ''}`}
-                              onMouseEnter={(event) => {
-                                if (endChanged && baseline) {
-                                  showDescriptionTooltip(
-                                    `Plan end: ${formatTimelineDate(baseline.endDate)}`,
-                                    event.currentTarget
-                                  );
-                                }
-                              }}
-                              onMouseLeave={hideDescriptionTooltip}
-                            >
+                            <div key={`${task.id}-end`} className={styles.cell}>
                               <input
                                 type="date"
                                 value={task.endDate ?? ''}
                                 disabled={readOnly}
                                 onChange={(event) => handleTaskFieldChange(task, 'endDate', event.target.value)}
                               />
-                              {endChanged && !taskIsNew && <span className={styles.changeDot} />}
                             </div>
                           );
                         case 'responsible': {
@@ -2266,19 +1926,7 @@ export const InitiativePlanModule = ({
                             !!task.responsible &&
                             !participantNameSet.has(task.responsible.trim().toLowerCase());
                           return (
-                            <div
-                              key={`${task.id}-responsible`}
-                              className={`${styles.cell} ${responsibleChanged ? styles.changedCell : ''}`}
-                              onMouseEnter={(event) => {
-                                if (responsibleChanged && baseline) {
-                                  showDescriptionTooltip(
-                                    `Plan: ${baseline.responsible || 'Unassigned'}`,
-                                    event.currentTarget
-                                  );
-                                }
-                              }}
-                              onMouseLeave={hideDescriptionTooltip}
-                            >
+                            <div key={`${task.id}-responsible`} className={styles.cell}>
                               <select
                                 value={task.responsible}
                                 disabled={readOnly}
@@ -2294,7 +1942,6 @@ export const InitiativePlanModule = ({
                                   <option value={task.responsible}>{task.responsible}</option>
                                 )}
                               </select>
-                              {responsibleChanged && !taskIsNew && <span className={styles.changeDot} />}
                             </div>
                           );
                         }
@@ -2368,19 +2015,7 @@ export const InitiativePlanModule = ({
                           );
                         case 'capacity':
                           return (
-                            <div
-                              key={`${task.id}-capacity`}
-                              className={`${styles.cell} ${capacityChanged ? styles.changedCell : ''}`}
-                              onMouseEnter={(event) => {
-                                if (capacityChanged && baseline) {
-                                  showDescriptionTooltip(
-                                    `Plan: ${baseline.requiredCapacity ?? '-'}`,
-                                    event.currentTarget
-                                  );
-                                }
-                              }}
-                              onMouseLeave={hideDescriptionTooltip}
-                            >
+                            <div key={`${task.id}-capacity`} className={styles.cell}>
                               <input
                                 type="number"
                                 value={
@@ -2392,7 +2027,6 @@ export const InitiativePlanModule = ({
                                 disabled={readOnly}
                                 onChange={(event) => handleTaskFieldChange(task, 'requiredCapacity', event.target.value)}
                               />
-                              {capacityChanged && !taskIsNew && <span className={styles.changeDot} />}
                             </div>
                           );
                         default:
@@ -2476,15 +2110,6 @@ export const InitiativePlanModule = ({
               const left = rowOffset * pxPerDay;
               const color = task.color ?? DEFAULT_BAR_COLOR;
               const capacityOverlay = hasDates ? renderCapacityOverlay(task) : null;
-              const baseline = resolveBaselineForTask(task);
-              const baselineStart = baseline?.startDate ? parseDate(baseline.startDate) : null;
-              const baselineEnd = baseline?.endDate ? parseDate(baseline.endDate) : null;
-              const hasBaseline = Boolean(showBaselines && baselineStart && baselineEnd);
-              const baselineDuration =
-                hasBaseline && baselineStart && baselineEnd ? diffInDays(baselineStart, baselineEnd) + 1 : 0;
-              const baselineWidth = hasBaseline ? Math.max(baselineDuration * pxPerDay, 4) : 0;
-              const baselineLeft =
-                hasBaseline && baselineStart ? diffInDays(timelineRange.start, baselineStart) * pxPerDay : 0;
               const shouldShowBarLabel = !showCapacityOverlay;
               const barDepthClass =
                 task.indent === 0
@@ -2499,19 +2124,11 @@ export const InitiativePlanModule = ({
                   style={{ height: `${ROW_HEIGHT}px` }}
                   onClick={(event) => handleTaskSelect(task.id, event)}
                 >
-                  {hasBaseline && (
-                    <div
-                      className={`${styles.timelineBar} ${styles.baselineBar}`}
-                      style={{ left: baselineLeft, width: baselineWidth }}
-                    >
-                      <span className={styles.baselineBarLabel}>Plan</span>
-                    </div>
-                  )}
                   {hasDates ? (
                     <div
                       className={`${styles.timelineBar} ${barDepthClass} ${
                         selectedTaskIdsSet.has(task.id) ? styles.barSelected : ''
-                      } ${isActuals && task.archived ? styles.barArchived : ''}`}
+                      }`}
                       style={{ left, width, backgroundColor: color }}
                       onDoubleClick={(event) => handleCapacityMenu(event, task)}
                       onPointerDown={(event) => {
@@ -2563,7 +2180,7 @@ export const InitiativePlanModule = ({
             )}
         </div>
       </div>
-      </>
+      </div>
     );
 
     stackedContent = isFullscreen ? (
@@ -2616,8 +2233,8 @@ export const InitiativePlanModule = ({
             <ChevronIcon direction={isCollapsed ? 'right' : 'down'} size={16} />
           </button>
           <div>
-            <h3>{resolvedTitle}</h3>
-            <p className={styles.planSubtitle}>{resolvedSubtitle}</p>
+            <h3>Implementation plan</h3>
+            <p className={styles.planSubtitle}>Build a detailed execution plan with a live Gantt chart.</p>
           </div>
         </div>
         {!isCollapsed && (
@@ -2657,26 +2274,6 @@ export const InitiativePlanModule = ({
             >
               {showCapacityOverlay ? 'Hide capacity' : 'Show capacity'}
             </button>
-            {isActuals && (
-              <>
-                <button
-                  type="button"
-                  className={!showBaselines ? styles.toggleActive : undefined}
-                  onClick={() => setShowBaselines((value) => !value)}
-                  aria-pressed={showBaselines}
-                >
-                  {showBaselines ? 'Hide plan values' : 'Show plan values'}
-                </button>
-                <button
-                  type="button"
-                  className={!showArchived ? styles.toggleActive : undefined}
-                  onClick={() => setShowArchived((value) => !value)}
-                  aria-pressed={showArchived}
-                >
-                  {showArchived ? 'Hide archived' : 'Show archived'}
-                </button>
-              </>
-            )}
             <button
               type="button"
               onClick={() => {
@@ -2955,6 +2552,4 @@ const CapacityEditorPopover = ({ task, onClose, onSubmit, onColorChange }: Capac
     </div>
   );
 };
-
-
 

@@ -30,7 +30,7 @@ import { useCommentAnchors } from '../comments/useCommentAnchors';
 import { createCommentAnchor } from '../comments/commentAnchors';
 import { useInitiativeComments } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../auth/AuthContext';
-import { createEmptyPlanActualsModel, createEmptyPlanModel } from '../plan/planModel';
+import { createEmptyPlanModel } from '../plan/planModel';
 import { InitiativePlanModule } from './plan/InitiativePlanModule';
 import { StageKpiEditor } from './StageKpiEditor';
 import { StageKpiActuals } from './StageKpiActuals';
@@ -581,19 +581,6 @@ export const InitiativeProfile = ({
 
   const handlePlanChange = (nextPlan: Initiative['plan']) => {
     setDraft((prev) => ({ ...prev, plan: nextPlan }));
-  };
-
-  const handlePlanActualsChange = (nextActuals: Initiative['plan']) => {
-    setDraft((prev) => ({
-      ...prev,
-      plan: {
-        ...prev.plan,
-        actuals: {
-          tasks: nextActuals.tasks,
-          settings: nextActuals.settings
-        }
-      }
-    }));
   };
 
   const validateDraft = () => {
@@ -1232,16 +1219,6 @@ export const InitiativeProfile = ({
         focusTaskId={focusPlanTaskId}
         openFullscreen={openPlanFullscreen}
         onFocusHandled={onPlanFocusClear}
-      />
-
-      <InitiativePlanModule
-        plan={draft.plan.actuals ?? createEmptyPlanActualsModel()}
-        baselinePlan={draft.plan}
-        initiativeId={draft.id}
-        allInitiatives={allInitiatives}
-        onChange={handlePlanActualsChange}
-        readOnly={isReadOnlyMode}
-        variant="actuals"
       />
 
       <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
