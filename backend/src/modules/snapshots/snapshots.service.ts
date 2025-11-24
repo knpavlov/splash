@@ -72,7 +72,13 @@ const clonePlan = (plan: InitiativeResponse['plan'], includeTasks: boolean) => {
   }
   return {
     tasks: [],
-    settings: copy.settings
+    settings: copy.settings,
+    actuals: copy.actuals
+      ? {
+          ...copy.actuals,
+          tasks: []
+        }
+      : null
   };
 };
 

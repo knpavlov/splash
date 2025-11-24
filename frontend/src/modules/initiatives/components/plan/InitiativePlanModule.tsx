@@ -1,4 +1,4 @@
-import { CSSProperties, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { CSSProperties, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../auth/AuthContext';
 import { useParticipantsState, usePlanSettingsState } from '../../../../app/state/AppStateContext';
@@ -1694,7 +1694,7 @@ export const InitiativePlanModule = ({
       <div className={styles.infoBanner}>
         <span>{infoMessage}</span>
         <button type="button" onClick={() => setInfoMessage(null)}>
-          ×
+          ├Ч
         </button>
       </div>
     ) : null;

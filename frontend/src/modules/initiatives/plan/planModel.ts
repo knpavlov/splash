@@ -1,5 +1,8 @@
 import {
   InitiativePlanCapacitySegment,
+  InitiativePlanActualsModel,
+  InitiativePlanActualTask,
+  InitiativePlanBaseline,
   InitiativePlanModel,
   InitiativePlanTask
 } from '../../../shared/types/initiative';
@@ -104,8 +107,49 @@ export const createEmptyPlanTask = (): InitiativePlanTask => ({
   capacitySegments: [],
   indent: 0,
   color: null,
-  milestoneType: 'Standard'
+  milestoneType: 'Standard',
+  baseline: null,
+  sourceTaskId: null,
+  archived: false
 });
+
+export const createEmptyPlanActualTask = (): InitiativePlanActualTask => ({
+  ...createEmptyPlanTask(),
+  baseline: {
+    name: '',
+    description: '',
+    startDate: null,
+    endDate: null,
+    responsible: '',
+    milestoneType: 'Standard',
+    requiredCapacity: null
+  },
+  sourceTaskId: null,
+  archived: false
+});
+
+const normalizeBaselineSnapshot = (value: unknown): InitiativePlanBaseline | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as Partial<InitiativePlanBaseline>;
+  const startDate = normalizeDateOnly(payload.startDate);
+  const endDate = normalizeDateOnly(payload.endDate);
+  let orderedStart = startDate;
+  let orderedEnd = endDate;
+  if (orderedStart && orderedEnd && orderedEnd < orderedStart) {
+    orderedEnd = orderedStart;
+  }
+  return {
+    name: typeof payload.name === 'string' ? payload.name : '',
+    description: typeof payload.description === 'string' ? payload.description : '',
+    startDate: orderedStart,
+    endDate: orderedEnd,
+    responsible: typeof payload.responsible === 'string' ? payload.responsible : '',
+    milestoneType: typeof payload.milestoneType === 'string' ? payload.milestoneType : null,
+    requiredCapacity: normalizeCapacityValue(payload.requiredCapacity)
+  };
+};
 
 const normalizePlanTask = (value: unknown): InitiativePlanTask => {
   const base = createEmptyPlanTask();
@@ -126,6 +170,9 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
     indent?: unknown;
     color?: unknown;
     milestoneType?: unknown;
+    baseline?: unknown;
+    sourceTaskId?: unknown;
+    archived?: unknown;
   };
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : base.id;
   let startDate = normalizeDateOnly(payload.startDate);
@@ -163,7 +210,10 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
     capacitySegments: segments,
     indent: clamp(Math.trunc(normalizeNumber(payload.indent) ?? 0), 0, PLAN_MAX_INDENT_LEVEL),
     color: typeof payload.color === 'string' ? payload.color.trim() || null : null,
-    milestoneType: normalizeMilestoneType(payload.milestoneType)
+    milestoneType: normalizeMilestoneType(payload.milestoneType),
+    baseline: normalizeBaselineSnapshot(payload.baseline) ?? null,
+    sourceTaskId: typeof payload.sourceTaskId === 'string' ? payload.sourceTaskId.trim() || null : null,
+    archived: Boolean(payload.archived)
   };
 };
 
@@ -185,14 +235,63 @@ export const createEmptyPlanModel = (): InitiativePlanModel => ({
   settings: {
     zoomLevel: 2,
     splitRatio: 0.45
+  },
+  actuals: createEmptyPlanActualsModel()
+});
+
+export const createEmptyPlanActualsModel = (): InitiativePlanActualsModel => ({
+  tasks: [],
+  settings: {
+    zoomLevel: 2,
+    splitRatio: 0.45
   }
 });
+
+const normalizeActualTask = (value: unknown): InitiativePlanActualTask => {
+  const base = createEmptyPlanActualTask();
+  if (!value || typeof value !== 'object') {
+    return base;
+  }
+  const task = normalizePlanTask(value);
+  const payload = value as { baseline?: unknown; sourceTaskId?: unknown; archived?: unknown };
+  return {
+    ...task,
+    baseline: normalizeBaselineSnapshot(payload.baseline) ?? base.baseline,
+    sourceTaskId: typeof payload.sourceTaskId === 'string' ? payload.sourceTaskId.trim() || null : task.sourceTaskId ?? null,
+    archived: Boolean(payload.archived)
+  };
+};
+
+const normalizePlanActuals = (value: unknown): InitiativePlanActualsModel => {
+  if (!value || typeof value !== 'object') {
+    return createEmptyPlanActualsModel();
+  }
+  const payload = value as { tasks?: unknown; settings?: unknown };
+  const rawTasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+  let valueStepLocked = false;
+  const tasks = rawTasks.map((task) => {
+    const normalized = normalizeActualTask(task);
+    const milestone = normalizeMilestoneType(normalized.milestoneType);
+    const isValueStep = milestone.toLowerCase() === 'value step';
+    if (isValueStep) {
+      if (valueStepLocked) {
+        return { ...normalized, milestoneType: 'Standard' };
+      }
+      valueStepLocked = true;
+    }
+    return { ...normalized, milestoneType: milestone };
+  });
+  return {
+    tasks,
+    settings: normalizePlanSettings(payload.settings)
+  };
+};
 
 export const normalizePlanModel = (value: unknown): InitiativePlanModel => {
   if (!value || typeof value !== 'object') {
     return createEmptyPlanModel();
   }
-  const payload = value as { tasks?: unknown; settings?: unknown };
+  const payload = value as { tasks?: unknown; settings?: unknown; actuals?: unknown };
   const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
   let valueStepLocked = false;
   return {
@@ -208,7 +307,8 @@ export const normalizePlanModel = (value: unknown): InitiativePlanModel => {
       }
       return { ...normalized, milestoneType: milestone };
     }),
-    settings: normalizePlanSettings(payload.settings)
+    settings: normalizePlanSettings(payload.settings),
+    actuals: normalizePlanActuals(payload.actuals)
   };
 };
 

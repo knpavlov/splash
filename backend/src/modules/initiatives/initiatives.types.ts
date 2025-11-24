@@ -70,6 +70,9 @@ export interface InitiativePlanTask {
   indent: number;
   color: string | null;
   milestoneType: string | null;
+  baseline?: InitiativePlanBaseline | null;
+  sourceTaskId?: string | null;
+  archived?: boolean;
 }
 
 export interface InitiativePlanSettings {
@@ -80,6 +83,7 @@ export interface InitiativePlanSettings {
 export interface InitiativePlanModel {
   tasks: InitiativePlanTask[];
   settings: InitiativePlanSettings;
+  actuals?: InitiativePlanActualsModel | null;
 }
 
 export interface InitiativeRow extends Record<string, unknown> {
@@ -143,6 +147,27 @@ export interface InitiativeTotals {
 
 export interface InitiativeResponse extends InitiativeRecord {
   totals: InitiativeTotals;
+}
+
+export interface InitiativePlanBaseline {
+  name: string;
+  description: string;
+  startDate: string | null;
+  endDate: string | null;
+  responsible: string;
+  milestoneType: string | null;
+  requiredCapacity: number | null;
+}
+
+export interface InitiativePlanActualTask extends InitiativePlanTask {
+  baseline: InitiativePlanBaseline | null;
+  sourceTaskId: string | null;
+  archived: boolean;
+}
+
+export interface InitiativePlanActualsModel {
+  tasks: InitiativePlanActualTask[];
+  settings: InitiativePlanSettings;
 }
 
 export interface InitiativeCommentSelection {

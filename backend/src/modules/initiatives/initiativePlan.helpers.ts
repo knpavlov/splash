@@ -1,5 +1,8 @@
 import { randomUUID } from 'crypto';
 import {
+  InitiativePlanActualsModel,
+  InitiativePlanActualTask,
+  InitiativePlanBaseline,
   InitiativePlanCapacitySegment,
   InitiativePlanModel,
   InitiativePlanTask
@@ -150,6 +153,29 @@ const sanitizeSegments = (
   return filtered;
 };
 
+const sanitizeBaselineSnapshot = (value: unknown): InitiativePlanBaseline | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as Partial<InitiativePlanBaseline>;
+  const startDate = sanitizeDate(payload.startDate);
+  const endDate = sanitizeDate(payload.endDate);
+  let orderedStart = startDate;
+  let orderedEnd = endDate;
+  if (orderedStart && orderedEnd && orderedEnd < orderedStart) {
+    orderedEnd = orderedStart;
+  }
+  return {
+    name: typeof payload.name === 'string' ? payload.name : '',
+    description: typeof payload.description === 'string' ? payload.description : '',
+    startDate: orderedStart,
+    endDate: orderedEnd,
+    responsible: typeof payload.responsible === 'string' ? payload.responsible : '',
+    milestoneType: typeof payload.milestoneType === 'string' ? payload.milestoneType : null,
+    requiredCapacity: sanitizeCapacity(payload.requiredCapacity)
+  };
+};
+
 const sanitizeTask = (value: unknown): InitiativePlanTask => {
   const base: InitiativePlanTask = {
     id: randomUUID(),
@@ -164,7 +190,10 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     capacitySegments: [],
     indent: 0,
     color: null,
-    milestoneType: 'Standard'
+    milestoneType: 'Standard',
+    baseline: null,
+    sourceTaskId: null,
+    archived: false
   };
   if (!value || typeof value !== 'object') {
     return base;
@@ -183,6 +212,9 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     indent?: unknown;
     color?: unknown;
     milestoneType?: unknown;
+    baseline?: unknown;
+    sourceTaskId?: unknown;
+    archived?: unknown;
   };
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
   let startDate = sanitizeDate(payload.startDate);
@@ -209,7 +241,10 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     capacitySegments,
     indent: sanitizeIndent(payload.indent),
     color: sanitizeColor(payload.color),
-    milestoneType: sanitizeMilestoneType(payload.milestoneType)
+    milestoneType: sanitizeMilestoneType(payload.milestoneType),
+    baseline: sanitizeBaselineSnapshot(payload.baseline),
+    sourceTaskId: typeof payload.sourceTaskId === 'string' ? payload.sourceTaskId.trim() || null : null,
+    archived: Boolean(payload.archived)
   };
 };
 
@@ -229,7 +264,22 @@ const sanitizeSettings = (value: unknown): InitiativePlanModel['settings'] => {
   };
 };
 
-export const createEmptyPlanModel = (): InitiativePlanModel => ({
+export const createEmptyPlanActualTask = (): InitiativePlanActualTask => ({
+  ...sanitizeTask({}),
+  baseline: {
+    name: '',
+    description: '',
+    startDate: null,
+    endDate: null,
+    responsible: '',
+    milestoneType: 'Standard',
+    requiredCapacity: null
+  },
+  sourceTaskId: null,
+  archived: false
+});
+
+export const createEmptyPlanActualsModel = (): InitiativePlanActualsModel => ({
   tasks: [],
   settings: {
     zoomLevel: 2,
@@ -237,11 +287,60 @@ export const createEmptyPlanModel = (): InitiativePlanModel => ({
   }
 });
 
+const sanitizeActualTask = (value: unknown): InitiativePlanActualTask => {
+  const base = createEmptyPlanActualTask();
+  if (!value || typeof value !== 'object') {
+    return base;
+  }
+  const task = sanitizeTask(value);
+  const payload = value as { baseline?: unknown; sourceTaskId?: unknown; archived?: unknown };
+  return {
+    ...task,
+    baseline: sanitizeBaselineSnapshot(payload.baseline) ?? base.baseline,
+    sourceTaskId: typeof payload.sourceTaskId === 'string' ? payload.sourceTaskId.trim() || null : task.sourceTaskId ?? null,
+    archived: Boolean(payload.archived)
+  };
+};
+
+const sanitizePlanActuals = (value: unknown): InitiativePlanActualsModel => {
+  if (!value || typeof value !== 'object') {
+    return createEmptyPlanActualsModel();
+  }
+  const payload = value as { tasks?: unknown; settings?: unknown };
+  const rawTasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+  let valueStepClaimed = false;
+  const tasks = rawTasks.map((entry) => {
+    const sanitized = sanitizeActualTask(entry);
+    const milestone = sanitizeMilestoneType(sanitized.milestoneType);
+    const isValueStep = milestone.toLowerCase() === 'value step';
+    if (isValueStep) {
+      if (valueStepClaimed) {
+        return { ...sanitized, milestoneType: 'Standard' };
+      }
+      valueStepClaimed = true;
+    }
+    return { ...sanitized, milestoneType: milestone };
+  });
+  return {
+    tasks,
+    settings: sanitizeSettings(payload.settings)
+  };
+};
+
+export const createEmptyPlanModel = (): InitiativePlanModel => ({
+  tasks: [],
+  settings: {
+    zoomLevel: 2,
+    splitRatio: 0.45
+  },
+  actuals: createEmptyPlanActualsModel()
+});
+
 export const normalizePlanModel = (value: unknown): InitiativePlanModel => {
   if (!value || typeof value !== 'object') {
     return createEmptyPlanModel();
   }
-  const payload = value as { tasks?: unknown; settings?: unknown };
+  const payload = value as { tasks?: unknown; settings?: unknown; actuals?: unknown };
   const tasksSource = Array.isArray(payload.tasks) ? payload.tasks : [];
   let valueStepClaimed = false;
   const tasks = tasksSource.map((task) => {
@@ -258,6 +357,7 @@ export const normalizePlanModel = (value: unknown): InitiativePlanModel => {
   });
   return {
     tasks,
-    settings: sanitizeSettings(payload.settings)
+    settings: sanitizeSettings(payload.settings),
+    actuals: sanitizePlanActuals(payload.actuals)
   };
 };
