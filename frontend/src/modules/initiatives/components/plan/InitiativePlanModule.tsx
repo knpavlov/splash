@@ -1484,6 +1484,30 @@ export const InitiativePlanModule = ({
     [isActuals, resolveBaselineForTask]
   );
 
+  useEffect(() => {
+    if (readOnly || !isActuals) {
+      return;
+    }
+    if (normalizedPlan.tasks.length || !baselinePlanNormalized?.tasks.length) {
+      return;
+    }
+    const seeded = baselinePlanNormalized.tasks.map((task) => ({
+      ...task,
+      baseline: {
+        name: task.name,
+        description: task.description,
+        startDate: task.startDate,
+        endDate: task.endDate,
+        responsible: task.responsible,
+        milestoneType: task.milestoneType,
+        requiredCapacity: task.requiredCapacity ?? null
+      },
+      sourceTaskId: task.id,
+      archived: false
+    }));
+    setTasks(seeded);
+  }, [baselinePlanNormalized, isActuals, normalizedPlan.tasks.length, readOnly, setTasks]);
+
   const showTimelineTooltip = useCallback(
     (event: React.PointerEvent<HTMLDivElement>, task: InitiativePlanTask) => {
       const elementRect = event.currentTarget.getBoundingClientRect();
@@ -1937,7 +1961,6 @@ export const InitiativePlanModule = ({
         className={styles.planBody}
         style={isFullscreen ? { height: '100%' } : { height: `${planHeight}px` }}
       >
-        {actualsDashboard}
         <div
           className={styles.tablePanel}
           style={{ width: `${normalizedPlan.settings.splitRatio * 100}%` }}
@@ -2507,7 +2530,10 @@ export const InitiativePlanModule = ({
             className={styles.fullscreenPane}
             style={{ flexBasis: `${(1 - fullscreenResourceRatio) * 100}%`, flexGrow: 0, flexShrink: 0 }}
           >
-            <div className={styles.fullscreenPaneInner}>{planBodyElement}</div>
+            <div className={styles.fullscreenPaneInner}>
+              {isActuals && actualsDashboard}
+              {planBodyElement}
+            </div>
           </div>
           <div className={styles.fullscreenDivider} onPointerDown={startFullscreenSplitDrag} role="separator" />
           <div
@@ -2521,6 +2547,7 @@ export const InitiativePlanModule = ({
     ) : (
       <>
         {infoBanner}
+        {isActuals && actualsDashboard}
         {planBodyElement}
         <div className={styles.heightResizer} onPointerDown={startHeightResize} />
         {renderResourceModule(resourceHeight)}
