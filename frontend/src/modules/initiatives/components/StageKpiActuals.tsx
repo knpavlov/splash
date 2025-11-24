@@ -250,7 +250,7 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
                     legendSpanColumns={4}
                     height={70}
                     className={kpiStyles.chartGap}
-                    style={{ gap: '6px' }}
+                    style={{ gap: '6px', padding: '0 8px' }}
                   />
 
                   <div
