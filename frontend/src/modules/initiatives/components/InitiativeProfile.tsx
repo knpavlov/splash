@@ -10,6 +10,8 @@ import {
   InitiativeStageState,
   initiativeFinancialKinds,
   InitiativeFinancialKind,
+  InitiativePlanActualsModel,
+  InitiativePlanModel,
   InitiativePlanTask
 } from '../../../shared/types/initiative';
 import { Workstream, WorkstreamGateKey } from '../../../shared/types/workstream';
@@ -30,7 +32,7 @@ import { useCommentAnchors } from '../comments/useCommentAnchors';
 import { createCommentAnchor } from '../comments/commentAnchors';
 import { useInitiativeComments } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../auth/AuthContext';
-import { createEmptyPlanModel } from '../plan/planModel';
+import { createEmptyPlanActualsModel, createEmptyPlanModel } from '../plan/planModel';
 import { InitiativePlanModule } from './plan/InitiativePlanModule';
 import { StageKpiEditor } from './StageKpiEditor';
 import { StageKpiActuals } from './StageKpiActuals';
@@ -581,6 +583,10 @@ export const InitiativeProfile = ({
 
   const handlePlanChange = (nextPlan: Initiative['plan']) => {
     setDraft((prev) => ({ ...prev, plan: nextPlan }));
+  };
+
+  const handlePlanActualsChange = (nextActuals: InitiativePlanActualsModel | InitiativePlanModel) => {
+    setDraft((prev) => ({ ...prev, plan: { ...prev.plan, actuals: nextActuals as InitiativePlanActualsModel } }));
   };
 
   const validateDraft = () => {
@@ -1219,6 +1225,18 @@ export const InitiativeProfile = ({
         focusTaskId={focusPlanTaskId}
         openFullscreen={openPlanFullscreen}
         onFocusHandled={onPlanFocusClear}
+      />
+
+      <InitiativePlanModule
+        plan={draft.plan.actuals ?? createEmptyPlanActualsModel()}
+        baselinePlan={draft.plan}
+        variant="actuals"
+        initiativeId={draft.id}
+        allInitiatives={allInitiatives}
+        onChange={handlePlanActualsChange}
+        readOnly={isReadOnlyMode}
+        title="Implementation plan - actuals"
+        subtitle="Track real delivery, compare against the baseline, and highlight variance."
       />
 
       <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>

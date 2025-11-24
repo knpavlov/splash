@@ -1028,3 +1028,120 @@
   cursor: pointer;
 }
 
+.rowArchived {
+  opacity: 0.55;
+}
+
+.cellChanged input,
+.cellChanged select {
+  border-color: rgba(234, 88, 12, 0.6);
+  background: rgba(255, 237, 213, 0.35);
+}
+
+.changeDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ea580c;
+  margin-left: 6px;
+}
+
+.newBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.baselineValue {
+  color: #475569;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.archiveButton {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px dashed rgba(148, 163, 184, 0.8);
+  background: #f8fafc;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.archiveButtonActive {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #1d4ed8;
+}
+
+.baselineBar {
+  position: absolute;
+  height: 16px;
+  top: 16px;
+  border-radius: 8px;
+  border: 2px dashed rgba(59, 130, 246, 0.6);
+  background: rgba(59, 130, 246, 0.12);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.baselineBarLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1d4ed8;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.barArchived {
+  opacity: 0.4;
+  filter: grayscale(0.15);
+}
+
+.metricsBar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.metricCard {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metricLabel {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.metricSub {
+  color: #475569;
+  font-size: 13px;
+}
+
+.metricPositive {
+  color: #16a34a;
+}
+
+.metricNegative {
+  color: #dc2626;
+}
+
