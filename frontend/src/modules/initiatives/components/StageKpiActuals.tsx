@@ -117,7 +117,8 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
     () => {
       const metaTemplate = `minmax(200px, 1.1fr) minmax(110px, 0.7fr) minmax(130px, 0.8fr) minmax(110px, 0.7fr)`;
       const monthTemplate = `repeat(${Math.max(months.length, 1)}, ${monthColumnWidth}px)`;
-      return `${metaTemplate} ${monthTemplate}`;
+      const actionsWidth = `120px`;
+      return `${metaTemplate} ${monthTemplate} ${actionsWidth}`;
     },
     [months.length]
   );
@@ -224,13 +225,13 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
               const planChartData = buildKpiChartStacks(
                 months,
                 kpi,
-                kpiColorMap[kpi.id],
+                '#94a3b8',
                 (target) => target.distribution ?? {}
               );
               const actualChartData = buildKpiChartStacks(
                 months,
                 kpi,
-                actualColorMap[kpi.id],
+                '#2563eb',
                 (target) => target.actuals ?? {}
               );
               return (
@@ -249,6 +250,7 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
                     legendSpanColumns={4}
                     height={70}
                     className={kpiStyles.chartGap}
+                    style={{ gap: '6px' }}
                   />
 
                   <div
@@ -280,7 +282,6 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
                       </div>
                     ))}
                     <div className={kpiStyles.colActions}>
-                      <span className={kpiStyles.lockTag}>Locked</span>
                     </div>
                   </div>
 
@@ -327,7 +328,6 @@ export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: Sta
                       </div>
                     ))}
                     <div className={kpiStyles.colActions}>
-                      <span className={kpiStyles.lockTag}>Record</span>
                     </div>
                   </div>
                 </Fragment>

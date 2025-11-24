@@ -63,6 +63,7 @@
   font-weight: 600;
   font-size: 13px;
   color: #0f172a;
+  min-width: fit-content;
 }
 
 .row {
@@ -73,6 +74,7 @@
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 12px;
   background: rgba(248, 250, 252, 0.9);
+  min-width: fit-content;
 }
 
 .headerCell {
