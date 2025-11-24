@@ -179,6 +179,10 @@
   background: rgba(219, 234, 254, 0.9);
 }
 
+.rowArchived {
+  opacity: 0.5;
+}
+
 .columnHeader {
   position: relative;
   display: flex;
@@ -252,6 +256,28 @@
   color: inherit;
 }
 
+.archiveButton {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.archiveButton:hover:not(:disabled) {
+  border-color: #6366f1;
+  color: #4338ca;
+}
+
+.archiveActive {
+  background: rgba(100, 116, 139, 0.1);
+  border-color: rgba(100, 116, 139, 0.7);
+  color: #334155;
+}
+
 .taskNameCell {
   display: flex;
   align-items: center;
@@ -281,6 +307,45 @@
   display: flex;
   align-items: center;
   min-width: 0;
+}
+
+.changedCell {
+  position: relative;
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.changeDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #16a34a;
+  margin-left: 6px;
+}
+
+.newBadge {
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.baselineCell {
+  background: rgba(15, 23, 42, 0.04);
+  color: #475569;
+  font-size: 12px;
+}
+
+.baselineValue {
+  display: inline-block;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.12);
 }
 
 .cell input {
@@ -606,6 +671,27 @@
   overflow: hidden;
   box-sizing: border-box;
   border: 2px solid transparent;
+}
+
+.baselineBar {
+  height: 18px;
+  top: 6px;
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px dashed rgba(100, 116, 139, 0.8);
+  color: #475569;
+  box-shadow: none;
+}
+
+.baselineBarLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.barArchived {
+  opacity: 0.45;
+  box-shadow: none;
 }
 
 .timelineBar::after {
@@ -1026,5 +1112,41 @@
   background: none;
   padding: 0;
   cursor: pointer;
+}
+
+.metricsBar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.metricCard {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metricLabel {
+  font-size: 12px;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metricCard strong {
+  font-size: 16px;
+}
+
+.metricPositive {
+  color: #16a34a;
+}
+
+.metricNegative {
+  color: #dc2626;
 }
 
