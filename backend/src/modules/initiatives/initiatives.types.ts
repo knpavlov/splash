@@ -191,6 +191,7 @@ export interface InitiativeStatusReport {
   createdByAccountId: string | null;
   createdByName: string | null;
   planVersion: number | null;
+  summary: string;
   entries: InitiativeStatusReportEntry[];
 }
 
@@ -199,6 +200,7 @@ export interface InitiativeStatusReportRow extends Record<string, unknown> {
   initiative_id: string;
   entries: unknown;
   plan_version: number | null;
+  summary: string | null;
   created_at: Date;
   created_by_account_id: string | null;
   created_by_name: string | null;

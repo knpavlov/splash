@@ -613,6 +613,11 @@ export interface InitiativeStatusReportEntryInput {
   source?: InitiativeStatusReportSource;
 }
 
+export interface InitiativeStatusReportPayload {
+  entries: InitiativeStatusReportEntryInput[];
+  summary?: string;
+}
+
 const withActor = (payload: Record<string, unknown>, actor?: InitiativeActorMetadata) => {
   if (!actor) {
     return payload;
@@ -672,6 +677,7 @@ const ensureStatusReport = (value: unknown): InitiativeStatusReport | null => {
     createdByName?: unknown;
     planVersion?: unknown;
     entries?: unknown;
+    summary?: unknown;
   };
   const id = typeof payload.id === 'string' ? payload.id.trim() : '';
   const initiativeId = typeof payload.initiativeId === 'string' ? payload.initiativeId.trim() : '';
@@ -695,6 +701,7 @@ const ensureStatusReport = (value: unknown): InitiativeStatusReport | null => {
       typeof payload.planVersion === 'number' && Number.isFinite(payload.planVersion)
         ? payload.planVersion
         : null,
+    summary: typeof payload.summary === 'string' ? payload.summary : '',
     entries
   };
 };
@@ -744,12 +751,8 @@ export const initiativesApi = {
     ),
   events: async (id: string) => ensureEventList(await apiRequest<unknown>(`/initiatives/${id}/events`)),
   listStatusReports: async (id: string) => ensureStatusReportList(await apiRequest<unknown>(`/initiatives/${id}/status-reports`)),
-  submitStatusReport: async (
-    id: string,
-    entries: InitiativeStatusReportEntryInput[],
-    actor?: InitiativeActorMetadata
-  ) => {
-    const payloadEntries = entries
+  submitStatusReport: async (id: string, payload: InitiativeStatusReportPayload, actor?: InitiativeActorMetadata) => {
+    const payloadEntries = (payload.entries ?? [])
       .map((entry) => ({
         taskId: typeof entry.taskId === 'string' ? entry.taskId.trim() : '',
         statusUpdate: typeof entry.statusUpdate === 'string' ? entry.statusUpdate : '',
@@ -759,7 +762,7 @@ export const initiativesApi = {
     const report = ensureStatusReport(
       await apiRequest<unknown>(`/initiatives/${id}/status-reports`, {
         method: 'POST',
-        body: withActor({ report: { entries: payloadEntries } }, actor)
+        body: withActor({ report: { entries: payloadEntries, summary: payload.summary ?? '' } }, actor)
       })
     );
     if (!report) {

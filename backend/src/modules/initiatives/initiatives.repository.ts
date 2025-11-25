@@ -429,6 +429,7 @@ const mapStatusReportRow = (row: InitiativeStatusReportRow): InitiativeStatusRep
   initiativeId: row.initiative_id,
   entries: ensureStatusReportEntries(row.entries),
   planVersion: Number.isFinite(row.plan_version) ? Number(row.plan_version) : null,
+  summary: typeof row.summary === 'string' ? row.summary : '',
   createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
   createdByAccountId: row.created_by_account_id ?? null,
   createdByName: row.created_by_name ?? null
@@ -845,17 +846,19 @@ export class InitiativesRepository {
     planVersion: number | null;
     createdByAccountId: string | null;
     createdByName: string | null;
+    summary: string;
   }): Promise<InitiativeStatusReport> {
     const result = await postgresPool.query<InitiativeStatusReportRow>(
       `INSERT INTO initiative_status_reports
-         (id, initiative_id, entries, plan_version, created_at, created_by_account_id, created_by_name)
-       VALUES ($1, $2, $3::jsonb, $4, NOW(), $5, $6)
+         (id, initiative_id, entries, plan_version, summary, created_at, created_by_account_id, created_by_name)
+       VALUES ($1, $2, $3::jsonb, $4, $5, NOW(), $6, $7)
        RETURNING *;`,
       [
         payload.id,
         payload.initiativeId,
         JSON.stringify(payload.entries ?? []),
         payload.planVersion ?? null,
+        payload.summary,
         payload.createdByAccountId ?? null,
         payload.createdByName ?? null
       ]

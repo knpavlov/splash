@@ -138,6 +138,7 @@ export interface InitiativeStatusReport {
   createdByAccountId: string | null;
   createdByName: string | null;
   planVersion: number | null;
+  summary: string;
   entries: InitiativeStatusReportEntry[];
 }
 

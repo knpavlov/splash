@@ -166,7 +166,7 @@ export const InitiativePlanModule = ({
   subtitle
 }: InitiativePlanModuleProps) => {
   const { list: participants } = useParticipantsState();
-  const { milestoneTypes } = usePlanSettingsState();
+  const { milestoneTypes, statusReportSettings } = usePlanSettingsState();
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan as InitiativePlanModel), [plan]);
   const baselinePlanNormalized = useMemo(
     () => (baselinePlan ? sanitizePlanModel(baselinePlan) : null),
@@ -225,6 +225,8 @@ export const InitiativePlanModule = ({
   const selectedTaskIdsSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
   const [showBaselines, setShowBaselines] = useState(true);
   const [showArchived, setShowArchived] = useState(true);
+  const [showDueSoonOnly, setShowDueSoonOnly] = useState(false);
+  const [showCompletedOnly, setShowCompletedOnly] = useState(false);
   const [dragColumnId, setDragColumnId] = useState<TableColumnId | null>(null);
   const setSelectedTaskId = useCallback((taskId: string | null) => {
     setSelectedTaskIds(taskId ? [taskId] : []);
@@ -424,10 +426,32 @@ export const InitiativePlanModule = ({
 
   const pxPerDay = useMemo(() => getZoomScale(normalizedPlan.settings.zoomLevel), [normalizedPlan.settings.zoomLevel]);
 
-  const workingTasks = useMemo(
-    () => (isActuals && !showArchived ? normalizedPlan.tasks.filter((task) => !task.archived) : normalizedPlan.tasks),
-    [isActuals, normalizedPlan.tasks, showArchived]
+  const upcomingWindow = statusReportSettings.upcomingWindowDays || 14;
+
+  const isTaskDueSoon = useCallback(
+    (task: InitiativePlanTask) => {
+      const endDate = task.endDate ?? task.baseline?.endDate ?? null;
+      const parsed = parseDate(endDate);
+      if (!parsed) {
+        return false;
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return diffInDays(today, parsed) <= upcomingWindow;
+    },
+    [upcomingWindow]
   );
+
+  const workingTasks = useMemo(() => {
+    let tasks = isActuals && !showArchived ? normalizedPlan.tasks.filter((task) => !task.archived) : normalizedPlan.tasks;
+    if (isActuals && showDueSoonOnly) {
+      tasks = tasks.filter((task) => isTaskDueSoon(task));
+    }
+    if (isActuals && showCompletedOnly) {
+      tasks = tasks.filter((task) => (task.progress ?? 0) >= 100);
+    }
+    return tasks;
+  }, [isActuals, normalizedPlan.tasks, showArchived, showCompletedOnly, showDueSoonOnly, isTaskDueSoon]);
 
   const timelineRange = useMemo(() => {
     const rangeTasks =
@@ -2864,6 +2888,20 @@ export const InitiativePlanModule = ({
                   onClick={() => setShowArchived((prev) => !prev)}
                 >
                   {showArchived ? 'Hide archived' : 'Show archived'}
+                </button>
+                <button
+                  type="button"
+                  className={showDueSoonOnly ? styles.toggleActive : undefined}
+                  onClick={() => setShowDueSoonOnly((prev) => !prev)}
+                >
+                  {showDueSoonOnly ? 'All tasks' : 'Due soon only'}
+                </button>
+                <button
+                  type="button"
+                  className={showCompletedOnly ? styles.toggleActive : undefined}
+                  onClick={() => setShowCompletedOnly((prev) => !prev)}
+                >
+                  {showCompletedOnly ? 'All tasks' : 'Completed only'}
                 </button>
               </>
             )}

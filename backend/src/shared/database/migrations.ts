@@ -402,6 +402,7 @@ const createTables = async () => {
       initiative_id UUID NOT NULL REFERENCES workstream_initiatives(id) ON DELETE CASCADE,
       entries JSONB NOT NULL DEFAULT '[]'::jsonb,
       plan_version INTEGER,
+      summary TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       created_by_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
       created_by_name TEXT
@@ -411,6 +412,11 @@ const createTables = async () => {
   await postgresPool.query(`
     CREATE INDEX IF NOT EXISTS initiative_status_reports_initiative_idx
       ON initiative_status_reports(initiative_id, created_at DESC);
+  `);
+
+  await postgresPool.query(`
+    ALTER TABLE initiative_status_reports
+      ADD COLUMN IF NOT EXISTS summary TEXT;
   `);
 
   await postgresPool.query(`

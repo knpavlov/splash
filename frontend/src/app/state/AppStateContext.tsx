@@ -43,6 +43,31 @@ import { generateId } from '../../shared/ui/generateId';
 const PLAN_MILESTONE_STORAGE_KEY = 'initiative-plan:milestone-types';
 const DEFAULT_MILESTONE_TYPES = ['Standard', 'Value Step', 'Change Management'];
 const VALUE_STEP_LABEL = 'Value Step';
+const STATUS_REPORT_SETTINGS_KEY = 'initiative-plan:status-report-settings';
+const statusFrequencyOptions = ['weekly', 'biweekly', 'every-4-weeks'] as const;
+type StatusReportFrequency = (typeof statusFrequencyOptions)[number];
+
+export interface StatusReportSettings {
+  refreshDay: string;
+  refreshTime: string;
+  templateResetDay: string;
+  templateResetTime: string;
+  submitDeadlineDay: string;
+  submitDeadlineTime: string;
+  refreshFrequency: StatusReportFrequency;
+  upcomingWindowDays: number;
+}
+
+const DEFAULT_STATUS_REPORT_SETTINGS: StatusReportSettings = {
+  refreshDay: 'monday',
+  refreshTime: '09:00',
+  templateResetDay: 'monday',
+  templateResetTime: '09:00',
+  submitDeadlineDay: 'thursday',
+  submitDeadlineTime: '18:00',
+  refreshFrequency: 'weekly',
+  upcomingWindowDays: 14
+};
 
 const sanitizeMilestoneTypes = (options: string[]): string[] => {
   const seen = new Set<string>();
@@ -66,6 +91,52 @@ const sanitizeMilestoneTypes = (options: string[]): string[] => {
   return result;
 };
 
+const sanitizeDay = (value: unknown, fallback: string) => {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const normalized = value.trim().toLowerCase();
+  const options = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  return options.includes(normalized) ? normalized : fallback;
+};
+
+const sanitizeTime = (value: unknown, fallback: string) => {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  if (!/^\d{2}:\d{2}$/.test(trimmed)) {
+    return fallback;
+  }
+  return trimmed;
+};
+
+const sanitizeStatusReportSettings = (value: unknown): StatusReportSettings => {
+  if (!value || typeof value !== 'object') {
+    return DEFAULT_STATUS_REPORT_SETTINGS;
+  }
+  const payload = value as Partial<StatusReportSettings>;
+  const frequency =
+    statusFrequencyOptions.includes(payload.refreshFrequency as StatusReportFrequency) &&
+    (payload.refreshFrequency as StatusReportFrequency)
+      ? (payload.refreshFrequency as StatusReportFrequency)
+      : DEFAULT_STATUS_REPORT_SETTINGS.refreshFrequency;
+  const upcomingWindowDays =
+    typeof payload.upcomingWindowDays === 'number' && Number.isFinite(payload.upcomingWindowDays)
+      ? Math.max(1, Math.trunc(payload.upcomingWindowDays))
+      : DEFAULT_STATUS_REPORT_SETTINGS.upcomingWindowDays;
+  return {
+    refreshDay: sanitizeDay(payload.refreshDay, DEFAULT_STATUS_REPORT_SETTINGS.refreshDay),
+    refreshTime: sanitizeTime(payload.refreshTime, DEFAULT_STATUS_REPORT_SETTINGS.refreshTime),
+    templateResetDay: sanitizeDay(payload.templateResetDay, DEFAULT_STATUS_REPORT_SETTINGS.templateResetDay),
+    templateResetTime: sanitizeTime(payload.templateResetTime, DEFAULT_STATUS_REPORT_SETTINGS.templateResetTime),
+    submitDeadlineDay: sanitizeDay(payload.submitDeadlineDay, DEFAULT_STATUS_REPORT_SETTINGS.submitDeadlineDay),
+    submitDeadlineTime: sanitizeTime(payload.submitDeadlineTime, DEFAULT_STATUS_REPORT_SETTINGS.submitDeadlineTime),
+    refreshFrequency: frequency,
+    upcomingWindowDays
+  };
+};
+
 const loadMilestoneTypes = (): string[] => {
   if (typeof window === 'undefined') {
     return DEFAULT_MILESTONE_TYPES;
@@ -84,6 +155,22 @@ const loadMilestoneTypes = (): string[] => {
     return DEFAULT_MILESTONE_TYPES;
   }
   return DEFAULT_MILESTONE_TYPES;
+};
+
+const loadStatusReportSettings = (): StatusReportSettings => {
+  if (typeof window === 'undefined') {
+    return DEFAULT_STATUS_REPORT_SETTINGS;
+  }
+  const raw = window.localStorage.getItem(STATUS_REPORT_SETTINGS_KEY);
+  if (!raw) {
+    return DEFAULT_STATUS_REPORT_SETTINGS;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return sanitizeStatusReportSettings(parsed);
+  } catch {
+    return DEFAULT_STATUS_REPORT_SETTINGS;
+  }
 };
 
 const sanitizeNumber = (value: number) => (Number.isFinite(value) ? Number(value) : 0);
@@ -309,6 +396,8 @@ interface AppStateContextValue {
   planSettings: {
     milestoneTypes: string[];
     saveMilestoneTypes: (options: string[]) => void;
+    statusReportSettings: StatusReportSettings;
+    saveStatusReportSettings: (settings: StatusReportSettings) => void;
   };
 }
 
@@ -331,6 +420,9 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [financialBlueprintLoading, setFinancialBlueprintLoading] = useState(false);
   const [financialBlueprintError, setFinancialBlueprintError] = useState<string | null>(null);
   const [milestoneTypes, setMilestoneTypes] = useState<string[]>(() => loadMilestoneTypes());
+  const [statusReportSettings, setStatusReportSettings] = useState<StatusReportSettings>(() =>
+    loadStatusReportSettings()
+  );
   const { session } = useAuth();
 
   useEffect(() => {
@@ -340,9 +432,24 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     window.localStorage.setItem(PLAN_MILESTONE_STORAGE_KEY, JSON.stringify(milestoneTypes));
   }, [milestoneTypes]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem(STATUS_REPORT_SETTINGS_KEY, JSON.stringify(statusReportSettings));
+  }, [statusReportSettings]);
+
   const saveMilestoneTypes = useCallback((options: string[]) => {
     const sanitized = sanitizeMilestoneTypes(options);
     setMilestoneTypes(sanitized.length ? sanitized : DEFAULT_MILESTONE_TYPES);
+  }, []);
+
+  const saveStatusReportSettings = useCallback((settings: StatusReportSettings) => {
+    const sanitized = sanitizeStatusReportSettings(settings);
+    setStatusReportSettings(sanitized);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(STATUS_REPORT_SETTINGS_KEY, JSON.stringify(sanitized));
+    }
   }, []);
 
   const syncFolders = useCallback(async (): Promise<CaseFolder[] | null> => {
@@ -1605,7 +1712,9 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     },
     planSettings: {
       milestoneTypes,
-      saveMilestoneTypes
+      saveMilestoneTypes,
+      statusReportSettings,
+      saveStatusReportSettings
     }
   }), [
     folders,
@@ -1625,7 +1734,9 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     saveFinancialBlueprint,
     syncFolders,
     milestoneTypes,
-    saveMilestoneTypes
+    saveMilestoneTypes,
+    statusReportSettings,
+    saveStatusReportSettings
   ]);
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

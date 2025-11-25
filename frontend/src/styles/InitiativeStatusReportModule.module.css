@@ -79,6 +79,33 @@
   color: #0f172a;
 }
 
+.overallRow {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.fieldLabel span {
+  color: #475569;
+}
+
+.fieldLabel textarea {
+  min-height: 80px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  padding: 10px;
+  resize: vertical;
+  font-family: inherit;
+}
+
 .success,
 .error {
   padding: 10px 12px;
@@ -123,10 +150,52 @@
 .headerCell {
   padding: 10px 12px;
   border-right: 1px solid rgba(148, 163, 184, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
 }
 
 .headerCell:last-child {
   border-right: none;
+}
+
+.headerLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sortIndicator {
+  font-style: normal;
+  color: #475569;
+}
+
+.columnResizer {
+  width: 6px;
+  align-self: stretch;
+  cursor: col-resize;
+  margin-left: auto;
+  position: relative;
+}
+
+.columnResizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  background: rgba(148, 163, 184, 0.6);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.headerCell:hover .columnResizer::after {
+  opacity: 1;
 }
 
 .tableRow {
@@ -142,6 +211,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-height: 100%;
 }
 
 .cell:last-child {

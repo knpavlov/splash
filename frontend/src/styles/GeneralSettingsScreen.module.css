@@ -52,6 +52,32 @@
   gap: 12px;
 }
 
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.field span {
+  font-size: 13px;
+  color: #475569;
+}
+
+.field input,
+.field select {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 12px;
+  padding: 10px;
+}
+
 .optionRow {
   display: flex;
   align-items: center;

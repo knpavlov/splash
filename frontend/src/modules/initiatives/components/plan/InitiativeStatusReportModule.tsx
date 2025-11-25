@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../../styles/InitiativeStatusReportModule.module.css';
-import { initiativesApi, InitiativeStatusReportEntryInput } from '../../services/initiativesApi';
+import { initiativesApi, InitiativeStatusReportEntryInput, InitiativeStatusReportPayload } from '../../services/initiativesApi';
 import {
   InitiativePlanModel,
   InitiativeStatusReport,
@@ -9,6 +9,7 @@ import {
 } from '../../../../shared/types/initiative';
 import { diffInDays, parseDate } from '../../plan/planTimeline';
 import { useAuth } from '../../../auth/AuthContext';
+import { usePlanSettingsState } from '../../../../app/state/AppStateContext';
 
 interface InitiativeStatusReportModuleProps {
   plan: InitiativePlanModel;
@@ -16,8 +17,22 @@ interface InitiativeStatusReportModuleProps {
   readOnly?: boolean;
 }
 
-const UPCOMING_WINDOW_DAYS = 14;
 const STATUS_UPDATE_LIMIT = 2000;
+const SUMMARY_LIMIT = 4000;
+
+type ColumnId = 'name' | 'description' | 'responsible' | 'start' | 'end' | 'status';
+
+const columnConfig: Record<
+  ColumnId,
+  { id: ColumnId; label: string; minWidth: number; maxWidth: number; defaultWidth: number }
+> = {
+  name: { id: 'name', label: 'Task', minWidth: 160, maxWidth: 420, defaultWidth: 220 },
+  description: { id: 'description', label: 'Description', minWidth: 160, maxWidth: 520, defaultWidth: 220 },
+  responsible: { id: 'responsible', label: 'Responsible', minWidth: 140, maxWidth: 320, defaultWidth: 180 },
+  start: { id: 'start', label: 'Start', minWidth: 110, maxWidth: 200, defaultWidth: 130 },
+  end: { id: 'end', label: 'End', minWidth: 110, maxWidth: 200, defaultWidth: 130 },
+  status: { id: 'status', label: 'Status update', minWidth: 200, maxWidth: 520, defaultWidth: 260 }
+};
 
 const formatDateLabel = (value: string | null) => {
   if (!value) {
@@ -58,7 +73,7 @@ const buildEntryFromTask = (
   source
 });
 
-const buildDueState = (entry: InitiativeStatusReportEntry) => {
+const buildDueState = (entry: InitiativeStatusReportEntry, windowDays: number) => {
   const parsed = parseDate(entry.endDate);
   if (!parsed) {
     return { label: 'No end date', tone: 'muted' as const };
@@ -72,7 +87,7 @@ const buildDueState = (entry: InitiativeStatusReportEntry) => {
   if (diff === 0) {
     return { label: 'Due today', tone: 'warning' as const };
   }
-  if (diff <= UPCOMING_WINDOW_DAYS) {
+  if (diff <= windowDays) {
     return { label: `Due in ${diff}d`, tone: 'warning' as const };
   }
   return { label: `Due in ${diff}d`, tone: 'muted' as const };
@@ -84,6 +99,7 @@ export const InitiativeStatusReportModule = ({
   readOnly = false
 }: InitiativeStatusReportModuleProps) => {
   const { session } = useAuth();
+  const { statusReportSettings } = usePlanSettingsState();
   const [reports, setReports] = useState<InitiativeStatusReport[]>([]);
   const [selectedReportId, setSelectedReportId] = useState<string>('draft');
   const [draftEntries, setDraftEntries] = useState<InitiativeStatusReportEntry[]>([]);
@@ -92,11 +108,25 @@ export const InitiativeStatusReportModule = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState('');
+  const [sort, setSort] = useState<{ column: ColumnId; direction: 'asc' | 'desc' }>({
+    column: 'end',
+    direction: 'asc'
+  });
+  const [columnWidths, setColumnWidths] = useState<Record<ColumnId, number>>(() =>
+    Object.values(columnConfig).reduce((acc, col) => {
+      acc[col.id] = col.defaultWidth;
+      return acc;
+    }, {} as Record<ColumnId, number>)
+  );
+  const resizeStateRef = useRef<{ column: ColumnId; startX: number; startWidth: number } | null>(null);
 
   const allTasks = useMemo(
     () => plan.tasks.filter((task) => !task.archived),
     [plan.tasks]
   );
+
+  const upcomingWindow = statusReportSettings.upcomingWindowDays || 14;
 
   const upcomingTasks = useMemo(() => {
     const today = new Date();
@@ -108,7 +138,7 @@ export const InitiativeStatusReportModule = ({
           return false;
         }
         const diff = diffInDays(today, dueDate);
-        return diff <= UPCOMING_WINDOW_DAYS;
+        return diff <= upcomingWindow;
       })
       .sort((a, b) => {
         const aDate = parseDate(a.endDate ?? a.baseline?.endDate ?? null);
@@ -149,6 +179,35 @@ export const InitiativeStatusReportModule = ({
 
   const isViewingSubmitted = selectedReportId !== 'draft' && Boolean(selectedReport);
   const entriesToRender = isViewingSubmitted ? selectedReport?.entries ?? [] : draftEntries;
+  const sortedEntries = useMemo(() => {
+    const copy = [...entriesToRender];
+    copy.sort((a, b) => {
+      const direction = sort.direction === 'asc' ? 1 : -1;
+      switch (sort.column) {
+        case 'name':
+          return direction * a.name.localeCompare(b.name);
+        case 'description':
+          return direction * (a.description || '').localeCompare(b.description || '');
+        case 'responsible':
+          return direction * (a.responsible || '').localeCompare(b.responsible || '');
+        case 'start': {
+          const aDate = parseDate(a.startDate);
+          const bDate = parseDate(b.startDate);
+          return direction * ((aDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (bDate?.getTime() ?? Number.MAX_SAFE_INTEGER));
+        }
+        case 'end': {
+          const aDate = parseDate(a.endDate);
+          const bDate = parseDate(b.endDate);
+          return direction * ((aDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (bDate?.getTime() ?? Number.MAX_SAFE_INTEGER));
+        }
+        case 'status':
+          return direction * (a.statusUpdate || '').localeCompare(b.statusUpdate || '');
+        default:
+          return 0;
+      }
+    });
+    return copy;
+  }, [entriesToRender, sort]);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,6 +235,15 @@ export const InitiativeStatusReportModule = ({
       cancelled = true;
     };
   }, [initiativeId]);
+
+  useEffect(() => {
+    if (isViewingSubmitted && selectedReport) {
+      setSummary(selectedReport.summary || '');
+    }
+    if (selectedReportId === 'draft' && !isViewingSubmitted) {
+      setSummary((prev) => prev);
+    }
+  }, [isViewingSubmitted, selectedReport, selectedReportId]);
 
   useEffect(() => {
     if (selectedReportId !== 'draft') {
@@ -232,6 +300,9 @@ export const InitiativeStatusReportModule = ({
     setError(null);
     if (value === 'draft' && selectedReportId !== 'draft') {
       setDraftEntries(upcomingTasks.map((task) => buildEntryFromTask(task, 'auto')));
+      setSummary('');
+    } else if (value !== 'draft' && selectedReport) {
+      setSummary(selectedReport.summary || '');
     }
   };
 
@@ -265,10 +336,15 @@ export const InitiativeStatusReportModule = ({
       statusUpdate: entry.statusUpdate,
       source: entry.source
     }));
+    const payload: InitiativeStatusReportPayload = {
+      entries: entriesPayload,
+      summary
+    };
     try {
-      const report = await initiativesApi.submitStatusReport(initiativeId, entriesPayload, actor);
+      const report = await initiativesApi.submitStatusReport(initiativeId, payload, actor);
       setReports((current) => [report, ...current]);
       setSelectedReportId(report.id);
+      setSummary(report.summary || '');
       setMessage('Report submitted and locked.');
       setDraftEntries(upcomingTasks.map((task) => buildEntryFromTask(task, 'auto')));
     } catch {
@@ -277,6 +353,54 @@ export const InitiativeStatusReportModule = ({
       setIsSubmitting(false);
     }
   };
+
+  const handleSort = (column: ColumnId) => {
+    setSort((prev) => {
+      if (prev.column === column) {
+        return { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { column, direction: 'asc' };
+    });
+  };
+
+  const startResize = (column: ColumnId, startX: number) => {
+    resizeStateRef.current = { column, startX, startWidth: columnWidths[column] ?? columnConfig[column].defaultWidth };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResize);
+  };
+
+  const handlePointerMove = (event: PointerEvent) => {
+    const state = resizeStateRef.current;
+    if (!state) {
+      return;
+    }
+    event.preventDefault();
+    const delta = event.clientX - state.startX;
+    const config = columnConfig[state.column];
+    const nextWidth = Math.min(config.maxWidth, Math.max(config.minWidth, state.startWidth + delta));
+    setColumnWidths((prev) => ({ ...prev, [state.column]: nextWidth }));
+  };
+
+  const stopResize = () => {
+    resizeStateRef.current = null;
+    window.removeEventListener('pointermove', handlePointerMove);
+    window.removeEventListener('pointerup', stopResize);
+  };
+
+  useEffect(
+    () => () => {
+      stopResize();
+    },
+    []
+  );
+
+  const tableTemplate = useMemo(
+    () =>
+      (['name', 'description', 'responsible', 'start', 'end', 'status'] as ColumnId[])
+        .map((id) => `${columnWidths[id] ?? columnConfig[id].defaultWidth}px`)
+        .join(' '),
+    [columnWidths]
+  );
 
   const renderEmptyState = () => (
     <div className={styles.placeholder}>
@@ -328,24 +452,57 @@ export const InitiativeStatusReportModule = ({
       {error && <div className={styles.error}>{error}</div>}
       {isLoading && !sortedReports.length && (
         <div className={styles.placeholder}>
-          <strong>Loading submitted reports…</strong>
+          <strong>Loading submitted reports...</strong>
         </div>
       )}
 
+      <div className={styles.overallRow}>
+        <label className={styles.fieldLabel}>
+          <span>Overall status update</span>
+          {isViewingSubmitted || readOnly ? (
+            <p className={styles.readonlyUpdate}>{summary || 'No overall update provided.'}</p>
+          ) : (
+            <textarea
+              value={summary}
+              maxLength={SUMMARY_LIMIT}
+              onChange={(event) => setSummary(event.target.value)}
+              placeholder="Summarize overall progress, risks, or asks"
+              disabled={isSubmitting}
+            />
+          )}
+        </label>
+      </div>
+
       <div className={styles.table} role="table" aria-label="Status report entries">
-        <div className={styles.tableHeader} role="row">
-          <div className={styles.headerCell}>Task</div>
-          <div className={styles.headerCell}>Description</div>
-          <div className={styles.headerCell}>Responsible</div>
-          <div className={styles.headerCell}>Start</div>
-          <div className={styles.headerCell}>End</div>
-          <div className={styles.headerCell}>Status update</div>
+        <div className={styles.tableHeader} role="row" style={{ gridTemplateColumns: tableTemplate }}>
+          {(Object.keys(columnConfig) as ColumnId[]).map((column) => (
+            <div
+              key={column}
+              className={styles.headerCell}
+              role="columnheader"
+              onClick={() => handleSort(column)}
+            >
+              <span className={styles.headerLabel}>
+                {columnConfig[column].label}
+                {sort.column === column && <i className={styles.sortIndicator}>{sort.direction === 'asc' ? '^' : 'v'}</i>}
+              </span>
+              <span
+                className={styles.columnResizer}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  startResize(column, event.clientX);
+                }}
+                role="separator"
+                aria-label={`Resize ${columnConfig[column].label} column`}
+              />
+            </div>
+          ))}
         </div>
-        {!entriesToRender.length ? (
+        {!sortedEntries.length ? (
           renderEmptyState()
         ) : (
-          entriesToRender.map((entry) => {
-            const dueState = buildDueState(entry);
+          sortedEntries.map((entry) => {
+            const dueState = buildDueState(entry, upcomingWindow);
             const rowClass =
               dueState.tone === 'negative'
                 ? styles.rowNegative
@@ -353,7 +510,12 @@ export const InitiativeStatusReportModule = ({
                 ? styles.rowWarning
                 : '';
             return (
-              <div key={entry.id} className={`${styles.tableRow} ${rowClass}`} role="row">
+              <div
+                key={entry.id}
+                className={`${styles.tableRow} ${rowClass}`}
+                role="row"
+                style={{ gridTemplateColumns: tableTemplate }}
+              >
                 <div className={styles.cell}>
                   <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
                   <div className={styles.badges}>
@@ -443,7 +605,7 @@ export const InitiativeStatusReportModule = ({
               onClick={handleSubmit}
               disabled={!draftEntries.length || isSubmitting || readOnly}
             >
-              {isSubmitting ? 'Submitting…' : 'Submit report'}
+              {isSubmitting ? 'Submitting...' : 'Submit report'}
             </button>
           </div>
         </div>

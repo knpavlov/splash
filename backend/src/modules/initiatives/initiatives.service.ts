@@ -54,6 +54,7 @@ const sanitizeOptionalString = (value: unknown) => {
 const hashPayload = (value: string) => createHash('sha1').update(value).digest('hex');
 
 const STATUS_UPDATE_MAX_LENGTH = 2000;
+const STATUS_SUMMARY_MAX_LENGTH = 4000;
 
 const normalizeStageKey = (value: unknown): InitiativeStageKey => {
   if (typeof value === 'string') {
@@ -930,11 +931,12 @@ export class InitiativesService {
     if (!record) {
       throw new Error('NOT_FOUND');
     }
-    const entries = this.sanitizeStatusReportEntries(payload, record);
+    const { entries, summary } = this.sanitizeStatusReportPayload(payload, record);
     return this.repository.insertStatusReport({
       id: randomUUID(),
       initiativeId,
       entries,
+      summary,
       planVersion: record.version ?? null,
       createdByAccountId: actor?.actorAccountId ?? null,
       createdByName: actor?.actorName ?? null
@@ -1041,7 +1043,10 @@ export class InitiativesService {
     return mapCommentThreadRow(updatedThread, messages);
   }
 
-  private sanitizeStatusReportEntries(payload: unknown, record: InitiativeRecord): InitiativeStatusReportEntry[] {
+  private sanitizeStatusReportPayload(
+    payload: unknown,
+    record: InitiativeRecord
+  ): { entries: InitiativeStatusReportEntry[]; summary: string } {
     if (!payload || typeof payload !== 'object') {
       throw new Error('INVALID_INPUT');
     }
@@ -1049,6 +1054,8 @@ export class InitiativesService {
     if (!Array.isArray(entriesPayload)) {
       throw new Error('INVALID_INPUT');
     }
+    const rawSummary = (payload as { summary?: unknown }).summary;
+    const summary = sanitizeString(rawSummary).slice(0, STATUS_SUMMARY_MAX_LENGTH);
     const tasks = [
       ...(record.plan.actuals?.tasks ?? []),
       ...record.plan.tasks
@@ -1097,7 +1104,7 @@ export class InitiativesService {
     if (!entries.length) {
       throw new Error('INVALID_INPUT');
     }
-    return entries;
+    return { entries, summary };
   }
 
   private composeApprovalsPayload(
