@@ -170,6 +170,40 @@ export interface InitiativePlanActualsModel {
   settings: InitiativePlanSettings;
 }
 
+export type InitiativeStatusReportSource = 'auto' | 'manual';
+
+export interface InitiativeStatusReportEntry {
+  id: string;
+  taskId: string;
+  name: string;
+  description: string;
+  responsible: string;
+  startDate: string | null;
+  endDate: string | null;
+  statusUpdate: string;
+  source: InitiativeStatusReportSource;
+}
+
+export interface InitiativeStatusReport {
+  id: string;
+  initiativeId: string;
+  createdAt: string;
+  createdByAccountId: string | null;
+  createdByName: string | null;
+  planVersion: number | null;
+  entries: InitiativeStatusReportEntry[];
+}
+
+export interface InitiativeStatusReportRow extends Record<string, unknown> {
+  id: string;
+  initiative_id: string;
+  entries: unknown;
+  plan_version: number | null;
+  created_at: Date;
+  created_by_account_id: string | null;
+  created_by_name: string | null;
+}
+
 export interface InitiativeCommentSelection {
   top: number;
   left: number;

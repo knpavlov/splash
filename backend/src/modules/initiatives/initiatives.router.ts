@@ -148,6 +148,29 @@ router.get('/:id/events', async (req, res) => {
   }
 });
 
+router.get('/:id/status-reports', async (req, res) => {
+  try {
+    const reports = await initiativesService.listStatusReports(req.params.id);
+    res.json(reports);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.post('/:id/status-reports', async (req, res) => {
+  const { report, actor } = req.body as { report?: unknown; actor?: unknown };
+  if (!report || typeof report !== 'object') {
+    res.status(400).json({ code: 'invalid-input', message: 'Provide status report payload.' });
+    return;
+  }
+  try {
+    const created = await initiativesService.createStatusReport(req.params.id, report, normalizeActor(actor));
+    res.status(201).json(created);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 router.get('/:id/comments', async (req, res) => {
   try {
     const threads = await initiativesService.listComments(req.params.id);

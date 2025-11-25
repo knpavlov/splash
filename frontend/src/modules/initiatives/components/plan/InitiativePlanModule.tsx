@@ -24,6 +24,7 @@ import { addDays, buildTimelineRange, diffInDays, getZoomScale, parseDate } from
 import { generateId } from '../../../../shared/ui/generateId';
 import { ChevronIcon } from '../../../../components/icons/ChevronIcon';
 import { InitiativeResourceLoadModule } from './InitiativeResourceLoadModule';
+import { InitiativeStatusReportModule } from './InitiativeStatusReportModule';
 
 interface InitiativePlanModuleProps {
   plan: InitiativePlanModel | InitiativePlanActualsModel;
@@ -2057,6 +2058,13 @@ export const InitiativePlanModule = ({
       </div>
     </div>
   ) : null;
+  const statusReportModule = isActuals ? (
+    <InitiativeStatusReportModule
+      plan={normalizedPlan}
+      initiativeId={initiativeId}
+      readOnly={readOnly}
+    />
+  ) : null;
   let stackedContent: React.ReactNode = null;
   const renderResourceModule = (heightValue: number | null) => (
     <InitiativeResourceLoadModule
@@ -2765,6 +2773,7 @@ export const InitiativePlanModule = ({
             <div className={styles.fullscreenPaneInner}>{renderResourceModule(null)}</div>
           </div>
         </div>
+        {statusReportModule}
       </>
     ) : (
       <>
@@ -2776,6 +2785,7 @@ export const InitiativePlanModule = ({
         {!resourceCollapsed && (
           <div className={styles.resourceHeightResizer} onPointerDown={startResourceHeightResize} />
         )}
+        {statusReportModule}
       </>
     );
   }

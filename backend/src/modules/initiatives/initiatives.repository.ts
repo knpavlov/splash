@@ -20,7 +20,10 @@ import {
   InitiativeEventRecord,
   InitiativeEventRow,
   InitiativeCommentThreadRow,
-  InitiativeCommentMessageRow
+  InitiativeCommentMessageRow,
+  InitiativeStatusReport,
+  InitiativeStatusReportEntry,
+  InitiativeStatusReportRow
 } from './initiatives.types.js';
 import { createEmptyPlanModel, normalizePlanModel } from './initiativePlan.helpers.js';
 
@@ -201,6 +204,56 @@ const ensureKpi = (value: unknown): InitiativeStageKPI | null => {
   return { id, name, unit, source, isCustom, baseline, distribution, actuals };
 };
 
+const ensureStatusReportEntry = (value: unknown): InitiativeStatusReportEntry | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    taskId?: unknown;
+    name?: unknown;
+    description?: unknown;
+    responsible?: unknown;
+    startDate?: unknown;
+    endDate?: unknown;
+    statusUpdate?: unknown;
+    source?: unknown;
+  };
+  const taskId = typeof payload.taskId === 'string' && payload.taskId.trim() ? payload.taskId.trim() : null;
+  if (!taskId) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
+  return {
+    id,
+    taskId,
+    name: typeof payload.name === 'string' ? payload.name : '',
+    description: typeof payload.description === 'string' ? payload.description : '',
+    responsible: typeof payload.responsible === 'string' ? payload.responsible : '',
+    startDate: typeof payload.startDate === 'string' ? payload.startDate : null,
+    endDate: typeof payload.endDate === 'string' ? payload.endDate : null,
+    statusUpdate: typeof payload.statusUpdate === 'string' ? payload.statusUpdate : '',
+    source: payload.source === 'manual' ? 'manual' : 'auto'
+  };
+};
+
+const ensureStatusReportEntries = (value: unknown): InitiativeStatusReportEntry[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const seenTasks = new Set<string>();
+  const entries: InitiativeStatusReportEntry[] = [];
+  for (const item of value) {
+    const entry = ensureStatusReportEntry(item);
+    if (!entry || seenTasks.has(entry.taskId)) {
+      continue;
+    }
+    seenTasks.add(entry.taskId);
+    entries.push(entry);
+  }
+  return entries;
+};
+
 type PoolClientLike = {
   query: typeof postgresPool.query;
   release: () => void;
@@ -369,6 +422,16 @@ const mapRowToRecord = (row: InitiativeRow): InitiativeRecord => ({
   stages: ensureStageMap(row.stage_payload),
   stageState: ensureStageState(row.stage_state),
   plan: normalizePlanModel(row.plan_payload)
+});
+
+const mapStatusReportRow = (row: InitiativeStatusReportRow): InitiativeStatusReport => ({
+  id: row.id,
+  initiativeId: row.initiative_id,
+  entries: ensureStatusReportEntries(row.entries),
+  planVersion: Number.isFinite(row.plan_version) ? Number(row.plan_version) : null,
+  createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
+  createdByAccountId: row.created_by_account_id ?? null,
+  createdByName: row.created_by_name ?? null
 });
 
 export class InitiativesRepository {
@@ -762,6 +825,46 @@ export class InitiativesRepository {
       actorName: row.actor_name ?? null,
       createdAt: toIsoString(row.created_at) ?? new Date().toISOString()
     }));
+  }
+
+  async listStatusReports(initiativeId: string): Promise<InitiativeStatusReport[]> {
+    const result = await postgresPool.query<InitiativeStatusReportRow>(
+      `SELECT *
+         FROM initiative_status_reports
+        WHERE initiative_id = $1
+        ORDER BY created_at DESC;`,
+      [initiativeId]
+    );
+    return (result.rows ?? []).map((row) => mapStatusReportRow(row));
+  }
+
+  async insertStatusReport(payload: {
+    id: string;
+    initiativeId: string;
+    entries: InitiativeStatusReportEntry[];
+    planVersion: number | null;
+    createdByAccountId: string | null;
+    createdByName: string | null;
+  }): Promise<InitiativeStatusReport> {
+    const result = await postgresPool.query<InitiativeStatusReportRow>(
+      `INSERT INTO initiative_status_reports
+         (id, initiative_id, entries, plan_version, created_at, created_by_account_id, created_by_name)
+       VALUES ($1, $2, $3::jsonb, $4, NOW(), $5, $6)
+       RETURNING *;`,
+      [
+        payload.id,
+        payload.initiativeId,
+        JSON.stringify(payload.entries ?? []),
+        payload.planVersion ?? null,
+        payload.createdByAccountId ?? null,
+        payload.createdByName ?? null
+      ]
+    );
+    const row = result.rows?.[0];
+    if (!row) {
+      throw new Error('INSERT_FAILED');
+    }
+    return mapStatusReportRow(row);
   }
 
   async listCommentThreads(

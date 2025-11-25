@@ -117,6 +117,30 @@ export interface InitiativePlanActualsModel {
   settings: InitiativePlanSettings;
 }
 
+export type InitiativeStatusReportSource = 'auto' | 'manual';
+
+export interface InitiativeStatusReportEntry {
+  id: string;
+  taskId: string;
+  name: string;
+  description: string;
+  responsible: string;
+  startDate: string | null;
+  endDate: string | null;
+  statusUpdate: string;
+  source: InitiativeStatusReportSource;
+}
+
+export interface InitiativeStatusReport {
+  id: string;
+  initiativeId: string;
+  createdAt: string;
+  createdByAccountId: string | null;
+  createdByName: string | null;
+  planVersion: number | null;
+  entries: InitiativeStatusReportEntry[];
+}
+
 export interface InitiativeCommentSelection {
   top: number;
   left: number;

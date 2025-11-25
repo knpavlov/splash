@@ -14,7 +14,10 @@ import {
   InitiativeStageStateMap,
   InitiativeCommentSelection,
   InitiativeCommentMessage,
-  InitiativeCommentThread
+  InitiativeCommentThread,
+  InitiativeStatusReport,
+  InitiativeStatusReportEntry,
+  InitiativeStatusReportSource
 } from '../../../shared/types/initiative';
 import { normalizePlanModel } from '../plan/planModel';
 import { generateId } from '../../../shared/ui/generateId';
@@ -604,6 +607,12 @@ export interface InitiativeCommentReplyInput {
   parentId?: string | null;
 }
 
+export interface InitiativeStatusReportEntryInput {
+  taskId: string;
+  statusUpdate?: string;
+  source?: InitiativeStatusReportSource;
+}
+
 const withActor = (payload: Record<string, unknown>, actor?: InitiativeActorMetadata) => {
   if (!actor) {
     return payload;
@@ -616,6 +625,87 @@ const withActor = (payload: Record<string, unknown>, actor?: InitiativeActorMeta
     return payload;
   }
   return { ...payload, actor: normalized };
+};
+
+const normalizeStatusReportEntry = (value: unknown): InitiativeStatusReportEntry | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    taskId?: unknown;
+    name?: unknown;
+    description?: unknown;
+    responsible?: unknown;
+    startDate?: unknown;
+    endDate?: unknown;
+    statusUpdate?: unknown;
+    source?: unknown;
+  };
+  const taskId = typeof payload.taskId === 'string' ? payload.taskId.trim() : '';
+  if (!taskId) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : generateId();
+  return {
+    id,
+    taskId,
+    name: typeof payload.name === 'string' ? payload.name : '',
+    description: typeof payload.description === 'string' ? payload.description : '',
+    responsible: typeof payload.responsible === 'string' ? payload.responsible : '',
+    startDate: typeof payload.startDate === 'string' ? payload.startDate : null,
+    endDate: typeof payload.endDate === 'string' ? payload.endDate : null,
+    statusUpdate: typeof payload.statusUpdate === 'string' ? payload.statusUpdate : '',
+    source: payload.source === 'manual' ? 'manual' : 'auto'
+  };
+};
+
+const ensureStatusReport = (value: unknown): InitiativeStatusReport | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    initiativeId?: unknown;
+    createdAt?: unknown;
+    createdByAccountId?: unknown;
+    createdByName?: unknown;
+    planVersion?: unknown;
+    entries?: unknown;
+  };
+  const id = typeof payload.id === 'string' ? payload.id.trim() : '';
+  const initiativeId = typeof payload.initiativeId === 'string' ? payload.initiativeId.trim() : '';
+  if (!id || !initiativeId) {
+    return null;
+  }
+  const entriesSource = Array.isArray(payload.entries) ? payload.entries : [];
+  const entries = entriesSource
+    .map((entry) => normalizeStatusReportEntry(entry))
+    .filter((entry): entry is InitiativeStatusReportEntry => Boolean(entry));
+  return {
+    id,
+    initiativeId,
+    createdAt: typeof payload.createdAt === 'string' ? payload.createdAt : new Date().toISOString(),
+    createdByAccountId:
+      typeof payload.createdByAccountId === 'string' && payload.createdByAccountId.trim()
+        ? payload.createdByAccountId.trim()
+        : null,
+    createdByName: typeof payload.createdByName === 'string' ? payload.createdByName : null,
+    planVersion:
+      typeof payload.planVersion === 'number' && Number.isFinite(payload.planVersion)
+        ? payload.planVersion
+        : null,
+    entries
+  };
+};
+
+const ensureStatusReportList = (value: unknown): InitiativeStatusReport[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => ensureStatusReport(item))
+    .filter((item): item is InitiativeStatusReport => Boolean(item));
 };
 
 export const initiativesApi = {
@@ -653,6 +743,30 @@ export const initiativesApi = {
       })
     ),
   events: async (id: string) => ensureEventList(await apiRequest<unknown>(`/initiatives/${id}/events`)),
+  listStatusReports: async (id: string) => ensureStatusReportList(await apiRequest<unknown>(`/initiatives/${id}/status-reports`)),
+  submitStatusReport: async (
+    id: string,
+    entries: InitiativeStatusReportEntryInput[],
+    actor?: InitiativeActorMetadata
+  ) => {
+    const payloadEntries = entries
+      .map((entry) => ({
+        taskId: typeof entry.taskId === 'string' ? entry.taskId.trim() : '',
+        statusUpdate: typeof entry.statusUpdate === 'string' ? entry.statusUpdate : '',
+        source: entry.source === 'manual' ? 'manual' : 'auto'
+      }))
+      .filter((entry) => entry.taskId);
+    const report = ensureStatusReport(
+      await apiRequest<unknown>(`/initiatives/${id}/status-reports`, {
+        method: 'POST',
+        body: withActor({ report: { entries: payloadEntries } }, actor)
+      })
+    );
+    if (!report) {
+      throw new Error('Invalid status report response.');
+    }
+    return report;
+  },
   listComments: async (id: string) => ensureCommentThreadList(await apiRequest<unknown>(`/initiatives/${id}/comments`)),
   createComment: async (id: string, input: InitiativeCommentInput, actor?: InitiativeActorMetadata) =>
     ensureCommentThread(

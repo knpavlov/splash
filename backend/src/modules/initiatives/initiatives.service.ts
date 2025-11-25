@@ -27,7 +27,10 @@ import {
   InitiativeCommentMessageRow,
   InitiativeBusinessCaseFile,
   InitiativeSupportingDocument,
-  InitiativeStageKPI
+  InitiativeStageKPI,
+  InitiativeStatusReport,
+  InitiativeStatusReportEntry,
+  InitiativePlanTask
 } from './initiatives.types.js';
 import { normalizePlanModel } from './initiativePlan.helpers.js';
 import {
@@ -49,6 +52,8 @@ const sanitizeOptionalString = (value: unknown) => {
 };
 
 const hashPayload = (value: string) => createHash('sha1').update(value).digest('hex');
+
+const STATUS_UPDATE_MAX_LENGTH = 2000;
 
 const normalizeStageKey = (value: unknown): InitiativeStageKey => {
   if (typeof value === 'string') {
@@ -908,6 +913,34 @@ export class InitiativesService {
     );
   }
 
+  async listStatusReports(initiativeId: string): Promise<InitiativeStatusReport[]> {
+    const record = await this.repository.findInitiative(initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    return this.repository.listStatusReports(initiativeId);
+  }
+
+  async createStatusReport(
+    initiativeId: string,
+    payload: unknown,
+    actor?: InitiativeMutationMetadata
+  ): Promise<InitiativeStatusReport> {
+    const record = await this.repository.findInitiative(initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    const entries = this.sanitizeStatusReportEntries(payload, record);
+    return this.repository.insertStatusReport({
+      id: randomUUID(),
+      initiativeId,
+      entries,
+      planVersion: record.version ?? null,
+      createdByAccountId: actor?.actorAccountId ?? null,
+      createdByName: actor?.actorName ?? null
+    });
+  }
+
   async listComments(initiativeId: string): Promise<InitiativeCommentThread[]> {
     const record = await this.repository.findInitiative(initiativeId);
     if (!record) {
@@ -1006,6 +1039,65 @@ export class InitiativesService {
       )) ?? thread;
     const messages = await this.repository.listCommentMessages(threadId);
     return mapCommentThreadRow(updatedThread, messages);
+  }
+
+  private sanitizeStatusReportEntries(payload: unknown, record: InitiativeRecord): InitiativeStatusReportEntry[] {
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('INVALID_INPUT');
+    }
+    const entriesPayload = (payload as { entries?: unknown }).entries;
+    if (!Array.isArray(entriesPayload)) {
+      throw new Error('INVALID_INPUT');
+    }
+    const tasks = [
+      ...(record.plan.actuals?.tasks ?? []),
+      ...record.plan.tasks
+    ] as InitiativePlanTask[];
+    const taskMap = new Map<string, InitiativePlanTask>();
+    tasks.forEach((task) => {
+      if (task.id && !taskMap.has(task.id)) {
+        taskMap.set(task.id, task);
+      }
+    });
+    if (!taskMap.size) {
+      throw new Error('INVALID_INPUT');
+    }
+    const entries: InitiativeStatusReportEntry[] = [];
+    const seenTasks = new Set<string>();
+    for (const item of entriesPayload) {
+      if (!item || typeof item !== 'object') {
+        continue;
+      }
+      const rawTaskId = (item as { taskId?: unknown }).taskId;
+      const taskId = typeof rawTaskId === 'string' ? rawTaskId.trim() : '';
+      if (!taskId || seenTasks.has(taskId)) {
+        continue;
+      }
+      const task = taskMap.get(taskId);
+      if (!task) {
+        continue;
+      }
+      seenTasks.add(taskId);
+      const statusUpdateRaw = (item as { statusUpdate?: unknown }).statusUpdate;
+      const sourceRaw = (item as { source?: unknown }).source;
+      const statusUpdate = sanitizeString(statusUpdateRaw).slice(0, STATUS_UPDATE_MAX_LENGTH);
+      const source = sourceRaw === 'manual' ? 'manual' : 'auto';
+      entries.push({
+        id: randomUUID(),
+        taskId: task.id,
+        name: task.name,
+        description: task.description,
+        responsible: task.responsible,
+        startDate: task.startDate,
+        endDate: task.endDate ?? task.baseline?.endDate ?? null,
+        statusUpdate,
+        source
+      });
+    }
+    if (!entries.length) {
+      throw new Error('INVALID_INPUT');
+    }
+    return entries;
   }
 
   private composeApprovalsPayload(
