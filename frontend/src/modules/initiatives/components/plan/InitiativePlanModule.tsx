@@ -1488,24 +1488,83 @@ export const InitiativePlanModule = ({
     if (readOnly || !isActuals) {
       return;
     }
-    if (normalizedPlan.tasks.length || !baselinePlanNormalized?.tasks.length) {
+    if (!baselinePlanNormalized?.tasks.length) {
       return;
     }
-    const seeded = baselinePlanNormalized.tasks.map((task) => ({
-      ...task,
-      baseline: {
-        name: task.name,
-        description: task.description,
-        startDate: task.startDate,
-        endDate: task.endDate,
-        responsible: task.responsible,
-        milestoneType: task.milestoneType,
-        requiredCapacity: task.requiredCapacity ?? null
-      },
-      sourceTaskId: task.id,
-      archived: false
-    }));
-    setTasks(seeded);
+    if (!normalizedPlan.tasks.length) {
+      const seeded = baselinePlanNormalized.tasks.map((task) => ({
+        ...task,
+        baseline: {
+          name: task.name,
+          description: task.description,
+          startDate: task.startDate,
+          endDate: task.endDate,
+          responsible: task.responsible,
+          milestoneType: task.milestoneType,
+          requiredCapacity: task.requiredCapacity ?? null
+        },
+        sourceTaskId: task.id,
+        archived: false
+      }));
+      setTasks(seeded);
+      return;
+    }
+    const baselineMap = new Map<string, InitiativePlanTask>();
+    baselinePlanNormalized.tasks.forEach((task) => baselineMap.set(task.id, task));
+    let changed = false;
+    const updated = normalizedPlan.tasks.map((task) => {
+      const sourceId = task.sourceTaskId ?? task.id;
+      const baseline = baselineMap.get(sourceId);
+      if (!baseline) {
+        return task;
+      }
+      const nextBaseline: InitiativePlanBaseline = {
+        name: baseline.name,
+        description: baseline.description,
+        startDate: baseline.startDate,
+        endDate: baseline.endDate,
+        responsible: baseline.responsible,
+        milestoneType: baseline.milestoneType,
+        requiredCapacity: baseline.requiredCapacity ?? null
+      };
+      const shouldUpdate =
+        !task.baseline ||
+        task.baseline.name !== nextBaseline.name ||
+        task.baseline.description !== nextBaseline.description ||
+        task.baseline.startDate !== nextBaseline.startDate ||
+        task.baseline.endDate !== nextBaseline.endDate ||
+        task.baseline.responsible !== nextBaseline.responsible ||
+        task.baseline.milestoneType !== nextBaseline.milestoneType ||
+        task.baseline.requiredCapacity !== nextBaseline.requiredCapacity;
+      if (!shouldUpdate) {
+        return task;
+      }
+      changed = true;
+      return { ...task, baseline: nextBaseline };
+    });
+    const existingSource = new Set(updated.map((task) => task.sourceTaskId ?? task.id));
+    const additions = baselinePlanNormalized.tasks
+      .filter((task) => !existingSource.has(task.id))
+      .map((task) => ({
+        ...task,
+        baseline: {
+          name: task.name,
+          description: task.description,
+          startDate: task.startDate,
+          endDate: task.endDate,
+          responsible: task.responsible,
+          milestoneType: task.milestoneType,
+          requiredCapacity: task.requiredCapacity ?? null
+        },
+        sourceTaskId: task.id,
+        archived: false
+      }));
+    if (additions.length) {
+      changed = true;
+    }
+    if (changed || additions.length) {
+      setTasks([...updated, ...additions]);
+    }
   }, [baselinePlanNormalized, isActuals, normalizedPlan.tasks.length, readOnly, setTasks]);
 
   const showTimelineTooltip = useCallback(
@@ -2154,6 +2213,13 @@ export const InitiativePlanModule = ({
                                   </option>
                                 ))}
                               </select>
+                              {hasMilestoneChange && (
+                                <span
+                                  className={styles.changeDot}
+                                  aria-hidden="true"
+                                  title={baseline?.milestoneType ? `Baseline: ${baseline.milestoneType}` : undefined}
+                                />
+                              )}
                             </div>
                           );
                         }
@@ -2173,6 +2239,13 @@ export const InitiativePlanModule = ({
                                 placeholder="Short summary"
                                 onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
                               />
+                              {hasDescChange && (
+                                <span
+                                  className={styles.changeDot}
+                                  aria-hidden="true"
+                                  title={baseline?.description ? `Baseline: ${baseline.description}` : undefined}
+                                />
+                              )}
                             </div>
                           );
                         case 'planStart': {
@@ -2197,7 +2270,13 @@ export const InitiativePlanModule = ({
                                 disabled={readOnly}
                                 onChange={(event) => handleTaskFieldChange(task, 'startDate', event.target.value)}
                               />
-                              {hasStartChange && <span className={styles.changeDot} aria-hidden="true" />}
+                              {hasStartChange && (
+                                <span
+                                  className={styles.changeDot}
+                                  aria-hidden="true"
+                                  title={baseline?.startDate ? `Baseline: ${formatShortDateLabel(baseline.startDate)}` : undefined}
+                                />
+                              )}
                             </div>
                           );
                         case 'planEnd': {
@@ -2222,7 +2301,13 @@ export const InitiativePlanModule = ({
                                 disabled={readOnly}
                                 onChange={(event) => handleTaskFieldChange(task, 'endDate', event.target.value)}
                               />
-                              {hasEndChange && <span className={styles.changeDot} aria-hidden="true" />}
+                              {hasEndChange && (
+                                <span
+                                  className={styles.changeDot}
+                                  aria-hidden="true"
+                                  title={baseline?.endDate ? `Baseline: ${formatShortDateLabel(baseline.endDate)}` : undefined}
+                                />
+                              )}
                             </div>
                           );
                         case 'responsible': {
@@ -2250,6 +2335,13 @@ export const InitiativePlanModule = ({
                                   <option value={task.responsible}>{task.responsible}</option>
                                 )}
                               </select>
+                              {hasResponsibleChange && (
+                                <span
+                                  className={styles.changeDot}
+                                  aria-hidden="true"
+                                  title={baseline?.responsible ? `Baseline: ${baseline.responsible}` : undefined}
+                                />
+                              )}
                             </div>
                           );
                         }
@@ -2343,7 +2435,17 @@ export const InitiativePlanModule = ({
                                 disabled={readOnly}
                                 onChange={(event) => handleTaskFieldChange(task, 'requiredCapacity', event.target.value)}
                               />
-                              {hasCapacityChange && <span className={styles.changeDot} aria-hidden="true" />}
+                              {hasCapacityChange && (
+                                <span
+                                  className={styles.changeDot}
+                                  aria-hidden="true"
+                                  title={
+                                    baseline?.requiredCapacity !== undefined && baseline?.requiredCapacity !== null
+                                      ? `Baseline: ${baseline.requiredCapacity}`
+                                      : undefined
+                                  }
+                                />
+                              )}
                             </div>
                           );
                         default:
@@ -2436,6 +2538,10 @@ export const InitiativePlanModule = ({
                 baselineStart && baselineEnd ? Math.max(diffInDays(baselineStart, baselineEnd) + 1, 1) : 0;
               const baselineLeft = baselineStart ? diffInDays(timelineRange.start, baselineStart) * pxPerDay : 0;
               const baselineWidth = baselineDuration * pxPerDay;
+              const baselineMatchesActual =
+                baselineHasDates &&
+                task.startDate === baseline?.startDate &&
+                task.endDate === baseline?.endDate;
               const isArchived = Boolean(task.archived);
               const barDepthClass =
                 task.indent === 0
@@ -2452,7 +2558,7 @@ export const InitiativePlanModule = ({
                 >
                   {hasDates ? (
                     <>
-                      {baselineHasDates && (
+                      {baselineHasDates && !baselineMatchesActual && (
                         <div
                           className={`${styles.baselineBar} ${isArchived ? styles.barArchived : ''}`}
                           style={{ left: baselineLeft, width: baselineWidth }}
