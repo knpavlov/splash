@@ -133,6 +133,21 @@ interface CapacityEditorState {
   taskId: string;
 }
 
+const isBaselineEmpty = (baseline: InitiativePlanBaseline | null | undefined) => {
+  if (!baseline) {
+    return true;
+  }
+  return (
+    !(baseline.name && baseline.name.trim()) &&
+    !(baseline.description && baseline.description.trim()) &&
+    !baseline.startDate &&
+    !baseline.endDate &&
+    !(baseline.responsible && baseline.responsible.trim()) &&
+    !(baseline.milestoneType && baseline.milestoneType.trim()) &&
+    (baseline.requiredCapacity === null || baseline.requiredCapacity === undefined)
+  );
+};
+
 export const InitiativePlanModule = ({
   plan,
   initiativeId,
@@ -1481,12 +1496,18 @@ export const InitiativePlanModule = ({
   );
 
   const isTaskNew = useCallback(
-    (task: InitiativePlanTask) => isActuals && !resolveBaselineForTask(task),
+    (task: InitiativePlanTask) => {
+      if (!isActuals) {
+        return false;
+      }
+      const baseline = resolveBaselineForTask(task);
+      return !baseline || isBaselineEmpty(baseline);
+    },
     [isActuals, resolveBaselineForTask]
   );
 
   useEffect(() => {
-    if (readOnly || !isActuals) {
+    if (!isActuals) {
       return;
     }
     if (!baselinePlanNormalized?.tasks.length) {
@@ -2215,6 +2236,7 @@ export const InitiativePlanModule = ({
                                 disabled={readOnly}
                                 onChange={(event) => handleTaskFieldChange(task, 'name', event.target.value)}
                                 onFocus={hideDescriptionTooltip}
+                                onKeyDown={(event) => event.stopPropagation()}
                               />
               {hasNameChange && (
                 <span
@@ -2286,6 +2308,7 @@ export const InitiativePlanModule = ({
                                 disabled={readOnly}
                                 placeholder="Short summary"
                                 onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
+                                onKeyDown={(event) => event.stopPropagation()}
                               />
                               {hasDescChange && (
                                 <span
@@ -2391,7 +2414,6 @@ export const InitiativePlanModule = ({
                             <div
                               key={`${task.id}-responsible`}
                               className={`${styles.cell} ${hasResponsibleChange ? styles.cellChanged : ''}`}
-                              title={baseline?.responsible ? `Baseline: ${baseline.responsible}` : undefined}
                             >
                               <select
                                 value={task.responsible}

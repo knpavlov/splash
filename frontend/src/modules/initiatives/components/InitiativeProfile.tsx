@@ -926,6 +926,7 @@ export const InitiativeProfile = ({
             className={errors.stageName ? styles.inputError : undefined}
             value={currentStage.name}
             onChange={(event) => handleStageFieldChange('name', event.target.value)}
+            onKeyDown={(event) => event.stopPropagation()}
             disabled={!isStageEditable}
           />
         </label>
@@ -1029,6 +1030,7 @@ export const InitiativeProfile = ({
             className={errors.stageDescription ? styles.inputError : undefined}
             value={currentStage.description}
             onChange={(event) => handleStageFieldChange('description', event.target.value)}
+            onKeyDown={(event) => event.stopPropagation()}
             disabled={!isStageEditable}
             rows={4}
           />
