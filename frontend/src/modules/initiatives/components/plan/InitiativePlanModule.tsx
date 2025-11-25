@@ -202,6 +202,7 @@ export const InitiativePlanModule = ({
     y: number;
   } | null>(null);
   const [progressDrafts, setProgressDrafts] = useState<Record<string, string>>({});
+  const [changeTooltip, setChangeTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
   const selectedTaskId = selectedTaskIds[0] ?? null;
   const selectedTaskIdsSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
   const [showBaselines, setShowBaselines] = useState(true);
@@ -1559,11 +1560,15 @@ export const InitiativePlanModule = ({
         sourceTaskId: task.id,
         archived: false
       }));
+    const filteredUpdated = updated.filter((task) => {
+      const sourceId = task.sourceTaskId ?? task.id;
+      return baselineMap.has(sourceId) || !task.sourceTaskId;
+    });
     if (additions.length) {
       changed = true;
     }
     if (changed || additions.length) {
-      setTasks([...updated, ...additions]);
+      setTasks([...filteredUpdated, ...additions]);
     }
   }, [baselinePlanNormalized, isActuals, normalizedPlan.tasks.length, readOnly, setTasks]);
 
@@ -1592,6 +1597,27 @@ export const InitiativePlanModule = ({
   const hideTimelineTooltip = useCallback(() => {
     setTimelineTooltip(null);
   }, []);
+
+  const showChangeDotTooltip = useCallback((text: string, event: React.MouseEvent | React.PointerEvent) => {
+    const offset = 10;
+    setChangeTooltip({
+      text,
+      x: event.clientX + offset,
+      y: event.clientY - offset
+    });
+  }, []);
+
+  const updateChangeDotTooltip = useCallback((event: React.MouseEvent | React.PointerEvent) => {
+    setChangeTooltip((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      const offset = 10;
+      return { ...prev, x: event.clientX + offset, y: event.clientY - offset };
+    });
+  }, []);
+
+  const hideChangeDotTooltip = useCallback(() => setChangeTooltip(null), []);
 
   const toggleTaskCollapse = useCallback(
     (taskId: string) => {
@@ -1766,6 +1792,12 @@ export const InitiativePlanModule = ({
           }
           const numeric = clamp(Number(value) || 0, 0, 100);
           return { ...current, progress: numeric };
+        }
+        if (field === 'name') {
+          return { ...current, name: value };
+        }
+        if (field === 'description') {
+          return { ...current, description: value };
         }
         if (field === 'requiredCapacity') {
           if (!value.trim()) {
@@ -2145,8 +2177,9 @@ export const InitiativePlanModule = ({
                                   event.stopPropagation();
                                   updateTask(task.id, (current) => ({ ...current, archived: !current.archived }));
                                 }}
+                                title={isArchived ? 'Unarchive task' : 'Archive task'}
                               >
-                                {isArchived ? 'Unarchive' : 'Archive'}
+                                <span aria-hidden="true">{isArchived ? '↺' : '⏸'}</span>
                               </button>
                             </div>
                           );
@@ -2183,10 +2216,18 @@ export const InitiativePlanModule = ({
                                 onChange={(event) => handleTaskFieldChange(task, 'name', event.target.value)}
                                 onFocus={hideDescriptionTooltip}
                               />
-                              {hasNameChange && <span className={styles.changeDot} aria-hidden="true" />}
-                              {isNewTask && <span className={styles.newBadge}>New</span>}
-                            </div>
-                          );
+              {hasNameChange && (
+                <span
+                  className={styles.changeDot}
+                  aria-hidden="true"
+                  onMouseEnter={(event) => showChangeDotTooltip(baseline ? `Baseline: ${baseline.name || 'Untitled task'}` : 'Changed from baseline', event)}
+                  onMouseMove={updateChangeDotTooltip}
+                  onMouseLeave={hideChangeDotTooltip}
+                />
+              )}
+              {isNewTask && <span className={styles.newBadge}>New</span>}
+            </div>
+          );
                         case 'milestoneType': {
                           const options = milestoneTypes.length ? milestoneTypes : DEFAULT_MILESTONE_OPTIONS;
                           const currentValue =
@@ -2217,7 +2258,14 @@ export const InitiativePlanModule = ({
                                 <span
                                   className={styles.changeDot}
                                   aria-hidden="true"
-                                  title={baseline?.milestoneType ? `Baseline: ${baseline.milestoneType}` : undefined}
+                                  onMouseEnter={(event) =>
+                                    showChangeDotTooltip(
+                                      baseline?.milestoneType ? `Baseline: ${baseline.milestoneType}` : 'Changed from baseline',
+                                      event
+                                    )
+                                  }
+                                  onMouseMove={updateChangeDotTooltip}
+                                  onMouseLeave={hideChangeDotTooltip}
                                 />
                               )}
                             </div>
@@ -2243,7 +2291,14 @@ export const InitiativePlanModule = ({
                                 <span
                                   className={styles.changeDot}
                                   aria-hidden="true"
-                                  title={baseline?.description ? `Baseline: ${baseline.description}` : undefined}
+                                  onMouseEnter={(event) =>
+                                    showChangeDotTooltip(
+                                      baseline?.description ? `Baseline: ${baseline.description}` : 'Changed from baseline',
+                                      event
+                                    )
+                                  }
+                                  onMouseMove={updateChangeDotTooltip}
+                                  onMouseLeave={hideChangeDotTooltip}
                                 />
                               )}
                             </div>
@@ -2274,7 +2329,16 @@ export const InitiativePlanModule = ({
                                 <span
                                   className={styles.changeDot}
                                   aria-hidden="true"
-                                  title={baseline?.startDate ? `Baseline: ${formatShortDateLabel(baseline.startDate)}` : undefined}
+                                  onMouseEnter={(event) =>
+                                    showChangeDotTooltip(
+                                      baseline?.startDate
+                                        ? `Baseline: ${formatShortDateLabel(baseline.startDate)}`
+                                        : 'Changed from baseline',
+                                      event
+                                    )
+                                  }
+                                  onMouseMove={updateChangeDotTooltip}
+                                  onMouseLeave={hideChangeDotTooltip}
                                 />
                               )}
                             </div>
@@ -2305,7 +2369,16 @@ export const InitiativePlanModule = ({
                                 <span
                                   className={styles.changeDot}
                                   aria-hidden="true"
-                                  title={baseline?.endDate ? `Baseline: ${formatShortDateLabel(baseline.endDate)}` : undefined}
+                                  onMouseEnter={(event) =>
+                                    showChangeDotTooltip(
+                                      baseline?.endDate
+                                        ? `Baseline: ${formatShortDateLabel(baseline.endDate)}`
+                                        : 'Changed from baseline',
+                                      event
+                                    )
+                                  }
+                                  onMouseMove={updateChangeDotTooltip}
+                                  onMouseLeave={hideChangeDotTooltip}
                                 />
                               )}
                             </div>
@@ -2339,7 +2412,16 @@ export const InitiativePlanModule = ({
                                 <span
                                   className={styles.changeDot}
                                   aria-hidden="true"
-                                  title={baseline?.responsible ? `Baseline: ${baseline.responsible}` : undefined}
+                                  onMouseEnter={(event) =>
+                                    showChangeDotTooltip(
+                                      baseline?.responsible
+                                        ? `Baseline: ${baseline.responsible}`
+                                        : 'Changed from baseline',
+                                      event
+                                    )
+                                  }
+                                  onMouseMove={updateChangeDotTooltip}
+                                  onMouseLeave={hideChangeDotTooltip}
                                 />
                               )}
                             </div>
@@ -2439,11 +2521,16 @@ export const InitiativePlanModule = ({
                                 <span
                                   className={styles.changeDot}
                                   aria-hidden="true"
-                                  title={
-                                    baseline?.requiredCapacity !== undefined && baseline?.requiredCapacity !== null
-                                      ? `Baseline: ${baseline.requiredCapacity}`
-                                      : undefined
+                                  onMouseEnter={(event) =>
+                                    showChangeDotTooltip(
+                                      baseline?.requiredCapacity !== undefined && baseline?.requiredCapacity !== null
+                                        ? `Baseline: ${baseline.requiredCapacity}`
+                                        : 'Changed from baseline',
+                                      event
+                                    )
                                   }
+                                  onMouseMove={updateChangeDotTooltip}
+                                  onMouseLeave={hideChangeDotTooltip}
                                 />
                               )}
                             </div>
@@ -2801,6 +2888,16 @@ export const InitiativePlanModule = ({
             style={{ left: `${descriptionTooltip.x}px`, top: `${descriptionTooltip.y}px` }}
           >
             {descriptionTooltip.text}
+          </div>,
+          document.body
+        )}
+      {changeTooltip &&
+        createPortal(
+          <div
+            className={styles.descriptionTooltip}
+            style={{ left: `${changeTooltip.x}px`, top: `${changeTooltip.y}px` }}
+          >
+            {changeTooltip.text}
           </div>,
           document.body
         )}
