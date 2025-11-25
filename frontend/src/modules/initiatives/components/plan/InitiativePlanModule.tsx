@@ -137,13 +137,15 @@ const isBaselineEmpty = (baseline: InitiativePlanBaseline | null | undefined) =>
   if (!baseline) {
     return true;
   }
+  const normalizedMilestone = baseline.milestoneType?.trim().toLowerCase() ?? '';
+  const hasMeaningfulMilestone = normalizedMilestone && normalizedMilestone !== 'standard';
   return (
     !(baseline.name && baseline.name.trim()) &&
     !(baseline.description && baseline.description.trim()) &&
     !baseline.startDate &&
     !baseline.endDate &&
     !(baseline.responsible && baseline.responsible.trim()) &&
-    !(baseline.milestoneType && baseline.milestoneType.trim()) &&
+    !hasMeaningfulMilestone &&
     (baseline.requiredCapacity === null || baseline.requiredCapacity === undefined)
   );
 };
@@ -1470,7 +1472,7 @@ export const InitiativePlanModule = ({
   const isFieldChanged = useCallback(
     (task: InitiativePlanTask, field: keyof InitiativePlanBaseline) => {
       const baseline = resolveBaselineForTask(task);
-      if (!baseline) {
+      if (!baseline || isBaselineEmpty(baseline)) {
         return false;
       }
       switch (field) {
@@ -1549,7 +1551,7 @@ export const InitiativePlanModule = ({
         milestoneType: baseline.milestoneType,
         requiredCapacity: baseline.requiredCapacity ?? null
       };
-      const shouldUpdate =
+      const shouldUpdateBaseline =
         !task.baseline ||
         task.baseline.name !== nextBaseline.name ||
         task.baseline.description !== nextBaseline.description ||
@@ -1558,11 +1560,16 @@ export const InitiativePlanModule = ({
         task.baseline.responsible !== nextBaseline.responsible ||
         task.baseline.milestoneType !== nextBaseline.milestoneType ||
         task.baseline.requiredCapacity !== nextBaseline.requiredCapacity;
-      if (!shouldUpdate) {
+      const shouldUpdateSource = task.sourceTaskId !== baseline.id;
+      if (!shouldUpdateBaseline && !shouldUpdateSource) {
         return task;
       }
       changed = true;
-      return { ...task, baseline: nextBaseline };
+      return {
+        ...task,
+        baseline: shouldUpdateBaseline ? nextBaseline : task.baseline ?? nextBaseline,
+        sourceTaskId: baseline.id
+      };
     });
     const existingSource = new Set(updated.map((task) => task.sourceTaskId ?? task.id));
     const additions = baselinePlanNormalized.tasks

@@ -121,7 +121,7 @@ export const createEmptyPlanActualTask = (): InitiativePlanActualTask => ({
     startDate: null,
     endDate: null,
     responsible: '',
-    milestoneType: 'Standard',
+    milestoneType: null,
     requiredCapacity: null
   },
   sourceTaskId: null,
@@ -199,11 +199,11 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
   }
   return {
     id,
-    name: typeof payload.name === 'string' ? payload.name.trim() : '',
+    name: typeof payload.name === 'string' ? payload.name : '',
     startDate,
     endDate,
-    description: typeof payload.description === 'string' ? payload.description.trim() : '',
-    responsible: typeof payload.responsible === 'string' ? payload.responsible.trim() : '',
+    description: typeof payload.description === 'string' ? payload.description : '',
+    responsible: typeof payload.responsible === 'string' ? payload.responsible : '',
     progress: clamp(Math.round(normalizeNumber(payload.progress) ?? 0), 0, 100),
     requiredCapacity,
     capacityMode,
