@@ -625,6 +625,11 @@ export const InitiativeProfile = ({
       setBanner({ type: 'error', text: 'Create a workstream before saving an initiative.' });
       return;
     }
+    try {
+      window.dispatchEvent(new CustomEvent('initiative-save-draft', { detail: { initiativeId: draft.id } }));
+    } catch (error) {
+      console.error('Failed to trigger status report draft save', error);
+    }
     setIsSaving(true);
     setBanner(null);
     const result = await onSave(draft, { closeAfterSave });

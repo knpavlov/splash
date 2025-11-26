@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../../styles/InitiativeStatusReportModule.module.css';
 import { initiativesApi, InitiativeStatusReportEntryInput, InitiativeStatusReportPayload } from '../../services/initiativesApi';
 import {
@@ -14,13 +14,26 @@ import { usePlanSettingsState } from '../../../../app/state/AppStateContext';
 interface InitiativeStatusReportModuleProps {
   plan: InitiativePlanModel;
   initiativeId: string;
+  initiativeName: string;
+  initiativeOwner: string;
+  recurringImpact: number;
   readOnly?: boolean;
 }
 
 const STATUS_UPDATE_LIMIT = 2000;
 const SUMMARY_LIMIT = 4000;
 
-type ColumnId = 'name' | 'description' | 'responsible' | 'start' | 'end' | 'status';
+type ColumnId =
+  | 'name'
+  | 'description'
+  | 'responsible'
+  | 'start'
+  | 'end'
+  | 'initiative'
+  | 'owner'
+  | 'impact'
+  | 'status'
+  | 'actions';
 
 const columnConfig: Record<ColumnId, { label: string }> = {
   name: { label: 'Task' },
@@ -28,7 +41,11 @@ const columnConfig: Record<ColumnId, { label: string }> = {
   responsible: { label: 'Responsible' },
   start: { label: 'Start' },
   end: { label: 'End' },
-  status: { label: 'Status update' }
+  initiative: { label: 'Initiative' },
+  owner: { label: 'Owner' },
+  impact: { label: 'Recurring impact' },
+  status: { label: 'Status update' },
+  actions: { label: 'Actions' }
 };
 
 const formatDateLabel = (value: string | null) => {
@@ -54,6 +71,9 @@ const formatDateTimeLabel = (value: string) => {
     minute: '2-digit'
   });
 };
+
+const formatImpact = (value: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 
 const buildEntryFromTask = (
   task: InitiativePlanModel['tasks'][number],
@@ -90,9 +110,45 @@ const buildDueState = (entry: InitiativeStatusReportEntry, windowDays: number) =
   return { label: `Due in ${diff}d`, tone: 'muted' as const };
 };
 
+const buildDraftStorageKey = (initiativeId: string) => `status-report-draft:${initiativeId}`;
+
+const mergeEntriesWithTasks = (
+  entries: InitiativeStatusReportEntry[],
+  tasks: InitiativePlanModel['tasks']
+): InitiativeStatusReportEntry[] => {
+  const map = new Map(entries.map((entry) => [entry.taskId, entry]));
+  const next: InitiativeStatusReportEntry[] = [];
+  tasks.forEach((task) => {
+    const existing = map.get(task.id);
+    if (existing) {
+      next.push({
+        ...buildEntryFromTask(task, existing.source),
+        ...existing,
+        name: task.name || existing.name,
+        description: task.description,
+        responsible: task.responsible,
+        startDate: task.startDate,
+        endDate: task.endDate ?? task.baseline?.endDate ?? null
+      });
+      map.delete(task.id);
+    } else {
+      next.push(buildEntryFromTask(task, 'auto'));
+    }
+  });
+  entries.forEach((entry) => {
+    if (entry.source === 'manual' && !next.find((item) => item.taskId === entry.taskId)) {
+      next.push(entry);
+    }
+  });
+  return next;
+};
+
 export const InitiativeStatusReportModule = ({
   plan,
   initiativeId,
+  initiativeName,
+  initiativeOwner,
+  recurringImpact,
   readOnly = false
 }: InitiativeStatusReportModuleProps) => {
   const { session } = useAuth();
@@ -110,6 +166,8 @@ export const InitiativeStatusReportModule = ({
     column: 'end',
     direction: 'asc'
   });
+  const draftStorageKey = useMemo(() => buildDraftStorageKey(initiativeId), [initiativeId]);
+  const draftLoadedRef = useRef(false);
 
   const allTasks = useMemo(
     () => plan.tasks.filter((task) => !task.archived),
@@ -216,6 +274,29 @@ export const InitiativeStatusReportModule = ({
   }, [entriesToRender, upcomingWindow]);
 
   useEffect(() => {
+    if (selectedReportId !== 'draft' || draftLoadedRef.current) {
+      return;
+    }
+    const raw = localStorage.getItem(draftStorageKey);
+    if (!raw) {
+      draftLoadedRef.current = true;
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { summary?: string; entries?: InitiativeStatusReportEntry[] };
+      if (typeof parsed.summary === 'string') {
+        setSummary(parsed.summary);
+      }
+      const savedEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
+      setDraftEntries(mergeEntriesWithTasks(savedEntries, upcomingTasks));
+    } catch {
+      // ignore malformed payloads
+    } finally {
+      draftLoadedRef.current = true;
+    }
+  }, [draftStorageKey, upcomingTasks, selectedReportId]);
+
+  useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
     setError(null);
@@ -255,20 +336,7 @@ export const InitiativeStatusReportModule = ({
     if (selectedReportId !== 'draft') {
       return;
     }
-    setDraftEntries((current) => {
-      const currentMap = new Map(current.map((entry) => [entry.taskId, entry]));
-      const next: InitiativeStatusReportEntry[] = [];
-      upcomingTasks.forEach((task) => {
-        const existing = currentMap.get(task.id);
-        next.push(existing ?? buildEntryFromTask(task, 'auto'));
-      });
-      current.forEach((entry) => {
-        if (entry.source === 'manual' && !next.find((item) => item.taskId === entry.taskId)) {
-          next.push(entry);
-        }
-      });
-      return next;
-    });
+    setDraftEntries((current) => mergeEntriesWithTasks(current, upcomingTasks));
   }, [upcomingTasks, selectedReportId]);
 
   useEffect(() => {
@@ -300,13 +368,34 @@ export const InitiativeStatusReportModule = ({
     );
   };
 
+  const hydrateDraftFromStorage = useCallback(() => {
+    const raw = localStorage.getItem(draftStorageKey);
+    if (!raw) {
+      return false;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { summary?: string; entries?: InitiativeStatusReportEntry[] };
+      if (typeof parsed.summary === 'string') {
+        setSummary(parsed.summary);
+      }
+      const savedEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
+      setDraftEntries(mergeEntriesWithTasks(savedEntries, upcomingTasks));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [draftStorageKey, upcomingTasks]);
+
   const handleReportSelect = (value: string) => {
     setSelectedReportId(value);
     setMessage(null);
     setError(null);
     if (value === 'draft' && selectedReportId !== 'draft') {
-      setDraftEntries(upcomingTasks.map((task) => buildEntryFromTask(task, 'auto')));
-      setSummary('');
+      const restored = hydrateDraftFromStorage();
+      if (!restored) {
+        setDraftEntries(mergeEntriesWithTasks([], upcomingTasks));
+        setSummary('');
+      }
     } else if (value !== 'draft' && selectedReport) {
       setSummary(selectedReport.summary || '');
     }
@@ -322,6 +411,40 @@ export const InitiativeStatusReportModule = ({
     setDraftEntries((current) => [...current, buildEntryFromTask(selected, 'manual')]);
     setPendingTaskId('');
     setMessage(null);
+  };
+
+  const handleRemoveManual = (taskId: string) => {
+    setDraftEntries((current) => current.filter((entry) => !(entry.taskId === taskId && entry.source === 'manual')));
+    setMessage('Manual task removed.');
+  };
+
+  const persistDraft = useCallback(
+    (silent = false) => {
+      if (isViewingSubmitted || readOnly) {
+        return;
+      }
+      const payload = {
+        summary,
+        entries: draftEntries,
+        savedAt: new Date().toISOString()
+      };
+      try {
+        localStorage.setItem(draftStorageKey, JSON.stringify(payload));
+        if (!silent) {
+          setError(null);
+          setMessage('Draft saved.');
+        }
+      } catch {
+        if (!silent) {
+          setError('Failed to save draft locally.');
+        }
+      }
+    },
+    [draftEntries, draftStorageKey, isViewingSubmitted, readOnly, summary]
+  );
+
+  const handleSaveDraft = () => {
+    persistDraft();
   };
 
   const handleSubmit = async () => {
@@ -352,6 +475,7 @@ export const InitiativeStatusReportModule = ({
       setSelectedReportId(report.id);
       setSummary(report.summary || '');
       setMessage('Report submitted and locked.');
+      localStorage.removeItem(draftStorageKey);
       setDraftEntries(upcomingTasks.map((task) => buildEntryFromTask(task, 'auto')));
     } catch {
       setError('Failed to submit report. Please try again.');
@@ -361,6 +485,9 @@ export const InitiativeStatusReportModule = ({
   };
 
   const handleSort = (column: ColumnId) => {
+    if (column === 'actions') {
+      return;
+    }
     setSort((prev) => {
       if (prev.column === column) {
         return { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
@@ -369,12 +496,48 @@ export const InitiativeStatusReportModule = ({
     });
   };
 
+  useEffect(() => {
+    const handlePageSave = (event: Event) => {
+      const detail = (event as CustomEvent<{ initiativeId: string }>).detail;
+      if (!detail || detail.initiativeId !== initiativeId) {
+        return;
+      }
+      persistDraft(true);
+    };
+    window.addEventListener('initiative-save-draft', handlePageSave as EventListener);
+    return () => window.removeEventListener('initiative-save-draft', handlePageSave as EventListener);
+  }, [initiativeId, persistDraft]);
+
   const renderEmptyState = () => (
     <div className={styles.placeholder}>
       <strong>No upcoming or overdue tasks found.</strong>
       {!readOnly && <p>Use "Add more" to pull tasks from the plan if you want to include them.</p>}
     </div>
   );
+
+  const tableTemplate = (['name', 'description', 'responsible', 'start', 'end', 'initiative', 'owner', 'impact', 'status', 'actions'] as ColumnId[])
+    .map((id) =>
+      ({
+        name: 220,
+        description: 240,
+        responsible: 150,
+        start: 120,
+        end: 120,
+        initiative: 200,
+        owner: 180,
+        impact: 150,
+        status: 320,
+        actions: 90
+      }[id])
+    )
+    .map((width) => `${width}px`)
+    .join(' ');
+
+  const initiativeNameLabel = initiativeName || 'Untitled initiative';
+  const initiativeOwnerLabel = initiativeOwner || 'Unassigned';
+  const recurringImpactLabel = formatImpact(Number.isFinite(recurringImpact) ? recurringImpact : 0);
+  const canEditDraft = !isViewingSubmitted && !readOnly;
+  const sortableColumns = new Set<ColumnId>(['name', 'description', 'responsible', 'start', 'end', 'status']);
 
   return (
     <section className={styles.reportSection} aria-label="Status report">
@@ -507,112 +670,156 @@ export const InitiativeStatusReportModule = ({
         </div>
       </div>
 
-      <div className={styles.entryList} role="list">
-        {!sortedEntries.length ? (
-          renderEmptyState()
-        ) : (
-          sortedEntries.map((entry) => {
-            const dueState = buildDueState(entry, upcomingWindow);
-            return (
-              <article
-                key={entry.id}
-                className={`${styles.entryCard} ${styles[`tone-${dueState.tone}`]}`}
-                role="listitem"
-              >
-                <div className={styles.entryMeta}>
-                  <div className={styles.entryTitleRow}>
-                    <div>
-                      <p className={styles.taskTitle}>{entry.name || 'Untitled task'}</p>
-                      <div className={styles.badges}>
-                        <span
-                          className={`${styles.badge} ${
-                            dueState.tone === 'negative'
-                              ? styles.badgeDanger
-                              : dueState.tone === 'warning'
-                              ? styles.badgeWarning
-                              : styles.badgeMuted
-                          }`}
-                        >
-                          {dueState.label}
-                        </span>
-                        {entry.source === 'manual' && (
-                          <span className={`${styles.badge} ${styles.badgeMuted}`}>Manual add</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className={styles.metaPills}>
-                      <span className={styles.metaPill}>Start | {formatDateLabel(entry.startDate)}</span>
-                      <span className={styles.metaPill}>End | {formatDateLabel(entry.endDate)}</span>
-                      <span className={styles.metaPill}>Owner | {entry.responsible || 'Unassigned'}</span>
+      <div className={styles.tableShell}>
+        <div className={styles.tableHeader} role="row" style={{ gridTemplateColumns: tableTemplate }}>
+          {(Object.keys(columnConfig) as ColumnId[]).map((column) => (
+            <div
+              key={column}
+              className={`${styles.headerCell} ${column === 'actions' ? styles.headerCellTight : ''}`}
+              role="columnheader"
+              onClick={sortableColumns.has(column) ? () => handleSort(column) : undefined}
+            >
+              <span className={styles.headerLabel}>
+                {columnConfig[column].label}
+                {sortableColumns.has(column) && sort.column === column && <i className={styles.sortIndicator}>{sort.direction === 'asc' ? '^' : 'v'}</i>}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className={styles.tableBody} aria-label="Status report entries">
+          {!sortedEntries.length ? (
+            renderEmptyState()
+          ) : (
+            sortedEntries.map((entry, index) => {
+              const dueState = buildDueState(entry, upcomingWindow);
+              return (
+                <div
+                  key={entry.id}
+                  className={`${styles.tableRow} ${styles[`tone-${dueState.tone}`]} ${index % 2 === 0 ? styles.rowEven : ''}`}
+                  role="row"
+                  style={{ gridTemplateColumns: tableTemplate }}
+                >
+                  <div className={styles.cell}>
+                    <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
+                    <div className={styles.badges}>
+                      <span
+                        className={`${styles.badge} ${
+                          dueState.tone === 'negative'
+                            ? styles.badgeDanger
+                            : dueState.tone === 'warning'
+                            ? styles.badgeWarning
+                            : styles.badgeMuted
+                        }`}
+                      >
+                        {dueState.label}
+                      </span>
+                      {entry.source === 'manual' && (
+                        <span className={`${styles.badge} ${styles.badgeMuted}`}>Manual add</span>
+                      )}
                     </div>
                   </div>
-                  <p className={styles.description}>{entry.description || 'No description provided.'}</p>
-                </div>
-                <div className={styles.updateBlock}>
-                  <div className={styles.updateHeader}>
-                    <span className={styles.controlLabel}>Status update</span>
-                    {!isViewingSubmitted && !readOnly && (
-                      <span className={styles.charCountSmall}>
-                        {(entry.statusUpdate || '').length}/{STATUS_UPDATE_LIMIT}
-                      </span>
+                  <div className={styles.cell}>
+                    <p className={styles.description}>{entry.description || 'No description provided.'}</p>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.responsible}>{entry.responsible || 'Unassigned'}</span>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.datePill}>{formatDateLabel(entry.startDate)}</span>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.datePill}>{formatDateLabel(entry.endDate)}</span>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.metaPill}>{initiativeNameLabel}</span>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.metaPill}>{initiativeOwnerLabel}</span>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.metaPill}>{recurringImpactLabel}</span>
+                  </div>
+                  <div className={styles.statusCell}>
+                    <div className={styles.updateHeader}>
+                      <span className={styles.controlLabel}>Status update</span>
+                      {canEditDraft && (
+                        <span className={styles.charCountSmall}>
+                          {(entry.statusUpdate || '').length}/{STATUS_UPDATE_LIMIT}
+                        </span>
+                      )}
+                    </div>
+                    {isViewingSubmitted || readOnly ? (
+                      <p className={styles.readonlyUpdate}>{entry.statusUpdate || 'No update provided.'}</p>
+                    ) : (
+                      <textarea
+                        value={entry.statusUpdate}
+                        maxLength={STATUS_UPDATE_LIMIT}
+                        onChange={(event) => handleStatusChange(entry.taskId, event.target.value)}
+                        placeholder="Share a quick headline or blocker"
+                        disabled={isSubmitting}
+                        className={styles.updateInput}
+                      />
                     )}
                   </div>
-                  {isViewingSubmitted || readOnly ? (
-                    <p className={styles.readonlyUpdate}>{entry.statusUpdate || 'No update provided.'}</p>
-                  ) : (
-                    <textarea
-                      value={entry.statusUpdate}
-                      maxLength={STATUS_UPDATE_LIMIT}
-                      onChange={(event) => handleStatusChange(entry.taskId, event.target.value)}
-                      placeholder="Share a quick headline or blocker"
-                      disabled={isSubmitting}
-                      className={styles.updateInput}
-                    />
-                  )}
+                  <div className={`${styles.cell} ${styles.actionsCell}`}>
+                    {canEditDraft && entry.source === 'manual' ? (
+                      <button
+                        type="button"
+                        className={styles.deleteButton}
+                        onClick={() => handleRemoveManual(entry.taskId)}
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <span className={styles.dimPlaceholder}>-</span>
+                    )}
+                  </div>
                 </div>
-              </article>
-            );
-          })
-        )}
+              );
+            })
+          )}
+        </div>
       </div>
 
-      {!isViewingSubmitted && !readOnly && (
-        <div className={styles.actions}>
-          <div className={styles.addRow}>
-            <div className={styles.addControls}>
-              <label className={styles.selectLabel}>
-                <span>Task from plan</span>
-                <select
-                  value={pendingTaskId}
-                  onChange={(event) => setPendingTaskId(event.target.value)}
-                  className={styles.select}
-                  disabled={!availableTasks.length}
-                >
-                  {!availableTasks.length && <option value="">No remaining tasks</option>}
-                  {availableTasks.map((task) => (
-                    <option key={task.id} value={task.id}>
-                      {task.name || 'Untitled task'}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                onClick={handleAddTask}
+      {canEditDraft && (
+        <div className={styles.footerBar}>
+          <div className={styles.addControls}>
+            <label className={styles.selectLabel}>
+              <span>Task from plan</span>
+              <select
+                value={pendingTaskId}
+                onChange={(event) => setPendingTaskId(event.target.value)}
+                className={styles.select}
                 disabled={!availableTasks.length}
-                className={styles.secondaryButton}
               >
-                Add more
-              </button>
-            </div>
-            <p className={styles.hint}>Add a task that was not auto-selected.</p>
+                {!availableTasks.length && <option value="">No remaining tasks</option>}
+                {availableTasks.map((task) => (
+                  <option key={task.id} value={task.id}>
+                    {task.name || 'Untitled task'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={handleAddTask}
+              disabled={!availableTasks.length}
+              className={styles.secondaryButton}
+            >
+              Add more
+            </button>
+            <p className={styles.hint}>Bring in tasks that were not auto-selected.</p>
           </div>
 
-          <div className={styles.submitRow}>
-            <div className={styles.submitCopy}>
-              <strong>Submit report</strong>
-              <p>Creates a frozen snapshot. You will not be able to edit it afterwards.</p>
-            </div>
+          <div className={styles.footerActions}>
+            <button
+              type="button"
+              className={styles.tertiaryButton}
+              onClick={handleSaveDraft}
+              disabled={!draftEntries.length || isSubmitting}
+            >
+              Save draft
+            </button>
             <button
               type="button"
               className={styles.primaryButton}
