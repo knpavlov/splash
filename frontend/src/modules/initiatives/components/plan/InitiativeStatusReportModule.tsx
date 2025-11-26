@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from '../../../../styles/InitiativeStatusReportModule.module.css';
 import { initiativesApi, InitiativeStatusReportEntryInput, InitiativeStatusReportPayload } from '../../services/initiativesApi';
 import {
@@ -22,16 +22,13 @@ const SUMMARY_LIMIT = 4000;
 
 type ColumnId = 'name' | 'description' | 'responsible' | 'start' | 'end' | 'status';
 
-const columnConfig: Record<
-  ColumnId,
-  { id: ColumnId; label: string; minWidth: number; maxWidth: number; defaultWidth: number }
-> = {
-  name: { id: 'name', label: 'Task', minWidth: 160, maxWidth: 420, defaultWidth: 220 },
-  description: { id: 'description', label: 'Description', minWidth: 160, maxWidth: 520, defaultWidth: 220 },
-  responsible: { id: 'responsible', label: 'Responsible', minWidth: 140, maxWidth: 320, defaultWidth: 180 },
-  start: { id: 'start', label: 'Start', minWidth: 110, maxWidth: 200, defaultWidth: 130 },
-  end: { id: 'end', label: 'End', minWidth: 110, maxWidth: 200, defaultWidth: 130 },
-  status: { id: 'status', label: 'Status update', minWidth: 200, maxWidth: 520, defaultWidth: 260 }
+const columnConfig: Record<ColumnId, { label: string }> = {
+  name: { label: 'Task' },
+  description: { label: 'Description' },
+  responsible: { label: 'Responsible' },
+  start: { label: 'Start' },
+  end: { label: 'End' },
+  status: { label: 'Status update' }
 };
 
 const formatDateLabel = (value: string | null) => {
@@ -113,13 +110,6 @@ export const InitiativeStatusReportModule = ({
     column: 'end',
     direction: 'asc'
   });
-  const [columnWidths, setColumnWidths] = useState<Record<ColumnId, number>>(() =>
-    Object.values(columnConfig).reduce((acc, col) => {
-      acc[col.id] = col.defaultWidth;
-      return acc;
-    }, {} as Record<ColumnId, number>)
-  );
-  const resizeStateRef = useRef<{ column: ColumnId; startX: number; startWidth: number } | null>(null);
 
   const allTasks = useMemo(
     () => plan.tasks.filter((task) => !task.archived),
@@ -154,7 +144,7 @@ export const InitiativeStatusReportModule = ({
         }
         return aDate.getTime() - bDate.getTime();
       });
-  }, [allTasks]);
+  }, [allTasks, upcomingWindow]);
 
   const availableTasks = useMemo(() => {
     if (selectedReportId !== 'draft') {
@@ -208,6 +198,22 @@ export const InitiativeStatusReportModule = ({
     });
     return copy;
   }, [entriesToRender, sort]);
+
+  const dueBreakdown = useMemo(() => {
+    const totals = { total: 0, overdue: 0, warning: 0, onTrack: 0 };
+    entriesToRender.forEach((entry) => {
+      const state = buildDueState(entry, upcomingWindow);
+      totals.total += 1;
+      if (state.tone === 'negative') {
+        totals.overdue += 1;
+      } else if (state.tone === 'warning') {
+        totals.warning += 1;
+      } else {
+        totals.onTrack += 1;
+      }
+    });
+    return totals;
+  }, [entriesToRender, upcomingWindow]);
 
   useEffect(() => {
     let cancelled = false;
@@ -363,61 +369,47 @@ export const InitiativeStatusReportModule = ({
     });
   };
 
-  const startResize = (column: ColumnId, startX: number) => {
-    resizeStateRef.current = { column, startX, startWidth: columnWidths[column] ?? columnConfig[column].defaultWidth };
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', stopResize);
-  };
-
-  const handlePointerMove = (event: PointerEvent) => {
-    const state = resizeStateRef.current;
-    if (!state) {
-      return;
-    }
-    event.preventDefault();
-    const delta = event.clientX - state.startX;
-    const config = columnConfig[state.column];
-    const nextWidth = Math.min(config.maxWidth, Math.max(config.minWidth, state.startWidth + delta));
-    setColumnWidths((prev) => ({ ...prev, [state.column]: nextWidth }));
-  };
-
-  const stopResize = () => {
-    resizeStateRef.current = null;
-    window.removeEventListener('pointermove', handlePointerMove);
-    window.removeEventListener('pointerup', stopResize);
-  };
-
-  useEffect(
-    () => () => {
-      stopResize();
-    },
-    []
-  );
-
-  const tableTemplate = useMemo(
-    () =>
-      (['name', 'description', 'responsible', 'start', 'end', 'status'] as ColumnId[])
-        .map((id) => `${columnWidths[id] ?? columnConfig[id].defaultWidth}px`)
-        .join(' '),
-    [columnWidths]
-  );
-
   const renderEmptyState = () => (
     <div className={styles.placeholder}>
       <strong>No upcoming or overdue tasks found.</strong>
-      {!readOnly && <p>Use “Add more” to pull tasks from the plan if you want to include them.</p>}
+      {!readOnly && <p>Use "Add more" to pull tasks from the plan if you want to include them.</p>}
     </div>
   );
 
   return (
     <section className={styles.reportSection} aria-label="Status report">
       <header className={styles.reportHeader}>
-        <div>
-          <span className={styles.eyebrow}>Milestone plan - actuals</span>
-          <h4 className={styles.title}>Status report</h4>
+        <div className={styles.heading}>
+          <p className={styles.eyebrow}>Milestone plan - actuals</p>
+          <div className={styles.titleRow}>
+            <h4 className={styles.title}>Status report</h4>
+            {isViewingSubmitted && <span className={styles.lockBadge}>Submitted snapshot</span>}
+          </div>
           <p className={styles.subtitle}>
             Upcoming and overdue tasks from the plan. Add a quick update and submit a snapshot.
           </p>
+          <div className={styles.metricRow}>
+            <div className={`${styles.metricCard} ${styles.metricPrimary}`}>
+              <span className={styles.metricLabel}>Open items</span>
+              <strong className={styles.metricValue}>{dueBreakdown.total}</strong>
+              <p className={styles.metricSub}>In this view</p>
+            </div>
+            <div className={styles.metricCard}>
+              <span className={styles.metricLabel}>Overdue</span>
+              <strong className={styles.metricValue}>{dueBreakdown.overdue}</strong>
+              <p className={styles.metricSub}>Needs attention</p>
+            </div>
+            <div className={styles.metricCard}>
+              <span className={styles.metricLabel}>Due soon</span>
+              <strong className={styles.metricValue}>{dueBreakdown.warning}</strong>
+              <p className={styles.metricSub}>Within {upcomingWindow} days</p>
+            </div>
+            <div className={styles.metricCard}>
+              <span className={styles.metricLabel}>On track</span>
+              <strong className={styles.metricValue}>{dueBreakdown.onTrack}</strong>
+              <p className={styles.metricSub}>No near-term risk</p>
+            </div>
+          </div>
         </div>
         <div className={styles.headerActions}>
           <label className={styles.selectLabel}>
@@ -430,14 +422,14 @@ export const InitiativeStatusReportModule = ({
               <option value="draft">Current draft</option>
               {sortedReports.map((report) => (
                 <option key={report.id} value={report.id}>
-                  {formatDateTimeLabel(report.createdAt)} · {report.entries.length} tasks
-                  {report.createdByName ? ` · ${report.createdByName}` : ''}
+                  {formatDateTimeLabel(report.createdAt)} - {report.entries.length} tasks
+                  {report.createdByName ? ` - ${report.createdByName}` : ''}
                 </option>
               ))}
             </select>
           </label>
-          {isViewingSubmitted && (
-            <span className={styles.lockBadge}>Submitted snapshot</span>
+          {!isViewingSubmitted && !readOnly && (
+            <span className={styles.draftBadge}>Live draft</span>
           )}
         </div>
       </header>
@@ -457,115 +449,131 @@ export const InitiativeStatusReportModule = ({
       )}
 
       <div className={styles.overallRow}>
-        <label className={styles.fieldLabel}>
-          <span>Overall status update</span>
-          {isViewingSubmitted || readOnly ? (
-            <p className={styles.readonlyUpdate}>{summary || 'No overall update provided.'}</p>
-          ) : (
-            <textarea
-              value={summary}
-              maxLength={SUMMARY_LIMIT}
-              onChange={(event) => setSummary(event.target.value)}
-              placeholder="Summarize overall progress, risks, or asks"
-              disabled={isSubmitting}
-            />
+        <div className={styles.overallHeader}>
+          <div>
+            <span className={styles.fieldEyebrow}>Overall update</span>
+            <p className={styles.fieldHint}>Summarize momentum, risks, or asks in a few lines.</p>
+          </div>
+          {!isViewingSubmitted && !readOnly && (
+            <span className={styles.charCount}>
+              {summary.length}/{SUMMARY_LIMIT}
+            </span>
           )}
-        </label>
+        </div>
+        {isViewingSubmitted || readOnly ? (
+          <p className={styles.readonlyUpdate}>{summary || 'No overall update provided.'}</p>
+        ) : (
+          <textarea
+            value={summary}
+            maxLength={SUMMARY_LIMIT}
+            onChange={(event) => setSummary(event.target.value)}
+            placeholder="Add color on progress, risks, cross-team asks"
+            disabled={isSubmitting}
+            className={styles.summaryInput}
+          />
+        )}
       </div>
 
-      <div className={styles.tableShell}>
-        <div className={styles.tableHeader} role="row" style={{ gridTemplateColumns: tableTemplate }}>
-          {(Object.keys(columnConfig) as ColumnId[]).map((column) => (
-            <div
+      <div className={styles.listHeader}>
+        <div className={styles.sortGroup}>
+          <span className={styles.controlLabel}>Sort</span>
+          {(['end', 'name', 'responsible', 'status'] as ColumnId[]).map((column) => (
+            <button
               key={column}
-              className={styles.headerCell}
-              role="columnheader"
+              type="button"
+              className={`${styles.sortChip} ${sort.column === column ? styles.sortChipActive : ''}`}
               onClick={() => handleSort(column)}
             >
-              <span className={styles.headerLabel}>
-                {columnConfig[column].label}
-                {sort.column === column && <i className={styles.sortIndicator}>{sort.direction === 'asc' ? '▲' : '▼'}</i>}
+              {columnConfig[column].label}
+              <span className={styles.sortDirection}>
+                {sort.column === column ? (sort.direction === 'asc' ? '^' : 'v') : ''}
               </span>
-              <span
-                className={styles.columnResizer}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  startResize(column, event.clientX);
-                }}
-                role="separator"
-                aria-label={`Resize ${columnConfig[column].label} column`}
-              />
-            </div>
+            </button>
           ))}
         </div>
-        <div className={styles.tableBody} role="table" aria-label="Status report entries">
-          {!sortedEntries.length ? (
-            renderEmptyState()
-          ) : (
-            sortedEntries.map((entry, index) => {
-              const dueState = buildDueState(entry, upcomingWindow);
-              const rowClass =
-                dueState.tone === 'negative'
-                  ? styles.rowNegative
-                  : dueState.tone === 'warning'
-                  ? styles.rowWarning
-                  : '';
-              return (
-                <div
-                  key={entry.id}
-                  className={`${styles.tableRow} ${rowClass} ${index % 2 === 0 ? styles.rowEven : ''}`}
-                  role="row"
-                  style={{ gridTemplateColumns: tableTemplate }}
-                >
-                  <div className={styles.cell}>
-                    <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
-                    <div className={styles.badges}>
-                      <span
-                        className={`${styles.badge} ${
-                          dueState.tone === 'negative'
-                            ? styles.badgeDanger
-                            : dueState.tone === 'warning'
-                            ? styles.badgeWarning
-                            : styles.badgeMuted
-                        }`}
-                      >
-                        {dueState.label}
-                      </span>
-                      {entry.source === 'manual' && (
-                        <span className={`${styles.badge} ${styles.badgeMuted}`}>Manual add</span>
-                      )}
+        <div className={styles.legend}>
+          <span className={styles.legendItem}>
+            <span className={`${styles.legendDot} ${styles.legendDotDanger}`} />
+            Overdue
+          </span>
+          <span className={styles.legendItem}>
+            <span className={`${styles.legendDot} ${styles.legendDotWarning}`} />
+            Due soon
+          </span>
+          <span className={styles.legendItem}>
+            <span className={`${styles.legendDot} ${styles.legendDotMuted}`} />
+            Scheduled
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.entryList} role="list">
+        {!sortedEntries.length ? (
+          renderEmptyState()
+        ) : (
+          sortedEntries.map((entry) => {
+            const dueState = buildDueState(entry, upcomingWindow);
+            return (
+              <article
+                key={entry.id}
+                className={`${styles.entryCard} ${styles[`tone-${dueState.tone}`]}`}
+                role="listitem"
+              >
+                <div className={styles.entryMeta}>
+                  <div className={styles.entryTitleRow}>
+                    <div>
+                      <p className={styles.taskTitle}>{entry.name || 'Untitled task'}</p>
+                      <div className={styles.badges}>
+                        <span
+                          className={`${styles.badge} ${
+                            dueState.tone === 'negative'
+                              ? styles.badgeDanger
+                              : dueState.tone === 'warning'
+                              ? styles.badgeWarning
+                              : styles.badgeMuted
+                          }`}
+                        >
+                          {dueState.label}
+                        </span>
+                        {entry.source === 'manual' && (
+                          <span className={`${styles.badge} ${styles.badgeMuted}`}>Manual add</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className={styles.metaPills}>
+                      <span className={styles.metaPill}>Start | {formatDateLabel(entry.startDate)}</span>
+                      <span className={styles.metaPill}>End | {formatDateLabel(entry.endDate)}</span>
+                      <span className={styles.metaPill}>Owner | {entry.responsible || 'Unassigned'}</span>
                     </div>
                   </div>
-                  <div className={styles.cell}>
-                    <p className={styles.description}>{entry.description || 'No description'}</p>
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.responsible}>{entry.responsible || 'Unassigned'}</span>
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.datePill}>{formatDateLabel(entry.startDate)}</span>
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.datePill}>{formatDateLabel(entry.endDate)}</span>
-                  </div>
-                  <div className={styles.statusCell}>
-                    {isViewingSubmitted || readOnly ? (
-                      <p className={styles.readonlyUpdate}>{entry.statusUpdate || 'No update provided.'}</p>
-                    ) : (
-                      <textarea
-                        value={entry.statusUpdate}
-                        maxLength={STATUS_UPDATE_LIMIT}
-                        onChange={(event) => handleStatusChange(entry.taskId, event.target.value)}
-                        placeholder="Share a short update or blocker"
-                        disabled={isSubmitting}
-                      />
+                  <p className={styles.description}>{entry.description || 'No description provided.'}</p>
+                </div>
+                <div className={styles.updateBlock}>
+                  <div className={styles.updateHeader}>
+                    <span className={styles.controlLabel}>Status update</span>
+                    {!isViewingSubmitted && !readOnly && (
+                      <span className={styles.charCountSmall}>
+                        {(entry.statusUpdate || '').length}/{STATUS_UPDATE_LIMIT}
+                      </span>
                     )}
                   </div>
+                  {isViewingSubmitted || readOnly ? (
+                    <p className={styles.readonlyUpdate}>{entry.statusUpdate || 'No update provided.'}</p>
+                  ) : (
+                    <textarea
+                      value={entry.statusUpdate}
+                      maxLength={STATUS_UPDATE_LIMIT}
+                      onChange={(event) => handleStatusChange(entry.taskId, event.target.value)}
+                      placeholder="Share a quick headline or blocker"
+                      disabled={isSubmitting}
+                      className={styles.updateInput}
+                    />
+                  )}
                 </div>
-              );
-            })
-          )}
-        </div>
+              </article>
+            );
+          })
+        )}
       </div>
 
       {!isViewingSubmitted && !readOnly && (
