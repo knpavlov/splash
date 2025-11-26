@@ -618,6 +618,15 @@ export interface InitiativeStatusReportPayload {
   summary?: string;
 }
 
+const buildStatusReportPayload = (payload: InitiativeStatusReportPayload) =>
+  (payload.entries ?? [])
+    .map((entry) => ({
+      taskId: typeof entry.taskId === 'string' ? entry.taskId.trim() : '',
+      statusUpdate: typeof entry.statusUpdate === 'string' ? entry.statusUpdate : '',
+      source: entry.source === 'manual' ? 'manual' : 'auto'
+    }))
+    .filter((entry) => entry.taskId);
+
 const withActor = (payload: Record<string, unknown>, actor?: InitiativeActorMetadata) => {
   if (!actor) {
     return payload;
@@ -751,14 +760,22 @@ export const initiativesApi = {
     ),
   events: async (id: string) => ensureEventList(await apiRequest<unknown>(`/initiatives/${id}/events`)),
   listStatusReports: async (id: string) => ensureStatusReportList(await apiRequest<unknown>(`/initiatives/${id}/status-reports`)),
+  getStatusReportDraft: async (id: string) => ensureStatusReport(await apiRequest<unknown>(`/initiatives/${id}/status-reports/draft`)),
+  saveStatusReportDraft: async (id: string, payload: InitiativeStatusReportPayload, actor?: InitiativeActorMetadata) => {
+    const payloadEntries = buildStatusReportPayload(payload);
+    const report = ensureStatusReport(
+      await apiRequest<unknown>(`/initiatives/${id}/status-reports/draft`, {
+        method: 'POST',
+        body: withActor({ report: { entries: payloadEntries, summary: payload.summary ?? '' } }, actor)
+      })
+    );
+    if (!report) {
+      throw new Error('Invalid status report draft response.');
+    }
+    return report;
+  },
   submitStatusReport: async (id: string, payload: InitiativeStatusReportPayload, actor?: InitiativeActorMetadata) => {
-    const payloadEntries = (payload.entries ?? [])
-      .map((entry) => ({
-        taskId: typeof entry.taskId === 'string' ? entry.taskId.trim() : '',
-        statusUpdate: typeof entry.statusUpdate === 'string' ? entry.statusUpdate : '',
-        source: entry.source === 'manual' ? 'manual' : 'auto'
-      }))
-      .filter((entry) => entry.taskId);
+    const payloadEntries = buildStatusReportPayload(payload);
     const report = ensureStatusReport(
       await apiRequest<unknown>(`/initiatives/${id}/status-reports`, {
         method: 'POST',

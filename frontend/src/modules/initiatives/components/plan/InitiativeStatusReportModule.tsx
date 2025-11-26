@@ -162,6 +162,7 @@ export const InitiativeStatusReportModule = ({
   const [pendingTaskId, setPendingTaskId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
@@ -302,27 +303,41 @@ export const InitiativeStatusReportModule = ({
   }, [entriesToRender, upcomingWindow]);
 
   useEffect(() => {
-    if (selectedReportId !== 'draft' || draftLoadedRef.current) {
-      return;
-    }
-    const raw = localStorage.getItem(draftStorageKey);
-    if (!raw) {
-      draftLoadedRef.current = true;
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as { summary?: string; entries?: InitiativeStatusReportEntry[] };
-      if (typeof parsed.summary === 'string') {
-        setSummary(parsed.summary);
+    const loadDraft = async () => {
+      if (selectedReportId !== 'draft' || draftLoadedRef.current) {
+        return;
       }
-      const savedEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
-      setDraftEntries(mergeEntriesWithTasks(savedEntries, upcomingTasks));
-    } catch {
-      // ignore malformed payloads
-    } finally {
-      draftLoadedRef.current = true;
-    }
-  }, [draftStorageKey, upcomingTasks, selectedReportId]);
+      try {
+        const serverDraft = await initiativesApi.getStatusReportDraft(initiativeId);
+        if (serverDraft) {
+          setSummary(serverDraft.summary || '');
+          setDraftEntries(mergeEntriesWithTasks(serverDraft.entries ?? [], upcomingTasks));
+          draftLoadedRef.current = true;
+          return;
+        }
+      } catch {
+        // ignore server draft errors and fallback to local
+      }
+      const raw = localStorage.getItem(draftStorageKey);
+      if (!raw) {
+        draftLoadedRef.current = true;
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw) as { summary?: string; entries?: InitiativeStatusReportEntry[] };
+        if (typeof parsed.summary === 'string') {
+          setSummary(parsed.summary);
+        }
+        const savedEntries = Array.isArray(parsed.entries) ? parsed.entries : [];
+        setDraftEntries(mergeEntriesWithTasks(savedEntries, upcomingTasks));
+      } catch {
+        // ignore malformed payloads
+      } finally {
+        draftLoadedRef.current = true;
+      }
+    };
+    void loadDraft();
+  }, [draftStorageKey, initiativeId, upcomingTasks, selectedReportId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -452,7 +467,7 @@ export const InitiativeStatusReportModule = ({
   };
 
   const persistDraft = useCallback(
-    (silent = false) => {
+    async (silent = false) => {
       if (isViewingSubmitted || readOnly) {
         return;
       }
@@ -462,6 +477,14 @@ export const InitiativeStatusReportModule = ({
         savedAt: new Date().toISOString()
       };
       try {
+        setIsSavingDraft(true);
+        const actor = session
+          ? {
+              accountId: session.accountId,
+              name: session.email
+            }
+          : undefined;
+        await initiativesApi.saveStatusReportDraft(initiativeId, { entries: draftEntries, summary }, actor);
         localStorage.setItem(draftStorageKey, JSON.stringify(payload));
         if (!silent) {
           setError(null);
@@ -472,13 +495,20 @@ export const InitiativeStatusReportModule = ({
         if (!silent) {
           setError('Failed to save draft locally.');
         }
+        // fallback to local storage for resilience
+        try {
+          localStorage.setItem(draftStorageKey, JSON.stringify(payload));
+        } catch {
+          // ignore secondary failure
+        }
       }
+      setIsSavingDraft(false);
     },
-    [draftEntries, draftStorageKey, isViewingSubmitted, readOnly, summary]
+    [draftEntries, draftStorageKey, initiativeId, isViewingSubmitted, readOnly, session, summary]
   );
 
   const handleSaveDraft = () => {
-    persistDraft();
+    void persistDraft();
   };
 
   const handleSubmit = async () => {
@@ -548,7 +578,9 @@ export const InitiativeStatusReportModule = ({
     </div>
   );
 
-  const tableTemplate = (['name', 'description', 'responsible', 'start', 'end', 'due', 'initiative', 'owner', 'impact', 'status'] as ColumnId[])
+  const columnsOrder: ColumnId[] = ['name', 'due', 'description', 'responsible', 'start', 'end', 'initiative', 'owner', 'impact', 'status'];
+
+  const tableTemplate = columnsOrder
     .map((id) =>
       id === 'status'
         ? `minmax(${columnWidths[id]}px, 1fr)`
@@ -738,7 +770,7 @@ export const InitiativeStatusReportModule = ({
 
           <div className={styles.tableShell}>
             <div className={styles.tableHeader} role="row" style={{ gridTemplateColumns: tableTemplate }}>
-              {(Object.keys(columnConfig) as ColumnId[]).map((column) => (
+              {columnsOrder.map((column) => (
                 <div
                   key={column}
                   className={styles.headerCell}
@@ -876,16 +908,16 @@ export const InitiativeStatusReportModule = ({
               <div className={styles.footerActions}>
                 <button
                   type="button"
-                  className={styles.tertiaryButton}
-                  onClick={handleSaveDraft}
-                  disabled={!draftEntries.length || isSubmitting}
-                >
-                  Save draft
-                </button>
-                {draftNotice && <span className={styles.inlineNotice}>{draftNotice}</span>}
-                <button
-                  type="button"
-                  className={styles.primaryButton}
+              className={styles.tertiaryButton}
+              onClick={handleSaveDraft}
+              disabled={!draftEntries.length || isSubmitting || isSavingDraft}
+            >
+              {isSavingDraft ? 'Saving…' : 'Save draft'}
+            </button>
+            {draftNotice && <span className={styles.inlineNotice}>{draftNotice}</span>}
+            <button
+              type="button"
+              className={styles.primaryButton}
                   onClick={handleSubmit}
                   disabled={!draftEntries.length || isSubmitting || readOnly}
                 >
