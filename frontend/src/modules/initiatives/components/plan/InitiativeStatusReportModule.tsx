@@ -29,11 +29,11 @@ type ColumnId =
   | 'responsible'
   | 'start'
   | 'end'
+  | 'due'
   | 'initiative'
   | 'owner'
   | 'impact'
-  | 'status'
-  | 'actions';
+  | 'status';
 
 const columnConfig: Record<
   ColumnId,
@@ -44,11 +44,11 @@ const columnConfig: Record<
   responsible: { label: 'Responsible', minWidth: 140, maxWidth: 260, defaultWidth: 180, resizable: true },
   start: { label: 'Start', minWidth: 110, maxWidth: 200, defaultWidth: 130, resizable: true },
   end: { label: 'End', minWidth: 110, maxWidth: 200, defaultWidth: 130, resizable: true },
+  due: { label: 'Due', minWidth: 140, maxWidth: 240, defaultWidth: 160, resizable: true },
   initiative: { label: 'Initiative', minWidth: 180, maxWidth: 320, defaultWidth: 200, resizable: true },
   owner: { label: 'Owner', minWidth: 160, maxWidth: 280, defaultWidth: 190, resizable: true },
   impact: { label: 'Recurring impact', minWidth: 140, maxWidth: 260, defaultWidth: 170, resizable: true },
-  status: { label: 'Status update', minWidth: 320, maxWidth: 900, defaultWidth: 420, resizable: true },
-  actions: { label: 'Actions', minWidth: 90, maxWidth: 120, defaultWidth: 90, resizable: false }
+  status: { label: 'Status update', minWidth: 360, maxWidth: 1200, defaultWidth: 480, resizable: true }
 };
 
 const formatDateLabel = (value: string | null) => {
@@ -96,21 +96,21 @@ const buildEntryFromTask = (
 const buildDueState = (entry: InitiativeStatusReportEntry, windowDays: number) => {
   const parsed = parseDate(entry.endDate);
   if (!parsed) {
-    return { label: 'No end date', tone: 'muted' as const };
+    return { label: 'No end date', tone: 'muted' as const, days: null };
   }
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diff = diffInDays(today, parsed);
   if (diff < 0) {
-    return { label: `${Math.abs(diff)}d overdue`, tone: 'negative' as const };
+    return { label: `${Math.abs(diff)}d overdue`, tone: 'negative' as const, days: diff };
   }
   if (diff === 0) {
-    return { label: 'Due today', tone: 'warning' as const };
+    return { label: 'Due today', tone: 'warning' as const, days: diff };
   }
   if (diff <= windowDays) {
-    return { label: `Due in ${diff}d`, tone: 'warning' as const };
+    return { label: `Due in ${diff}d`, tone: 'warning' as const, days: diff };
   }
-  return { label: `Due in ${diff}d`, tone: 'muted' as const };
+  return { label: `Due in ${diff}d`, tone: 'muted' as const, days: diff };
 };
 
 const buildDraftStorageKey = (initiativeId: string) => `status-report-draft:${initiativeId}`;
@@ -268,6 +268,13 @@ export const InitiativeStatusReportModule = ({
           const aDate = parseDate(a.endDate);
           const bDate = parseDate(b.endDate);
           return direction * ((aDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (bDate?.getTime() ?? Number.MAX_SAFE_INTEGER));
+        }
+        case 'due': {
+          const aState = buildDueState(a, upcomingWindow);
+          const bState = buildDueState(b, upcomingWindow);
+          const aDays = aState.days ?? Number.MAX_SAFE_INTEGER;
+          const bDays = bState.days ?? Number.MAX_SAFE_INTEGER;
+          return direction * (aDays - bDays);
         }
         case 'status':
           return direction * (a.statusUpdate || '').localeCompare(b.statusUpdate || '');
@@ -514,9 +521,6 @@ export const InitiativeStatusReportModule = ({
   };
 
   const handleSort = (column: ColumnId) => {
-    if (column === 'actions') {
-      return;
-    }
     setSort((prev) => {
       if (prev.column === column) {
         return { column, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
@@ -544,7 +548,7 @@ export const InitiativeStatusReportModule = ({
     </div>
   );
 
-  const tableTemplate = (['name', 'description', 'responsible', 'start', 'end', 'initiative', 'owner', 'impact', 'status', 'actions'] as ColumnId[])
+  const tableTemplate = (['name', 'description', 'responsible', 'start', 'end', 'due', 'initiative', 'owner', 'impact', 'status'] as ColumnId[])
     .map((id) =>
       id === 'status'
         ? `minmax(${columnWidths[id]}px, 1fr)`
@@ -556,7 +560,7 @@ export const InitiativeStatusReportModule = ({
   const initiativeOwnerLabel = initiativeOwner || 'Unassigned';
   const recurringImpactLabel = formatImpact(Number.isFinite(recurringImpact) ? recurringImpact : 0);
   const canEditDraft = !isViewingSubmitted && !readOnly;
-  const sortableColumns = new Set<ColumnId>(['name', 'description', 'responsible', 'start', 'end', 'status', 'initiative', 'owner', 'impact']);
+  const sortableColumns = new Set<ColumnId>(['name', 'description', 'responsible', 'start', 'end', 'due', 'status', 'initiative', 'owner', 'impact']);
   const startResize = (column: ColumnId, startX: number) => {
     const config = columnConfig[column];
     if (!config.resizable) {
@@ -732,7 +736,7 @@ export const InitiativeStatusReportModule = ({
               {(Object.keys(columnConfig) as ColumnId[]).map((column) => (
                 <div
                   key={column}
-                  className={`${styles.headerCell} ${column === 'actions' ? styles.headerCellTight : ''}`}
+                  className={styles.headerCell}
                   role="columnheader"
                   onClick={sortableColumns.has(column) ? () => handleSort(column) : undefined}
                 >
@@ -768,7 +772,18 @@ export const InitiativeStatusReportModule = ({
                       style={{ gridTemplateColumns: tableTemplate }}
                     >
                       <div className={styles.cell}>
-                        <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
+                        <div className={styles.taskTitleRow}>
+                          <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
+                          {canEditDraft && entry.source === 'manual' && (
+                            <button
+                              type="button"
+                              className={styles.inlineRemove}
+                              onClick={() => handleRemoveManual(entry.taskId)}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
                         <div className={styles.badges}>
                           <span
                             className={`${styles.badge} ${
@@ -799,6 +814,9 @@ export const InitiativeStatusReportModule = ({
                         <span className={styles.datePill}>{formatDateLabel(entry.endDate)}</span>
                       </div>
                       <div className={styles.cell}>
+                        <span className={styles.metaText}>{dueState.label}</span>
+                      </div>
+                      <div className={styles.cell}>
                         <span className={styles.metaText}>{initiativeNameLabel}</span>
                       </div>
                       <div className={styles.cell}>
@@ -827,19 +845,6 @@ export const InitiativeStatusReportModule = ({
                             disabled={isSubmitting}
                             className={styles.updateInput}
                           />
-                        )}
-                      </div>
-                      <div className={`${styles.cell} ${styles.actionsCell}`}>
-                        {canEditDraft && entry.source === 'manual' ? (
-                          <button
-                            type="button"
-                            className={styles.deleteButton}
-                            onClick={() => handleRemoveManual(entry.taskId)}
-                          >
-                            Remove
-                          </button>
-                        ) : (
-                          <span className={styles.dimPlaceholder}>-</span>
                         )}
                       </div>
                     </div>

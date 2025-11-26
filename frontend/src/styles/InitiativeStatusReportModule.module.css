@@ -468,6 +468,24 @@
   margin: 0;
 }
 
+.taskTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inlineRemove {
+  border: 1px solid rgba(239, 68, 68, 0.6);
+  background: rgba(254, 242, 242, 0.9);
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .badges {
   display: flex;
   gap: 6px;
@@ -515,12 +533,12 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(248, 250, 252, 0.9);
   color: #0f172a;
   font-weight: 700;
-  border: none;
+  border: 1px solid rgba(148, 163, 184, 0.35);
   width: fit-content;
 }
 
@@ -553,31 +571,6 @@
   resize: vertical;
   font-family: inherit;
   background: rgba(248, 250, 252, 0.9);
-}
-
-.actionsCell {
-  align-items: center;
-  justify-content: center;
-}
-
-.deleteButton {
-  padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(239, 68, 68, 0.6);
-  background: rgba(254, 242, 242, 0.9);
-  color: #b91c1c;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 8px 16px rgba(239, 68, 68, 0.12);
-}
-
-.deleteButton:hover {
-  background: rgba(254, 226, 226, 0.95);
-}
-
-.dimPlaceholder {
-  color: #cbd5e1;
-  font-weight: 700;
 }
 
 .inlineNotice {
