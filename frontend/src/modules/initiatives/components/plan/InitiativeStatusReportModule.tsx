@@ -678,8 +678,13 @@ export const InitiativeStatusReportModule = ({
       )}
 
       <div className={styles.collapseRow}>
-        <button type="button" className={styles.collapseButton} onClick={() => setIsCollapsed((prev) => !prev)}>
-          {isCollapsed ? 'Expand status report' : 'Collapse status report'}
+        <button
+          type="button"
+          className={`${styles.collapseButton} ${isCollapsed ? styles.collapseClosed : ''}`}
+          onClick={() => setIsCollapsed((prev) => !prev)}
+          aria-label={isCollapsed ? 'Expand status report' : 'Collapse status report'}
+        >
+          <span className={styles.collapseIcon}>{isCollapsed ? '▼' : '▲'}</span>
         </button>
       </div>
       {!isCollapsed && (
@@ -771,51 +776,35 @@ export const InitiativeStatusReportModule = ({
                       role="row"
                       style={{ gridTemplateColumns: tableTemplate }}
                     >
-                      <div className={styles.cell}>
-                        <div className={styles.taskTitleRow}>
-                          <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
-                          {canEditDraft && entry.source === 'manual' && (
-                            <button
-                              type="button"
-                              className={styles.inlineRemove}
-                              onClick={() => handleRemoveManual(entry.taskId)}
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </div>
-                        <div className={styles.badges}>
-                          <span
-                            className={`${styles.badge} ${
-                              dueState.tone === 'negative'
-                                ? styles.badgeDanger
-                                : dueState.tone === 'warning'
-                                ? styles.badgeWarning
-                                : styles.badgeMuted
-                            }`}
-                          >
-                            {dueState.label}
-                          </span>
-                          {entry.source === 'manual' && (
-                            <span className={`${styles.badge} ${styles.badgeMuted}`}>Manual add</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className={styles.cell}>
-                        <p className={styles.description}>{entry.description || 'No description provided.'}</p>
-                      </div>
-                      <div className={styles.cell}>
+                  <div className={styles.cell}>
+                    <div className={styles.taskTitleRow}>
+                      <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
+                      {canEditDraft && entry.source === 'manual' && (
+                        <button
+                          type="button"
+                          className={styles.inlineRemove}
+                          onClick={() => handleRemoveManual(entry.taskId)}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className={styles.cell}>
+                    <p className={styles.description}>{entry.description || 'No description provided.'}</p>
+                  </div>
+                  <div className={styles.cell}>
                         <span className={styles.responsible}>{entry.responsible || 'Unassigned'}</span>
                       </div>
-                      <div className={styles.cell}>
-                        <span className={styles.datePill}>{formatDateLabel(entry.startDate)}</span>
-                      </div>
-                      <div className={styles.cell}>
-                        <span className={styles.datePill}>{formatDateLabel(entry.endDate)}</span>
-                      </div>
-                      <div className={styles.cell}>
-                        <span className={styles.metaText}>{dueState.label}</span>
-                      </div>
+                  <div className={styles.cell}>
+                    <span className={styles.dateText}>{formatDateLabel(entry.startDate)}</span>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.dateText}>{formatDateLabel(entry.endDate)}</span>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.metaText}>{dueState.label}</span>
+                  </div>
                       <div className={styles.cell}>
                         <span className={styles.metaText}>{initiativeNameLabel}</span>
                       </div>
