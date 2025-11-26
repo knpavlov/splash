@@ -72,6 +72,23 @@
   max-width: 780px;
 }
 
+.helperBar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  color: #475569;
+  font-weight: 700;
+}
+
+.helperChip {
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(241, 245, 249, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  font-size: 13px;
+}
+
 .metricRow {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -147,10 +164,12 @@
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
 }
 
-.select:focus {
+.select:focus,
+.summaryInput:focus,
+.updateInput:focus {
   outline: none;
   border-color: #2563eb;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.16);
 }
 
 .lockBadge,
@@ -268,14 +287,6 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-.summaryInput:focus,
-.updateInput:focus,
-.select:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.16);
-}
-
 .readonlyUpdate {
   margin: 0;
   color: #0f172a;
@@ -289,53 +300,6 @@
   align-items: center;
   flex-wrap: wrap;
   padding: 2px 0;
-}
-
-.sortGroup {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.controlLabel {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #475569;
-  font-weight: 800;
-}
-
-.sortChip {
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 999px;
-  padding: 8px 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-weight: 700;
-  color: #0f172a;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
-}
-
-.sortChip:hover {
-  transform: translateY(-1px);
-  border-color: rgba(59, 130, 246, 0.7);
-}
-
-.sortChipActive {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(124, 58, 237, 0.18));
-  color: #0f172a;
-  border-color: rgba(59, 130, 246, 0.5);
-  box-shadow: 0 10px 22px rgba(59, 130, 246, 0.15);
-}
-
-.sortDirection {
-  font-size: 12px;
-  color: #1d4ed8;
 }
 
 .legend {
@@ -382,6 +346,7 @@
   overflow: hidden;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  overflow-x: auto;
 }
 
 .tableHeader {
@@ -402,6 +367,7 @@
   gap: 8px;
   cursor: pointer;
   user-select: none;
+  position: relative;
 }
 
 .headerCell:last-child {
@@ -427,9 +393,34 @@
   font-size: 12px;
 }
 
+.columnResizer {
+  width: 8px;
+  align-self: stretch;
+  cursor: col-resize;
+  margin-left: auto;
+  position: relative;
+}
+
+.columnResizer::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 50%;
+  width: 2px;
+  background: rgba(148, 163, 184, 0.6);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.headerCell:hover .columnResizer::after {
+  opacity: 1;
+}
+
 .tableBody {
   display: flex;
   flex-direction: column;
+  min-width: 960px;
 }
 
 .tableRow {
@@ -524,26 +515,18 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.12);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
   color: #0f172a;
   font-weight: 700;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: none;
   width: fit-content;
 }
 
-.metaPill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: rgba(241, 245, 249, 0.9);
-  color: #0f172a;
+.metaText {
   font-weight: 700;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  width: fit-content;
+  color: #0f172a;
 }
 
 .statusCell {
@@ -594,6 +577,11 @@
 
 .dimPlaceholder {
   color: #cbd5e1;
+  font-weight: 700;
+}
+
+.inlineNotice {
+  color: #0f172a;
   font-weight: 700;
 }
 
@@ -677,17 +665,27 @@
   cursor: not-allowed;
 }
 
+.collapseRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.collapseButton {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(241, 245, 249, 0.9);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 @media (max-width: 1024px) {
   .tableHeader {
     font-size: 11px;
   }
 
-  .tableShell {
-    overflow-x: auto;
-  }
-
   .tableBody {
-    min-width: 960px;
+    min-width: 860px;
   }
 }
 

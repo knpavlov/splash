@@ -35,17 +35,20 @@ type ColumnId =
   | 'status'
   | 'actions';
 
-const columnConfig: Record<ColumnId, { label: string }> = {
-  name: { label: 'Task' },
-  description: { label: 'Description' },
-  responsible: { label: 'Responsible' },
-  start: { label: 'Start' },
-  end: { label: 'End' },
-  initiative: { label: 'Initiative' },
-  owner: { label: 'Owner' },
-  impact: { label: 'Recurring impact' },
-  status: { label: 'Status update' },
-  actions: { label: 'Actions' }
+const columnConfig: Record<
+  ColumnId,
+  { label: string; minWidth: number; maxWidth: number; defaultWidth: number; resizable: boolean }
+> = {
+  name: { label: 'Task', minWidth: 200, maxWidth: 420, defaultWidth: 240, resizable: true },
+  description: { label: 'Description', minWidth: 180, maxWidth: 520, defaultWidth: 240, resizable: true },
+  responsible: { label: 'Responsible', minWidth: 140, maxWidth: 260, defaultWidth: 180, resizable: true },
+  start: { label: 'Start', minWidth: 110, maxWidth: 200, defaultWidth: 130, resizable: true },
+  end: { label: 'End', minWidth: 110, maxWidth: 200, defaultWidth: 130, resizable: true },
+  initiative: { label: 'Initiative', minWidth: 180, maxWidth: 320, defaultWidth: 200, resizable: true },
+  owner: { label: 'Owner', minWidth: 160, maxWidth: 280, defaultWidth: 190, resizable: true },
+  impact: { label: 'Recurring impact', minWidth: 140, maxWidth: 260, defaultWidth: 170, resizable: true },
+  status: { label: 'Status update', minWidth: 320, maxWidth: 900, defaultWidth: 420, resizable: true },
+  actions: { label: 'Actions', minWidth: 90, maxWidth: 120, defaultWidth: 90, resizable: false }
 };
 
 const formatDateLabel = (value: string | null) => {
@@ -161,6 +164,8 @@ export const InitiativeStatusReportModule = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   const [summary, setSummary] = useState('');
   const [sort, setSort] = useState<{ column: ColumnId; direction: 'asc' | 'desc' }>({
     column: 'end',
@@ -168,6 +173,14 @@ export const InitiativeStatusReportModule = ({
   });
   const draftStorageKey = useMemo(() => buildDraftStorageKey(initiativeId), [initiativeId]);
   const draftLoadedRef = useRef(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [columnWidths, setColumnWidths] = useState<Record<ColumnId, number>>(() =>
+    (Object.keys(columnConfig) as ColumnId[]).reduce((acc, key) => {
+      acc[key] = columnConfig[key].defaultWidth;
+      return acc;
+    }, {} as Record<ColumnId, number>)
+  );
+  const resizeStateRef = useRef<{ column: ColumnId; startX: number; startWidth: number } | null>(null);
 
   const allTasks = useMemo(
     () => plan.tasks.filter((task) => !task.archived),
@@ -238,6 +251,14 @@ export const InitiativeStatusReportModule = ({
           return direction * (a.description || '').localeCompare(b.description || '');
         case 'responsible':
           return direction * (a.responsible || '').localeCompare(b.responsible || '');
+        case 'initiative':
+          return direction * initiativeNameLabel.localeCompare(initiativeNameLabel);
+        case 'owner':
+          return direction * initiativeOwnerLabel.localeCompare(initiativeOwnerLabel);
+        case 'impact': {
+          const impactValue = Number.isFinite(recurringImpact) ? recurringImpact : 0;
+          return direction * impactValue;
+        }
         case 'start': {
           const aDate = parseDate(a.startDate);
           const bDate = parseDate(b.startDate);
@@ -363,6 +384,8 @@ export const InitiativeStatusReportModule = ({
   }, [sortedReports, selectedReportId]);
 
   const handleStatusChange = (taskId: string, value: string) => {
+    setDraftNotice(null);
+    setSubmitNotice(null);
     setDraftEntries((current) =>
       current.map((entry) => (entry.taskId === taskId ? { ...entry, statusUpdate: value.slice(0, STATUS_UPDATE_LIMIT) } : entry))
     );
@@ -408,6 +431,8 @@ export const InitiativeStatusReportModule = ({
     if (!selected) {
       return;
     }
+    setDraftNotice(null);
+    setSubmitNotice(null);
     setDraftEntries((current) => [...current, buildEntryFromTask(selected, 'manual')]);
     setPendingTaskId('');
     setMessage(null);
@@ -416,6 +441,7 @@ export const InitiativeStatusReportModule = ({
   const handleRemoveManual = (taskId: string) => {
     setDraftEntries((current) => current.filter((entry) => !(entry.taskId === taskId && entry.source === 'manual')));
     setMessage('Manual task removed.');
+    setDraftNotice(null);
   };
 
   const persistDraft = useCallback(
@@ -432,7 +458,8 @@ export const InitiativeStatusReportModule = ({
         localStorage.setItem(draftStorageKey, JSON.stringify(payload));
         if (!silent) {
           setError(null);
-          setMessage('Draft saved.');
+          setDraftNotice('Draft saved.');
+          setMessage(null);
         }
       } catch {
         if (!silent) {
@@ -474,7 +501,9 @@ export const InitiativeStatusReportModule = ({
       setReports((current) => [report, ...current]);
       setSelectedReportId(report.id);
       setSummary(report.summary || '');
-      setMessage('Report submitted and locked.');
+      setSubmitNotice('Report submitted and locked.');
+      setMessage(null);
+      setDraftNotice(null);
       localStorage.removeItem(draftStorageKey);
       setDraftEntries(upcomingTasks.map((task) => buildEntryFromTask(task, 'auto')));
     } catch {
@@ -517,27 +546,55 @@ export const InitiativeStatusReportModule = ({
 
   const tableTemplate = (['name', 'description', 'responsible', 'start', 'end', 'initiative', 'owner', 'impact', 'status', 'actions'] as ColumnId[])
     .map((id) =>
-      ({
-        name: 220,
-        description: 240,
-        responsible: 150,
-        start: 120,
-        end: 120,
-        initiative: 200,
-        owner: 180,
-        impact: 150,
-        status: 320,
-        actions: 90
-      }[id])
+      id === 'status'
+        ? `minmax(${columnWidths[id]}px, 1fr)`
+        : `${columnWidths[id]}px`
     )
-    .map((width) => `${width}px`)
     .join(' ');
 
   const initiativeNameLabel = initiativeName || 'Untitled initiative';
   const initiativeOwnerLabel = initiativeOwner || 'Unassigned';
   const recurringImpactLabel = formatImpact(Number.isFinite(recurringImpact) ? recurringImpact : 0);
   const canEditDraft = !isViewingSubmitted && !readOnly;
-  const sortableColumns = new Set<ColumnId>(['name', 'description', 'responsible', 'start', 'end', 'status']);
+  const sortableColumns = new Set<ColumnId>(['name', 'description', 'responsible', 'start', 'end', 'status', 'initiative', 'owner', 'impact']);
+  const startResize = (column: ColumnId, startX: number) => {
+    const config = columnConfig[column];
+    if (!config.resizable) {
+      return;
+    }
+    resizeStateRef.current = {
+      column,
+      startX,
+      startWidth: columnWidths[column] ?? config.defaultWidth
+    };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResize);
+  };
+
+  const handlePointerMove = (event: PointerEvent) => {
+    const state = resizeStateRef.current;
+    if (!state) {
+      return;
+    }
+    event.preventDefault();
+    const delta = event.clientX - state.startX;
+    const config = columnConfig[state.column];
+    const nextWidth = Math.min(config.maxWidth, Math.max(config.minWidth, state.startWidth + delta));
+    setColumnWidths((prev) => ({ ...prev, [state.column]: nextWidth }));
+  };
+
+  const stopResize = () => {
+    resizeStateRef.current = null;
+    window.removeEventListener('pointermove', handlePointerMove);
+    window.removeEventListener('pointerup', stopResize);
+  };
+
+  useEffect(
+    () => () => {
+      stopResize();
+    },
+    []
+  );
 
   return (
     <section className={styles.reportSection} aria-label="Status report">
@@ -551,6 +608,11 @@ export const InitiativeStatusReportModule = ({
           <p className={styles.subtitle}>
             Upcoming and overdue tasks from the plan. Add a quick update and submit a snapshot.
           </p>
+          <div className={styles.helperBar}>
+            <span className={styles.helperChip}>Template reset: {statusReportSettings.templateResetDay} @ {statusReportSettings.templateResetTime}</span>
+            <span className={styles.helperChip}>Submit by: {statusReportSettings.submitDeadlineDay} @ {statusReportSettings.submitDeadlineTime}</span>
+            <span className={styles.helperChip}>Refresh: {statusReportSettings.refreshFrequency}</span>
+          </div>
           <div className={styles.metricRow}>
             <div className={`${styles.metricCard} ${styles.metricPrimary}`}>
               <span className={styles.metricLabel}>Open items</span>
@@ -611,225 +673,235 @@ export const InitiativeStatusReportModule = ({
         </div>
       )}
 
-      <div className={styles.overallRow}>
-        <div className={styles.overallHeader}>
-          <div>
-            <span className={styles.fieldEyebrow}>Overall update</span>
-            <p className={styles.fieldHint}>Summarize momentum, risks, or asks in a few lines.</p>
+      <div className={styles.collapseRow}>
+        <button type="button" className={styles.collapseButton} onClick={() => setIsCollapsed((prev) => !prev)}>
+          {isCollapsed ? 'Expand status report' : 'Collapse status report'}
+        </button>
+      </div>
+      {!isCollapsed && (
+        <>
+          <div className={styles.overallRow}>
+            <div className={styles.overallHeader}>
+              <div>
+                <span className={styles.fieldEyebrow}>Overall update</span>
+                <p className={styles.fieldHint}>Summarize momentum, risks, or asks in a few lines.</p>
+              </div>
+              {!isViewingSubmitted && !readOnly && (
+                <span className={styles.charCount}>
+                  {summary.length}/{SUMMARY_LIMIT}
+                </span>
+              )}
+            </div>
+            {isViewingSubmitted || readOnly ? (
+              <p className={styles.readonlyUpdate}>{summary || 'No overall update provided.'}</p>
+            ) : (
+              <textarea
+                value={summary}
+                maxLength={SUMMARY_LIMIT}
+                onChange={(event) => {
+                  setDraftNotice(null);
+                  setSubmitNotice(null);
+                  setSummary(event.target.value);
+                }}
+                placeholder="Add color on progress, risks, cross-team asks"
+                disabled={isSubmitting}
+                className={styles.summaryInput}
+              />
+            )}
           </div>
-          {!isViewingSubmitted && !readOnly && (
-            <span className={styles.charCount}>
-              {summary.length}/{SUMMARY_LIMIT}
-            </span>
-          )}
-        </div>
-        {isViewingSubmitted || readOnly ? (
-          <p className={styles.readonlyUpdate}>{summary || 'No overall update provided.'}</p>
-        ) : (
-          <textarea
-            value={summary}
-            maxLength={SUMMARY_LIMIT}
-            onChange={(event) => setSummary(event.target.value)}
-            placeholder="Add color on progress, risks, cross-team asks"
-            disabled={isSubmitting}
-            className={styles.summaryInput}
-          />
-        )}
-      </div>
 
-      <div className={styles.listHeader}>
-        <div className={styles.sortGroup}>
-          <span className={styles.controlLabel}>Sort</span>
-          {(['end', 'name', 'responsible', 'status'] as ColumnId[]).map((column) => (
-            <button
-              key={column}
-              type="button"
-              className={`${styles.sortChip} ${sort.column === column ? styles.sortChipActive : ''}`}
-              onClick={() => handleSort(column)}
-            >
-              {columnConfig[column].label}
-              <span className={styles.sortDirection}>
-                {sort.column === column ? (sort.direction === 'asc' ? '^' : 'v') : ''}
+          <div className={styles.listHeader}>
+            <div className={styles.legend}>
+              <span className={styles.legendItem}>
+                <span className={`${styles.legendDot} ${styles.legendDotDanger}`} />
+                Overdue
               </span>
-            </button>
-          ))}
-        </div>
-        <div className={styles.legend}>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendDot} ${styles.legendDotDanger}`} />
-            Overdue
-          </span>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendDot} ${styles.legendDotWarning}`} />
-            Due soon
-          </span>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendDot} ${styles.legendDotMuted}`} />
-            Scheduled
-          </span>
-        </div>
-      </div>
-
-      <div className={styles.tableShell}>
-        <div className={styles.tableHeader} role="row" style={{ gridTemplateColumns: tableTemplate }}>
-          {(Object.keys(columnConfig) as ColumnId[]).map((column) => (
-            <div
-              key={column}
-              className={`${styles.headerCell} ${column === 'actions' ? styles.headerCellTight : ''}`}
-              role="columnheader"
-              onClick={sortableColumns.has(column) ? () => handleSort(column) : undefined}
-            >
-              <span className={styles.headerLabel}>
-                {columnConfig[column].label}
-                {sortableColumns.has(column) && sort.column === column && <i className={styles.sortIndicator}>{sort.direction === 'asc' ? '^' : 'v'}</i>}
+              <span className={styles.legendItem}>
+                <span className={`${styles.legendDot} ${styles.legendDotWarning}`} />
+                Due soon
+              </span>
+              <span className={styles.legendItem}>
+                <span className={`${styles.legendDot} ${styles.legendDotMuted}`} />
+                Scheduled
               </span>
             </div>
-          ))}
-        </div>
-        <div className={styles.tableBody} aria-label="Status report entries">
-          {!sortedEntries.length ? (
-            renderEmptyState()
-          ) : (
-            sortedEntries.map((entry, index) => {
-              const dueState = buildDueState(entry, upcomingWindow);
-              return (
+          </div>
+
+          <div className={styles.tableShell}>
+            <div className={styles.tableHeader} role="row" style={{ gridTemplateColumns: tableTemplate }}>
+              {(Object.keys(columnConfig) as ColumnId[]).map((column) => (
                 <div
-                  key={entry.id}
-                  className={`${styles.tableRow} ${styles[`tone-${dueState.tone}`]} ${index % 2 === 0 ? styles.rowEven : ''}`}
-                  role="row"
-                  style={{ gridTemplateColumns: tableTemplate }}
+                  key={column}
+                  className={`${styles.headerCell} ${column === 'actions' ? styles.headerCellTight : ''}`}
+                  role="columnheader"
+                  onClick={sortableColumns.has(column) ? () => handleSort(column) : undefined}
                 >
-                  <div className={styles.cell}>
-                    <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
-                    <div className={styles.badges}>
-                      <span
-                        className={`${styles.badge} ${
-                          dueState.tone === 'negative'
-                            ? styles.badgeDanger
-                            : dueState.tone === 'warning'
-                            ? styles.badgeWarning
-                            : styles.badgeMuted
-                        }`}
-                      >
-                        {dueState.label}
-                      </span>
-                      {entry.source === 'manual' && (
-                        <span className={`${styles.badge} ${styles.badgeMuted}`}>Manual add</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className={styles.cell}>
-                    <p className={styles.description}>{entry.description || 'No description provided.'}</p>
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.responsible}>{entry.responsible || 'Unassigned'}</span>
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.datePill}>{formatDateLabel(entry.startDate)}</span>
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.datePill}>{formatDateLabel(entry.endDate)}</span>
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.metaPill}>{initiativeNameLabel}</span>
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.metaPill}>{initiativeOwnerLabel}</span>
-                  </div>
-                  <div className={styles.cell}>
-                    <span className={styles.metaPill}>{recurringImpactLabel}</span>
-                  </div>
-                  <div className={styles.statusCell}>
-                    <div className={styles.updateHeader}>
-                      <span className={styles.controlLabel}>Status update</span>
-                      {canEditDraft && (
-                        <span className={styles.charCountSmall}>
-                          {(entry.statusUpdate || '').length}/{STATUS_UPDATE_LIMIT}
-                        </span>
-                      )}
-                    </div>
-                    {isViewingSubmitted || readOnly ? (
-                      <p className={styles.readonlyUpdate}>{entry.statusUpdate || 'No update provided.'}</p>
-                    ) : (
-                      <textarea
-                        value={entry.statusUpdate}
-                        maxLength={STATUS_UPDATE_LIMIT}
-                        onChange={(event) => handleStatusChange(entry.taskId, event.target.value)}
-                        placeholder="Share a quick headline or blocker"
-                        disabled={isSubmitting}
-                        className={styles.updateInput}
-                      />
-                    )}
-                  </div>
-                  <div className={`${styles.cell} ${styles.actionsCell}`}>
-                    {canEditDraft && entry.source === 'manual' ? (
-                      <button
-                        type="button"
-                        className={styles.deleteButton}
-                        onClick={() => handleRemoveManual(entry.taskId)}
-                      >
-                        Remove
-                      </button>
-                    ) : (
-                      <span className={styles.dimPlaceholder}>-</span>
-                    )}
-                  </div>
+                  <span className={styles.headerLabel}>
+                    {columnConfig[column].label}
+                    {sortableColumns.has(column) && sort.column === column && <i className={styles.sortIndicator}>{sort.direction === 'asc' ? '^' : 'v'}</i>}
+                  </span>
+                  {columnConfig[column].resizable && (
+                    <span
+                      className={styles.columnResizer}
+                      role="separator"
+                      aria-label={`Resize ${columnConfig[column].label} column`}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        startResize(column, event.clientX);
+                      }}
+                    />
+                  )}
                 </div>
-              );
-            })
+              ))}
+            </div>
+            <div className={styles.tableBody} aria-label="Status report entries">
+              {!sortedEntries.length ? (
+                renderEmptyState()
+              ) : (
+                sortedEntries.map((entry, index) => {
+                  const dueState = buildDueState(entry, upcomingWindow);
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`${styles.tableRow} ${styles[`tone-${dueState.tone}`]} ${index % 2 === 0 ? styles.rowEven : ''}`}
+                      role="row"
+                      style={{ gridTemplateColumns: tableTemplate }}
+                    >
+                      <div className={styles.cell}>
+                        <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
+                        <div className={styles.badges}>
+                          <span
+                            className={`${styles.badge} ${
+                              dueState.tone === 'negative'
+                                ? styles.badgeDanger
+                                : dueState.tone === 'warning'
+                                ? styles.badgeWarning
+                                : styles.badgeMuted
+                            }`}
+                          >
+                            {dueState.label}
+                          </span>
+                          {entry.source === 'manual' && (
+                            <span className={`${styles.badge} ${styles.badgeMuted}`}>Manual add</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className={styles.cell}>
+                        <p className={styles.description}>{entry.description || 'No description provided.'}</p>
+                      </div>
+                      <div className={styles.cell}>
+                        <span className={styles.responsible}>{entry.responsible || 'Unassigned'}</span>
+                      </div>
+                      <div className={styles.cell}>
+                        <span className={styles.datePill}>{formatDateLabel(entry.startDate)}</span>
+                      </div>
+                      <div className={styles.cell}>
+                        <span className={styles.datePill}>{formatDateLabel(entry.endDate)}</span>
+                      </div>
+                      <div className={styles.cell}>
+                        <span className={styles.metaText}>{initiativeNameLabel}</span>
+                      </div>
+                      <div className={styles.cell}>
+                        <span className={styles.metaText}>{initiativeOwnerLabel}</span>
+                      </div>
+                      <div className={styles.cell}>
+                        <span className={styles.metaText}>{recurringImpactLabel}</span>
+                      </div>
+                      <div className={styles.statusCell}>
+                        <div className={styles.updateHeader}>
+                          <span className={styles.controlLabel}>Status update</span>
+                          {canEditDraft && (
+                            <span className={styles.charCountSmall}>
+                              {(entry.statusUpdate || '').length}/{STATUS_UPDATE_LIMIT}
+                            </span>
+                          )}
+                        </div>
+                        {isViewingSubmitted || readOnly ? (
+                          <p className={styles.readonlyUpdate}>{entry.statusUpdate || 'No update provided.'}</p>
+                        ) : (
+                          <textarea
+                            value={entry.statusUpdate}
+                            maxLength={STATUS_UPDATE_LIMIT}
+                            onChange={(event) => handleStatusChange(entry.taskId, event.target.value)}
+                            placeholder="Share a quick headline or blocker"
+                            disabled={isSubmitting}
+                            className={styles.updateInput}
+                          />
+                        )}
+                      </div>
+                      <div className={`${styles.cell} ${styles.actionsCell}`}>
+                        {canEditDraft && entry.source === 'manual' ? (
+                          <button
+                            type="button"
+                            className={styles.deleteButton}
+                            onClick={() => handleRemoveManual(entry.taskId)}
+                          >
+                            Remove
+                          </button>
+                        ) : (
+                          <span className={styles.dimPlaceholder}>-</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {canEditDraft && (
+            <div className={styles.footerBar}>
+              <div className={styles.addControls}>
+                <label className={styles.selectLabel}>
+                  <span>Task from plan</span>
+                  <select
+                    value={pendingTaskId}
+                    onChange={(event) => setPendingTaskId(event.target.value)}
+                    className={styles.select}
+                    disabled={!availableTasks.length}
+                  >
+                    {!availableTasks.length && <option value="">No remaining tasks</option>}
+                    {availableTasks.map((task) => (
+                      <option key={task.id} value={task.id}>
+                        {task.name || 'Untitled task'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAddTask}
+                  disabled={!availableTasks.length}
+                  className={styles.secondaryButton}
+                >
+                  Add more
+                </button>
+                <p className={styles.hint}>Bring in tasks that were not auto-selected.</p>
+              </div>
+
+              <div className={styles.footerActions}>
+                <button
+                  type="button"
+                  className={styles.tertiaryButton}
+                  onClick={handleSaveDraft}
+                  disabled={!draftEntries.length || isSubmitting}
+                >
+                  Save draft
+                </button>
+                {draftNotice && <span className={styles.inlineNotice}>{draftNotice}</span>}
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={handleSubmit}
+                  disabled={!draftEntries.length || isSubmitting || readOnly}
+                >
+                  {isSubmitting ? 'Submitting...' : 'Submit report'}
+                </button>
+                {submitNotice && <span className={styles.inlineNotice}>{submitNotice}</span>}
+              </div>
+            </div>
           )}
-        </div>
-      </div>
-
-      {canEditDraft && (
-        <div className={styles.footerBar}>
-          <div className={styles.addControls}>
-            <label className={styles.selectLabel}>
-              <span>Task from plan</span>
-              <select
-                value={pendingTaskId}
-                onChange={(event) => setPendingTaskId(event.target.value)}
-                className={styles.select}
-                disabled={!availableTasks.length}
-              >
-                {!availableTasks.length && <option value="">No remaining tasks</option>}
-                {availableTasks.map((task) => (
-                  <option key={task.id} value={task.id}>
-                    {task.name || 'Untitled task'}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={handleAddTask}
-              disabled={!availableTasks.length}
-              className={styles.secondaryButton}
-            >
-              Add more
-            </button>
-            <p className={styles.hint}>Bring in tasks that were not auto-selected.</p>
-          </div>
-
-          <div className={styles.footerActions}>
-            <button
-              type="button"
-              className={styles.tertiaryButton}
-              onClick={handleSaveDraft}
-              disabled={!draftEntries.length || isSubmitting}
-            >
-              Save draft
-            </button>
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={handleSubmit}
-              disabled={!draftEntries.length || isSubmitting || readOnly}
-            >
-              {isSubmitting ? 'Submitting...' : 'Submit report'}
-            </button>
-          </div>
-        </div>
+        </>
       )}
     </section>
   );
