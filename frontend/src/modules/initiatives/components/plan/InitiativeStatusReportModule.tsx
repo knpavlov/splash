@@ -473,7 +473,7 @@ export const InitiativeStatusReportModule = ({
         </label>
       </div>
 
-      <div className={styles.table} role="table" aria-label="Status report entries">
+      <div className={styles.tableShell}>
         <div className={styles.tableHeader} role="row" style={{ gridTemplateColumns: tableTemplate }}>
           {(Object.keys(columnConfig) as ColumnId[]).map((column) => (
             <div
@@ -484,7 +484,7 @@ export const InitiativeStatusReportModule = ({
             >
               <span className={styles.headerLabel}>
                 {columnConfig[column].label}
-                {sort.column === column && <i className={styles.sortIndicator}>{sort.direction === 'asc' ? '^' : 'v'}</i>}
+                {sort.column === column && <i className={styles.sortIndicator}>{sort.direction === 'asc' ? '▲' : '▼'}</i>}
               </span>
               <span
                 className={styles.columnResizer}
@@ -498,68 +498,74 @@ export const InitiativeStatusReportModule = ({
             </div>
           ))}
         </div>
-        {!sortedEntries.length ? (
-          renderEmptyState()
-        ) : (
-          sortedEntries.map((entry) => {
-            const dueState = buildDueState(entry, upcomingWindow);
-            const rowClass =
-              dueState.tone === 'negative'
-                ? styles.rowNegative
-                : dueState.tone === 'warning'
-                ? styles.rowWarning
-                : '';
-            return (
-              <div
-                key={entry.id}
-                className={`${styles.tableRow} ${rowClass}`}
-                role="row"
-                style={{ gridTemplateColumns: tableTemplate }}
-              >
-                <div className={styles.cell}>
-                  <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
-                  <div className={styles.badges}>
-                    <span
-                      className={`${styles.badge} ${
-                        dueState.tone === 'negative'
-                          ? styles.badgeDanger
-                          : dueState.tone === 'warning'
-                          ? styles.badgeWarning
-                          : styles.badgeMuted
-                      }`}
-                    >
-                      {dueState.label}
-                    </span>
-                    {entry.source === 'manual' && (
-                      <span className={`${styles.badge} ${styles.badgeMuted}`}>Manual</span>
+        <div className={styles.tableBody} role="table" aria-label="Status report entries">
+          {!sortedEntries.length ? (
+            renderEmptyState()
+          ) : (
+            sortedEntries.map((entry, index) => {
+              const dueState = buildDueState(entry, upcomingWindow);
+              const rowClass =
+                dueState.tone === 'negative'
+                  ? styles.rowNegative
+                  : dueState.tone === 'warning'
+                  ? styles.rowWarning
+                  : '';
+              return (
+                <div
+                  key={entry.id}
+                  className={`${styles.tableRow} ${rowClass} ${index % 2 === 0 ? styles.rowEven : ''}`}
+                  role="row"
+                  style={{ gridTemplateColumns: tableTemplate }}
+                >
+                  <div className={styles.cell}>
+                    <div className={styles.taskTitle}>{entry.name || 'Untitled task'}</div>
+                    <div className={styles.badges}>
+                      <span
+                        className={`${styles.badge} ${
+                          dueState.tone === 'negative'
+                            ? styles.badgeDanger
+                            : dueState.tone === 'warning'
+                            ? styles.badgeWarning
+                            : styles.badgeMuted
+                        }`}
+                      >
+                        {dueState.label}
+                      </span>
+                      {entry.source === 'manual' && (
+                        <span className={`${styles.badge} ${styles.badgeMuted}`}>Manual add</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className={styles.cell}>
+                    <p className={styles.description}>{entry.description || 'No description'}</p>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.responsible}>{entry.responsible || 'Unassigned'}</span>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.datePill}>{formatDateLabel(entry.startDate)}</span>
+                  </div>
+                  <div className={styles.cell}>
+                    <span className={styles.datePill}>{formatDateLabel(entry.endDate)}</span>
+                  </div>
+                  <div className={styles.statusCell}>
+                    {isViewingSubmitted || readOnly ? (
+                      <p className={styles.readonlyUpdate}>{entry.statusUpdate || 'No update provided.'}</p>
+                    ) : (
+                      <textarea
+                        value={entry.statusUpdate}
+                        maxLength={STATUS_UPDATE_LIMIT}
+                        onChange={(event) => handleStatusChange(entry.taskId, event.target.value)}
+                        placeholder="Share a short update or blocker"
+                        disabled={isSubmitting}
+                      />
                     )}
                   </div>
                 </div>
-                <div className={styles.cell}>
-                  <p className={styles.description}>{entry.description || 'No description'}</p>
-                </div>
-                <div className={styles.cell}>
-                  <span className={styles.responsible}>{entry.responsible || 'Unassigned'}</span>
-                </div>
-                <div className={styles.cell}>{formatDateLabel(entry.startDate)}</div>
-                <div className={styles.cell}>{formatDateLabel(entry.endDate)}</div>
-                <div className={styles.statusCell}>
-                  {isViewingSubmitted || readOnly ? (
-                    <p className={styles.readonlyUpdate}>{entry.statusUpdate || 'No update provided.'}</p>
-                  ) : (
-                    <textarea
-                      value={entry.statusUpdate}
-                      maxLength={STATUS_UPDATE_LIMIT}
-                      onChange={(event) => handleStatusChange(entry.taskId, event.target.value)}
-                      placeholder="Share a short update or blocker"
-                      disabled={isSubmitting}
-                    />
-                  )}
-                </div>
-              </div>
-            );
-          })
-        )}
+              );
+            })
+          )}
+        </div>
       </div>
 
       {!isViewingSubmitted && !readOnly && (
