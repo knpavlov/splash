@@ -16,6 +16,7 @@ export type NavigationKey =
   | 'participants'
   | 'stage-gate-dashboard'
   | 'capacity-heatmap'
+  | 'deadline-dashboard'
   | 'financial-tree'
   | 'financials'
   | 'kpis'
@@ -61,6 +62,7 @@ export const navigationItems: NavigationItem[] = [
     roleAccess: ['super-admin', 'admin'],
     group: 'dashboards'
   },
+  { key: 'deadline-dashboard', label: 'Deadline radar', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
   { key: 'capacity-heatmap', label: 'Capacity heatmap', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
   { key: 'financial-tree', label: 'P&L tree', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
   { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'], group: 'settings' },

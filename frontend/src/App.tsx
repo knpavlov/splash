@@ -21,6 +21,7 @@ import { ParticipantsScreen } from './modules/participants/ParticipantsScreen';
 import { CapacityHeatmapScreen } from './modules/dashboards/CapacityHeatmapScreen';
 import { FinancialTreeScreen } from './modules/dashboards/FinancialTreeScreen';
 import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboardScreen';
+import { DeadlineDashboardScreen } from './modules/dashboards/DeadlineDashboardScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 import { SnapshotSettingsScreen } from './modules/settings/SnapshotSettingsScreen';
 import { GeneralSettingsScreen } from './modules/settings/GeneralSettingsScreen';
@@ -341,6 +342,8 @@ const AppContent = () => {
         return <FinancialTreeScreen />;
       case 'stage-gate-dashboard':
         return <StageGateDashboardScreen />;
+      case 'deadline-dashboard':
+        return <DeadlineDashboardScreen />;
       case 'accounts':
         return <AccountsScreen />;
       case 'general-settings':

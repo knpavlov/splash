@@ -1,0 +1,483 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 12px;
+}
+
+.filterGroup {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+}
+
+.filterGroup label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #475569;
+}
+
+.filterGroup select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  background: #fff;
+  min-height: 34px;
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.segmented button {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.segmented button:hover {
+  color: #0f172a;
+}
+
+.segmented button.active {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.helper {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.legendSwatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.barChart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.barArea {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-height: 220px;
+}
+
+.bar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.barStack {
+  width: 100%;
+  min-height: 120px;
+  height: 200px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  position: relative;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.bar:hover .barStack {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+}
+
+.barSegment {
+  width: 100%;
+}
+
+.barSegment.overdue {
+  background: linear-gradient(135deg, #f97316, #ef4444);
+}
+
+.barSegment.completed {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.barSegment.progress {
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+}
+
+.barLabel {
+  font-size: 11px;
+  color: #475569;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.barValue {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.statusChart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.statusColumns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.statusColumn {
+  position: relative;
+  padding-top: 24px;
+}
+
+.statusBadges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+}
+
+.badgeAccent {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+
+.statusBar {
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  border: 1px solid #e2e8f0;
+  height: 180px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  position: relative;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+  cursor: pointer;
+}
+
+.statusBar:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+}
+
+.statusFill {
+  width: 100%;
+  border-radius: 10px 10px 0 0;
+}
+
+.statusFill.accent {
+  background: linear-gradient(135deg, #6366f1, #312e81);
+}
+
+.statusFill.warn {
+  background: linear-gradient(135deg, #fbbf24, #f97316);
+}
+
+.statusFill.positive {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.statusLabel {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.statusMeta {
+  font-size: 12px;
+  color: #475569;
+}
+
+.statusActive {
+  box-shadow: 0 0 0 2px #e0e7ff inset;
+  border-color: #6366f1;
+}
+
+.viewSwitch {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.pillButton {
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.pillButton:hover {
+  border-color: #94a3b8;
+}
+
+.pillButton.active {
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.2);
+}
+
+.tableCard {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.tableHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.tableTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1060px;
+  font-size: 12px;
+}
+
+.table th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 10px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #0f172a;
+}
+
+.table tr:hover td {
+  background: #f8fafc;
+}
+
+.muted {
+  color: #94a3b8;
+}
+
+.progressCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progressBar {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+}
+
+.comment {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.commentDate {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.empty {
+  padding: 18px;
+  text-align: center;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+}
+
+.chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  background: #e2e8f0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+}
+
+.pillButton.small {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.hint {
+  font-size: 12px;
+  color: #475569;
+}
+
+.loading {
+  color: #475569;
+  font-size: 12px;
+}
