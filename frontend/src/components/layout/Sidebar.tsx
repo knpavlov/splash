@@ -28,13 +28,16 @@ export const Sidebar = ({ navigationItems, activeItem, onNavigate }: SidebarProp
     return defaults;
   });
 
-  const ungroupedItems = useMemo(() => navigationItems.filter((item) => !item.group), [navigationItems]);
+  const ungroupedItems = useMemo(
+    () => navigationItems.filter((item) => !item.group && !item.hidden),
+    [navigationItems]
+  );
   const groupedSections = useMemo(
     () =>
       navigationGroups
         .map((group) => ({
           ...group,
-          items: navigationItems.filter((item) => item.group === group.id)
+          items: navigationItems.filter((item) => item.group === group.id && !item.hidden)
         }))
         .filter((group) => group.items.length),
     [navigationItems]

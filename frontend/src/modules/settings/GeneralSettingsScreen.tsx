@@ -99,7 +99,18 @@ export const GeneralSettingsScreen = () => {
           <h1>Program defaults</h1>
           <p className={styles.subtitle}>Control shared options for initiative planning.</p>
         </div>
+        <button
+          type="button"
+          className={styles.secondaryButton}
+          onClick={() => {
+            window.location.hash = '/snapshot-settings';
+          }}
+        >
+          Snapshot settings
+        </button>
       </header>
+
+      {message && <p className={styles.success}>{message}</p>}
 
       <div className={styles.card}>
         <div className={styles.cardHeader}>
@@ -146,8 +157,6 @@ export const GeneralSettingsScreen = () => {
             Add
           </button>
         </div>
-
-        {message && <p className={styles.success}>{message}</p>}
       </div>
 
       <div className={styles.card}>

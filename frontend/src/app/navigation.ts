@@ -32,6 +32,7 @@ export interface NavigationItem {
   roleAccess: AccountRole[];
   group?: NavigationGroupKey;
   disabled?: boolean;
+  hidden?: boolean;
 }
 
 export const navigationGroups: { id: NavigationGroupKey; label: string; collapsed?: boolean }[] = [
@@ -67,6 +68,12 @@ export const navigationItems: NavigationItem[] = [
   { key: 'financial-tree', label: 'P&L tree', roleAccess: ['super-admin', 'admin'], group: 'dashboards' },
   { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'], group: 'settings' },
   { key: 'general-settings', label: 'General settings', roleAccess: ['super-admin', 'admin'], group: 'settings' },
-  { key: 'snapshot-settings', label: 'Settings', roleAccess: ['super-admin', 'admin'], group: 'settings' },
+  {
+    key: 'snapshot-settings',
+    label: 'Snapshot settings',
+    roleAccess: ['super-admin', 'admin'],
+    group: 'settings',
+    hidden: true
+  },
   { key: 'initiative-logs', label: 'Initiative log', roleAccess: ['super-admin', 'admin'], group: 'settings' }
 ];
