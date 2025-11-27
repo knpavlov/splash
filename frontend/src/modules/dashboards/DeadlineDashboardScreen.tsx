@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { MouseEvent, useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/DeadlineDashboardScreen.module.css';
 import { useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { InitiativePlanTask, InitiativeStatusReport } from '../../shared/types/initiative';
@@ -6,8 +6,12 @@ import { addDays, diffInDays, parseDate } from '../initiatives/plan/planTimeline
 import { initiativesApi } from '../initiatives/services/initiativesApi';
 
 type BucketMode = 'week' | 'month';
-type ViewMode = 'timeline' | 'status' | 'reports';
+type ViewMode = 'chart' | 'reports';
 type StatusColumnKey = 'older-overdue' | 'recent-overdue' | 'completed-window' | 'upcoming' | 'starting-soon';
+type ChartSelection =
+  | { type: 'timeline'; keys: string[] }
+  | { type: 'status'; keys: StatusColumnKey[] }
+  | { type: 'none'; keys: [] };
 
 interface FlattenedTask {
   id: string;
@@ -35,11 +39,38 @@ interface StatusColumn {
   avgProgress: number;
 }
 
+interface BucketStat {
+  bucket: { start: Date; end: Date; label: string; id: string };
+  completed: number;
+  overdue: number;
+  inProgress: number;
+  total: number;
+  tasks: FlattenedTask[];
+}
+
 const formatDate = (value: Date | null) => {
   if (!value) {
     return 'Not set';
   }
   return value.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+const formatInputDate = (value: Date) => value.toISOString().slice(0, 10);
+
+const parseInputDate = (value: string) => {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatRangeLabel = (start: Date, end: Date) =>
+  `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+
+const dedupeTasks = (items: FlattenedTask[]) => {
+  const map = new Map<string, FlattenedTask>();
+  items.forEach((task) => {
+    map.set(task.id, task);
+  });
+  return Array.from(map.values());
 };
 
 const clampProgress = (value: number | null | undefined) => {
@@ -106,19 +137,27 @@ export const DeadlineDashboardScreen = () => {
   const { list: workstreams } = useWorkstreamsState();
   const [workstreamFilter, setWorkstreamFilter] = useState<string>('all');
   const [initiativeFilter, setInitiativeFilter] = useState<string>('all');
+  const [initiativeQuery, setInitiativeQuery] = useState('');
   const [bucketMode, setBucketMode] = useState<BucketMode>('week');
-  const [lookbackDays, setLookbackDays] = useState(28);
-  const [lookaheadDays, setLookaheadDays] = useState(28);
   const [pastWindowDays, setPastWindowDays] = useState(14);
   const [futureWindowDays, setFutureWindowDays] = useState(14);
-  const [viewMode, setViewMode] = useState<ViewMode>('timeline');
-  const [selectedStatusKey, setSelectedStatusKey] = useState<StatusColumnKey>('upcoming');
+  const [viewMode, setViewMode] = useState<ViewMode>('chart');
+  const [chartSelection, setChartSelection] = useState<ChartSelection>({ type: 'none', keys: [] });
+  const [reportSelection, setReportSelection] = useState<{ initiativeId: 'latest' | string; reportId: 'latest' | string }>({
+    initiativeId: 'latest',
+    reportId: 'latest'
+  });
 
   const today = useMemo(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     return now;
   }, []);
+
+  const defaultRangeStart = useMemo(() => addDays(today, -28), [today]);
+  const defaultRangeEnd = useMemo(() => addDays(today, 56), [today]);
+  const [rangeStartInput, setRangeStartInput] = useState(formatInputDate(defaultRangeStart));
+  const [rangeEndInput, setRangeEndInput] = useState(formatInputDate(defaultRangeEnd));
 
   useEffect(() => {
     if (initiativeFilter === 'all') {
@@ -194,11 +233,31 @@ export const DeadlineDashboardScreen = () => {
     return map;
   }, [statusReports]);
 
-  const rangeStart = useMemo(() => addDays(today, -lookbackDays), [today, lookbackDays]);
-  const rangeEnd = useMemo(() => addDays(today, lookaheadDays), [today, lookaheadDays]);
+  const { rangeStart, rangeEnd } = useMemo(() => {
+    const start = parseInputDate(rangeStartInput) ?? defaultRangeStart;
+    const end = parseInputDate(rangeEndInput) ?? defaultRangeEnd;
+    if (start <= end) {
+      return { rangeStart: start, rangeEnd: end };
+    }
+    return { rangeStart: end, rangeEnd: start };
+  }, [defaultRangeEnd, defaultRangeStart, rangeEndInput, rangeStartInput]);
+
+  const initiativeOptions = useMemo(
+    () =>
+      initiatives.filter((item) => {
+        if (workstreamFilter !== 'all' && item.workstreamId !== workstreamFilter) {
+          return false;
+        }
+        if (initiativeQuery.trim()) {
+          return (item.name || 'Untitled initiative').toLowerCase().includes(initiativeQuery.trim().toLowerCase());
+        }
+        return true;
+      }),
+    [initiatives, initiativeQuery, workstreamFilter]
+  );
 
   const bucketed = useMemo(() => {
-    const buckets: { start: Date; end: Date; label: string }[] = [];
+    const buckets: { start: Date; end: Date; label: string; id: string }[] = [];
     if (bucketMode === 'month') {
       let cursor = startOfMonth(rangeStart);
       while (cursor <= rangeEnd) {
@@ -206,29 +265,28 @@ export const DeadlineDashboardScreen = () => {
         buckets.push({
           start: new Date(cursor),
           end: bucketEnd,
-          label: cursor.toLocaleString('en-US', { month: 'short', year: 'numeric' })
+          label: cursor.toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+          id: `${cursor.toISOString()}-${bucketEnd.toISOString()}`
         });
         cursor = new Date(bucketEnd);
         cursor.setDate(cursor.getDate() + 1);
       }
     } else {
       let cursor = startOfWeek(rangeStart);
-      let index = 0;
       while (cursor <= rangeEnd) {
         const bucketEnd = endOfWeek(cursor);
-        const label = `${cursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${bucketEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
         buckets.push({
           start: new Date(cursor),
           end: bucketEnd,
-          label: `${index + 1}. ${label}`
+          label: formatRangeLabel(cursor, bucketEnd),
+          id: `${cursor.toISOString()}-${bucketEnd.toISOString()}`
         });
         cursor = new Date(bucketEnd);
         cursor.setDate(cursor.getDate() + 1);
-        index += 1;
       }
     }
 
-    const bucketStats = buckets.map((bucket) => {
+    const bucketStats: BucketStat[] = buckets.map((bucket) => {
       const bucketTasks = tasks.filter((task) => task.end && task.end >= bucket.start && task.end <= bucket.end);
       const completed = bucketTasks.filter((task) => task.progress >= 100).length;
       const overdue = bucketTasks.filter((task) => task.progress < 100 && task.end && task.end < today).length;
@@ -239,11 +297,11 @@ export const DeadlineDashboardScreen = () => {
           (!task.end || task.end >= today)
       ).length;
       const total = completed + overdue + inProgress;
-      return { bucket, completed, overdue, inProgress, total };
+      return { bucket, completed, overdue, inProgress, total, tasks: bucketTasks };
     });
     const max = bucketStats.reduce((acc, item) => Math.max(acc, item.total), 0);
     return { buckets: bucketStats, max };
-  }, [bucketMode, rangeStart, rangeEnd, tasks, today]);
+  }, [bucketMode, rangeEnd, rangeStart, tasks, today]);
 
   const statusColumns = useMemo<StatusColumn[]>(() => {
     const pastWindowStart = addDays(today, -pastWindowDays);
@@ -272,13 +330,13 @@ export const DeadlineDashboardScreen = () => {
     };
 
     return [
-      buildColumn('older-overdue', `Overdue before ${pastWindowDays}d`, 'warn', olderOverdue),
-      buildColumn('recent-overdue', `Overdue last ${pastWindowDays}d`, 'warn', recentOverdue),
-      buildColumn('completed-window', `Completed last ${pastWindowDays}d`, 'positive', completedWindow),
-      buildColumn('upcoming', `Deadlines next ${futureWindowDays}d`, 'accent', upcoming),
-      buildColumn('starting-soon', `Starts next ${futureWindowDays}d`, 'accent', startingSoon)
+      buildColumn('older-overdue', `Overdue earlier than ${pastWindowDays}d ago`, 'warn', olderOverdue),
+      buildColumn('recent-overdue', `Overdue in last ${pastWindowDays}d`, 'warn', recentOverdue),
+      buildColumn('completed-window', `Completed in last ${pastWindowDays}d`, 'positive', completedWindow),
+      buildColumn('upcoming', `Deadlines in next ${futureWindowDays}d`, 'accent', upcoming),
+      buildColumn('starting-soon', `Starts in next ${futureWindowDays}d`, 'accent', startingSoon)
     ];
-  }, [tasks, today, pastWindowDays, futureWindowDays]);
+  }, [futureWindowDays, pastWindowDays, tasks, today]);
 
   const statusMax = useMemo(() => statusColumns.reduce((acc, col) => Math.max(acc, col.count), 0), [statusColumns]);
 
@@ -296,21 +354,83 @@ export const DeadlineDashboardScreen = () => {
         }
         return false;
       }),
-    [tasks, rangeEnd, rangeStart]
+    [rangeEnd, rangeStart, tasks]
   );
 
-  const statusFocusTasks = useMemo(() => statusColumns.find((col) => col.key === selectedStatusKey)?.tasks ?? [], [statusColumns, selectedStatusKey]);
-  const reportTasks = useMemo(() => tasks.filter((task) => latestStatusByTask.has(`${task.initiativeId}:${task.id}`)), [tasks, latestStatusByTask]);
-
-  const rows = useMemo(() => {
-    if (viewMode === 'status') {
-      return statusFocusTasks;
+  const chartRows = useMemo(() => {
+    if (chartSelection.type === 'timeline') {
+      const selectedBuckets = bucketed.buckets.filter((bucket) => chartSelection.keys.includes(bucket.bucket.id));
+      if (selectedBuckets.length) {
+        return dedupeTasks(selectedBuckets.flatMap((bucket) => bucket.tasks));
+      }
     }
-    if (viewMode === 'reports') {
-      return reportTasks;
+    if (chartSelection.type === 'status') {
+      const selectedColumns = statusColumns.filter((column) => chartSelection.keys.includes(column.key));
+      if (selectedColumns.length) {
+        return dedupeTasks(selectedColumns.flatMap((column) => column.tasks));
+      }
     }
     return timelineRows;
-  }, [viewMode, timelineRows, statusFocusTasks, reportTasks]);
+  }, [bucketed.buckets, chartSelection, statusColumns, timelineRows]);
+
+  const sortedReports = useMemo(() => {
+    const map = new Map<string, InitiativeStatusReport[]>();
+    Object.entries(statusReports).forEach(([initiativeId, reports]) => {
+      const sorted = [...(reports ?? [])].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      map.set(initiativeId, sorted);
+    });
+    return map;
+  }, [statusReports]);
+
+  useEffect(() => {
+    if (reportSelection.initiativeId === 'latest') {
+      if (reportSelection.reportId !== 'latest') {
+        setReportSelection({ initiativeId: 'latest', reportId: 'latest' });
+      }
+      return;
+    }
+    const reports = sortedReports.get(reportSelection.initiativeId) ?? [];
+    if (!reports.length) {
+      setReportSelection({ initiativeId: 'latest', reportId: 'latest' });
+      return;
+    }
+    if (reportSelection.reportId !== 'latest' && !reports.some((report) => report.id === reportSelection.reportId)) {
+      setReportSelection((prev) => ({ ...prev, reportId: 'latest' }));
+    }
+  }, [reportSelection, sortedReports]);
+
+  const reportStatusByTask = useMemo(() => {
+    if (reportSelection.initiativeId === 'latest') {
+      return latestStatusByTask;
+    }
+    const reports = sortedReports.get(reportSelection.initiativeId) ?? [];
+    const target =
+      reportSelection.reportId === 'latest'
+        ? reports[0]
+        : reports.find((report) => report.id === reportSelection.reportId);
+    const map = new Map<string, { comment: string; createdAt: string }>();
+    if (!target) {
+      return map;
+    }
+    target.entries.forEach((entry) => {
+      if (!entry.statusUpdate || !entry.statusUpdate.trim()) {
+        return;
+      }
+      map.set(`${reportSelection.initiativeId}:${entry.taskId}`, { comment: entry.statusUpdate.trim(), createdAt: target.createdAt });
+    });
+    return map;
+  }, [latestStatusByTask, reportSelection, sortedReports]);
+
+  const reportRows = useMemo(() => {
+    if (reportSelection.initiativeId === 'latest') {
+      return tasks.filter((task) => latestStatusByTask.has(`${task.initiativeId}:${task.id}`));
+    }
+    return tasks.filter((task) => reportStatusByTask.has(`${task.initiativeId}:${task.id}`));
+  }, [latestStatusByTask, reportSelection, reportStatusByTask, tasks]);
+
+  const rows = useMemo(() => (viewMode === 'reports' ? reportRows : chartRows), [chartRows, reportRows, viewMode]);
 
   const formatOverdue = (task: FlattenedTask) => {
     if (!task.end || task.progress >= 100) {
@@ -320,18 +440,29 @@ export const DeadlineDashboardScreen = () => {
     return Math.max(0, diff);
   };
 
-  const renderTable = () => {
+  const renderTable = (activeStatusLookup: Map<string, { comment: string; createdAt: string }>) => {
     if (!rows.length) {
       return <div className={styles.empty}>No tasks match the current filters.</div>;
     }
+    const isTimelineSelection = chartSelection.type === 'timeline' && chartSelection.keys.length > 0;
+    const isStatusSelection = chartSelection.type === 'status' && chartSelection.keys.length > 0;
+    const tableTitle =
+      viewMode === 'reports'
+        ? reportSelection.initiativeId === 'latest'
+          ? 'Tasks with submitted status reports (latest available)'
+          : reportSelection.reportId === 'latest'
+            ? 'Latest status report for the selected initiative'
+            : 'Historical status report for the selected initiative'
+        : isTimelineSelection
+          ? 'Tasks inside selected timeline buckets'
+          : isStatusSelection
+            ? 'Tasks inside selected status columns'
+            : 'Tasks inside the current date range';
+
     return (
       <div className={styles.tableCard}>
         <div className={styles.tableHeader}>
-          <h3 className={styles.tableTitle}>
-            {viewMode === 'timeline' && 'Tasks inside selected timeline window'}
-            {viewMode === 'status' && 'Tasks from the focused status column'}
-            {viewMode === 'reports' && 'Tasks with submitted status reports'}
-          </h3>
+          <h3 className={styles.tableTitle}>{tableTitle}</h3>
           <div className={styles.hint}>
             Showing {rows.length} task{rows.length === 1 ? '' : 's'}
           </div>
@@ -355,7 +486,7 @@ export const DeadlineDashboardScreen = () => {
             <tbody>
               {rows.map((row) => {
                 const statusKey = `${row.initiativeId}:${row.id}`;
-                const latestStatus = latestStatusByTask.get(statusKey);
+                const latestStatus = activeStatusLookup.get(statusKey);
                 return (
                   <tr key={`${row.initiativeId}:${row.id}`}>
                     <td>{row.workstreamName}</td>
@@ -381,7 +512,8 @@ export const DeadlineDashboardScreen = () => {
                           <div className={styles.commentDate}>
                             {new Date(latestStatus.createdAt).toLocaleDateString('en-US', {
                               month: 'short',
-                              day: 'numeric'
+                              day: 'numeric',
+                              year: 'numeric'
                             })}
                           </div>
                         </div>
@@ -406,28 +538,62 @@ export const DeadlineDashboardScreen = () => {
     [filteredInitiatives, statusLoading, statusReports]
   );
 
+  const reportInitiativeOptions = useMemo(() => {
+    const options = Object.keys(statusReports)
+      .filter((id) => (statusReports[id] ?? []).length > 0)
+      .map((id) => ({
+        id,
+        name: initiatives.find((item) => item.id === id)?.name || 'Untitled initiative'
+      }));
+    return options.sort((a, b) => a.name.localeCompare(b.name));
+  }, [initiatives, statusReports]);
+
+  const reportsForSelectedInitiative = useMemo(() => {
+    if (reportSelection.initiativeId === 'latest') {
+      return [];
+    }
+    return sortedReports.get(reportSelection.initiativeId) ?? [];
+  }, [reportSelection.initiativeId, sortedReports]);
+
+  const clearChartSelection = () => setChartSelection({ type: 'none', keys: [] });
+
+  const toggleTimelineBucket = (bucketId: string, multiSelect: boolean) => {
+    setViewMode('chart');
+    setChartSelection((prev) => {
+      if (prev.type !== 'timeline' || !multiSelect) {
+        return { type: 'timeline', keys: [bucketId] };
+      }
+      const alreadySelected = prev.keys.includes(bucketId);
+      const nextKeys = alreadySelected ? prev.keys.filter((key) => key !== bucketId) : [...prev.keys, bucketId];
+      return { type: 'timeline', keys: nextKeys };
+    });
+  };
+
+  const toggleStatusColumn = (columnKey: StatusColumnKey, multiSelect: boolean) => {
+    setViewMode('chart');
+    setChartSelection((prev) => {
+      if (prev.type !== 'status' || !multiSelect) {
+        return { type: 'status', keys: [columnKey] };
+      }
+      const alreadySelected = prev.keys.includes(columnKey);
+      const nextKeys = alreadySelected ? prev.keys.filter((key) => key !== columnKey) : [...prev.keys, columnKey];
+      return { type: 'status', keys: nextKeys };
+    });
+  };
+
+  const activeStatusLookup = useMemo(
+    () => (viewMode === 'reports' ? reportStatusByTask : latestStatusByTask),
+    [latestStatusByTask, reportStatusByTask, viewMode]
+  );
+
   return (
     <div className={styles.wrapper}>
       <div className={styles.header}>
         <div className={styles.titleBlock}>
           <h1 className={styles.title}>Deadline radar</h1>
           <p className={styles.subtitle}>
-            Быстрый обзор приближающихся дедлайнов, просроченных инициатив и последних статус-отчетов.
+            Track deadline risk across initiatives, drill into buckets, and keep the freshest status reports close by.
           </p>
-        </div>
-        <div className={styles.legend}>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendSwatch} ${styles.barSegment} ${styles.progress}`} />
-            In progress
-          </span>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendSwatch} ${styles.barSegment} ${styles.completed}`} />
-            Completed
-          </span>
-          <span className={styles.legendItem}>
-            <span className={`${styles.legendSwatch} ${styles.barSegment} ${styles.overdue}`} />
-            Overdue
-          </span>
         </div>
       </div>
 
@@ -445,70 +611,24 @@ export const DeadlineDashboardScreen = () => {
         </div>
         <div className={styles.filterGroup}>
           <label>Initiative</label>
+          <input
+            className={styles.filterSearch}
+            placeholder="Search initiatives"
+            type="search"
+            value={initiativeQuery}
+            onChange={(event) => setInitiativeQuery(event.target.value)}
+          />
           <select value={initiativeFilter} onChange={(event) => setInitiativeFilter(event.target.value)}>
             <option value="all">All initiatives</option>
-            {filteredInitiatives.map((initiative) => (
+            {initiativeOptions.map((initiative) => (
               <option key={initiative.id} value={initiative.id}>
                 {initiative.name || 'Untitled initiative'}
               </option>
             ))}
-          </select>
-        </div>
-        <div className={styles.filterGroup}>
-          <label>Timeline window</label>
-          <div className={styles.segmented}>
-            {[14, 28, 56].map((days) => (
-              <button
-                key={`back-${days}`}
-                className={lookbackDays === days ? styles.active : undefined}
-                onClick={() => setLookbackDays(days)}
-              >
-                {days / 7}w back
-              </button>
-            ))}
-            {[14, 28, 56].map((days) => (
-              <button
-                key={`ahead-${days}`}
-                className={lookaheadDays === days ? styles.active : undefined}
-                onClick={() => setLookaheadDays(days)}
-              >
-                +{days / 7}w
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className={styles.filterGroup}>
-          <label>Bucket</label>
-          <div className={styles.segmented}>
-            <button className={bucketMode === 'week' ? styles.active : undefined} onClick={() => setBucketMode('week')}>
-              Weekly
-            </button>
-            <button
-              className={bucketMode === 'month' ? styles.active : undefined}
-              onClick={() => setBucketMode('month')}
-            >
-              Monthly
-            </button>
-          </div>
-        </div>
-        <div className={styles.filterGroup}>
-          <label>Past window</label>
-          <select value={pastWindowDays} onChange={(event) => setPastWindowDays(Number(event.target.value))}>
-            {[7, 14, 28].map((days) => (
-              <option key={days} value={days}>
-                Past {days} days
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className={styles.filterGroup}>
-          <label>Future window</label>
-          <select value={futureWindowDays} onChange={(event) => setFutureWindowDays(Number(event.target.value))}>
-            {[7, 14, 28].map((days) => (
-              <option key={days} value={days}>
-                Next {days} days
-              </option>
-            ))}
+            {initiativeFilter !== 'all' &&
+              !initiativeOptions.some((initiative) => initiative.id === initiativeFilter) && (
+                <option value={initiativeFilter}>Selected initiative (filtered by search)</option>
+              )}
           </select>
         </div>
       </div>
@@ -518,52 +638,107 @@ export const DeadlineDashboardScreen = () => {
           <div className={styles.cardHeader}>
             <div>
               <h3 className={styles.cardTitle}>Timeline of deadlines</h3>
-              <p className={styles.helper}>История и будущие дедлайны в выбранном окне. Кликните на статус, чтобы сузить выбор.</p>
+              <p className={styles.helper}>Double-click a bar to open its tasks. Hold Ctrl/Cmd to multi-select buckets when things get dense.</p>
             </div>
-            <div className={styles.chips}>
-              <span className={styles.chip}>{bucketMode === 'week' ? 'Weekly buckets' : 'Monthly buckets'}</span>
-              <span className={styles.chip}>
-                Window: {lookbackDays}d back / +{lookaheadDays}d
-              </span>
+            <div className={styles.chartControls}>
+              <div className={styles.inlineField}>
+                <label>From</label>
+                <input
+                  type="date"
+                  value={rangeStartInput}
+                  onChange={(event) => setRangeStartInput(event.target.value)}
+                />
+              </div>
+              <div className={styles.inlineField}>
+                <label>To</label>
+                <input
+                  type="date"
+                  value={rangeEndInput}
+                  onChange={(event) => setRangeEndInput(event.target.value)}
+                />
+              </div>
+              <div className={styles.inlineField}>
+                <label>Bucket</label>
+                <div className={styles.segmented}>
+                  <button className={bucketMode === 'week' ? styles.active : undefined} onClick={() => setBucketMode('week')}>
+                    Weekly
+                  </button>
+                  <button
+                    className={bucketMode === 'month' ? styles.active : undefined}
+                    onClick={() => setBucketMode('month')}
+                  >
+                    Monthly
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
+          <div className={styles.legendRow}>
+            <div className={styles.legend}>
+              <span className={styles.legendItem}>
+                <span className={`${styles.legendSwatch} ${styles.barSegment} ${styles.progress}`} />
+                In progress
+              </span>
+              <span className={styles.legendItem}>
+                <span className={`${styles.legendSwatch} ${styles.barSegment} ${styles.completed}`} />
+                Completed
+              </span>
+              <span className={styles.legendItem}>
+                <span className={`${styles.legendSwatch} ${styles.barSegment} ${styles.overdue}`} />
+                Overdue
+              </span>
+            </div>
+            <div className={styles.selectionHint}>Click or double-click bars to focus the table.</div>
+          </div>
           <div className={styles.barChart}>
-            <div className={styles.barArea}>
-              {bucketed.buckets.map(({ bucket, completed, overdue, inProgress, total }) => {
-                const height = bucketed.max ? Math.max(6, Math.round((total / bucketed.max) * 100)) : 0;
-                const completedHeight = total ? Math.round((completed / total) * height) : 0;
-                const overdueHeight = total ? Math.round((overdue / total) * height) : 0;
-                const progressHeight = total ? Math.max(0, height - completedHeight - overdueHeight) : 0;
-                return (
-                  <div key={bucket.label} className={styles.bar}>
-                    <div className={styles.barStack} title={`${bucket.label}\nTotal: ${total}`}>
-                      {overdueHeight > 0 && (
-                        <div
-                          className={`${styles.barSegment} ${styles.overdue}`}
-                          style={{ height: `${overdueHeight}%` }}
-                          title="Overdue"
-                        />
-                      )}
-                      {completedHeight > 0 && (
-                        <div
-                          className={`${styles.barSegment} ${styles.completed}`}
-                          style={{ height: `${completedHeight}%` }}
-                          title="Completed"
-                        />
-                      )}
-                      {progressHeight > 0 && (
-                        <div
-                          className={`${styles.barSegment} ${styles.progress}`}
-                          style={{ height: `${progressHeight}%` }}
-                          title="In progress"
-                        />
-                      )}
+            <div className={styles.barScroll}>
+              <div
+                className={styles.barArea}
+                style={{ minWidth: `${Math.max(bucketed.buckets.length * 110, 680)}px` }}
+              >
+                {bucketed.buckets.map(({ bucket, completed, overdue, total }) => {
+                  const isActive = chartSelection.type === 'timeline' && chartSelection.keys.includes(bucket.id);
+                  const height = bucketed.max ? Math.max(6, Math.round((total / bucketed.max) * 100)) : 0;
+                  const completedHeight = total ? Math.round((completed / total) * height) : 0;
+                  const overdueHeight = total ? Math.round((overdue / total) * height) : 0;
+                  const progressHeight = total ? Math.max(0, height - completedHeight - overdueHeight) : 0;
+                  return (
+                    <div
+                      key={bucket.id}
+                      className={`${styles.bar} ${isActive ? styles.barActive : ''}`}
+                      onClick={(event: MouseEvent<HTMLDivElement>) => toggleTimelineBucket(bucket.id, event.ctrlKey || event.metaKey)}
+                      onDoubleClick={(event: MouseEvent<HTMLDivElement>) => toggleTimelineBucket(bucket.id, event.ctrlKey || event.metaKey)}
+                      title={`${bucket.label}\nTotal: ${total}`}
+                    >
+                      <div className={styles.barStack}>
+                        {overdueHeight > 0 && (
+                          <div
+                            className={`${styles.barSegment} ${styles.overdue}`}
+                            style={{ height: `${overdueHeight}%` }}
+                            title="Overdue"
+                          />
+                        )}
+                        {completedHeight > 0 && (
+                          <div
+                            className={`${styles.barSegment} ${styles.completed}`}
+                            style={{ height: `${completedHeight}%` }}
+                            title="Completed"
+                          />
+                        )}
+                        {progressHeight > 0 && (
+                          <div
+                            className={`${styles.barSegment} ${styles.progress}`}
+                            style={{ height: `${progressHeight}%` }}
+                            title="In progress"
+                          />
+                        )}
+                      </div>
+                      <div className={styles.barValue}>{total}</div>
+                      <div className={styles.barLabel}>{bucket.label}</div>
                     </div>
-                    <div className={styles.barValue}>{total}</div>
-                    <div className={styles.barLabel}>{bucket.label}</div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -572,13 +747,36 @@ export const DeadlineDashboardScreen = () => {
           <div className={styles.cardHeader}>
             <div>
               <h3 className={styles.cardTitle}>Current status spotlight</h3>
-              <p className={styles.helper}>Переходите между периодами, чтобы понять, что горит, что сделано и что стартует.</p>
+              <p className={styles.helper}>Double-click a column to see the underlying tasks. Hold Ctrl/Cmd to select more than one status column.</p>
+            </div>
+            <div className={styles.chartControls}>
+              <div className={styles.inlineField}>
+                <label>Past window</label>
+                <select value={pastWindowDays} onChange={(event) => setPastWindowDays(Number(event.target.value))}>
+                  {[7, 14, 28].map((days) => (
+                    <option key={days} value={days}>
+                      Past {days} days
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className={styles.inlineField}>
+                <label>Future window</label>
+                <select value={futureWindowDays} onChange={(event) => setFutureWindowDays(Number(event.target.value))}>
+                  {[7, 14, 28].map((days) => (
+                    <option key={days} value={days}>
+                      Next {days} days
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
           <div className={styles.statusChart}>
             <div className={styles.statusColumns}>
               {statusColumns.map((column) => {
                 const height = statusMax ? Math.max(4, Math.round((column.count / statusMax) * 100)) : 0;
+                const isActive = chartSelection.type === 'status' && chartSelection.keys.includes(column.key);
                 return (
                   <div key={column.key} className={styles.statusColumn}>
                     <div className={styles.statusBadges}>
@@ -586,11 +784,9 @@ export const DeadlineDashboardScreen = () => {
                       <span className={styles.badge}>Avg {column.avgProgress}%</span>
                     </div>
                     <div
-                      className={`${styles.statusBar} ${selectedStatusKey === column.key ? styles.statusActive : ''}`}
-                      onClick={() => {
-                        setSelectedStatusKey(column.key);
-                        setViewMode('status');
-                      }}
+                      className={`${styles.statusBar} ${isActive ? styles.statusActive : ''}`}
+                      onClick={(event: MouseEvent<HTMLDivElement>) => toggleStatusColumn(column.key, event.ctrlKey || event.metaKey)}
+                      onDoubleClick={(event: MouseEvent<HTMLDivElement>) => toggleStatusColumn(column.key, event.ctrlKey || event.metaKey)}
                       title={`${column.label}\nTasks: ${column.count}`}
                     >
                       <div
@@ -601,7 +797,7 @@ export const DeadlineDashboardScreen = () => {
                       />
                     </div>
                     <div className={styles.statusLabel}>{column.label}</div>
-                    <div className={styles.statusMeta}>{column.count} задач</div>
+                    <div className={styles.statusMeta}>{column.count} tasks</div>
                   </div>
                 );
               })}
@@ -613,28 +809,75 @@ export const DeadlineDashboardScreen = () => {
       <div>
         <div className={styles.viewSwitch}>
           <button
-            className={`${styles.pillButton} ${viewMode === 'timeline' ? styles.active : ''}`}
-            onClick={() => setViewMode('timeline')}
+            className={`${styles.pillButton} ${viewMode === 'chart' ? styles.active : ''}`}
+            onClick={() => setViewMode('chart')}
           >
-            Фокус на периоде таймлайна
-          </button>
-          <button
-            className={`${styles.pillButton} ${viewMode === 'status' ? styles.active : ''}`}
-            onClick={() => setViewMode('status')}
-          >
-            Фокус на статусной колонке
+            Focus on charts
           </button>
           <button
             className={`${styles.pillButton} ${viewMode === 'reports' ? styles.active : ''}`}
             onClick={() => setViewMode('reports')}
           >
-            Фокус на статус-репортах
+            Focus on status reports
+          </button>
+          <button className={`${styles.pillButton} ${styles.secondary}`} onClick={clearChartSelection} disabled={chartSelection.keys.length === 0}>
+            Clear chart selection
           </button>
         </div>
-        {loadingReports && <div className={styles.loading}>Загружаем последние status reports…</div>}
+        {viewMode === 'reports' && (
+          <div className={styles.reportFilters}>
+            <div className={styles.filterGroup}>
+              <label>Report scope</label>
+              <select
+                value={reportSelection.initiativeId}
+                onChange={(event) =>
+                  setReportSelection({
+                    initiativeId: event.target.value,
+                    reportId: 'latest'
+                  })
+                }
+              >
+                <option value="latest">Latest across all initiatives</option>
+                {reportInitiativeOptions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.filterGroup}>
+              <label>Pick report</label>
+              <select
+                value={reportSelection.reportId}
+                onChange={(event) =>
+                  setReportSelection((prev) => ({
+                    ...prev,
+                    reportId: event.target.value
+                  }))
+                }
+                disabled={reportSelection.initiativeId === 'latest' || reportsForSelectedInitiative.length === 0}
+              >
+                <option value="latest">Latest for this initiative</option>
+                {reportsForSelectedInitiative.map((report) => (
+                  <option key={report.id} value={report.id}>
+                    {new Date(report.createdAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                    {report.summary ? ` - ${report.summary}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+        {loadingReports && viewMode === 'reports' && <div className={styles.loading}>Loading status reports...</div>}
       </div>
 
-      {loaded ? renderTable() : <div className={styles.empty}>Loading initiatives…</div>}
+      {loaded ? renderTable(activeStatusLookup) : <div className={styles.empty}>Loading initiatives...</div>}
     </div>
   );
 };
+
+
