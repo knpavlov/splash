@@ -197,6 +197,15 @@
   border-radius: 4px;
   border: 1px solid rgba(15, 23, 42, 0.08);
 }
+.legendProgress {
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+}
+.legendCompleted {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+.legendOverdue {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+}
 
 .legendRow {
   display: flex;
@@ -221,23 +230,31 @@
 .barArea {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
-  min-height: 220px;
+  gap: 6px;
+  min-height: 200px;
 }
 
 .bar {
-  flex: 1;
-  min-width: 96px;
+  flex: 0 0 60px;
+  min-width: 60px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   align-items: center;
 }
 
-.barStack {
+.barBody {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
   width: 100%;
+  justify-content: center;
+}
+
+.barStack {
+  width: 48px;
   min-height: 120px;
-  height: 200px;
+  height: 190px;
   border-radius: 12px;
   background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
   border: 1px solid #e2e8f0;
@@ -259,7 +276,7 @@
 }
 
 .barSegment.overdue {
-  background: linear-gradient(135deg, #f97316, #ef4444);
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
 }
 
 .barSegment.completed {
@@ -279,13 +296,25 @@
   font-size: 11px;
   color: #475569;
   text-align: center;
-  line-height: 1.3;
+  line-height: 1.2;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  height: 160px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
 }
 
-.barValue {
+.barValueTop {
   font-size: 12px;
   font-weight: 700;
   color: #0f172a;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 2px 10px;
+  min-height: 22px;
 }
 
 .statusChart {
@@ -294,25 +323,52 @@
   gap: 12px;
 }
 
+.statusScroll {
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
 .statusColumns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
-  align-items: end;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  min-height: 230px;
 }
 
 .statusColumn {
   position: relative;
-  padding-top: 24px;
+  padding: 6px 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  flex: 0 0 120px;
+}
+
+.statusMetaRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+}
+
+.statusTotal {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 4px 10px;
 }
 
 .statusBadges {
-  position: absolute;
-  top: 0;
-  left: 0;
   display: flex;
-  gap: 6px;
   flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
 }
 
 .badge {
@@ -326,9 +382,9 @@
 }
 
 .badgeAccent {
-  background: #0f172a;
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
   color: #fff;
-  border-color: #0f172a;
+  border-color: #0ea5e9;
 }
 
 .statusBar {
@@ -336,6 +392,7 @@
   background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
   border: 1px solid #e2e8f0;
   height: 180px;
+  width: 100%;
   display: flex;
   align-items: flex-end;
   overflow: hidden;
@@ -355,11 +412,11 @@
 }
 
 .statusFill.accent {
-  background: linear-gradient(135deg, #6366f1, #312e81);
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
 }
 
 .statusFill.warn {
-  background: linear-gradient(135deg, #fbbf24, #f97316);
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
 }
 
 .statusFill.positive {
@@ -372,6 +429,8 @@
   font-weight: 700;
   color: #0f172a;
   line-height: 1.4;
+  text-align: center;
+  min-height: 32px;
 }
 
 .statusMeta {

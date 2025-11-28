@@ -138,6 +138,8 @@ export const DeadlineDashboardScreen = () => {
   const [workstreamFilter, setWorkstreamFilter] = useState<string>('all');
   const [initiativeFilter, setInitiativeFilter] = useState<string>('all');
   const [initiativeQuery, setInitiativeQuery] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
+  const [responsibleFilter, setResponsibleFilter] = useState<string>('all');
   const [bucketMode, setBucketMode] = useState<BucketMode>('week');
   const [pastWindowDays, setPastWindowDays] = useState(14);
   const [futureWindowDays, setFutureWindowDays] = useState(14);
@@ -189,7 +191,7 @@ export const DeadlineDashboardScreen = () => {
 
   const workstreamNameMap = useMemo(() => new Map(workstreams.map((ws) => [ws.id, ws.name || 'Untitled workstream'])), [workstreams]);
 
-  const tasks = useMemo<FlattenedTask[]>(() => {
+  const allTasks = useMemo<FlattenedTask[]>(() => {
     return filteredInitiatives.flatMap((initiative) =>
       initiative.plan.tasks
         .filter((task) => !task.archived)
@@ -210,6 +212,32 @@ export const DeadlineDashboardScreen = () => {
         }))
     );
   }, [filteredInitiatives, workstreamNameMap]);
+
+  const ownerOptions = useMemo(() => {
+    const set = new Set<string>();
+    allTasks.forEach((task) => set.add(task.ownerName || 'Unassigned'));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [allTasks]);
+
+  const responsibleOptions = useMemo(() => {
+    const set = new Set<string>();
+    allTasks.forEach((task) => set.add(task.responsible || 'Unassigned'));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [allTasks]);
+
+  const tasks = useMemo<FlattenedTask[]>(() => {
+    return allTasks.filter((task) => {
+      const owner = task.ownerName || 'Unassigned';
+      const responsible = task.responsible || 'Unassigned';
+      if (ownerFilter !== 'all' && owner !== ownerFilter) {
+        return false;
+      }
+      if (responsibleFilter !== 'all' && responsible !== responsibleFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [allTasks, ownerFilter, responsibleFilter]);
 
   const { cache: statusReports, loading: statusLoading } = useStatusReportCache(initiativeIds);
 
@@ -627,8 +655,30 @@ export const DeadlineDashboardScreen = () => {
             ))}
             {initiativeFilter !== 'all' &&
               !initiativeOptions.some((initiative) => initiative.id === initiativeFilter) && (
-                <option value={initiativeFilter}>Selected initiative (filtered by search)</option>
-              )}
+              <option value={initiativeFilter}>Selected initiative (filtered by search)</option>
+            )}
+          </select>
+        </div>
+        <div className={styles.filterGroup}>
+          <label>Owner</label>
+          <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+            <option value="all">All owners</option>
+            {ownerOptions.map((owner) => (
+              <option key={owner} value={owner}>
+                {owner}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.filterGroup}>
+          <label>Responsible</label>
+          <select value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)}>
+            <option value="all">All responsible</option>
+            {responsibleOptions.map((person) => (
+              <option key={person} value={person}>
+                {person}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -638,7 +688,7 @@ export const DeadlineDashboardScreen = () => {
           <div className={styles.cardHeader}>
             <div>
               <h3 className={styles.cardTitle}>Timeline of deadlines</h3>
-              <p className={styles.helper}>Double-click a bar to open its tasks. Hold Ctrl/Cmd to multi-select buckets when things get dense.</p>
+              <p className={styles.helper}>Click a bar to open its tasks and focus the table. Hold Ctrl/Cmd to multi-select buckets when things get dense.</p>
             </div>
             <div className={styles.chartControls}>
               <div className={styles.inlineField}>
@@ -676,25 +726,24 @@ export const DeadlineDashboardScreen = () => {
           <div className={styles.legendRow}>
             <div className={styles.legend}>
               <span className={styles.legendItem}>
-                <span className={`${styles.legendSwatch} ${styles.barSegment} ${styles.progress}`} />
+                <span className={`${styles.legendSwatch} ${styles.legendProgress}`} />
                 In progress
               </span>
               <span className={styles.legendItem}>
-                <span className={`${styles.legendSwatch} ${styles.barSegment} ${styles.completed}`} />
+                <span className={`${styles.legendSwatch} ${styles.legendCompleted}`} />
                 Completed
               </span>
               <span className={styles.legendItem}>
-                <span className={`${styles.legendSwatch} ${styles.barSegment} ${styles.overdue}`} />
+                <span className={`${styles.legendSwatch} ${styles.legendOverdue}`} />
                 Overdue
               </span>
             </div>
-            <div className={styles.selectionHint}>Click or double-click bars to focus the table.</div>
           </div>
           <div className={styles.barChart}>
             <div className={styles.barScroll}>
               <div
                 className={styles.barArea}
-                style={{ minWidth: `${Math.max(bucketed.buckets.length * 110, 680)}px` }}
+                style={{ minWidth: `${Math.max(bucketed.buckets.length * 70, 520)}px` }}
               >
                 {bucketed.buckets.map(({ bucket, completed, overdue, total }) => {
                   const isActive = chartSelection.type === 'timeline' && chartSelection.keys.includes(bucket.id);
@@ -707,34 +756,35 @@ export const DeadlineDashboardScreen = () => {
                       key={bucket.id}
                       className={`${styles.bar} ${isActive ? styles.barActive : ''}`}
                       onClick={(event: MouseEvent<HTMLDivElement>) => toggleTimelineBucket(bucket.id, event.ctrlKey || event.metaKey)}
-                      onDoubleClick={(event: MouseEvent<HTMLDivElement>) => toggleTimelineBucket(bucket.id, event.ctrlKey || event.metaKey)}
                       title={`${bucket.label}\nTotal: ${total}`}
                     >
-                      <div className={styles.barStack}>
-                        {overdueHeight > 0 && (
-                          <div
-                            className={`${styles.barSegment} ${styles.overdue}`}
-                            style={{ height: `${overdueHeight}%` }}
-                            title="Overdue"
-                          />
-                        )}
-                        {completedHeight > 0 && (
-                          <div
-                            className={`${styles.barSegment} ${styles.completed}`}
-                            style={{ height: `${completedHeight}%` }}
-                            title="Completed"
-                          />
-                        )}
-                        {progressHeight > 0 && (
-                          <div
-                            className={`${styles.barSegment} ${styles.progress}`}
-                            style={{ height: `${progressHeight}%` }}
-                            title="In progress"
-                          />
-                        )}
+                      <div className={styles.barValueTop}>{total}</div>
+                      <div className={styles.barBody}>
+                        <div className={styles.barStack}>
+                          {overdueHeight > 0 && (
+                            <div
+                              className={`${styles.barSegment} ${styles.overdue}`}
+                              style={{ height: `${overdueHeight}%` }}
+                              title="Overdue"
+                            />
+                          )}
+                          {completedHeight > 0 && (
+                            <div
+                              className={`${styles.barSegment} ${styles.completed}`}
+                              style={{ height: `${completedHeight}%` }}
+                              title="Completed"
+                            />
+                          )}
+                          {progressHeight > 0 && (
+                            <div
+                              className={`${styles.barSegment} ${styles.progress}`}
+                              style={{ height: `${progressHeight}%` }}
+                              title="In progress"
+                            />
+                          )}
+                        </div>
+                        <div className={styles.barLabel}>{bucket.label}</div>
                       </div>
-                      <div className={styles.barValue}>{total}</div>
-                      <div className={styles.barLabel}>{bucket.label}</div>
                     </div>
                   );
                 })}
@@ -742,12 +792,13 @@ export const DeadlineDashboardScreen = () => {
             </div>
           </div>
         </div>
+        </div>
 
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <div>
               <h3 className={styles.cardTitle}>Current status spotlight</h3>
-              <p className={styles.helper}>Double-click a column to see the underlying tasks. Hold Ctrl/Cmd to select more than one status column.</p>
+              <p className={styles.helper}>Click a column to see the underlying tasks. Hold Ctrl/Cmd to select more than one status column.</p>
             </div>
             <div className={styles.chartControls}>
               <div className={styles.inlineField}>
@@ -773,34 +824,37 @@ export const DeadlineDashboardScreen = () => {
             </div>
           </div>
           <div className={styles.statusChart}>
-            <div className={styles.statusColumns}>
-              {statusColumns.map((column) => {
-                const height = statusMax ? Math.max(4, Math.round((column.count / statusMax) * 100)) : 0;
-                const isActive = chartSelection.type === 'status' && chartSelection.keys.includes(column.key);
-                return (
-                  <div key={column.key} className={styles.statusColumn}>
-                    <div className={styles.statusBadges}>
-                      <span className={`${styles.badge} ${styles.badgeAccent}`}>{column.inProgress} in progress</span>
-                      <span className={styles.badge}>Avg {column.avgProgress}%</span>
-                    </div>
-                    <div
-                      className={`${styles.statusBar} ${isActive ? styles.statusActive : ''}`}
-                      onClick={(event: MouseEvent<HTMLDivElement>) => toggleStatusColumn(column.key, event.ctrlKey || event.metaKey)}
-                      onDoubleClick={(event: MouseEvent<HTMLDivElement>) => toggleStatusColumn(column.key, event.ctrlKey || event.metaKey)}
-                      title={`${column.label}\nTasks: ${column.count}`}
-                    >
+            <div className={styles.statusScroll}>
+              <div className={styles.statusColumns}>
+                {statusColumns.map((column) => {
+                  const height = statusMax ? Math.max(4, Math.round((column.count / statusMax) * 100)) : 0;
+                  const isActive = chartSelection.type === 'status' && chartSelection.keys.includes(column.key);
+                  return (
+                    <div key={column.key} className={styles.statusColumn}>
+                      <div className={styles.statusMetaRow}>
+                        <span className={styles.statusTotal}>{column.count} tasks</span>
+                        <div className={styles.statusBadges}>
+                          <span className={`${styles.badge} ${styles.badgeAccent}`}>{column.inProgress} in progress</span>
+                          <span className={styles.badge}>Avg {column.avgProgress}%</span>
+                        </div>
+                      </div>
                       <div
-                        className={`${styles.statusFill} ${
-                          column.tone === 'positive' ? styles.positive : column.tone === 'warn' ? styles.warn : styles.accent
-                        }`}
-                        style={{ height: `${height}%` }}
-                      />
+                        className={`${styles.statusBar} ${isActive ? styles.statusActive : ''}`}
+                        onClick={(event: MouseEvent<HTMLDivElement>) => toggleStatusColumn(column.key, event.ctrlKey || event.metaKey)}
+                        title={`${column.label}\nTasks: ${column.count}`}
+                      >
+                        <div
+                          className={`${styles.statusFill} ${
+                            column.tone === 'positive' ? styles.positive : column.tone === 'warn' ? styles.warn : styles.accent
+                          }`}
+                          style={{ height: `${height}%` }}
+                        />
+                      </div>
+                      <div className={styles.statusLabel}>{column.label}</div>
                     </div>
-                    <div className={styles.statusLabel}>{column.label}</div>
-                    <div className={styles.statusMeta}>{column.count} tasks</div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
