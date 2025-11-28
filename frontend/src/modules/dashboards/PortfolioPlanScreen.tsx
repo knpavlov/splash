@@ -1,17 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import styles from '../../styles/PortfolioPlanScreen.module.css';
-import {
-  Initiative,
-  InitiativePlanModel,
-  InitiativePlanTask
-} from '../../shared/types/initiative';
+import { Initiative, InitiativePlanModel, InitiativePlanTask } from '../../shared/types/initiative';
 import { useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { InitiativePlanModule } from '../initiatives/components/plan/InitiativePlanModule';
-import { Workstream } from '../../shared/types/workstream';
 
 type GroupMode = 'initiative' | 'workstream' | 'responsible';
 
-type PlanStatus = { type: 'success' | 'error'; text: string };
+type SaveStatus = { type: 'success' | 'error' | 'info'; text: string } | null;
 
 const normalizeResponsible = (value: string | null | undefined) => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
@@ -23,6 +18,8 @@ const responsibleLabel = (value: string | null | undefined) => {
   return trimmed || 'Unassigned';
 };
 
+const defaultSettings: InitiativePlanModel['settings'] = { zoomLevel: 2, splitRatio: 0.45 };
+
 export const PortfolioPlanScreen = () => {
   const { list: initiatives, saveInitiative, loaded } = useInitiativesState();
   const { list: workstreams } = useWorkstreamsState();
@@ -31,23 +28,20 @@ export const PortfolioPlanScreen = () => {
   const [responsibleFilter, setResponsibleFilter] = useState<string>('all');
   const [groupBy, setGroupBy] = useState<GroupMode>('initiative');
   const [drafts, setDrafts] = useState<Record<string, Initiative>>({});
-  const [saving, setSaving] = useState<Record<string, boolean>>({});
-  const [status, setStatus] = useState<Record<string, PlanStatus | null>>({});
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<SaveStatus>(null);
 
-  const mergedInitiatives = useMemo(
+  const effectiveInitiatives = useMemo(
     () => initiatives.map((item) => drafts[item.id] ?? item),
     [drafts, initiatives]
   );
 
-  const workstreamLookup = useMemo(() => {
-    const map = new Map<string, Workstream>();
-    workstreams.forEach((ws) => map.set(ws.id, ws));
-    return map;
-  }, [workstreams]);
+  const initiativeMap = useMemo(() => new Map(effectiveInitiatives.map((item) => [item.id, item])), [effectiveInitiatives]);
+  const workstreamMap = useMemo(() => new Map(workstreams.map((ws) => [ws.id, ws])), [workstreams]);
 
   const filteredInitiatives = useMemo(
     () =>
-      mergedInitiatives.filter((initiative) => {
+      effectiveInitiatives.filter((initiative) => {
         if (workstreamFilter !== 'all' && initiative.workstreamId !== workstreamFilter) {
           return false;
         }
@@ -56,8 +50,18 @@ export const PortfolioPlanScreen = () => {
         }
         return true;
       }),
-    [initiativeFilter, mergedInitiatives, workstreamFilter]
+    [effectiveInitiatives, initiativeFilter, workstreamFilter]
   );
+
+  const selectedResponsibleKey = responsibleFilter === 'all' ? null : responsibleFilter;
+
+  const taskOwnerMap = useMemo(() => {
+    const map = new Map<string, string>();
+    filteredInitiatives.forEach((initiative) => {
+      initiative.plan.tasks.forEach((task) => map.set(task.id, initiative.id));
+    });
+    return map;
+  }, [filteredInitiatives]);
 
   const responsibleOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -74,236 +78,119 @@ export const PortfolioPlanScreen = () => {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [filteredInitiatives]);
 
-  const responsibleLabelMap = useMemo(
-    () => new Map(responsibleOptions.map((option) => [option.key, option.label])),
-    [responsibleOptions]
-  );
+  const combinedPlan = useMemo<InitiativePlanModel>(() => {
+    const settings = filteredInitiatives[0]?.plan.settings ?? defaultSettings;
+    const tasks: InitiativePlanTask[] = [];
+    filteredInitiatives.forEach((initiative) => {
+      initiative.plan.tasks.forEach((task) => {
+        if (selectedResponsibleKey && normalizeResponsible(task.responsible) !== selectedResponsibleKey) {
+          return;
+        }
+        tasks.push(task);
+      });
+    });
+    return { tasks, settings };
+  }, [filteredInitiatives, selectedResponsibleKey]);
 
-  const selectedResponsibleKey = responsibleFilter === 'all' ? null : responsibleFilter;
-  const baseTaskFilter = useMemo(
-    () =>
-      selectedResponsibleKey && groupBy !== 'responsible'
-        ? (task: InitiativePlanTask) => normalizeResponsible(task.responsible) === selectedResponsibleKey
-        : undefined,
-    [groupBy, selectedResponsibleKey]
-  );
+  const fallbackInitiativeId = useMemo(() => {
+    if (initiativeFilter !== 'all') {
+      return initiativeFilter;
+    }
+    return filteredInitiatives[0]?.id ?? effectiveInitiatives[0]?.id ?? null;
+  }, [effectiveInitiatives, filteredInitiatives, initiativeFilter]);
 
-  const markDirtyStatus = useCallback(
-    (initiativeId: string, next: Initiative) => {
-      setDrafts((prev) => ({ ...prev, [initiativeId]: next }));
-      setStatus((prev) => ({ ...prev, [initiativeId]: null }));
+  const resolveGroupValue = useCallback(
+    (task: InitiativePlanTask) => {
+      const ownerId = taskOwnerMap.get(task.id);
+      const initiative = ownerId ? initiativeMap.get(ownerId) ?? null : null;
+      const workstream = initiative ? workstreamMap.get(initiative.workstreamId) ?? null : null;
+      if (groupBy === 'initiative') {
+        return initiative?.name ?? 'Unknown initiative';
+      }
+      if (groupBy === 'workstream') {
+        return workstream?.name ?? 'Unassigned workstream';
+      }
+      return responsibleLabel(task.responsible);
     },
-    []
+    [groupBy, initiativeMap, taskOwnerMap, workstreamMap]
   );
 
   const handlePlanChange = useCallback(
-    (initiativeId: string, nextPlan: InitiativePlanModel) => {
-      const source = drafts[initiativeId] ?? initiatives.find((item) => item.id === initiativeId);
-      if (!source) {
-        return;
+    (nextPlan: InitiativePlanModel) => {
+      const ownerMap = new Map(taskOwnerMap);
+      if (fallbackInitiativeId) {
+        nextPlan.tasks.forEach((task) => {
+          if (!ownerMap.has(task.id)) {
+            ownerMap.set(task.id, fallbackInitiativeId);
+          }
+        });
       }
-      const updated: Initiative = { ...source, plan: nextPlan };
-      markDirtyStatus(initiativeId, updated);
+      const tasksByInitiative: Record<string, InitiativePlanTask[]> = {};
+      nextPlan.tasks.forEach((task) => {
+        const owner = ownerMap.get(task.id);
+        if (!owner) {
+          return;
+        }
+        (tasksByInitiative[owner] ??= []).push(task);
+      });
+
+      setDrafts((prev) => {
+        const nextDrafts = { ...prev };
+        for (const [initiativeId, tasks] of Object.entries(tasksByInitiative)) {
+          const base = prev[initiativeId] ?? initiativeMap.get(initiativeId);
+          if (!base) {
+            continue;
+          }
+          nextDrafts[initiativeId] = {
+            ...base,
+            plan: {
+              ...base.plan,
+              tasks,
+              settings: nextPlan.settings
+            }
+          };
+        }
+        return nextDrafts;
+      });
+      setStatus(null);
     },
-    [drafts, initiatives, markDirtyStatus]
+    [fallbackInitiativeId, initiativeMap, taskOwnerMap]
   );
 
-  const handleResetPlan = useCallback((initiativeId: string) => {
-    setDrafts((prev) => {
-      if (!(initiativeId in prev)) {
-        return prev;
-      }
-      const next = { ...prev };
-      delete next[initiativeId];
-      return next;
-    });
-    setStatus((prev) => ({ ...prev, [initiativeId]: null }));
+  const handleResetChanges = useCallback(() => {
+    setDrafts({});
+    setStatus(null);
   }, []);
 
-  const handleSavePlan = useCallback(
-    async (initiativeId: string) => {
-      const draft = drafts[initiativeId] ?? initiatives.find((item) => item.id === initiativeId);
-      if (!draft) {
-        return;
-      }
-      setSaving((prev) => ({ ...prev, [initiativeId]: true }));
-      setStatus((prev) => ({ ...prev, [initiativeId]: null }));
+  const handleSaveAll = useCallback(async () => {
+    const dirtyInitiatives = Object.values(drafts);
+    if (!dirtyInitiatives.length) {
+      setStatus({ type: 'info', text: 'No changes to save.' } as SaveStatus);
+      return;
+    }
+    setSaving(true);
+    setStatus(null);
+    let failed = 0;
+    const nextDrafts: Record<string, Initiative> = {};
+    for (const draft of dirtyInitiatives) {
       const expectedVersion = Number.isFinite(draft.version) ? draft.version : null;
       const result = await saveInitiative(draft, expectedVersion);
-      setSaving((prev) => ({ ...prev, [initiativeId]: false }));
-      if (result.ok) {
-        setDrafts((prev) => {
-          const next = { ...prev };
-          delete next[initiativeId];
-          return next;
-        });
-        setStatus((prev) => ({ ...prev, [initiativeId]: { type: 'success', text: 'Plan saved' } }));
-      } else {
-        const message =
-          result.error === 'version-conflict'
-            ? 'Someone else updated this initiative. Refresh and try again.'
-            : result.error === 'invalid-input'
-              ? 'Plan has invalid data.'
-              : result.error === 'not-found'
-                ? 'Initiative was not found.'
-                : 'Failed to save changes.';
-        setStatus((prev) => ({ ...prev, [initiativeId]: { type: 'error', text: message } }));
+      if (!result.ok) {
+        failed += 1;
+        nextDrafts[draft.id] = draft;
       }
-    },
-    [drafts, initiatives, saveInitiative]
-  );
-
-  const buildResponsibleFilter = useCallback(
-    (key: string) => (task: InitiativePlanTask) => normalizeResponsible(task.responsible) === key,
-    []
-  );
-
-  const workstreamGroups = useMemo(() => {
-    const map = new Map<string, Initiative[]>();
-    filteredInitiatives.forEach((initiative) => {
-      const key = initiative.workstreamId || 'unassigned';
-      const list = map.get(key) ?? [];
-      list.push(initiative);
-      map.set(key, list);
-    });
-    return Array.from(map.entries())
-      .map(([key, items]) => ({
-        key,
-        name: workstreamLookup.get(key)?.name ?? 'Unassigned workstream',
-        initiatives: items
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [filteredInitiatives, workstreamLookup]);
-
-  const responsibleGroups = useMemo(() => {
-    const map = new Map<string, Initiative[]>();
-    filteredInitiatives.forEach((initiative) => {
-      const seen = new Set<string>();
-      initiative.plan.tasks.forEach((task) => {
-        const key = normalizeResponsible(task.responsible);
-        if (selectedResponsibleKey && key !== selectedResponsibleKey) {
-          return;
-        }
-        if (seen.has(key)) {
-          return;
-        }
-        seen.add(key);
-        const list = map.get(key) ?? [];
-        if (!list.includes(initiative)) {
-          list.push(initiative);
-        }
-        map.set(key, list);
-      });
-    });
-    return Array.from(map.entries())
-      .map(([key, items]) => ({
-        key,
-        label: responsibleLabelMap.get(key) ?? 'Unassigned',
-        initiatives: items
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [filteredInitiatives, responsibleLabelMap, selectedResponsibleKey]);
-
-  const renderPlanCard = (initiative: Initiative, taskFilter?: (task: InitiativePlanTask) => boolean, suffix?: string) => {
-    const statusEntry = status[initiative.id];
-    const isDirty = Boolean(drafts[initiative.id]);
-    const isSaving = Boolean(saving[initiative.id]);
-    const workstreamName = workstreamLookup.get(initiative.workstreamId)?.name ?? 'Unassigned workstream';
-    const cardKey = suffix ? `${initiative.id}:${suffix}` : initiative.id;
-
-    return (
-      <div className={styles.planCard} key={cardKey}>
-        <div className={styles.planCardHeader}>
-          <div>
-            <div className={styles.cardEyebrow}>{workstreamName}</div>
-            <h3 className={styles.planTitle}>{initiative.name}</h3>
-            <p className={styles.planMeta}>
-              Live data shared with the initiative page
-              {taskFilter ? ' · filtered view' : ''}
-              {initiative.ownerName ? ` · Owner: ${initiative.ownerName}` : ''}
-            </p>
-          </div>
-          <div className={styles.planActions}>
-            {isDirty && <span className={styles.statusPill}>Unsaved</span>}
-            {statusEntry && (
-              <span
-                className={`${styles.statusPill} ${
-                  statusEntry.type === 'success' ? styles.statusSuccess : styles.statusError
-                }`}
-              >
-                {statusEntry.text}
-              </span>
-            )}
-            <button
-              className={styles.ghostButton}
-              onClick={() => handleResetPlan(initiative.id)}
-              disabled={!isDirty || isSaving}
-              type="button"
-            >
-              Reset
-            </button>
-            <button
-              className={styles.primaryButton}
-              onClick={() => handleSavePlan(initiative.id)}
-              disabled={!isDirty || isSaving}
-              type="button"
-            >
-              {isSaving ? 'Saving...' : 'Save plan'}
-            </button>
-          </div>
-        </div>
-        <InitiativePlanModule
-          plan={initiative.plan}
-          initiativeId={initiative.id}
-          allInitiatives={mergedInitiatives}
-          onChange={(next) => handlePlanChange(initiative.id, next as InitiativePlanModel)}
-          taskFilter={taskFilter ?? baseTaskFilter}
-        />
-      </div>
-    );
-  };
-
-  const renderInitiativeSections = () => filteredInitiatives.map((initiative) => renderPlanCard(initiative));
-
-  const renderWorkstreamSections = () =>
-    workstreamGroups.map((group) => (
-      <section key={group.key} className={styles.groupSection}>
-        <div className={styles.groupHeader}>
-          <div>
-            <div className={styles.cardEyebrow}>Workstream</div>
-            <h3 className={styles.groupTitle}>{group.name}</h3>
-            <p className={styles.groupMeta}>{group.initiatives.length} initiative(s)</p>
-          </div>
-        </div>
-        <div className={styles.groupBody}>
-          {group.initiatives.map((initiative) => renderPlanCard(initiative))}
-        </div>
-      </section>
-    ));
-
-  const renderResponsibleSections = () => {
-    if (!responsibleGroups.length) {
-      return (
-        <div className={styles.empty}>
-          No tasks with selected responsible owners. Try switching the responsible filter.
-        </div>
-      );
     }
-    return responsibleGroups.map((group) => (
-      <section key={group.key} className={styles.groupSection}>
-        <div className={styles.groupHeader}>
-          <div>
-            <div className={styles.cardEyebrow}>Responsible</div>
-            <h3 className={styles.groupTitle}>{group.label}</h3>
-            <p className={styles.groupMeta}>{group.initiatives.length} initiative(s)</p>
-          </div>
-        </div>
-        <div className={styles.groupBody}>
-          {group.initiatives.map((initiative) => renderPlanCard(initiative, buildResponsibleFilter(group.key), group.key))}
-        </div>
-      </section>
-    ));
-  };
+    setDrafts(nextDrafts);
+    setSaving(false);
+    if (failed) {
+      setStatus({ type: 'error', text: `Saved with ${failed} error(s). Please retry.` });
+    } else {
+      setStatus({ type: 'success', text: 'All plan changes saved to initiatives.' });
+    }
+  }, [drafts, saveInitiative]);
+
+  const contextLabel =
+    groupBy === 'initiative' ? 'Initiative' : groupBy === 'workstream' ? 'Workstream' : 'Responsible';
 
   if (!loaded) {
     return (
@@ -313,7 +200,7 @@ export const PortfolioPlanScreen = () => {
     );
   }
 
-  if (!mergedInitiatives.length) {
+  if (!effectiveInitiatives.length) {
     return (
       <div className={styles.wrapper}>
         <div className={styles.empty}>No initiatives available yet. Create one to start planning.</div>
@@ -321,20 +208,36 @@ export const PortfolioPlanScreen = () => {
     );
   }
 
+  const dirtyCount = Object.keys(drafts).length;
+
   return (
     <div className={styles.wrapper}>
       <div className={styles.header}>
         <div className={styles.titleBlock}>
-          <p className={styles.eyebrow}>Dashboards / Delivery</p>
+          <p className={styles.eyebrow}>Dashboards · Delivery</p>
           <h1 className={styles.title}>Portfolio plan</h1>
           <p className={styles.subtitle}>
-            One place to orchestrate every initiative plan. Edits here are saved to the same records used on the
-            initiative pages.
+            One continuous plan view across every initiative. Edits here write back to the same plans used on initiative
+            pages.
           </p>
         </div>
-        <div className={styles.pillBox}>
-          <span className={styles.pill}>{mergedInitiatives.length} initiatives</span>
-          <span className={styles.pill}>{workstreams.length} workstreams</span>
+        <div className={styles.actions}>
+          {dirtyCount > 0 && <span className={styles.statusPill}>{dirtyCount} initiative(s) changed</span>}
+          {status && (
+            <span
+              className={`${styles.statusPill} ${
+                status.type === 'success' ? styles.statusSuccess : status.type === 'error' ? styles.statusError : ''
+              }`}
+            >
+              {status.text}
+            </span>
+          )}
+          <button className={styles.ghostButton} type="button" onClick={handleResetChanges} disabled={!dirtyCount || saving}>
+            Reset changes
+          </button>
+          <button className={styles.primaryButton} type="button" onClick={handleSaveAll} disabled={saving || !dirtyCount}>
+            {saving ? 'Saving...' : 'Save all changes'}
+          </button>
         </div>
       </div>
 
@@ -362,7 +265,7 @@ export const PortfolioPlanScreen = () => {
             onChange={(event) => setInitiativeFilter(event.target.value)}
           >
             <option value="all">All initiatives</option>
-            {mergedInitiatives.map((initiative) => (
+            {effectiveInitiatives.map((initiative) => (
               <option key={initiative.id} value={initiative.id}>
                 {initiative.name}
               </option>
@@ -385,46 +288,49 @@ export const PortfolioPlanScreen = () => {
           </select>
         </div>
         <div className={styles.filterGroup}>
-          <label>Grouping</label>
+          <label>Grouping column</label>
           <div className={styles.segmented}>
             <button
               type="button"
               className={groupBy === 'initiative' ? styles.activeSegment : undefined}
               onClick={() => setGroupBy('initiative')}
             >
-              Initiatives
+              Initiative
             </button>
             <button
               type="button"
               className={groupBy === 'workstream' ? styles.activeSegment : undefined}
               onClick={() => setGroupBy('workstream')}
             >
-              Workstreams
+              Workstream
             </button>
             <button
               type="button"
               className={groupBy === 'responsible' ? styles.activeSegment : undefined}
               onClick={() => setGroupBy('responsible')}
             >
-              Responsibles
+              Responsible
             </button>
           </div>
-          <p className={styles.filterHint}>
-            Rearrange the same plan data by initiative, by workstream, or by owner.
-          </p>
+          <p className={styles.filterHint}>Tasks stay in one continuous list—use the column to spot clusters.</p>
         </div>
       </div>
 
       {!filteredInitiatives.length ? (
-        <div className={styles.empty}>
-          No initiatives match the current filters. Try switching the workstream or initiative selector.
-        </div>
-      ) : groupBy === 'initiative' ? (
-        renderInitiativeSections()
-      ) : groupBy === 'workstream' ? (
-        renderWorkstreamSections()
+        <div className={styles.empty}>No initiatives match the current filters.</div>
       ) : (
-        renderResponsibleSections()
+        <div className={styles.planSurface}>
+          <InitiativePlanModule
+            plan={combinedPlan}
+            initiativeId="portfolio"
+            allInitiatives={effectiveInitiatives}
+            onChange={(next) => handlePlanChange(next as InitiativePlanModel)}
+            contextColumn={{
+              label: contextLabel,
+              value: resolveGroupValue
+            }}
+          />
+        </div>
       )}
     </div>
   );

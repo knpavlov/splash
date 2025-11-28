@@ -40,6 +40,7 @@ interface InitiativePlanModuleProps {
   title?: string;
   subtitle?: string;
   taskFilter?: (task: InitiativePlanTask) => boolean;
+  contextColumn?: ContextColumnConfig;
 }
 
 const ROW_HEIGHT = 60;
@@ -71,7 +72,8 @@ type TableColumnId =
   | 'end'
   | 'responsible'
   | 'progress'
-  | 'capacity';
+  | 'capacity'
+  | 'context';
 
 interface TableColumnConfig {
   id: TableColumnId;
@@ -80,6 +82,11 @@ interface TableColumnConfig {
   minWidth: number;
   maxWidth: number;
   resizable: boolean;
+}
+
+interface ContextColumnConfig {
+  label: string;
+  value: (task: InitiativePlanTask) => string;
 }
 
 const PLAN_COLUMNS: TableColumnConfig[] = [
@@ -165,7 +172,8 @@ export const InitiativePlanModule = ({
   variant = 'plan',
   title,
   subtitle,
-  taskFilter
+  taskFilter,
+  contextColumn
 }: InitiativePlanModuleProps) => {
   const { list: participants } = useParticipantsState();
   const { milestoneTypes, statusReportSettings } = usePlanSettingsState();
@@ -176,12 +184,22 @@ export const InitiativePlanModule = ({
   );
   const { session } = useAuth();
   const isActuals = variant === 'actuals';
-  const baseColumns = useMemo(() => (isActuals ? ACTUALS_COLUMNS : PLAN_COLUMNS), [isActuals]);
+  const baseColumns = useMemo(() => {
+    const columns = isActuals ? [...ACTUALS_COLUMNS] : [...PLAN_COLUMNS];
+    if (contextColumn) {
+      columns.splice(1, 0, {
+        id: 'context',
+        label: contextColumn.label,
+        defaultWidth: 200,
+        minWidth: 140,
+        maxWidth: 320,
+        resizable: true
+      });
+    }
+    return columns;
+  }, [contextColumn, isActuals]);
   const baseColumnMap = useMemo(() => buildColumnMap(baseColumns), [baseColumns]);
-  const defaultColumnOrder = useMemo(
-    () => (isActuals ? DEFAULT_COLUMN_ORDER_ACTUALS : DEFAULT_COLUMN_ORDER_PLAN),
-    [isActuals]
-  );
+  const defaultColumnOrder = useMemo(() => baseColumns.map((column) => column.id), [baseColumns]);
   const resolvedTitle = title ?? (isActuals ? 'Implementation plan - actuals' : 'Implementation plan');
   const resolvedSubtitle =
     subtitle ??
@@ -2263,6 +2281,16 @@ export const InitiativePlanModule = ({
                               </button>
                             </div>
                           );
+                        case 'context': {
+                          const value = contextColumn ? contextColumn.value(task) : '';
+                          return (
+                            <div key={`${task.id}-context`} className={styles.cell}>
+                              <span className={styles.groupBadge} title={value || undefined}>
+                                {value || '—'}
+                              </span>
+                            </div>
+                          );
+                        }
                         case 'name':
                           return (
                             <div

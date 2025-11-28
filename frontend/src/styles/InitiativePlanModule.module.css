@@ -1038,6 +1038,21 @@
   background: rgba(255, 237, 213, 0.35);
 }
 
+.groupBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: #312e81;
+  font-size: 12px;
+  border: 1px solid #c7d2fe;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .changeDot {
   display: inline-block;
   width: 8px;
