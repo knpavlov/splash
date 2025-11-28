@@ -283,13 +283,20 @@ export const GeneralSettingsScreen = () => {
     setSnapshotMessage(null);
     const normalizedKpis = normalizeKpis(snapshotForm.kpiOptions);
     setSnapshotForm((prev) => ({ ...prev, kpiOptions: normalizedKpis }));
+    const minimumRetention = snapshotSettings?.minimumRetentionDays ?? 30;
+    const retention = Math.max(minimumRetention, Math.max(1, Math.floor(snapshotForm.retentionDays || minimumRetention)));
+    const timezone = snapshotForm.timezone?.trim() || snapshotSettings?.defaultTimezone || 'Australia/Sydney';
+    const scheduleHour = Number.isFinite(snapshotForm.scheduleHour) ? Math.max(0, Math.min(23, Math.floor(snapshotForm.scheduleHour))) : 0;
+    const scheduleMinute = Number.isFinite(snapshotForm.scheduleMinute)
+      ? Math.max(0, Math.min(59, Math.floor(snapshotForm.scheduleMinute)))
+      : 0;
     try {
       const payload = await snapshotsApi.updateSettings({
         enabled: snapshotForm.enabled,
-        retentionDays: snapshotForm.retentionDays,
-        timezone: snapshotForm.timezone,
-        scheduleHour: snapshotForm.scheduleHour,
-        scheduleMinute: snapshotForm.scheduleMinute,
+        retentionDays: retention,
+        timezone,
+        scheduleHour,
+        scheduleMinute,
         kpiOptions: normalizedKpis
       });
       setSnapshotSettings(payload);
