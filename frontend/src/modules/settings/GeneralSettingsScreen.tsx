@@ -97,6 +97,27 @@ const buildFormState = (settings: SnapshotSettingsPayload | null): SnapshotFormS
   kpiOptions: settings?.kpiOptions ?? []
 });
 
+const normalizeKpis = (options: string[]) => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  options.forEach((raw) => {
+    if (typeof raw !== 'string') {
+      return;
+    }
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return;
+    }
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push(trimmed);
+  });
+  return result;
+};
+
 export const GeneralSettingsScreen = () => {
   const { milestoneTypes, saveMilestoneTypes, statusReportSettings, saveStatusReportSettings } = usePlanSettingsState();
   const [draftOptions, setDraftOptions] = useState<string[]>(() => normalizeOptions(milestoneTypes));
@@ -243,10 +264,10 @@ export const GeneralSettingsScreen = () => {
     if (!trimmed) {
       return;
     }
-    setSnapshotForm((prev) => ({
-      ...prev,
-      kpiOptions: Array.from(new Set([...prev.kpiOptions, trimmed]))
-    }));
+    setSnapshotForm((prev) => {
+      const next = normalizeKpis([...prev.kpiOptions, trimmed]);
+      return { ...prev, kpiOptions: next };
+    });
     setNewKpiOption('');
   };
 
@@ -260,6 +281,8 @@ export const GeneralSettingsScreen = () => {
   const handleSaveSnapshotSettings = async () => {
     setSnapshotSaving(true);
     setSnapshotMessage(null);
+    const normalizedKpis = normalizeKpis(snapshotForm.kpiOptions);
+    setSnapshotForm((prev) => ({ ...prev, kpiOptions: normalizedKpis }));
     try {
       const payload = await snapshotsApi.updateSettings({
         enabled: snapshotForm.enabled,
@@ -267,7 +290,7 @@ export const GeneralSettingsScreen = () => {
         timezone: snapshotForm.timezone,
         scheduleHour: snapshotForm.scheduleHour,
         scheduleMinute: snapshotForm.scheduleMinute,
-        kpiOptions: snapshotForm.kpiOptions
+        kpiOptions: normalizedKpis
       });
       setSnapshotSettings(payload);
       setSnapshotForm(buildFormState(payload));
