@@ -11,6 +11,8 @@ interface SidebarProps {
   navigationItems: NavigationItem[];
   activeItem: NavigationKey;
   onNavigate: (key: NavigationKey) => void;
+  isCollapsed: boolean;
+  onToggle: () => void;
 }
 
 const roleLabels: Record<AccountRole, string> = {
@@ -19,9 +21,8 @@ const roleLabels: Record<AccountRole, string> = {
   user: 'User'
 };
 
-export const Sidebar = ({ navigationItems, activeItem, onNavigate }: SidebarProps) => {
+export const Sidebar = ({ navigationItems, activeItem, onNavigate, isCollapsed, onToggle }: SidebarProps) => {
   const { session, logout } = useAuth();
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<NavigationGroupKey, boolean>>(() => {
     const defaults = {} as Record<NavigationGroupKey, boolean>;
     navigationGroups.forEach((group) => {
@@ -84,7 +85,7 @@ export const Sidebar = ({ navigationItems, activeItem, onNavigate }: SidebarProp
 
       <button
         className={styles.collapseToggle}
-        onClick={() => setIsCollapsed(!isCollapsed)}
+        onClick={onToggle}
         title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
         {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
