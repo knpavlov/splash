@@ -18,6 +18,7 @@ export type NavigationKey =
   | 'capacity-heatmap'
   | 'deadline-dashboard'
   | 'financial-tree'
+  | 'portfolio-plan'
   | 'financials'
   | 'kpis'
   | 'general-settings'
@@ -60,6 +61,12 @@ export const navigationItems: NavigationItem[] = [
   {
     key: 'stage-gate-dashboard',
     label: 'Stage-gate pipeline',
+    roleAccess: ['super-admin', 'admin'],
+    group: 'dashboards'
+  },
+  {
+    key: 'portfolio-plan',
+    label: 'Portfolio plan',
     roleAccess: ['super-admin', 'admin'],
     group: 'dashboards'
   },

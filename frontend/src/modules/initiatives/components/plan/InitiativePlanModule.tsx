@@ -39,6 +39,7 @@ interface InitiativePlanModuleProps {
   variant?: 'plan' | 'actuals';
   title?: string;
   subtitle?: string;
+  taskFilter?: (task: InitiativePlanTask) => boolean;
 }
 
 const ROW_HEIGHT = 60;
@@ -163,7 +164,8 @@ export const InitiativePlanModule = ({
   baselinePlan = null,
   variant = 'plan',
   title,
-  subtitle
+  subtitle,
+  taskFilter
 }: InitiativePlanModuleProps) => {
   const { list: participants } = useParticipantsState();
   const { milestoneTypes, statusReportSettings } = usePlanSettingsState();
@@ -462,8 +464,11 @@ export const InitiativePlanModule = ({
     if (isActuals && showCompletedOnly) {
       tasks = tasks.filter((task) => (task.progress ?? 0) >= 100);
     }
+    if (taskFilter) {
+      tasks = tasks.filter(taskFilter);
+    }
     return tasks;
-  }, [isActuals, normalizedPlan.tasks, showArchived, showCompletedOnly, showDueSoonOnly, isTaskDueSoon]);
+  }, [isActuals, normalizedPlan.tasks, showArchived, showCompletedOnly, showDueSoonOnly, isTaskDueSoon, taskFilter]);
 
   const timelineRange = useMemo(() => {
     const rangeTasks =

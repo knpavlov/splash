@@ -22,6 +22,7 @@ import { CapacityHeatmapScreen } from './modules/dashboards/CapacityHeatmapScree
 import { FinancialTreeScreen } from './modules/dashboards/FinancialTreeScreen';
 import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboardScreen';
 import { DeadlineDashboardScreen } from './modules/dashboards/DeadlineDashboardScreen';
+import { PortfolioPlanScreen } from './modules/dashboards/PortfolioPlanScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 import { GeneralSettingsScreen } from './modules/settings/GeneralSettingsScreen';
 import { InitiativeLogsScreen } from './modules/logs/InitiativeLogsScreen';
@@ -342,6 +343,8 @@ const AppContent = () => {
         return <FinancialTreeScreen />;
       case 'stage-gate-dashboard':
         return <StageGateDashboardScreen />;
+      case 'portfolio-plan':
+        return <PortfolioPlanScreen />;
       case 'deadline-dashboard':
         return <DeadlineDashboardScreen />;
       case 'accounts':
