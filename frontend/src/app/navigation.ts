@@ -19,6 +19,7 @@ export type NavigationKey =
   | 'deadline-dashboard'
   | 'financial-tree'
   | 'portfolio-plan'
+  | 'financial-dynamics'
   | 'financials'
   | 'kpis'
   | 'general-settings'
@@ -61,6 +62,12 @@ export const navigationItems: NavigationItem[] = [
   {
     key: 'stage-gate-dashboard',
     label: 'Stage-gate pipeline',
+    roleAccess: ['super-admin', 'admin'],
+    group: 'dashboards'
+  },
+  {
+    key: 'financial-dynamics',
+    label: 'P&L dynamics',
     roleAccess: ['super-admin', 'admin'],
     group: 'dashboards'
   },

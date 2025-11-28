@@ -23,6 +23,7 @@ import { FinancialTreeScreen } from './modules/dashboards/FinancialTreeScreen';
 import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboardScreen';
 import { DeadlineDashboardScreen } from './modules/dashboards/DeadlineDashboardScreen';
 import { PortfolioPlanScreen } from './modules/dashboards/PortfolioPlanScreen';
+import { FinancialDynamicsScreen } from './modules/dashboards/FinancialDynamicsScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 import { GeneralSettingsScreen } from './modules/settings/GeneralSettingsScreen';
 import { InitiativeLogsScreen } from './modules/logs/InitiativeLogsScreen';
@@ -347,6 +348,8 @@ const AppContent = () => {
         return <PortfolioPlanScreen />;
       case 'deadline-dashboard':
         return <DeadlineDashboardScreen />;
+      case 'financial-dynamics':
+        return <FinancialDynamicsScreen />;
       case 'accounts':
         return <AccountsScreen />;
       case 'general-settings':
