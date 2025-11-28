@@ -137,7 +137,7 @@ export const DeadlineDashboardScreen = () => {
   const { list: workstreams } = useWorkstreamsState();
   const [workstreamFilter, setWorkstreamFilter] = useState<string>('all');
   const [initiativeFilter, setInitiativeFilter] = useState<string>('all');
-  const [initiativeQuery, setInitiativeQuery] = useState('');
+  const [filterQuery, setFilterQuery] = useState('');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [responsibleFilter, setResponsibleFilter] = useState<string>('all');
   const [bucketMode, setBucketMode] = useState<BucketMode>('week');
@@ -213,6 +213,8 @@ export const DeadlineDashboardScreen = () => {
     );
   }, [filteredInitiatives, workstreamNameMap]);
 
+  const filterQueryNormalized = useMemo(() => filterQuery.trim().toLowerCase(), [filterQuery]);
+
   const ownerOptions = useMemo(() => {
     const set = new Set<string>();
     allTasks.forEach((task) => set.add(task.ownerName || 'Unassigned'));
@@ -224,6 +226,28 @@ export const DeadlineDashboardScreen = () => {
     allTasks.forEach((task) => set.add(task.responsible || 'Unassigned'));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [allTasks]);
+
+  const filteredOwnerOptions = useMemo(() => {
+    if (!filterQueryNormalized) {
+      return ownerOptions;
+    }
+    const options = ownerOptions.filter((owner) => owner.toLowerCase().includes(filterQueryNormalized));
+    if (ownerFilter !== 'all' && !options.includes(ownerFilter)) {
+      options.push(ownerFilter);
+    }
+    return options;
+  }, [filterQueryNormalized, ownerFilter, ownerOptions]);
+
+  const filteredResponsibleOptions = useMemo(() => {
+    if (!filterQueryNormalized) {
+      return responsibleOptions;
+    }
+    const options = responsibleOptions.filter((person) => person.toLowerCase().includes(filterQueryNormalized));
+    if (responsibleFilter !== 'all' && !options.includes(responsibleFilter)) {
+      options.push(responsibleFilter);
+    }
+    return options;
+  }, [filterQueryNormalized, responsibleFilter, responsibleOptions]);
 
   const tasks = useMemo<FlattenedTask[]>(() => {
     return allTasks.filter((task) => {
@@ -270,18 +294,32 @@ export const DeadlineDashboardScreen = () => {
     return { rangeStart: end, rangeEnd: start };
   }, [defaultRangeEnd, defaultRangeStart, rangeEndInput, rangeStartInput]);
 
+  const filteredWorkstreams = useMemo(() => {
+    if (!filterQueryNormalized) {
+      return workstreams;
+    }
+    const matches = workstreams.filter((ws) => (ws.name || 'Untitled workstream').toLowerCase().includes(filterQueryNormalized));
+    if (workstreamFilter !== 'all' && !matches.some((ws) => ws.id === workstreamFilter)) {
+      const selected = workstreams.find((ws) => ws.id === workstreamFilter);
+      if (selected) {
+        matches.push(selected);
+      }
+    }
+    return matches;
+  }, [filterQueryNormalized, workstreamFilter, workstreams]);
+
   const initiativeOptions = useMemo(
     () =>
       initiatives.filter((item) => {
         if (workstreamFilter !== 'all' && item.workstreamId !== workstreamFilter) {
           return false;
         }
-        if (initiativeQuery.trim()) {
-          return (item.name || 'Untitled initiative').toLowerCase().includes(initiativeQuery.trim().toLowerCase());
+        if (filterQueryNormalized) {
+          return (item.name || 'Untitled initiative').toLowerCase().includes(filterQueryNormalized);
         }
         return true;
       }),
-    [initiatives, initiativeQuery, workstreamFilter]
+    [filterQueryNormalized, initiatives, workstreamFilter]
   );
 
   const bucketed = useMemo(() => {
@@ -508,7 +546,7 @@ export const DeadlineDashboardScreen = () => {
                 <th>End</th>
                 <th>Overdue, d</th>
                 <th>Progress</th>
-                <th>Latest status report</th>
+                <th className={styles.statusReportCol}>Latest status report</th>
               </tr>
             </thead>
             <tbody>
@@ -533,7 +571,7 @@ export const DeadlineDashboardScreen = () => {
                         </div>
                       </div>
                     </td>
-                    <td>
+                    <td className={styles.statusReportCol}>
                       {latestStatus ? (
                         <div className={styles.comment}>
                           <div>{latestStatus.comment}</div>
@@ -627,10 +665,20 @@ export const DeadlineDashboardScreen = () => {
 
       <div className={styles.filters}>
         <div className={styles.filterGroup}>
+          <label>Search filters</label>
+          <input
+            className={styles.filterSearch}
+            placeholder="Search workstreams, initiatives, owners, responsible"
+            type="search"
+            value={filterQuery}
+            onChange={(event) => setFilterQuery(event.target.value)}
+          />
+        </div>
+        <div className={styles.filterGroup}>
           <label>Workstream</label>
           <select value={workstreamFilter} onChange={(event) => setWorkstreamFilter(event.target.value)}>
             <option value="all">All workstreams</option>
-            {workstreams.map((ws) => (
+            {filteredWorkstreams.map((ws) => (
               <option key={ws.id} value={ws.id}>
                 {ws.name || 'Untitled workstream'}
               </option>
@@ -639,13 +687,6 @@ export const DeadlineDashboardScreen = () => {
         </div>
         <div className={styles.filterGroup}>
           <label>Initiative</label>
-          <input
-            className={styles.filterSearch}
-            placeholder="Search initiatives"
-            type="search"
-            value={initiativeQuery}
-            onChange={(event) => setInitiativeQuery(event.target.value)}
-          />
           <select value={initiativeFilter} onChange={(event) => setInitiativeFilter(event.target.value)}>
             <option value="all">All initiatives</option>
             {initiativeOptions.map((initiative) => (
@@ -663,7 +704,7 @@ export const DeadlineDashboardScreen = () => {
           <label>Owner</label>
           <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
             <option value="all">All owners</option>
-            {ownerOptions.map((owner) => (
+            {filteredOwnerOptions.map((owner) => (
               <option key={owner} value={owner}>
                 {owner}
               </option>
@@ -674,7 +715,7 @@ export const DeadlineDashboardScreen = () => {
           <label>Responsible</label>
           <select value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)}>
             <option value="all">All responsible</option>
-            {responsibleOptions.map((person) => (
+            {filteredResponsibleOptions.map((person) => (
               <option key={person} value={person}>
                 {person}
               </option>
@@ -688,7 +729,7 @@ export const DeadlineDashboardScreen = () => {
           <div className={styles.cardHeader}>
             <div>
               <h3 className={styles.cardTitle}>Timeline of deadlines</h3>
-              <p className={styles.helper}>Click a bar to open its tasks and focus the table. Hold Ctrl/Cmd to multi-select buckets when things get dense.</p>
+              <p className={styles.helper}>Click a bar to open its tasks and focus the table. Hold Ctrl/Cmd to multi-select buckets.</p>
             </div>
             <div className={styles.chartControls}>
               <div className={styles.inlineField}>
