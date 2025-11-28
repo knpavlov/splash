@@ -23,7 +23,6 @@ import { FinancialTreeScreen } from './modules/dashboards/FinancialTreeScreen';
 import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboardScreen';
 import { DeadlineDashboardScreen } from './modules/dashboards/DeadlineDashboardScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
-import { SnapshotSettingsScreen } from './modules/settings/SnapshotSettingsScreen';
 import { GeneralSettingsScreen } from './modules/settings/GeneralSettingsScreen';
 import { InitiativeLogsScreen } from './modules/logs/InitiativeLogsScreen';
 import { ActivityScreen } from './modules/activity/ActivityScreen';
@@ -57,7 +56,8 @@ const parseHash = (hash: string): AppRoute => {
   const segments = pathPart.split('/').filter(Boolean);
   const query = new URLSearchParams(queryString ?? '');
   const [rawPage, action, identifier] = segments;
-  const page = navigationItems.find((item) => item.key === rawPage)?.key ?? 'cases';
+  const normalizedPage = rawPage === 'snapshot-settings' ? 'general-settings' : rawPage;
+  const page = navigationItems.find((item) => item.key === normalizedPage)?.key ?? 'cases';
 
   if (page === 'evaluation') {
     if (action === 'new') {
@@ -351,7 +351,7 @@ const AppContent = () => {
       case 'initiative-logs':
         return <InitiativeLogsScreen />;
       case 'snapshot-settings':
-        return <SnapshotSettingsScreen />;
+        return <GeneralSettingsScreen />;
       default:
         return (
           <PlaceholderScreen

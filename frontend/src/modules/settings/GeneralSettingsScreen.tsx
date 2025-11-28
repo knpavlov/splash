@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/GeneralSettingsScreen.module.css';
 import { StatusReportSettings, usePlanSettingsState } from '../../app/state/AppStateContext';
+import { SnapshotSettingsScreen } from './SnapshotSettingsScreen';
 
 const DEFAULT_OPTIONS = ['Standard', 'Value Step', 'Change Management'];
 const VALUE_STEP_LABEL = 'Value Step';
@@ -97,17 +98,8 @@ export const GeneralSettingsScreen = () => {
         <div>
           <p className={styles.eyebrow}>General settings</p>
           <h1>Program defaults</h1>
-          <p className={styles.subtitle}>Control shared options for initiative planning.</p>
+          <p className={styles.subtitle}>Control shared options for initiative planning, reporting, KPIs, and snapshots.</p>
         </div>
-        <button
-          type="button"
-          className={styles.secondaryButton}
-          onClick={() => {
-            window.location.hash = '/snapshot-settings';
-          }}
-        >
-          Snapshot settings
-        </button>
       </header>
 
       {message && <p className={styles.success}>{message}</p>}
@@ -242,6 +234,8 @@ export const GeneralSettingsScreen = () => {
           </label>
         </div>
       </div>
+
+      <SnapshotSettingsScreen />
     </section>
   );
 };
