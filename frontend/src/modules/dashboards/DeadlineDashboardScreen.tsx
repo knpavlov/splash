@@ -792,7 +792,6 @@ export const DeadlineDashboardScreen = () => {
             </div>
           </div>
         </div>
-        </div>
 
         <div className={styles.card}>
           <div className={styles.cardHeader}>
