@@ -182,17 +182,16 @@
 }
 
 .barChart {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) max-content;
+  column-gap: 6px;
+  row-gap: 6px;
   margin-top: 4px;
+  align-items: center;
 }
 
 .barRow {
-  display: grid;
-  grid-template-columns: 65px minmax(40px, 1fr) auto;
-  column-gap: 6px;
-  align-items: center;
+  display: contents;
 }
 
 .barValue {
@@ -205,11 +204,12 @@
 }
 
 .barValueRow {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   justify-content: flex-end;
-  min-width: 60px;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .barTrack {
