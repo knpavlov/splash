@@ -555,7 +555,7 @@ export const FinancialTreeScreen = () => {
                     <span className={styles.barLabel}>Base</span>
                     <div className={styles.barTrack}>
                       <div
-                        className={`${styles.barFill} ${styles.barFillBase} ${node.baseValue < 0 ? styles.barNegative : ''
+                        className={`${styles.barFill} ${styles.barFillBase} ${node.baseValue < 0 ? styles.barFillBaseNegative : ''
                           }`}
                         style={{ width: barWidth(node.baseValue) }}
                       />
@@ -566,7 +566,7 @@ export const FinancialTreeScreen = () => {
                     <span className={styles.barLabel}>With initiatives</span>
                     <div className={styles.barTrack}>
                       <div
-                        className={`${styles.barFill} ${styles.barFillTotal} ${node.totalValue < 0 ? styles.barNegative : ''
+                        className={`${styles.barFill} ${styles.barFillTotal} ${node.totalValue < 0 ? styles.barFillTotalNegative : ''
                           }`}
                         style={{ width: barWidth(node.totalValue) }}
                       />
