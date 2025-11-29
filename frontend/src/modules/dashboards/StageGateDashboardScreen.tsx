@@ -711,9 +711,7 @@ export const StageGateDashboardScreen = () => {
         <td className={styles.initiativeNameCell}>
           <span className={styles.initiativeName}>{initiative.name}</span>
         </td>
-        <td className={styles.metricLabel}>
-          {/* Empty for initiative row in workstream-first layout, or maybe show something? */}
-        </td>
+        {/* Metric label cell removed to align columns correctly */}
         {stageColumns.flatMap((column) => {
           const isMatch = column.key === bucket;
           if (!isMatch) {
