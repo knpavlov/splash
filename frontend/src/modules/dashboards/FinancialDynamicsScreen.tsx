@@ -669,25 +669,24 @@ export const FinancialDynamicsScreen = () => {
 
           {filteredSeries.map((entry) => (
             <article key={entry.line.id} className={styles.lineCard}>
-              <div className={styles.lineHeader}>
-                <div>
-                  <p className={styles.lineCode}>{entry.line.code}</p>
-                  <h3>{entry.line.name}</h3>
-                  <p className={styles.lineMeta}>
-                    {entry.line.nature === 'summary'
-                      ? 'Summary'
-                      : entry.line.nature === 'revenue'
-                      ? 'Revenue'
-                      : 'Cost'}{' '}
-                    ·{' '}
-                    {entry.line.computation === 'manual'
-                      ? 'Manual'
-                      : entry.line.computation === 'children'
-                      ? 'Roll-up'
-                      : 'Cumulative'}
-                  </p>
-                </div>
-                <div className={styles.lineStats}>
+              <div className={styles.lineInfo}>
+                <p className={styles.lineCode}>{entry.line.code}</p>
+                <h3>{entry.line.name}</h3>
+                <p className={styles.lineMeta}>
+                  {entry.line.nature === 'summary'
+                    ? 'Summary'
+                    : entry.line.nature === 'revenue'
+                    ? 'Revenue'
+                    : 'Cost'}{' '}
+                  ·{' '}
+                  {entry.line.computation === 'manual'
+                    ? 'Manual'
+                    : entry.line.computation === 'children'
+                    ? 'Roll-up'
+                    : 'Cumulative'}
+                </p>
+
+                <div className={styles.lineStatsGrid}>
                   <div>
                     <span className={styles.statLabel}>Actual ({latestBucket?.label} {latestBucket?.year})</span>
                     <strong>{formatCurrency(entry.lastActual)}</strong>
@@ -696,8 +695,8 @@ export const FinancialDynamicsScreen = () => {
                     <span className={styles.statLabel}>Plan</span>
                     <strong>{formatCurrency(entry.lastPlan)}</strong>
                   </div>
-                  <div className={styles.deltaBadge}>
-                    <span>Δ vs plan</span>
+                  <div>
+                    <span className={styles.statLabel}>Δ vs plan</span>
                     <strong className={entry.delta > 0 ? styles.deltaPositive : entry.delta < 0 ? styles.deltaNegative : ''}>
                       {formatCurrency(entry.delta)}
                     </strong>
@@ -706,25 +705,29 @@ export const FinancialDynamicsScreen = () => {
               </div>
 
               <div className={styles.chartShell}>
-                <PlanVsActualChart
-                  months={buckets.map((bucket) => ({
-                    key: bucket.key,
-                    label: bucket.label,
-                    year: bucket.year,
-                    index: bucket.index
-                  }))}
-                  gridTemplateColumns={gridTemplateColumns}
-                  planData={entry.plan}
-                  actualData={entry.actual}
-                  showPlanAsLine
-                  planLineMode="impact"
-                  legendLabel="Actuals vs plan"
-                  monthStartColumn={2}
-                  legendSpanColumns={1}
-                  height={settings.viewMode === 'months' ? 180 : 150}
-                  className={styles.chartCompact}
-                  formatValue={formatCurrency}
-                />
+                {entry.maxAbs === 0 ? (
+                  <div className={styles.chartPlaceholder}>No plan or actuals yet for this line.</div>
+                ) : (
+                  <PlanVsActualChart
+                    months={buckets.map((bucket) => ({
+                      key: bucket.key,
+                      label: bucket.label,
+                      year: bucket.year,
+                      index: bucket.index
+                    }))}
+                    gridTemplateColumns={gridTemplateColumns}
+                    planData={entry.plan}
+                    actualData={entry.actual}
+                    showPlanAsLine
+                    planLineMode="impact"
+                    legendLabel="Actuals vs plan"
+                    monthStartColumn={2}
+                    legendSpanColumns={1}
+                    height={settings.viewMode === 'months' ? 200 : 170}
+                    className={styles.chartCompact}
+                    formatValue={formatCurrency}
+                  />
+                )}
               </div>
             </article>
           ))}
