@@ -38,7 +38,7 @@ const measurementKeys = [
 type MeasurementKey = (typeof measurementKeys)[number];
 const measurementKeyList: MeasurementKey[] = [...measurementKeys];
 
-type StageGateEntity = Pick<Initiative, 'id' | 'workstreamId' | 'activeStage' | 'stageState' | 'totals'>;
+type StageGateEntity = Pick<Initiative, 'id' | 'workstreamId' | 'name' | 'activeStage' | 'stageState' | 'totals'>;
 
 interface MeasurementDefinition {
   key: MeasurementKey;
@@ -63,6 +63,7 @@ interface WorkstreamRow {
   totals: StageMetric;
   maxValues: Record<MeasurementKey, number>;
   tone?: 'unassigned';
+  initiatives: StageGateEntity[];
 }
 
 interface StageGateDataset {
@@ -245,7 +246,8 @@ const buildDataset = (initiatives: StageGateEntity[], workstreams: Workstream[])
     metrics: createEmptyMetricMap(),
     totals: createEmptyMeasurementValues(),
     maxValues: createMaxValues(),
-    tone
+    tone,
+    initiatives: []
   });
 
   const rowsById = new Map<string, WorkstreamRow>();
@@ -258,6 +260,7 @@ const buildDataset = (initiatives: StageGateEntity[], workstreams: Workstream[])
   initiatives.forEach((initiative) => {
     const bucket = bucketForInitiative(initiative);
     const workstreamRow = rowsById.get(initiative.workstreamId) ?? unassignedRow;
+    workstreamRow.initiatives.push(initiative);
     [workstreamRow, totalRow].forEach((row) => {
       const entry = row.metrics[bucket];
       measurementKeyList.forEach((measurement) => {
@@ -362,6 +365,19 @@ export const StageGateDashboardScreen = () => {
   const [snapshotsLoaded, setSnapshotsLoaded] = useState(false);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [snapshotDetails, setSnapshotDetails] = useState<Record<string, SnapshotDetailCacheEntry>>({});
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const toggleRow = (rowId: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -519,8 +535,8 @@ export const StageGateDashboardScreen = () => {
       comparisonMode === '7d'
         ? '7 days ago'
         : comparisonMode === '30d'
-        ? '30 days ago'
-        : 'Selected snapshot';
+          ? '30 days ago'
+          : 'Selected snapshot';
     const base = `${targetLabel}  -  ${dateFormatter.format(new Date(comparisonSnapshot.capturedAt))}`;
     if (comparisonLoading) {
       return `${base}  -  loading metrics...`;
@@ -638,8 +654,7 @@ export const StageGateDashboardScreen = () => {
     if (typeof comparisonValue === 'number') {
       delta = value - comparisonValue;
       tooltipParts.push(
-        `Snapshot: ${
-          meta.tooltipFormatter ? meta.tooltipFormatter(comparisonValue) : meta.formatter(comparisonValue)
+        `Snapshot: ${meta.tooltipFormatter ? meta.tooltipFormatter(comparisonValue) : meta.formatter(comparisonValue)
         }`
       );
     }
@@ -680,32 +695,116 @@ export const StageGateDashboardScreen = () => {
     );
   };
 
+  const renderInitiativeRow = (
+    initiative: StageGateEntity,
+    measurement: MeasurementKey,
+    comparisonRow?: WorkstreamRow
+  ) => {
+    const bucket = bucketForInitiative(initiative);
+    const meta = measurementDefinitions[measurement];
+    // For initiative rows, we only show the value if it falls in the specific bucket
+    // But since the table structure is fixed columns, we render cells for all columns,
+    // but only the matching bucket will have a value.
+
+    return (
+      <tr key={initiative.id} className={styles.initiativeRow}>
+        <td className={styles.initiativeNameCell}>
+          <span className={styles.initiativeName}>{initiative.name}</span>
+        </td>
+        <td className={styles.metricLabel}>
+          {/* Empty for initiative row in workstream-first layout, or maybe show something? */}
+        </td>
+        {stageColumns.flatMap((column) => {
+          const isMatch = column.key === bucket;
+          if (!isMatch) {
+            return (
+              <Fragment key={`${initiative.id}-${column.key}`}>
+                <td className={styles.valueCell}></td>
+                <td className={styles.deltaCell}></td>
+              </Fragment>
+            );
+          }
+
+          const value = meta.valueExtractor(initiative);
+          const formatted = meta.formatter(value);
+
+          return (
+            <Fragment key={`${initiative.id}-${column.key}`}>
+              <td className={styles.valueCell}>
+                <span className={styles.initiativeValue}>{formatted}</span>
+              </td>
+              <td className={styles.deltaCell}>
+                {/* No delta for individual initiatives for now as we don't have easy access to historical initiative data here without more complex lookup */}
+                <span className={[styles.deltaBadge, styles.deltaNeutral, styles.deltaPlaceholder].join(' ')}>--</span>
+              </td>
+            </Fragment>
+          );
+        })}
+        {/* Total column for initiative */}
+        {(() => {
+          const value = meta.valueExtractor(initiative);
+          const formatted = meta.formatter(value);
+          return (
+            <Fragment key={`${initiative.id}-total`}>
+              <td className={[styles.valueCell, styles.totalValueCell].join(' ')}>
+                <span className={styles.initiativeValue}>{formatted}</span>
+              </td>
+              <td className={[styles.deltaCell, styles.totalDeltaCell].join(' ')}>
+                <span className={[styles.deltaBadge, styles.totalDeltaBadge, styles.deltaNeutral, styles.deltaPlaceholder].join(' ')}>--</span>
+              </td>
+            </Fragment>
+          );
+        })()}
+      </tr>
+    );
+  };
+
   const renderWorkstreamFirstRows = () => (
     <>
-      {rows.map((row) => (
-        <Fragment key={row.id}>
-          {activeMeasurements.map((measurement, index) => (
-            <tr key={`${row.id}-${measurement}`} className={row.tone === 'unassigned' ? styles.unassignedRow : undefined}>
-              {index === 0 && (
-                <th scope="rowgroup" rowSpan={activeMeasurements.length} className={styles.workstreamCell}>
-                  <p className={styles.workstreamName}>{row.name}</p>
-                  <p className={styles.workstreamMeta}>
-                    {countFormatter.format(row.totals.initiatives)} active initiatives
-                  </p>
-                </th>
-              )}
-              <td className={styles.metricLabel}>
-                <span>{measurementDefinitions[measurement].label}</span>
-                <strong>{measurementDefinitions[measurement].formatter(row.totals[measurement])}</strong>
-              </td>
-              {stageColumns.flatMap((column) =>
-                renderStageCells(row, column.key, measurement, comparisonLookup?.get(row.id))
-              )}
-              {renderTotalCells(row, measurement, comparisonLookup?.get(row.id))}
-            </tr>
-          ))}
-        </Fragment>
-      ))}
+      {rows.map((row) => {
+        const isExpanded = expandedRows.has(row.id);
+        return (
+          <Fragment key={row.id}>
+            {activeMeasurements.map((measurement, index) => (
+              <Fragment key={`${row.id}-${measurement}`}>
+                <tr className={row.tone === 'unassigned' ? styles.unassignedRow : undefined}>
+                  {index === 0 && (
+                    <th scope="rowgroup" rowSpan={activeMeasurements.length + (isExpanded ? row.initiatives.length * activeMeasurements.length : 0)} className={styles.workstreamCell}>
+                      <div className={styles.workstreamHeader}>
+                        <button
+                          className={styles.expandButton}
+                          onClick={() => toggleRow(row.id)}
+                          aria-expanded={isExpanded}
+                          aria-label={isExpanded ? "Collapse workstream" : "Expand workstream"}
+                        >
+                          {isExpanded ? '−' : '+'}
+                        </button>
+                        <div>
+                          <p className={styles.workstreamName}>{row.name}</p>
+                          <p className={styles.workstreamMeta}>
+                            {countFormatter.format(row.totals.initiatives)} active initiatives
+                          </p>
+                        </div>
+                      </div>
+                    </th>
+                  )}
+                  <td className={styles.metricLabel}>
+                    <span>{measurementDefinitions[measurement].label}</span>
+                    <strong>{measurementDefinitions[measurement].formatter(row.totals[measurement])}</strong>
+                  </td>
+                  {stageColumns.flatMap((column) =>
+                    renderStageCells(row, column.key, measurement, comparisonLookup?.get(row.id))
+                  )}
+                  {renderTotalCells(row, measurement, comparisonLookup?.get(row.id))}
+                </tr>
+                {isExpanded && row.initiatives.map(initiative => (
+                  renderInitiativeRow(initiative, measurement)
+                ))}
+              </Fragment>
+            ))}
+          </Fragment>
+        );
+      })}
       {activeMeasurements.map((measurement, index) => (
         <tr key={`total-${measurement}`} className={styles.totalRow}>
           {index === 0 && (
@@ -735,27 +834,46 @@ export const StageGateDashboardScreen = () => {
         const blockRowSpan = rows.length + 1;
         return (
           <Fragment key={`metric-block-${measurement}`}>
-            {rows.map((row, index) => (
-              <tr key={`${measurement}-${row.id}`} className={row.tone === 'unassigned' ? styles.unassignedRow : undefined}>
-                {index === 0 && (
-                  <th scope="rowgroup" rowSpan={blockRowSpan} className={styles.metricGroupCell}>
-                    <p className={styles.workstreamName}>{measurementDefinitions[measurement].label}</p>
-                    <p className={styles.workstreamMeta}>{measurementDefinitions[measurement].description}</p>
-                    <p className={styles.workstreamMeta}>
-                      Total {measurementDefinitions[measurement].formatter(totalRow.totals[measurement])}
-                    </p>
-                  </th>
-                )}
-                <td className={styles.metricLabel}>
-                  <span>{row.name}</span>
-                  <strong>{measurementDefinitions[measurement].formatter(row.totals[measurement])}</strong>
-                </td>
-                {stageColumns.flatMap((column) =>
-                  renderStageCells(row, column.key, measurement, comparisonLookup?.get(row.id))
-                )}
-                {renderTotalCells(row, measurement, comparisonLookup?.get(row.id))}
-              </tr>
-            ))}
+            {rows.map((row, index) => {
+              const isExpanded = expandedRows.has(row.id);
+              return (
+                <Fragment key={`${measurement}-${row.id}`}>
+                  <tr className={row.tone === 'unassigned' ? styles.unassignedRow : undefined}>
+                    {index === 0 && (
+                      <th scope="rowgroup" rowSpan={blockRowSpan + (expandedRows.size > 0 ? Array.from(expandedRows).reduce((acc, id) => acc + (dataset.lookup.get(id)?.initiatives.length || 0), 0) : 0)} className={styles.metricGroupCell}>
+                        <p className={styles.workstreamName}>{measurementDefinitions[measurement].label}</p>
+                        <p className={styles.workstreamMeta}>{measurementDefinitions[measurement].description}</p>
+                        <p className={styles.workstreamMeta}>
+                          Total {measurementDefinitions[measurement].formatter(totalRow.totals[measurement])}
+                        </p>
+                      </th>
+                    )}
+                    <td className={styles.metricLabel}>
+                      <div className={styles.metricLabelContent}>
+                        <button
+                          className={styles.expandButtonSmall}
+                          onClick={() => toggleRow(row.id)}
+                          aria-expanded={isExpanded}
+                        >
+                          {isExpanded ? '−' : '+'}
+                        </button>
+                        <div>
+                          <span>{row.name}</span>
+                          <strong>{measurementDefinitions[measurement].formatter(row.totals[measurement])}</strong>
+                        </div>
+                      </div>
+                    </td>
+                    {stageColumns.flatMap((column) =>
+                      renderStageCells(row, column.key, measurement, comparisonLookup?.get(row.id))
+                    )}
+                    {renderTotalCells(row, measurement, comparisonLookup?.get(row.id))}
+                  </tr>
+                  {isExpanded && row.initiatives.map(initiative => (
+                    renderInitiativeRow(initiative, measurement)
+                  ))}
+                </Fragment>
+              );
+            })}
             <tr key={`${measurement}-portfolio`} className={styles.totalRow}>
               <td className={styles.metricLabel}>
                 <span>Portfolio total</span>
