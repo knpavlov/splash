@@ -199,6 +199,64 @@ const formatDate = (value: string | null) => {
   return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date);
 };
 
+interface SparklineCardProps {
+  label: string;
+  value: string;
+  values: number[];
+  color: string;
+  invert?: boolean;
+}
+
+const SparklineCard = ({ label, value, values, color, invert = false }: SparklineCardProps) => {
+  const width = 120;
+  const height = 42;
+
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 0;
+  const range = max - min || 1;
+
+  const points =
+    values.length === 0
+      ? [
+          { x: 0, y: height / 2 },
+          { x: width, y: height / 2 }
+        ]
+      : values.map((point, index) => {
+          const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
+          const normalized = (point - min) / range;
+          const y = invert ? normalized * height : height - normalized * height;
+          return { x, y };
+        });
+
+  const path = points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x},${point.y}`).join(' ');
+
+  return (
+    <div className={styles.sparkCard}>
+      <div className={styles.sparkHeader}>
+        <span className={styles.quickLabel}>{label}</span>
+        <span className={styles.sparkValue}>{value}</span>
+      </div>
+      <svg className={styles.sparkline} width={width} height={height} role="img" aria-label={label}>
+        <defs>
+          <linearGradient id={`spark-gradient-${label.replace(/\s+/g, '-')}`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.05" />
+          </linearGradient>
+        </defs>
+        <path
+          d={`${path} V ${height} H 0 Z`}
+          fill={`url(#spark-gradient-${label.replace(/\s+/g, '-')})`}
+          stroke="none"
+        />
+        <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+        {points.map((point, index) => (
+          <circle key={`${label}-${index}`} cx={point.x} cy={point.y} r={2} fill={color} />
+        ))}
+      </svg>
+    </div>
+  );
+};
+
 const logFieldLabels: Record<string, string> = {
   name: 'Name',
   description: 'Description',
@@ -723,6 +781,36 @@ export const InitiativeProfile = ({
     return calculateRunRate(monthKeys, netTotals);
   }, [draft]);
 
+  const financialSeries = useMemo(() => {
+    const stageData = draft.stages[draft.activeStage];
+    const months = buildMonthRange(stageData);
+    const monthKeys = months.map((month) => month.key);
+    const totalsByKind = initiativeFinancialKinds.reduce(
+      (acc, kind) => {
+        acc[kind] = buildKindMonthlyTotals(stageData, kind);
+        return acc;
+      },
+      {} as Record<InitiativeFinancialKind, Record<string, number>>
+    );
+    const benefits = monthKeys.map(
+      (key) => (totalsByKind['recurring-benefits'][key] ?? 0) + (totalsByKind['oneoff-benefits'][key] ?? 0)
+    );
+    const costs = monthKeys.map(
+      (key) => (totalsByKind['recurring-costs'][key] ?? 0) + (totalsByKind['oneoff-costs'][key] ?? 0)
+    );
+    const impact = benefits.map((value, index) => value - (costs[index] ?? 0));
+    return {
+      benefits,
+      costs,
+      impact,
+      totals: {
+        benefits: benefits.reduce((acc, value) => acc + value, 0),
+        costs: costs.reduce((acc, value) => acc + value, 0),
+        impact: impact.reduce((acc, value) => acc + value, 0)
+      }
+    };
+  }, [draft]);
+
   const formatTaskDateRange = (task: InitiativePlanTask | null) => {
     if (!task) {
       return '';
@@ -820,18 +908,40 @@ export const InitiativeProfile = ({
               <p className={styles.quickLabel}>Initiative</p>
               <h2>{draft.name || 'Unnamed initiative'}</h2>
             </div>
+            <div className={styles.summaryMeta} {...buildProfileAnchor('overview.owner', 'Initiative owner display')}>
+              <p className={styles.quickLabel}>Owner</p>
+              <h3>{draft.ownerName || 'Unassigned'}</h3>
+            </div>
+            <div className={styles.summaryMeta} {...buildProfileAnchor('overview.l4', 'Stage L4 date')}>
+              <p className={styles.quickLabel}>L4 date</p>
+              <h3>{formatDate(l4Date)}</h3>
+            </div>
           </div>
-          <div {...buildProfileAnchor('overview.owner', 'Initiative owner display')}>
-            <p className={styles.quickLabel}>Owner</p>
-            <h3>{draft.ownerName || 'Unassigned'}</h3>
-          </div>
-          <div {...buildProfileAnchor('overview.run-rate', 'Net run rate')}>
+          <div className={styles.summaryMeta} {...buildProfileAnchor('overview.run-rate', 'Net run rate')}>
             <p className={styles.quickLabel}>Net run rate (last 12 months)</p>
             <h1 className={styles.impactValue}>{formatImpact(netRunRate)}</h1>
           </div>
-          <div {...buildProfileAnchor('overview.l4', 'Stage L4 date')}>
-            <p className={styles.quickLabel}>L4 date</p>
-            <h3>{formatDate(l4Date)}</h3>
+
+          <div className={styles.sparklineGrid}>
+            <SparklineCard
+              label="Benefits trend"
+              value={formatImpact(financialSeries.totals.benefits)}
+              color="#22c55e"
+              values={financialSeries.benefits}
+            />
+            <SparklineCard
+              label="Impact trend"
+              value={formatImpact(financialSeries.totals.impact)}
+              color="#0ea5e9"
+              values={financialSeries.impact}
+            />
+            <SparklineCard
+              label="Cost profile"
+              value={formatImpact(financialSeries.totals.costs)}
+              color="#f97316"
+              values={financialSeries.costs}
+              invert
+            />
           </div>
         </div>
 
