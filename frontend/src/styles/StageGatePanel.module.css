@@ -42,14 +42,18 @@
   display: flex;
   align-items: center;
   gap: 0;
-  /* Removed gap to ensure tight fit */
   flex: 0 0 auto;
   min-width: 180px;
-  /* Reduced from 260px */
   margin-right: 4px;
-  /* Reduced margin */
   position: relative;
-  /* For z-index context */
+}
+
+/* Specific rule for L5 (last item) to be narrower */
+.trackItem:last-child {
+  margin-right: 0;
+  min-width: 100px;
+  /* Reduced width for L5 */
+  flex: 0 0 100px;
 }
 
 @media (max-width: 1200px) {
@@ -64,10 +68,6 @@
     min-width: 0;
     margin-right: 0;
   }
-}
-
-.trackItem:last-child {
-  margin-right: 0;
 }
 
 .trackCompact .trackItem {
@@ -85,7 +85,6 @@
 .stage,
 .gate {
   height: 64px;
-  /* Reduced from 88px */
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -97,7 +96,6 @@
   flex: 1 1 auto;
   min-width: 0;
   padding: 8px 16px 8px 24px;
-  /* Adjusted padding */
   border: none;
   background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
   color: #334155;
@@ -105,7 +103,6 @@
   cursor: pointer;
   clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%, 16px 50%);
   margin-right: -16px;
-  /* Negative margin for overlap */
   z-index: 1;
 }
 
@@ -114,65 +111,40 @@
   padding-left: 16px;
 }
 
+/* Removed z-index lift on hover to keep layering stable */
 .stage:hover {
   filter: brightness(0.98);
-  z-index: 10;
-  /* Bring to front on hover */
-}
-
-.chevron {
-  /* box-shadow is tricky with clip-path, using drop-shadow filter instead if needed, or relying on background contrast */
 }
 
 .stageLabel {
   display: block;
-  font-size: 11px;
+  font-size: 13px;
+  /* Slightly larger for readability since badges are gone */
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #64748b;
-  font-weight: 600;
-}
-
-.stageName {
-  display: block;
-  margin-top: 2px;
-  font-weight: 600;
-  color: #0f172a;
-  font-size: 13px;
-  /* Reduced from 15px */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.stageStatus {
-  display: inline-flex;
-  margin-top: 4px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: rgba(15, 23, 42, 0.05);
-  color: #475569;
-  width: fit-content;
+  font-weight: 700;
 }
 
 /* Status variants */
 .current {
+  /* "You are here" - Active Stage */
   background: linear-gradient(135deg, #3b82f6, #2563eb);
   color: #fff;
   z-index: 5;
+  /* Bright border effect via box-shadow (requires filter for clip-path) or just distinct color */
+  /* Since clip-path clips borders, we rely on the strong blue background to indicate "Active" */
 }
 
-.current .stageLabel,
-.current .stageName {
+.current .stageLabel {
   color: #fff;
 }
 
-.current .stageStatus {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+/* Active border simulation using drop-shadow filter since clip-path cuts box-shadow */
+.active {
+  filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.6));
+  z-index: 10;
+  /* Ensure active is above others */
 }
 
 .complete {
@@ -184,36 +156,24 @@
   color: #15803d;
 }
 
-.complete .stageName {
-  color: #14532d;
-}
-
-.complete .stageStatus {
-  background: rgba(22, 101, 52, 0.1);
-  color: #14532d;
-}
-
 .upcoming {
   background: linear-gradient(135deg, #f8fafc, #f1f5f9);
   color: #94a3b8;
 }
 
+/* Selected Stage - "Viewing Details" */
 .selected {
-  /* Replaced lift with a glow/border effect via box-shadow (requires filter for clip-path) or just brightness */
-  position: relative;
+  /* Distinct border/glow for selection */
+  /* Using a different drop-shadow color to distinguish from "Active" */
+  filter: drop-shadow(0 0 0 2px #f59e0b);
+  /* Orange/Amber outline */
   z-index: 20 !important;
+  /* Always on top if selected */
 }
 
-/* Since clip-path cuts off borders, we use an inset box-shadow or a pseudo-element if needed. 
-   For simplicity and "clean" look, we'll use a strong color differentiation or a filter drop-shadow.
-*/
-.selected::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.2);
-  pointer-events: none;
-  mix-blend-mode: overlay;
+/* If both active and selected, combine effects or prioritize */
+.active.selected {
+  filter: drop-shadow(0 0 0 2px #f59e0b) drop-shadow(0 0 4px rgba(59, 130, 246, 0.4));
 }
 
 /* Gate styles */
@@ -223,12 +183,9 @@
   flex-direction: column;
   justify-content: center;
   flex: 0 0 80px;
-  /* Fixed narrower width */
   min-width: 60px;
   margin-left: 0;
-  /* Reset margin since we handle overlap in .stage */
   z-index: 2;
-  /* Gates sit on top of stages usually, or vice versa. Let's try interleaving. */
 }
 
 .gate {
@@ -242,32 +199,20 @@
   font-weight: 600;
   clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%);
   align-items: flex-start;
-  /* Align left */
   margin-left: -12px;
-  /* Overlap with stage */
 }
 
 .gate:hover {
   filter: brightness(0.95);
-  z-index: 11;
+  /* No z-index change on hover */
 }
 
 .gateName {
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.05em;
   font-weight: 700;
   color: #334155;
-}
-
-.gateStatus {
-  display: inline-flex;
-  margin-top: 2px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  color: #475569;
-  background: rgba(255, 255, 255, 0.4);
+  line-height: 1.2;
 }
 
 /* Gate Status Colors */
