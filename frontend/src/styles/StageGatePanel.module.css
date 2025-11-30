@@ -1,14 +1,14 @@
 .wrapper {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   position: relative;
   z-index: 2;
   width: 100%;
 }
 
 .wrapperCompact {
-  gap: 12px;
+  gap: 8px;
 }
 
 .track {
@@ -17,7 +17,7 @@
   align-items: stretch;
   gap: 0;
   width: 100%;
-  padding: 12px 4px;
+  padding: 8px 4px;
   overflow-x: auto;
   overflow-y: visible;
   scrollbar-width: thin;
@@ -35,16 +35,21 @@
 .trackCompact {
   flex-wrap: wrap;
   overflow: visible;
-  row-gap: 12px;
+  row-gap: 8px;
 }
 
 .trackItem {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
+  /* Removed gap to ensure tight fit */
   flex: 0 0 auto;
-  min-width: 260px;
-  margin-right: 12px;
+  min-width: 180px;
+  /* Reduced from 260px */
+  margin-right: 4px;
+  /* Reduced margin */
+  position: relative;
+  /* For z-index context */
 }
 
 @media (max-width: 1200px) {
@@ -53,8 +58,9 @@
     overflow: visible;
     row-gap: 12px;
   }
+
   .trackItem {
-    flex: 1 1 320px;
+    flex: 1 1 240px;
     min-width: 0;
     margin-right: 0;
   }
@@ -67,7 +73,7 @@
 .trackCompact .trackItem {
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: 4px;
 }
 
 .trackCompact .gateWrapper {
@@ -75,42 +81,56 @@
   margin-left: 0;
 }
 
-.stage {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 14px 22px;
-  border: none;
-  background: linear-gradient(135deg, #e4e9f2, #d5dbec);
-  color: #0f172a;
-  text-align: left;
-  cursor: pointer;
-  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 50%, calc(100% - 22px) 100%, 0 100%, 22px 50%);
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+/* Base shape styles */
+.stage,
+.gate {
+  height: 64px;
+  /* Reduced from 88px */
   display: flex;
   flex-direction: column;
   justify-content: center;
-  height: 88px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 16px 8px 24px;
+  /* Adjusted padding */
+  border: none;
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%, 16px 50%);
+  margin-right: -16px;
+  /* Negative margin for overlap */
+  z-index: 1;
+}
+
+.stage:first-child {
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%);
+  padding-left: 16px;
+}
+
+.stage:hover {
+  filter: brightness(0.98);
+  z-index: 10;
+  /* Bring to front on hover */
 }
 
 .chevron {
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-}
-
-.stageStart {
-  clip-path: inherit;
-}
-
-.stageEnd {
-  clip-path: inherit;
+  /* box-shadow is tricky with clip-path, using drop-shadow filter instead if needed, or relying on background contrast */
 }
 
 .stageLabel {
   display: block;
-  font-size: 13px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #475569;
+  color: #64748b;
+  font-weight: 600;
 }
 
 .stageName {
@@ -118,28 +138,31 @@
   margin-top: 2px;
   font-weight: 600;
   color: #0f172a;
-  font-size: 15px;
+  font-size: 13px;
+  /* Reduced from 15px */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stageStatus {
   display: inline-flex;
-  margin-top: 8px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  background: rgba(15, 23, 42, 0.08);
-  color: #0f172a;
-  min-width: 96px;
-  justify-content: center;
-  text-align: center;
+  background: rgba(15, 23, 42, 0.05);
+  color: #475569;
+  width: fit-content;
 }
 
+/* Status variants */
 .current {
   background: linear-gradient(135deg, #3b82f6, #2563eb);
-  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.35);
   color: #fff;
+  z-index: 5;
 }
 
 .current .stageLabel,
@@ -153,80 +176,153 @@
 }
 
 .complete {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.4));
+  background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+  color: #166534;
+}
+
+.complete .stageLabel {
+  color: #15803d;
+}
+
+.complete .stageName {
+  color: #14532d;
+}
+
+.complete .stageStatus {
+  background: rgba(22, 101, 52, 0.1);
+  color: #14532d;
 }
 
 .upcoming {
-  background: linear-gradient(135deg, #c5cfe0, #b8c2d8);
-  opacity: 1;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  color: #94a3b8;
 }
 
 .selected {
-  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.35);
-  transform: translateY(-2px);
+  /* Replaced lift with a glow/border effect via box-shadow (requires filter for clip-path) or just brightness */
+  position: relative;
+  z-index: 20 !important;
 }
 
+/* Since clip-path cuts off borders, we use an inset box-shadow or a pseudo-element if needed. 
+   For simplicity and "clean" look, we'll use a strong color differentiation or a filter drop-shadow.
+*/
+.selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  mix-blend-mode: overlay;
+}
+
+/* Gate styles */
 .gateWrapper {
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  flex: 0 0 clamp(100px, 9vw, 140px);
-  min-width: 100px;
-  margin-left: -26px;
+  flex: 0 0 80px;
+  /* Fixed narrower width */
+  min-width: 60px;
+  margin-left: 0;
+  /* Reset margin since we handle overlap in .stage */
+  z-index: 2;
+  /* Gates sit on top of stages usually, or vice versa. Let's try interleaving. */
 }
 
 .gate {
   width: 100%;
-  padding: 12px 14px;
+  padding: 8px 12px 8px 20px;
   border: none;
-  background: linear-gradient(135deg, #e5eaf4, #dfe7f5);
-  color: #0f172a;
+  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+  color: #475569;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%);
-  height: 88px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%);
+  align-items: flex-start;
+  /* Align left */
+  margin-left: -12px;
+  /* Overlap with stage */
+}
+
+.gate:hover {
+  filter: brightness(0.95);
+  z-index: 11;
 }
 
 .gateName {
-  font-size: 13px;
+  font-size: 11px;
   letter-spacing: 0.05em;
+  font-weight: 700;
+  color: #334155;
 }
 
 .gateStatus {
   display: inline-flex;
-  margin-top: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 10px;
+  margin-top: 2px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
   letter-spacing: 0.04em;
   color: #475569;
-  background: rgba(148, 163, 184, 0.2);
-  min-width: 96px;
-  justify-content: center;
+  background: rgba(255, 255, 255, 0.4);
 }
 
+/* Gate Status Colors */
+.gate-pending {
+  background: linear-gradient(135deg, #bfdbfe, #93c5fd);
+}
+
+.gate-pending .gateName {
+  color: #1e40af;
+}
+
+.gate-approved {
+  background: linear-gradient(135deg, #bbf7d0, #86efac);
+}
+
+.gate-approved .gateName {
+  color: #166534;
+}
+
+.gate-returned {
+  background: linear-gradient(135deg, #fde68a, #fcd34d);
+}
+
+.gate-returned .gateName {
+  color: #92400e;
+}
+
+.gate-rejected {
+  background: linear-gradient(135deg, #fecaca, #fca5a5);
+}
+
+.gate-rejected .gateName {
+  color: #991b1b;
+}
+
+/* Tooltip */
 .gateTooltip {
   position: fixed;
-  min-width: 240px;
-  background: #0f172a;
-  color: #fff;
+  min-width: 200px;
+  background: #1e293b;
+  color: #f8fafc;
   padding: 12px;
-  border-radius: 14px;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.4);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
   z-index: 5000;
   pointer-events: none;
+  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .gateTooltip p {
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e2e8f0;
 }
 
 .gateTooltip ul {
@@ -235,102 +331,30 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .tooltipRoundTitle {
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  color: #94a3b8;
 }
 
 .tooltipApprovers {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 2px;
+  margin-top: 2px;
 }
 
 .tooltipApprovers div {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
-}
-
-.tooltipApprovers span {
-  color: rgba(255, 255, 255, 0.7);
   font-size: 11px;
 }
 
-.stage-pending {
-  border-color: rgba(37, 99, 235, 0.6);
-}
-
-.stage-pending .stageStatus {
-  background: rgba(37, 99, 235, 0.15);
-  color: #1d4ed8;
-}
-
-.stage-approved {
-  border-color: rgba(34, 197, 94, 0.8);
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.25), rgba(16, 185, 129, 0.4));
-}
-
-.stage-approved .stageStatus {
-  background: rgba(34, 197, 94, 0.2);
-  color: #047857;
-}
-
-.stage-returned {
-  border-color: rgba(251, 146, 60, 0.7);
-}
-
-.stage-returned .stageStatus {
-  background: rgba(251, 146, 60, 0.2);
-  color: #92400e;
-}
-
-.stage-rejected {
-  border-color: rgba(239, 68, 68, 0.6);
-}
-
-.stage-rejected .stageStatus {
-  background: rgba(239, 68, 68, 0.2);
-  color: #b91c1c;
-}
-
-.gate-pending {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.3));
-}
-
-.gate-pending .gateStatus {
-  background: rgba(37, 99, 235, 0.15);
-  color: #1d4ed8;
-}
-
-.gate-approved {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.4));
-}
-
-.gate-approved .gateStatus {
-  background: rgba(34, 197, 94, 0.2);
-  color: #047857;
-}
-
-.gate-returned {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(249, 115, 22, 0.3));
-}
-
-.gate-returned .gateStatus {
-  background: rgba(251, 146, 60, 0.2);
-  color: #92400e;
-}
-
-.gate-rejected {
-  background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(239, 68, 68, 0.3));
-}
-
-.gate-rejected .gateStatus {
-  background: rgba(239, 68, 68, 0.2);
-  color: #b91c1c;
+.tooltipApprovers span {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
 }
