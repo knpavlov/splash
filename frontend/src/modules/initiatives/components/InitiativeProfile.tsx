@@ -1146,6 +1146,22 @@ export const InitiativeProfile = ({
               <p>Track each L gate and review status in one place.</p>
             </div>
           </div>
+          <div className={styles.stageActions}>
+            {mode === 'view' && initiative && isStageEditable && !stageLocked && (
+              <button
+                className={styles.secondaryButton}
+                onClick={handleSubmitClick}
+                disabled={isSubmitting || !canSubmitStage}
+                type="button"
+              >
+                {currentStageState.status === 'pending'
+                  ? 'Waiting for approvals'
+                  : isSubmitting
+                    ? 'Submitting...'
+                    : 'Submit for next gate'}
+              </button>
+            )}
+          </div>
         </header>
         {!stageProgressCollapsed && (
           <StageGatePanel
@@ -1180,22 +1196,6 @@ export const InitiativeProfile = ({
               <h3>{stageTitle}</h3>
               {!isStageEditable && <p className={styles.stageHint}>Fields are read-only for this gate.</p>}
             </div>
-          </div>
-          <div className={styles.stageActions}>
-            {mode === 'view' && initiative && isStageEditable && !stageLocked && (
-              <button
-                className={styles.secondaryButton}
-                onClick={handleSubmitClick}
-                disabled={isSubmitting || !canSubmitStage}
-                type="button"
-              >
-                {currentStageState.status === 'pending'
-                  ? 'Waiting for approvals'
-                  : isSubmitting
-                    ? 'Submitting...'
-                    : 'Submit for next gate'}
-              </button>
-            )}
           </div>
         </header>
         {!stageDetailsCollapsed && (

@@ -238,6 +238,7 @@ export const StageGatePanel = ({
             styles.chevron,
             styles[status],
             isSelected ? styles.selected : '',
+            isActive ? styles.current : '',
             isActive ? styles.active : '',
             styles[`stage-${state.status}`]
           ]

@@ -17,9 +17,10 @@
   align-items: stretch;
   gap: 0;
   width: 100%;
-  padding: 8px 4px;
+  padding: 8px 6px 4px;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
+  min-height: 78px;
   scrollbar-width: thin;
 }
 
@@ -33,8 +34,7 @@
 }
 
 .trackCompact {
-  flex-wrap: wrap;
-  overflow: visible;
+  overflow: hidden;
   row-gap: 8px;
 }
 
@@ -42,34 +42,14 @@
   display: flex;
   align-items: center;
   gap: 0;
-  flex: 1 1 auto;
-  /* Allow growing/shrinking */
-  min-width: 120px;
-  /* Smaller min-width for responsiveness */
-  margin-right: 4px;
+  flex: 0 0 160px;
+  min-width: 140px;
+  margin-right: 8px;
   position: relative;
 }
 
-/* Specific rule for L5 (last item) to be narrower */
 .trackItem:last-child {
   margin-right: 0;
-  min-width: 80px;
-  /* Reduced width for L5 */
-  flex: 0 0 80px;
-}
-
-@media (max-width: 1200px) {
-  .track {
-    flex-wrap: wrap;
-    overflow: visible;
-    row-gap: 12px;
-  }
-
-  .trackItem {
-    flex: 1 1 180px;
-    min-width: 0;
-    margin-right: 0;
-  }
 }
 
 .trackCompact .trackItem {
@@ -92,6 +72,7 @@
   justify-content: center;
   transition: all 0.2s ease;
   position: relative;
+  box-sizing: border-box;
 }
 
 .stage {
@@ -159,13 +140,16 @@
 
 /* Selected Stage - "Viewing Details" */
 .selected {
-  /* Distinct Orange/Amber Border for Selected Stage */
-  filter: drop-shadow(0 0 0 2px #f59e0b);
+  box-shadow: 0 0 0 4px #f97316, 0 0 0 8px rgba(249, 115, 22, 0.18);
 }
 
 /* If both active and selected, combine effects */
 .active.selected {
-  filter: drop-shadow(0 0 0 2px #f59e0b) drop-shadow(0 0 4px rgba(59, 130, 246, 0.6));
+  box-shadow: 0 0 0 4px #f97316, 0 0 0 10px rgba(14, 165, 233, 0.35);
+}
+
+.current {
+  box-shadow: 0 0 0 4px #0ea5e9 inset, 0 0 0 7px rgba(14, 165, 233, 0.35);
 }
 
 /* Gate styles */
