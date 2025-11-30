@@ -4,6 +4,7 @@ import { WorkstreamsRepository } from '../workstreams/workstreams.repository.js'
 import {
   initiativeFinancialKinds,
   initiativeStageKeys,
+  InitiativeFinancialKind,
   InitiativeFinancialEntry,
   InitiativeRecord,
   InitiativeResponse,
