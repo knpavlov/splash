@@ -745,17 +745,18 @@ export const initiativesApi = {
     await apiRequest<unknown>(`/initiatives/${id}`, { method: 'DELETE' });
     return id;
   },
-  advance: async (id: string, targetStage?: InitiativeStageKey) =>
+  advance: async (id: string, targetStage?: InitiativeStageKey, actor?: InitiativeActorMetadata) =>
     ensureInitiative(
       await apiRequest<unknown>(`/initiatives/${id}/advance`, {
         method: 'POST',
-        body: targetStage ? { targetStage } : undefined
+        body: withActor(targetStage ? { targetStage } : {}, actor)
       })
     ),
-  submit: async (id: string) =>
+  submit: async (id: string, actor?: InitiativeActorMetadata) =>
     ensureInitiative(
       await apiRequest<unknown>(`/initiatives/${id}/submit`, {
-        method: 'POST'
+        method: 'POST',
+        body: withActor({}, actor)
       })
     ),
   events: async (id: string) => ensureEventList(await apiRequest<unknown>(`/initiatives/${id}/events`)),

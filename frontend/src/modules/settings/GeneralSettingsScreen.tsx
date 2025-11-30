@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/GeneralSettingsScreen.module.css';
-import { StatusReportSettings, usePlanSettingsState } from '../../app/state/AppStateContext';
+import { PeriodSettings, StatusReportSettings, usePlanSettingsState } from '../../app/state/AppStateContext';
 import { snapshotsApi } from '../snapshots/services/snapshotsApi';
 import {
   ProgramSnapshotDetail,
@@ -18,6 +18,10 @@ const frequencyOptions = [
   { value: 'biweekly', label: 'Every 2 weeks' },
   { value: 'every-4-weeks', label: 'Every 4 weeks' }
 ] as const;
+const monthOptions = Array.from({ length: 12 }).map((_, index) => ({
+  value: index + 1,
+  label: new Date(2000, index, 1).toLocaleString('en-US', { month: 'long' })
+}));
 
 const dateTimeFormatter = new Intl.DateTimeFormat('en-AU', {
   dateStyle: 'full',
@@ -119,11 +123,19 @@ const normalizeKpis = (options: string[]) => {
 };
 
 export const GeneralSettingsScreen = () => {
-  const { milestoneTypes, saveMilestoneTypes, statusReportSettings, saveStatusReportSettings } = usePlanSettingsState();
+  const {
+    milestoneTypes,
+    saveMilestoneTypes,
+    periodSettings,
+    savePeriodSettings,
+    statusReportSettings,
+    saveStatusReportSettings
+  } = usePlanSettingsState();
   const [draftOptions, setDraftOptions] = useState<string[]>(() => normalizeOptions(milestoneTypes));
   const [newOption, setNewOption] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [statusSettings, setStatusSettings] = useState<StatusReportSettings>(statusReportSettings);
+  const [periodForm, setPeriodForm] = useState<PeriodSettings>(periodSettings);
 
   const [snapshotSettings, setSnapshotSettings] = useState<SnapshotSettingsPayload | null>(null);
   const [snapshotForm, setSnapshotForm] = useState<SnapshotFormState>(() => buildFormState(null));
@@ -145,6 +157,10 @@ export const GeneralSettingsScreen = () => {
     setStatusSettings(statusReportSettings);
   }, [statusReportSettings]);
 
+  useEffect(() => {
+    setPeriodForm(periodSettings);
+  }, [periodSettings]);
+
   const normalizedOptions = useMemo(() => normalizeOptions(draftOptions), [draftOptions]);
 
   const updateStatusSetting = <K extends keyof StatusReportSettings>(key: K, value: StatusReportSettings[K]) => {
@@ -157,6 +173,11 @@ export const GeneralSettingsScreen = () => {
     setDraftOptions(normalized);
     saveMilestoneTypes(normalized);
     setToast('Milestone types updated.');
+  };
+
+  const handleSavePeriodSettings = () => {
+    savePeriodSettings(periodForm);
+    setToast('Period settings updated.');
   };
 
   const handleSaveStatusSettings = () => {
@@ -406,10 +427,11 @@ export const GeneralSettingsScreen = () => {
           <p className={styles.eyebrow}>Settings</p>
           <h1>General settings</h1>
           <p className={styles.lede}>
-            One place to manage milestone types, reporting cadence, KPI catalog, and snapshot automation.
+            One place to manage milestone types, planning period, reporting cadence, KPI catalog, and snapshot automation.
           </p>
           <div className={styles.chipRow}>
             <span className={styles.chip}>Milestone types</span>
+            <span className={styles.chip}>Period defaults</span>
             <span className={styles.chip}>Reporting cadence</span>
             <span className={styles.chip}>KPI catalog</span>
             <span className={styles.chip}>Snapshots</span>
@@ -468,6 +490,58 @@ export const GeneralSettingsScreen = () => {
               Add
             </button>
           </div>
+        </section>
+
+        <section className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div>
+              <p className={styles.cardEyebrow}>Planning window</p>
+              <h3 className={styles.cardTitle}>Period defaults</h3>
+              <p className={styles.cardSubtitle}>One set of dates, applied across every initiative stage.</p>
+            </div>
+            <button className={styles.primaryButton} type="button" onClick={handleSavePeriodSettings}>
+              Save period
+            </button>
+          </div>
+
+          <div className={styles.settingsGrid}>
+            <label className={styles.field}>
+              <span>Period month</span>
+              <select
+                value={periodForm.periodMonth}
+                onChange={(event) => {
+                  setPeriodForm((prev) => ({
+                    ...prev,
+                    periodMonth: Number(event.target.value) || prev.periodMonth
+                  }));
+                  setToast(null);
+                }}
+              >
+                {monthOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span>Period year</span>
+              <input
+                type="number"
+                min={2000}
+                value={periodForm.periodYear}
+                onChange={(event) => {
+                  const year = Number(event.target.value);
+                  setPeriodForm((prev) => ({
+                    ...prev,
+                    periodYear: Number.isFinite(year) ? year : prev.periodYear
+                  }));
+                  setToast(null);
+                }}
+              />
+            </label>
+          </div>
+          <p className={styles.cardSubtitle}>Change once in settings and remove busywork from initiative editing.</p>
         </section>
 
         <section className={styles.card}>

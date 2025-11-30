@@ -239,6 +239,32 @@
   gap: 12px;
 }
 
+.periodSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.periodPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px dashed rgba(148, 163, 184, 0.6);
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.periodPill small {
+  color: #475569;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 .stagePanel {
   border: 1px solid rgba(148, 163, 184, 0.4);
   border-radius: 24px;

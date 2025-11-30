@@ -44,8 +44,14 @@ const PLAN_MILESTONE_STORAGE_KEY = 'initiative-plan:milestone-types';
 const DEFAULT_MILESTONE_TYPES = ['Standard', 'Value Step', 'Change Management'];
 const VALUE_STEP_LABEL = 'Value Step';
 const STATUS_REPORT_SETTINGS_KEY = 'initiative-plan:status-report-settings';
+const PERIOD_SETTINGS_KEY = 'initiative-plan:period-settings';
 const statusFrequencyOptions = ['weekly', 'biweekly', 'every-4-weeks'] as const;
 type StatusReportFrequency = (typeof statusFrequencyOptions)[number];
+
+export interface PeriodSettings {
+  periodMonth: number;
+  periodYear: number;
+}
 
 export interface StatusReportSettings {
   refreshDay: string;
@@ -67,6 +73,47 @@ const DEFAULT_STATUS_REPORT_SETTINGS: StatusReportSettings = {
   submitDeadlineTime: '18:00',
   refreshFrequency: 'weekly',
   upcomingWindowDays: 14
+};
+
+const getDefaultPeriodSettings = (): PeriodSettings => {
+  const now = new Date();
+  return {
+    periodMonth: now.getMonth() + 1,
+    periodYear: now.getFullYear()
+  };
+};
+
+const sanitizePeriodSettings = (value: unknown): PeriodSettings => {
+  const fallback = getDefaultPeriodSettings();
+  if (!value || typeof value !== 'object') {
+    return fallback;
+  }
+  const payload = value as Partial<PeriodSettings>;
+  const month =
+    typeof payload.periodMonth === 'number' && payload.periodMonth >= 1 && payload.periodMonth <= 12
+      ? Math.trunc(payload.periodMonth)
+      : fallback.periodMonth;
+  const year =
+    typeof payload.periodYear === 'number' && Number.isFinite(payload.periodYear)
+      ? Math.max(2000, Math.trunc(payload.periodYear))
+      : fallback.periodYear;
+  return { periodMonth: month, periodYear: year };
+};
+
+const loadPeriodSettings = (): PeriodSettings => {
+  if (typeof window === 'undefined') {
+    return getDefaultPeriodSettings();
+  }
+  const raw = window.localStorage.getItem(PERIOD_SETTINGS_KEY);
+  if (!raw) {
+    return getDefaultPeriodSettings();
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return sanitizePeriodSettings(parsed);
+  } catch {
+    return getDefaultPeriodSettings();
+  }
 };
 
 const sanitizeMilestoneTypes = (options: string[]): string[] => {
@@ -396,6 +443,8 @@ interface AppStateContextValue {
   planSettings: {
     milestoneTypes: string[];
     saveMilestoneTypes: (options: string[]) => void;
+    periodSettings: PeriodSettings;
+    savePeriodSettings: (settings: PeriodSettings) => void;
     statusReportSettings: StatusReportSettings;
     saveStatusReportSettings: (settings: StatusReportSettings) => void;
   };
@@ -420,6 +469,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [financialBlueprintLoading, setFinancialBlueprintLoading] = useState(false);
   const [financialBlueprintError, setFinancialBlueprintError] = useState<string | null>(null);
   const [milestoneTypes, setMilestoneTypes] = useState<string[]>(() => loadMilestoneTypes());
+  const [periodSettings, setPeriodSettings] = useState<PeriodSettings>(() => loadPeriodSettings());
   const [statusReportSettings, setStatusReportSettings] = useState<StatusReportSettings>(() =>
     loadStatusReportSettings()
   );
@@ -436,12 +486,27 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     if (typeof window === 'undefined') {
       return;
     }
+    window.localStorage.setItem(PERIOD_SETTINGS_KEY, JSON.stringify(periodSettings));
+  }, [periodSettings]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
     window.localStorage.setItem(STATUS_REPORT_SETTINGS_KEY, JSON.stringify(statusReportSettings));
   }, [statusReportSettings]);
 
   const saveMilestoneTypes = useCallback((options: string[]) => {
     const sanitized = sanitizeMilestoneTypes(options);
     setMilestoneTypes(sanitized.length ? sanitized : DEFAULT_MILESTONE_TYPES);
+  }, []);
+
+  const savePeriodSettings = useCallback((settings: PeriodSettings) => {
+    const sanitized = sanitizePeriodSettings(settings);
+    setPeriodSettings(sanitized);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(PERIOD_SETTINGS_KEY, JSON.stringify(sanitized));
+    }
   }, []);
 
   const saveStatusReportSettings = useCallback((settings: StatusReportSettings) => {
@@ -631,7 +696,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     const loadInitiatives = async () => {
       try {
         const remote = await initiativesApi.list();
-        setInitiatives(remote);
+        setInitiatives(remote.map((item) => applyPeriodSettings(item)));
       } catch (error) {
         console.error('Failed to load initiatives:', error);
       } finally {
@@ -639,7 +704,11 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
       }
     };
     void loadInitiatives();
-  }, [session]);
+  }, [session, applyPeriodSettings]);
+
+  useEffect(() => {
+    setInitiatives((prev) => prev.map((item) => applyPeriodSettings(item)));
+  }, [applyPeriodSettings]);
 
   useEffect(() => {
     if (!session) {
@@ -674,13 +743,31 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const sortQuestionsByUpdated = (items: FitQuestion[]) =>
     [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-const sortWorkstreamsByUpdated = (items: Workstream[]) =>
-  [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const sortWorkstreamsByUpdated = (items: Workstream[]) =>
+    [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-const sortInitiativesByUpdated = (items: Initiative[]) =>
-  [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const sortInitiativesByUpdated = (items: Initiative[]) =>
+    [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
+  const applyPeriodSettings = useCallback(
+    (initiative: Initiative): Initiative => {
+      let changed = false;
+      const stages = initiativeStageKeys.reduce((acc, key) => {
+        const stage = initiative.stages[key];
+        const nextStage =
+          stage.periodMonth === periodSettings.periodMonth && stage.periodYear === periodSettings.periodYear
+            ? stage
+            : { ...stage, periodMonth: periodSettings.periodMonth, periodYear: periodSettings.periodYear };
+        acc[key] = nextStage;
+        changed = changed || nextStage !== stage;
+        return acc;
+      }, {} as Initiative['stages']);
+      return changed ? { ...initiative, stages } : initiative;
+    },
+    [periodSettings.periodMonth, periodSettings.periodYear]
+  );
+
+  const sanitizeInitiativeForSave = (initiative: Initiative, periodSettings: PeriodSettings): Initiative => {
   const trimmedId = initiative.id.trim();
   const trimmedWorkstream = initiative.workstreamId.trim();
   const trimmedName = initiative.name.trim();
@@ -713,6 +800,8 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
       ...stage,
       name: stage.name.trim(),
       description: stage.description.trim(),
+      periodMonth: periodSettings.periodMonth,
+      periodYear: periodSettings.periodYear,
       valueStepTaskId: stage.valueStepTaskId?.trim() || null,
       additionalCommentary: stage.additionalCommentary?.trim() ?? '',
       calculationLogic: initiativeFinancialKinds.reduce((logicAcc, kind) => {
@@ -1153,7 +1242,7 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
       list: initiatives,
       loaded: initiativesLoaded,
       saveInitiative: async (initiative, expectedVersion) => {
-        const sanitized = sanitizeInitiativeForSave(initiative);
+        const sanitized = sanitizeInitiativeForSave(initiative, periodSettings);
         if (!sanitized.id || !sanitized.workstreamId) {
           return { ok: false, error: 'invalid-input' };
         }
@@ -1168,14 +1257,17 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
             }
             const updated = await initiativesApi.update(sanitized.id, sanitized, expectedVersion, actorMetadata);
             setInitiatives((prev) =>
-              sortInitiativesByUpdated(prev.map((item) => (item.id === sanitized.id ? updated : item)))
+              sortInitiativesByUpdated(
+                prev.map((item) => (item.id === sanitized.id ? applyPeriodSettings(updated) : item))
+              )
             );
-            return { ok: true, data: updated };
+            return { ok: true, data: applyPeriodSettings(updated) };
           }
 
           const created = await initiativesApi.create(sanitized, actorMetadata);
-          setInitiatives((prev) => sortInitiativesByUpdated([...prev, created]));
-          return { ok: true, data: created };
+          const normalized = applyPeriodSettings(created);
+          setInitiatives((prev) => sortInitiativesByUpdated([...prev, normalized]));
+          return { ok: true, data: normalized };
         } catch (error) {
           if (error instanceof ApiError) {
             if (error.code === 'version-conflict') {
@@ -1209,32 +1301,33 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
           return { ok: false, error: 'unknown' };
         }
       },
-    advanceStage: async (id, targetStage) => {
-      const trimmed = id.trim();
-      if (!trimmed) {
-        return { ok: false, error: 'invalid-input' };
-      }
-      try {
-        const updated = await initiativesApi.advance(trimmed, targetStage);
-        setInitiatives((prev) =>
-          sortInitiativesByUpdated(prev.map((item) => (item.id === trimmed ? updated : item)))
-        );
-        return { ok: true, data: updated };
-      } catch (error) {
-        if (error instanceof ApiError) {
-          if (error.code === 'version-conflict') {
-            return { ok: false, error: 'version-conflict' };
-          }
-          if (error.code === 'not-found' || error.status === 404) {
-            return { ok: false, error: 'not-found' };
-          }
-          if (error.code === 'invalid-input') {
-            return { ok: false, error: 'invalid-input' };
-          }
+      advanceStage: async (id, targetStage) => {
+        const trimmed = id.trim();
+        if (!trimmed) {
+          return { ok: false, error: 'invalid-input' };
         }
-        console.error('Failed to advance initiative stage:', error);
-        return { ok: false, error: 'unknown' };
-      }
+        try {
+          const actorMetadata = session ? { accountId: session.accountId, name: session.email } : undefined;
+          const updated = applyPeriodSettings(await initiativesApi.advance(trimmed, targetStage, actorMetadata));
+          setInitiatives((prev) =>
+            sortInitiativesByUpdated(prev.map((item) => (item.id === trimmed ? updated : item)))
+          );
+          return { ok: true, data: updated };
+        } catch (error) {
+          if (error instanceof ApiError) {
+            if (error.code === 'version-conflict') {
+              return { ok: false, error: 'version-conflict' };
+            }
+            if (error.code === 'not-found' || error.status === 404) {
+              return { ok: false, error: 'not-found' };
+            }
+            if (error.code === 'invalid-input') {
+              return { ok: false, error: 'invalid-input' };
+            }
+          }
+          console.error('Failed to advance initiative stage:', error);
+          return { ok: false, error: 'unknown' };
+        }
       },
       submitStage: async (id) => {
         const trimmed = id.trim();
@@ -1242,7 +1335,8 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
           return { ok: false, error: 'invalid-input' };
         }
         try {
-          const updated = await initiativesApi.submit(trimmed);
+          const actorMetadata = session ? { accountId: session.accountId, name: session.email } : undefined;
+          const updated = applyPeriodSettings(await initiativesApi.submit(trimmed, actorMetadata));
           setInitiatives((prev) =>
             sortInitiativesByUpdated(prev.map((item) => (item.id === trimmed ? updated : item)))
           );
@@ -1713,6 +1807,8 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     planSettings: {
       milestoneTypes,
       saveMilestoneTypes,
+      periodSettings,
+      savePeriodSettings,
       statusReportSettings,
       saveStatusReportSettings
     }
@@ -1735,6 +1831,8 @@ const sanitizeInitiativeForSave = (initiative: Initiative): Initiative => {
     syncFolders,
     milestoneTypes,
     saveMilestoneTypes,
+    periodSettings,
+    savePeriodSettings,
     statusReportSettings,
     saveStatusReportSettings
   ]);

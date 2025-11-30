@@ -118,11 +118,12 @@ router.delete('/:id', async (req, res) => {
 });
 
 router.post('/:id/advance', async (req, res) => {
-  const { targetStage } = req.body as { targetStage?: unknown };
+  const { targetStage, actor } = req.body as { targetStage?: unknown; actor?: unknown };
   try {
     const initiative = await initiativesService.advanceStage(
       req.params.id,
-      typeof targetStage === 'string' ? (targetStage as any) : undefined
+      typeof targetStage === 'string' ? (targetStage as any) : undefined,
+      normalizeActor(actor)
     );
     res.json(initiative);
   } catch (error) {
@@ -131,8 +132,9 @@ router.post('/:id/advance', async (req, res) => {
 });
 
 router.post('/:id/submit', async (req, res) => {
+  const { actor } = req.body as { actor?: unknown };
   try {
-    const initiative = await initiativesService.submitStage(req.params.id);
+    const initiative = await initiativesService.submitStage(req.params.id, normalizeActor(actor));
     res.json(initiative);
   } catch (error) {
     handleError(error, res);

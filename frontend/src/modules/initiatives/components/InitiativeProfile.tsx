@@ -32,6 +32,7 @@ import { useCommentAnchors } from '../comments/useCommentAnchors';
 import { createCommentAnchor } from '../comments/commentAnchors';
 import { useInitiativeComments } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../auth/AuthContext';
+import { PeriodSettings, usePlanSettingsState } from '../../../app/state/AppStateContext';
 import { createEmptyPlanActualsModel, createEmptyPlanModel } from '../plan/planModel';
 import { InitiativePlanModule } from './plan/InitiativePlanModule';
 import { StageKpiEditor } from './StageKpiEditor';
@@ -66,38 +67,39 @@ type ValidationErrors = {
   workstream?: boolean;
   stageName?: boolean;
   stageDescription?: boolean;
-  periodMonth?: boolean;
-  periodYear?: boolean;
 };
 
 const VALUE_STEP_LABEL = 'Value Step';
 
-const createEmptyStage = (key: InitiativeStageKey): InitiativeStageData => ({
-  key,
-  name: '',
-  description: '',
-  periodMonth: null,
-  periodYear: new Date().getFullYear(),
-  l4Date: null,
-  valueStepTaskId: null,
-  additionalCommentary: '',
-  calculationLogic: initiativeFinancialKinds.reduce(
-    (acc, kind) => {
-      acc[kind] = '';
-      return acc;
-    },
-    {} as InitiativeStageData['calculationLogic']
-  ),
-  businessCaseFiles: [],
-  supportingDocs: [],
-  kpis: [],
-  financials: {
-    'recurring-benefits': [],
-    'recurring-costs': [],
-    'oneoff-benefits': [],
-    'oneoff-costs': []
-  }
-});
+const createEmptyStage = (key: InitiativeStageKey, period?: PeriodSettings): InitiativeStageData => {
+  const now = new Date();
+  return {
+    key,
+    name: '',
+    description: '',
+    periodMonth: period?.periodMonth ?? now.getMonth() + 1,
+    periodYear: period?.periodYear ?? now.getFullYear(),
+    l4Date: null,
+    valueStepTaskId: null,
+    additionalCommentary: '',
+    calculationLogic: initiativeFinancialKinds.reduce(
+      (acc, kind) => {
+        acc[kind] = '';
+        return acc;
+      },
+      {} as InitiativeStageData['calculationLogic']
+    ),
+    businessCaseFiles: [],
+    supportingDocs: [],
+    kpis: [],
+    financials: {
+      'recurring-benefits': [],
+      'recurring-costs': [],
+      'oneoff-benefits': [],
+      'oneoff-costs': []
+    }
+  };
+};
 
 const calculateTotals = (stages: Initiative['stages']) => {
   const sum = (kind: keyof Initiative['totals']) => {
@@ -158,10 +160,10 @@ const getGateKeyForStage = (key: InitiativeStageKey): WorkstreamGateKey | null =
   return next as WorkstreamGateKey;
 };
 
-const createEmptyInitiative = (workstreamId?: string): Initiative => {
+const createEmptyInitiative = (workstreamId?: string, period?: PeriodSettings): Initiative => {
   const now = new Date().toISOString();
   const stages = initiativeStageKeys.reduce((acc, key) => {
-    acc[key] = createEmptyStage(key);
+    acc[key] = createEmptyStage(key, period);
     return acc;
   }, {} as Initiative['stages']);
 
@@ -260,31 +262,181 @@ const SparklineCard = ({ label, value, values, color, invert = false }: Sparklin
 const logFieldLabels: Record<string, string> = {
   name: 'Name',
   description: 'Description',
+  workstream: 'Workstream',
   owner: 'Owner',
   status: 'Status',
+  activeStage: 'Active stage',
   l4Date: 'L4 date',
   recurringImpact: 'Recurring impact',
   created: 'Created',
+  updated: 'Update',
   'stage-content': 'Stage details',
   kpi: 'KPIs',
   'execution-plan': 'Timeline',
-  updated: 'Update'
+  'plan.timeline': 'Execution plan',
+  'plan.actuals': 'Plan actuals'
+};
+
+const financialKindLabels: Record<string, string> = {
+  'recurring-benefits': 'Recurring benefits',
+  'recurring-costs': 'Recurring costs',
+  'oneoff-benefits': 'One-off benefits',
+  'oneoff-costs': 'One-off costs'
+};
+
+const resolveStageLabel = (key: string) => initiativeStageLabels[key as InitiativeStageKey] ?? key.toUpperCase();
+
+const buildChangeLabel = (field: string): string => {
+  if (field === 'created') {
+    return 'Initiative created';
+  }
+  if (field === 'updated') {
+    return 'Update';
+  }
+  if (field === 'stage-content') {
+    return 'Stage content updated';
+  }
+  if (field === 'execution-plan') {
+    return 'Timeline updated';
+  }
+  if (field === 'kpi') {
+    return 'KPIs updated';
+  }
+  if (field.startsWith('stageState.')) {
+    const stageKey = field.split('.')[1] ?? '';
+    return `${resolveStageLabel(stageKey)} · Stage status`;
+  }
+  if (field.startsWith('stage.')) {
+    const [, stageKey, ...rest] = field.split('.');
+    const suffix = rest.join('.');
+    const stageLabel = resolveStageLabel(stageKey);
+    if (suffix === 'name') {
+      return `${stageLabel} · Stage name`;
+    }
+    if (suffix === 'description') {
+      return `${stageLabel} · Stage description`;
+    }
+    if (suffix === 'period') {
+      return `${stageLabel} · Period`;
+    }
+    if (suffix === 'commentary') {
+      return `${stageLabel} · Additional commentary`;
+    }
+    if (suffix === 'valueStep') {
+      return `${stageLabel} · Value Step`;
+    }
+    if (suffix === 'l4Date') {
+      return `${stageLabel} · L4 date`;
+    }
+    if (suffix === 'calcLogic') {
+      return `${stageLabel} · Calculation logic`;
+    }
+    if (suffix === 'businessCase') {
+      return `${stageLabel} · Business case`;
+    }
+    if (suffix === 'supportingDocs') {
+      return `${stageLabel} · Supporting docs`;
+    }
+    if (suffix.startsWith('financials.')) {
+      const kindKey = suffix.replace('financials.', '');
+      const kindLabel = financialKindLabels[kindKey] ?? kindKey;
+      return `${stageLabel} · ${kindLabel}`;
+    }
+    if (suffix === 'kpis') {
+      return `${stageLabel} · KPIs`;
+    }
+  }
+  if (field.startsWith('plan.')) {
+    if (field === 'plan.actuals') {
+      return 'Plan actuals';
+    }
+    if (field === 'plan.timeline') {
+      return 'Execution plan';
+    }
+  }
+  return logFieldLabels[field] ?? field;
 };
 
 const formatLogValue = (field: string, value: unknown): string => {
   if (value === null || value === undefined) {
     return '-';
   }
+  if (field === 'activeStage' && typeof value === 'string') {
+    return resolveStageLabel(value);
+  }
+  if (field.startsWith('stageState.') && value && typeof value === 'object') {
+    const payload = value as { status?: string; roundIndex?: number; comment?: string | null };
+    const status = payload.status ?? 'unknown';
+    const round =
+      typeof payload.roundIndex === 'number' && Number.isFinite(payload.roundIndex)
+        ? ` (round ${Math.trunc(payload.roundIndex) + 1})`
+        : '';
+    const comment = payload.comment ? ` — ${payload.comment}` : '';
+    return `${status}${round}${comment}`;
+  }
+  if (field.startsWith('stage.') && field.endsWith('.period') && value && typeof value === 'object') {
+    const payload = value as { month?: number | null; year?: number | null };
+    if (payload.month && payload.year) {
+      return new Date(payload.year, payload.month - 1, 1).toLocaleString('en-US', {
+        month: 'short',
+        year: 'numeric'
+      });
+    }
+  }
+  if (field.startsWith('stage.') && field.endsWith('.calcLogic') && value && typeof value === 'object') {
+    const parts = Object.entries(value as Record<string, string>)
+      .map(([key, formula]) => (formula ? `${financialKindLabels[key] ?? key}: ${formula}` : null))
+      .filter((item): item is string => Boolean(item));
+    return parts.length ? parts.join('; ') : '-';
+  }
+  if (field.startsWith('stage.') && field.includes('.financials.') && value && typeof value === 'object') {
+    const payload = value as { planTotal?: number; actualTotal?: number };
+    const plan = Number.isFinite(payload.planTotal) ? Number(payload.planTotal) : 0;
+    const actual = Number.isFinite(payload.actualTotal) ? Number(payload.actualTotal) : 0;
+    return `Plan ${formatImpact(plan)} / Actual ${formatImpact(actual)}`;
+  }
+  if (
+    field.startsWith('stage.') &&
+    (field.endsWith('.businessCase') || field.endsWith('.supportingDocs')) &&
+    value &&
+    typeof value === 'object'
+  ) {
+    const payload = value as { count?: number; names?: string[] };
+    const count = Number(payload.count ?? 0);
+    const names = (payload.names ?? []).filter(Boolean);
+    const base = `${count} file${count === 1 ? '' : 's'}`;
+    return names.length ? `${base}: ${names.join(', ')}` : base;
+  }
+  if (field.startsWith('stage.') && field.endsWith('.kpis') && value && typeof value === 'object') {
+    const payload = value as { count?: number; names?: string[] };
+    const count = Number(payload.count ?? 0);
+    const names = (payload.names ?? []).filter(Boolean);
+    const base = `${count} KPI${count === 1 ? '' : 's'}`;
+    return names.length ? `${base} (${names.join(', ')})` : base;
+  }
+  if (field.startsWith('plan.') && value && typeof value === 'object') {
+    const payload = value as { taskCount?: number; milestoneCount?: number; startDate?: string | null; endDate?: string | null };
+    const tasks = Number(payload.taskCount ?? 0);
+    const milestones = Number(payload.milestoneCount ?? 0);
+    const range =
+      payload.startDate || payload.endDate
+        ? `${payload.startDate ? formatDate(payload.startDate) : 'No start'} -> ${payload.endDate ? formatDate(payload.endDate) : 'No end'}`
+        : 'No dates';
+    return `${tasks} tasks, ${milestones} milestones (${range})`;
+  }
   if (field === 'recurringImpact') {
     const numeric = typeof value === 'number' ? value : Number(value);
     return formatImpact(Number.isFinite(numeric) ? numeric : 0);
   }
-  if (field === 'l4Date' && typeof value === 'string') {
+  if ((field === 'l4Date' || field.endsWith('.l4Date')) && typeof value === 'string') {
     return formatDate(value);
   }
   if (field === 'owner' && value && typeof value === 'object') {
     const payload = value as { name?: string | null };
     return payload.name ?? 'Unassigned';
+  }
+  if (field === 'workstream' && typeof value === 'string') {
+    return value;
   }
   if (typeof value === 'object') {
     try {
@@ -316,8 +468,9 @@ export const InitiativeProfile = ({
   initialCommentThreadId = null,
   openComments = false
 }: InitiativeProfileProps) => {
+  const { periodSettings } = usePlanSettingsState();
   const [draft, setDraft] = useState<Initiative>(() =>
-    initiative ?? createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id)
+    initiative ?? createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id, periodSettings)
   );
   const [selectedStage, setSelectedStage] = useState<InitiativeStageKey>(draft.activeStage);
   const [banner, setBanner] = useState<Banner>(null);
@@ -333,6 +486,28 @@ export const InitiativeProfile = ({
   const commentActor = useMemo(
     () => (session ? { accountId: session.accountId, name: session.email } : undefined),
     [session]
+  );
+  const applyPeriodToInitiative = useCallback(
+    (source: Initiative): Initiative => {
+      let changed = false;
+      const nextStages = { ...source.stages };
+      initiativeStageKeys.forEach((key) => {
+        const stage = nextStages[key];
+        if (!stage) {
+          return;
+        }
+        if (stage.periodMonth !== periodSettings.periodMonth || stage.periodYear !== periodSettings.periodYear) {
+          nextStages[key] = {
+            ...stage,
+            periodMonth: periodSettings.periodMonth,
+            periodYear: periodSettings.periodYear
+          };
+          changed = true;
+        }
+      });
+      return changed ? { ...source, stages: nextStages } : source;
+    },
+    [periodSettings.periodMonth, periodSettings.periodYear]
   );
   const {
     threads: commentThreads,
@@ -382,10 +557,16 @@ export const InitiativeProfile = ({
       setDraft(initiative);
       setSelectedStage(initiative.activeStage);
     } else {
-      setDraft(createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id));
+      setDraft(createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id, periodSettings));
       setSelectedStage('l0');
     }
+    // periodSettings intentionally omitted to avoid wiping local edits when defaults change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initiative, initialWorkstreamId, workstreams]);
+
+  useEffect(() => {
+    setDraft((prev) => applyPeriodToInitiative(prev));
+  }, [applyPeriodToInitiative]);
 
   useEffect(() => {
     if (!initiative?.id) {
@@ -440,6 +621,15 @@ export const InitiativeProfile = ({
     { status: 'draft', roundIndex: 0, comment: null };
   const selectedWorkstream = workstreams.find((ws) => ws.id === draft.workstreamId) ?? null;
   const stageGateKey = getGateKeyForStage(selectedStage);
+  const periodMonthLabel = useMemo(
+    () =>
+      new Date(
+        2000,
+        Math.max(0, (periodSettings.periodMonth ?? 1) - 1),
+        1
+      ).toLocaleString('en-US', { month: 'long' }),
+    [periodSettings.periodMonth]
+  );
   const planValueStepTask =
     useMemo(
       () =>
@@ -619,12 +809,6 @@ export const InitiativeProfile = ({
     if (key === 'description') {
       clearErrors({ stageDescription: false });
     }
-    if (key === 'periodMonth') {
-      clearErrors({ periodMonth: false });
-    }
-    if (key === 'periodYear') {
-      clearErrors({ periodYear: false });
-    }
     updateStage(selectedStage, { ...currentStage, [key]: value });
   };
 
@@ -661,16 +845,19 @@ export const InitiativeProfile = ({
     if (!activeStageData.description.trim()) {
       nextErrors.stageDescription = true;
     }
-    if (!activeStageData.periodMonth) {
-      nextErrors.periodMonth = true;
-    }
-    if (!activeStageData.periodYear) {
-      nextErrors.periodYear = true;
-    }
+    const periodValid =
+      Number.isFinite(periodSettings.periodMonth) &&
+      Number.isFinite(periodSettings.periodYear) &&
+      (periodSettings.periodMonth ?? 0) >= 1 &&
+      (periodSettings.periodMonth ?? 0) <= 12;
     if (draft.activeStage !== selectedStage) {
       setSelectedStage(draft.activeStage);
     }
     setErrors(nextErrors);
+    if (!periodValid) {
+      setBanner({ type: 'error', text: 'Set a default period month and year in General settings.' });
+      return false;
+    }
     return Object.values(nextErrors).every((value) => !value);
   };
 
@@ -1152,37 +1339,21 @@ export const InitiativeProfile = ({
         </label>
 
         <div className={styles.periodRow}>
-          <label
-            className={errors.periodMonth ? styles.fieldError : undefined}
-            {...buildStageAnchor('period-month', 'Period month')}
-          >
-            <span>Period month</span>
-            <select
-              className={errors.periodMonth ? styles.inputError : undefined}
-              value={currentStage.periodMonth ?? ''}
-              onChange={(event) => handleStageFieldChange('periodMonth', Number(event.target.value) || null)}
-              disabled={!isStageEditable}
-            >
-              <option value="">Not set</option>
-              {Array.from({ length: 12 }).map((_, index) => (
-                <option key={index + 1} value={index + 1}>
-                  {new Date(2000, index, 1).toLocaleString('en-US', { month: 'short' })}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label
-            className={errors.periodYear ? styles.fieldError : undefined}
-            {...buildStageAnchor('period-year', 'Period year')}
-          >
-            <span>Period year</span>
-            <input
-              type="number"
-              className={errors.periodYear ? styles.inputError : undefined}
-              value={currentStage.periodYear ?? ''}
-              onChange={(event) => handleStageFieldChange('periodYear', Number(event.target.value) || null)}
-              disabled={!isStageEditable}
-            />
+          <label className={styles.fieldBlock} {...buildStageAnchor('period-month', 'Period month')}>
+            <span>Period (shared)</span>
+            <div className={styles.periodSummary}>
+              <span className={styles.periodPill}>
+                <small>Month</small>
+                {periodMonthLabel}
+              </span>
+              <span className={styles.periodPill}>
+                <small>Year</small>
+                {periodSettings.periodYear}
+              </span>
+            </div>
+            <p className={styles.fieldHint}>
+              Managed once in General settings and applied to every initiative stage.
+            </p>
           </label>
           {selectedStage === 'l4' && (
             <label {...buildStageAnchor('stage-l4-date', 'Stage L4 date')}>
@@ -1379,7 +1550,6 @@ export const InitiativeProfile = ({
               {changeLog.map((entry) => {
                 const summaryParts = entry.changes
                   .map((change) => {
-                    const label = logFieldLabels[change.field] ?? change.field;
                     if (change.field === 'created') {
                       return 'Initiative created';
                     }
@@ -1389,9 +1559,13 @@ export const InitiativeProfile = ({
                     if (change.field === 'execution-plan') {
                       return 'Timeline updated';
                     }
-                    if (change.field === 'updated') {
-                      return 'Details updated';
+                    if (change.field === 'kpi') {
+                      return 'KPIs updated';
                     }
+                    if (change.field === 'updated') {
+                      return null;
+                    }
+                    const label = buildChangeLabel(change.field);
                     const previous = formatLogValue(change.field, change.previousValue);
                     const next = formatLogValue(change.field, change.nextValue);
                     if (previous === next) {

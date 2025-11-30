@@ -30,7 +30,8 @@ import {
   InitiativeStageKPI,
   InitiativeStatusReport,
   InitiativeStatusReportEntry,
-  InitiativePlanTask
+  InitiativePlanTask,
+  InitiativePlanModel
 } from './initiatives.types.js';
 import { normalizePlanModel } from './initiativePlan.helpers.js';
 import {
@@ -693,7 +694,7 @@ export class InitiativesService {
     return id;
   }
 
-  async advanceStage(id: string, targetStage?: InitiativeStageKey): Promise<InitiativeResponse> {
+  async advanceStage(id: string, targetStage?: InitiativeStageKey, metadata?: InitiativeMutationMetadata): Promise<InitiativeResponse> {
     const record = await this.repository.findInitiative(id);
     if (!record) {
       throw new Error('NOT_FOUND');
@@ -709,10 +710,11 @@ export class InitiativesService {
     }
     const roundIndex = record.stageState[record.activeStage]?.roundIndex ?? 0;
     const updated = await this.finalizeStage(record, record.activeStage, roundIndex);
+    await this.recordEvents(record, updated, metadata, 'update');
     return toResponse(updated);
   }
 
-  async submitStage(id: string): Promise<InitiativeResponse> {
+  async submitStage(id: string, metadata?: InitiativeMutationMetadata): Promise<InitiativeResponse> {
     const record = await this.repository.findInitiative(id);
     if (!record) {
       throw new Error('NOT_FOUND');
@@ -735,6 +737,7 @@ export class InitiativesService {
     const rounds = gateKey ? workstream.gates[gateKey] ?? [] : [];
     if (!rounds.length) {
       const approvedRecord = await this.finalizeStage(record, stageKey, stageStateEntry.roundIndex);
+      await this.recordEvents(record, approvedRecord, metadata, 'update');
       return toResponse(approvedRecord);
     }
     const firstRound = rounds[0];
@@ -758,8 +761,9 @@ export class InitiativesService {
       if (result === 'version-conflict') {
         throw new Error('VERSION_CONFLICT');
       }
-      throw new Error('NOT_FOUND');
+        throw new Error('NOT_FOUND');
     }
+    await this.recordEvents(record, result, metadata, 'update');
     return toResponse(result);
   }
 
@@ -787,6 +791,7 @@ export class InitiativesService {
     actorAccountId?: string,
     comment?: string | null
   ): Promise<InitiativeResponse> {
+    const actorMeta = actorAccountId ? { actorAccountId } : undefined;
     const approval = await this.repository.findApproval(approvalId);
     if (!approval) {
       throw new Error('APPROVAL_NOT_FOUND');
@@ -829,6 +834,7 @@ export class InitiativesService {
         roundIndex: approval.roundIndex,
         comment: comment ?? null
       });
+      await this.recordEvents(record, updated, actorMeta, 'update');
       return toResponse(updated);
     }
 
@@ -846,6 +852,7 @@ export class InitiativesService {
     const currentRound = gateKey ? workstream.gates[gateKey]?.[approval.roundIndex] : null;
     if (!currentRound) {
       const updated = await this.finalizeStage(record, stageKey, approval.roundIndex);
+      await this.recordEvents(record, updated, actorMeta, 'update');
       return toResponse(updated);
     }
     const requirement = currentRound.approvers.find((item) => item.role === approval.role);
@@ -875,6 +882,7 @@ export class InitiativesService {
     const rounds = gateKey ? workstream.gates[gateKey] ?? [] : [];
     if (nextRoundIndex >= rounds.length) {
       const updated = await this.finalizeStage(record, stageKey, approval.roundIndex);
+      await this.recordEvents(record, updated, actorMeta, 'update');
       return toResponse(updated);
     }
     const assignments = await this.workstreamsRepository.listAssignmentsByWorkstream(record.workstreamId);
@@ -888,6 +896,7 @@ export class InitiativesService {
       roundIndex: nextRoundIndex,
       comment: null
     });
+    await this.recordEvents(record, updated, actorMeta, 'update');
     return toResponse(updated);
   }
 
@@ -1277,6 +1286,76 @@ export class InitiativesService {
     previousValue: unknown;
     nextValue: unknown;
   }> {
+    const areEqual = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    const summarizeDocs = (docs: InitiativeSupportingDocument[] | InitiativeBusinessCaseFile[] | undefined | null) => {
+      const safe = Array.isArray(docs) ? docs : [];
+      return {
+        count: safe.length,
+        names: safe.map((file) => file.fileName),
+        checksum: hashPayload(
+          JSON.stringify(safe.map((file) => ({ id: file.id, name: file.fileName, size: file.size })))
+        )
+      };
+    };
+    const sumDistribution = (
+      entries: InitiativeFinancialEntry[] | undefined,
+      selector: 'distribution' | 'actuals' = 'distribution'
+    ) =>
+      (entries ?? []).reduce(
+        (total, entry) =>
+          total +
+          Object.values(entry[selector] ?? {}).reduce(
+            (acc, value) => acc + (Number.isFinite(Number(value)) ? Number(value) : 0),
+            0
+          ),
+        0
+      );
+    const summarizeFinancials = (stage: InitiativeStageMap[InitiativeStageKey]) =>
+      initiativeFinancialKinds.reduce((acc, kind) => {
+        const entries = stage.financials[kind] ?? [];
+        acc[kind] = {
+          planTotal: sumDistribution(entries, 'distribution'),
+          actualTotal: sumDistribution(entries, 'actuals'),
+          checksum: hashPayload(
+            JSON.stringify(entries.map((entry) => ({ id: entry.id, distribution: entry.distribution, actuals: entry.actuals })))
+          )
+        };
+        return acc;
+      }, {} as Record<InitiativeFinancialKind, { planTotal: number; actualTotal: number; checksum: string }>);
+    const summarizeKpis = (stage: InitiativeStageMap[InitiativeStageKey]) => {
+      const list = Array.isArray(stage.kpis) ? stage.kpis : [];
+      return {
+        count: list.length,
+        names: list.map((kpi) => kpi.name),
+        checksum: hashPayload(
+          JSON.stringify(list.map((kpi) => ({ id: kpi.id, distribution: kpi.distribution, actuals: kpi.actuals, baseline: kpi.baseline })))
+        )
+      };
+    };
+    const summarizePlan = (plan: InitiativePlanModel | null | undefined) => {
+      const tasks = plan?.tasks ?? [];
+      const dates: number[] = [];
+      tasks.forEach((task) => {
+        const start = task.startDate ? new Date(task.startDate).getTime() : null;
+        const end = task.endDate ? new Date(task.endDate).getTime() : null;
+        if (start && !Number.isNaN(start)) {
+          dates.push(start);
+        }
+        if (end && !Number.isNaN(end)) {
+          dates.push(end);
+        }
+      });
+      const startDate = dates.length ? new Date(Math.min(...dates)).toISOString() : null;
+      const endDate = dates.length ? new Date(Math.max(...dates)).toISOString() : null;
+      return {
+        taskCount: tasks.length,
+        milestoneCount: tasks.filter((task) => Boolean(task.milestoneType)).length,
+        startDate,
+        endDate,
+        checksum: hashPayload(JSON.stringify(plan ?? {}))
+      };
+    };
+
     const changes: Array<{ field: string; previousValue: unknown; nextValue: unknown }> = [];
     if (!previous) {
       changes.push({
@@ -1290,66 +1369,58 @@ export class InitiativesService {
       });
       return changes;
     }
-    const trackedFields: Array<{ field: string; previousValue: unknown; nextValue: unknown }> = [
-      { field: 'name', previousValue: previous.name, nextValue: next.name },
-      { field: 'description', previousValue: previous.description, nextValue: next.description },
-      {
-        field: 'owner',
-        previousValue: { accountId: previous.ownerAccountId, name: previous.ownerName },
-        nextValue: { accountId: next.ownerAccountId, name: next.ownerName }
-      },
-      { field: 'status', previousValue: previous.currentStatus, nextValue: next.currentStatus },
-      { field: 'l4Date', previousValue: previous.l4Date, nextValue: next.l4Date }
-    ];
+    const addChange = (field: string, previousValue: unknown, nextValue: unknown) => {
+      if (!areEqual(previousValue, nextValue)) {
+        changes.push({ field, previousValue, nextValue });
+      }
+    };
+
+    addChange('name', previous.name, next.name);
+    addChange('description', previous.description, next.description);
+    addChange('workstream', previous.workstreamId, next.workstreamId);
+    addChange('status', previous.currentStatus, next.currentStatus);
+    addChange(
+      'owner',
+      { accountId: previous.ownerAccountId, name: previous.ownerName },
+      { accountId: next.ownerAccountId, name: next.ownerName }
+    );
+    addChange('l4Date', previous.l4Date, next.l4Date);
+    addChange('activeStage', previous.activeStage, next.activeStage);
+
     const previousTotals = buildInitiativeTotals(previous);
     const nextTotals = buildInitiativeTotals(next);
-    trackedFields.push({
-      field: 'recurringImpact',
-      previousValue: previousTotals.recurringImpact,
-      nextValue: nextTotals.recurringImpact
-    });
+    addChange('recurringImpact', previousTotals.recurringImpact, nextTotals.recurringImpact);
 
-    const previousStages = JSON.stringify(previous.stages);
-    const nextStages = JSON.stringify(next.stages);
-    if (previousStages !== nextStages) {
-      trackedFields.push({
-        field: 'stage-content',
-        previousValue: null,
-        nextValue: null
-      });
-    }
-    const previousPlan = JSON.stringify(previous.plan);
-    const nextPlan = JSON.stringify(next.plan);
-    if (previousPlan !== nextPlan) {
-      trackedFields.push({
-        field: 'execution-plan',
-        previousValue: { digest: hashPayload(previousPlan) },
-        nextValue: { digest: hashPayload(nextPlan) }
-      });
-    }
-
-    const extractStageKpis = (record: InitiativeRecord) =>
-      initiativeStageKeys.reduce((acc, key) => {
-        acc[key] = record.stages[key]?.kpis ?? [];
-        return acc;
-      }, {} as Record<InitiativeStageKey, unknown>);
-    const previousKpis = JSON.stringify(extractStageKpis(previous));
-    const nextKpis = JSON.stringify(extractStageKpis(next));
-    if (previousKpis !== nextKpis) {
-      trackedFields.push({
-        field: 'kpi',
-        previousValue: { digest: hashPayload(previousKpis) },
-        nextValue: { digest: hashPayload(nextKpis) }
-      });
-    }
-
-    for (const item of trackedFields) {
-      const prevValue = JSON.stringify(item.previousValue ?? null);
-      const nextValue = JSON.stringify(item.nextValue ?? null);
-      if (prevValue !== nextValue) {
-        changes.push(item);
+    for (const key of initiativeStageKeys) {
+      const prevState = previous.stageState[key];
+      const nextState = next.stageState[key];
+      addChange(`stageState.${key}`, prevState, nextState);
+      const prevStage = previous.stages[key];
+      const nextStage = next.stages[key];
+      addChange(`stage.${key}.name`, prevStage.name, nextStage.name);
+      addChange(`stage.${key}.description`, prevStage.description, nextStage.description);
+      addChange(
+        `stage.${key}.period`,
+        { month: prevStage.periodMonth, year: prevStage.periodYear },
+        { month: nextStage.periodMonth, year: nextStage.periodYear }
+      );
+      addChange(`stage.${key}.commentary`, prevStage.additionalCommentary, nextStage.additionalCommentary);
+      addChange(`stage.${key}.valueStep`, prevStage.valueStepTaskId, nextStage.valueStepTaskId);
+      addChange(`stage.${key}.l4Date`, prevStage.l4Date, nextStage.l4Date);
+      addChange(`stage.${key}.calcLogic`, prevStage.calculationLogic ?? {}, nextStage.calculationLogic ?? {});
+      addChange(`stage.${key}.businessCase`, summarizeDocs(prevStage.businessCaseFiles), summarizeDocs(nextStage.businessCaseFiles));
+      addChange(`stage.${key}.supportingDocs`, summarizeDocs(prevStage.supportingDocs), summarizeDocs(nextStage.supportingDocs));
+      const previousFinancials = summarizeFinancials(prevStage);
+      const nextFinancials = summarizeFinancials(nextStage);
+      for (const kind of initiativeFinancialKinds) {
+        addChange(`stage.${key}.financials.${kind}`, previousFinancials[kind], nextFinancials[kind]);
       }
+      addChange(`stage.${key}.kpis`, summarizeKpis(prevStage), summarizeKpis(nextStage));
     }
+
+    addChange('plan.timeline', summarizePlan(previous.plan), summarizePlan(next.plan));
+    addChange('plan.actuals', summarizePlan(previous.plan?.actuals ?? null), summarizePlan(next.plan?.actuals ?? null));
+
     if (!changes.length) {
       changes.push({ field: 'updated', previousValue: null, nextValue: null });
     }
