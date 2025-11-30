@@ -42,8 +42,10 @@
   display: flex;
   align-items: center;
   gap: 0;
-  flex: 0 0 auto;
-  min-width: 180px;
+  flex: 1 1 auto;
+  /* Allow growing/shrinking */
+  min-width: 120px;
+  /* Smaller min-width for responsiveness */
   margin-right: 4px;
   position: relative;
 }
@@ -51,9 +53,9 @@
 /* Specific rule for L5 (last item) to be narrower */
 .trackItem:last-child {
   margin-right: 0;
-  min-width: 100px;
+  min-width: 80px;
   /* Reduced width for L5 */
-  flex: 0 0 100px;
+  flex: 0 0 80px;
 }
 
 @media (max-width: 1200px) {
@@ -64,7 +66,7 @@
   }
 
   .trackItem {
-    flex: 1 1 240px;
+    flex: 1 1 180px;
     min-width: 0;
     margin-right: 0;
   }
@@ -103,7 +105,7 @@
   cursor: pointer;
   clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%, 16px 50%);
   margin-right: -16px;
-  z-index: 1;
+  /* z-index handled inline */
 }
 
 .stage:first-child {
@@ -111,7 +113,6 @@
   padding-left: 16px;
 }
 
-/* Removed z-index lift on hover to keep layering stable */
 .stage:hover {
   filter: brightness(0.98);
 }
@@ -119,7 +120,6 @@
 .stageLabel {
   display: block;
   font-size: 13px;
-  /* Slightly larger for readability since badges are gone */
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #64748b;
@@ -131,20 +131,16 @@
   /* "You are here" - Active Stage */
   background: linear-gradient(135deg, #3b82f6, #2563eb);
   color: #fff;
-  z-index: 5;
-  /* Bright border effect via box-shadow (requires filter for clip-path) or just distinct color */
-  /* Since clip-path clips borders, we rely on the strong blue background to indicate "Active" */
 }
 
 .current .stageLabel {
   color: #fff;
 }
 
-/* Active border simulation using drop-shadow filter since clip-path cuts box-shadow */
+/* Active border simulation using drop-shadow filter */
 .active {
-  filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.6));
-  z-index: 10;
-  /* Ensure active is above others */
+  /* Bright Blue Glow for Active Stage */
+  filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.8));
 }
 
 .complete {
@@ -163,17 +159,13 @@
 
 /* Selected Stage - "Viewing Details" */
 .selected {
-  /* Distinct border/glow for selection */
-  /* Using a different drop-shadow color to distinguish from "Active" */
+  /* Distinct Orange/Amber Border for Selected Stage */
   filter: drop-shadow(0 0 0 2px #f59e0b);
-  /* Orange/Amber outline */
-  z-index: 20 !important;
-  /* Always on top if selected */
 }
 
-/* If both active and selected, combine effects or prioritize */
+/* If both active and selected, combine effects */
 .active.selected {
-  filter: drop-shadow(0 0 0 2px #f59e0b) drop-shadow(0 0 4px rgba(59, 130, 246, 0.4));
+  filter: drop-shadow(0 0 0 2px #f59e0b) drop-shadow(0 0 4px rgba(59, 130, 246, 0.6));
 }
 
 /* Gate styles */
@@ -182,15 +174,16 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  flex: 0 0 80px;
-  min-width: 60px;
+  flex: 0 0 60px;
+  /* Narrower gates */
+  min-width: 40px;
   margin-left: 0;
-  z-index: 2;
+  /* z-index handled inline */
 }
 
 .gate {
   width: 100%;
-  padding: 8px 12px 8px 20px;
+  padding: 8px 8px 8px 16px;
   border: none;
   background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
   color: #475569;
@@ -204,15 +197,14 @@
 
 .gate:hover {
   filter: brightness(0.95);
-  /* No z-index change on hover */
 }
 
 .gateName {
-  font-size: 10px;
+  font-size: 9px;
   letter-spacing: 0.05em;
   font-weight: 700;
   color: #334155;
-  line-height: 1.2;
+  line-height: 1.1;
 }
 
 /* Gate Status Colors */

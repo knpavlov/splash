@@ -227,6 +227,12 @@ export const StageGatePanel = ({
           const isSelected = selectedStage === key;
           const isActive = key === activeStage;
 
+          // Layering logic: Left items should be on top of right items to make the chevron "head" visible over the next item's "tail".
+          // Base z-index decreases as index increases.
+          // Selected/Active items get a massive boost to sit on top of everything.
+          const baseZIndex = (initiativeStageKeys.length - index) * 10;
+          const zIndex = (isSelected || isActive) ? 1000 : baseZIndex;
+
           const stageClassNames = [
             styles.stage,
             styles.chevron,
@@ -241,7 +247,7 @@ export const StageGatePanel = ({
           const stageAnchor = createCommentAnchor(`stage-track.${key}`, `${key.toUpperCase()} stage`);
 
           return (
-            <div key={key} className={styles.trackItem}>
+            <div key={key} className={styles.trackItem} style={{ zIndex }}>
               <button type="button" className={stageClassNames} onClick={() => onSelectStage(key)} {...stageAnchor}>
                 <span className={styles.stageLabel}>{key.toUpperCase()}</span>
               </button>
@@ -251,6 +257,7 @@ export const StageGatePanel = ({
                   onMouseEnter={(event) => handleGateMouseEnter(nextStage, event)}
                   onMouseMove={handleGateMouseMove}
                   onMouseLeave={handleGateMouseLeave}
+                  style={{ zIndex: zIndex - 1 }}
                 >
                   <button
                     type="button"
