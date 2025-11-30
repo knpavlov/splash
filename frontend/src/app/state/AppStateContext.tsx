@@ -517,6 +517,24 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const applyPeriodSettings = useCallback(
+    (initiative: Initiative): Initiative => {
+      let changed = false;
+      const stages = initiativeStageKeys.reduce((acc, key) => {
+        const stage = initiative.stages[key];
+        const nextStage =
+          stage.periodMonth === periodSettings.periodMonth && stage.periodYear === periodSettings.periodYear
+            ? stage
+            : { ...stage, periodMonth: periodSettings.periodMonth, periodYear: periodSettings.periodYear };
+        acc[key] = nextStage;
+        changed = changed || nextStage !== stage;
+        return acc;
+      }, {} as Initiative['stages']);
+      return changed ? { ...initiative, stages } : initiative;
+    },
+    [periodSettings.periodMonth, periodSettings.periodYear]
+  );
+
   const syncFolders = useCallback(async (): Promise<CaseFolder[] | null> => {
     try {
       const remote = await casesApi.list();
@@ -749,117 +767,99 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const sortInitiativesByUpdated = (items: Initiative[]) =>
     [...items].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  const applyPeriodSettings = useCallback(
-    (initiative: Initiative): Initiative => {
-      let changed = false;
-      const stages = initiativeStageKeys.reduce((acc, key) => {
-        const stage = initiative.stages[key];
-        const nextStage =
-          stage.periodMonth === periodSettings.periodMonth && stage.periodYear === periodSettings.periodYear
-            ? stage
-            : { ...stage, periodMonth: periodSettings.periodMonth, periodYear: periodSettings.periodYear };
-        acc[key] = nextStage;
-        changed = changed || nextStage !== stage;
-        return acc;
-      }, {} as Initiative['stages']);
-      return changed ? { ...initiative, stages } : initiative;
-    },
-    [periodSettings.periodMonth, periodSettings.periodYear]
-  );
-
   const sanitizeInitiativeForSave = (initiative: Initiative, periodSettings: PeriodSettings): Initiative => {
-  const trimmedId = initiative.id.trim();
-  const trimmedWorkstream = initiative.workstreamId.trim();
-  const trimmedName = initiative.name.trim();
-  const trimmedDescription = initiative.description.trim();
-  const trimmedStatus = initiative.currentStatus.trim() || 'draft';
-  const trimmedOwnerName = initiative.ownerName?.trim() || null;
-  const trimmedOwnerAccountId = initiative.ownerAccountId?.trim() || null;
-  const sanitizedStages = initiativeStageKeys.reduce((acc, key) => {
-    const stage = initiative.stages[key];
-    const calcLogicSource =
-      stage?.calculationLogic && typeof stage.calculationLogic === 'object'
-        ? (stage.calculationLogic as Record<string, unknown>)
-        : {};
-    const businessCaseFiles = Array.isArray(stage?.businessCaseFiles)
-      ? stage.businessCaseFiles
-          .map((file) => sanitizeBusinessCaseFile(file))
-          .filter((file): file is InitiativeBusinessCaseFile => Boolean(file))
-      : [];
-    const supportingDocs = Array.isArray(stage?.supportingDocs)
-      ? stage.supportingDocs
-          .map((file) => sanitizeSupportingDoc(file))
-          .filter((file): file is InitiativeSupportingDocument => Boolean(file))
-      : [];
-    const kpis = Array.isArray(stage?.kpis)
-      ? stage.kpis
-          .map((entry) => sanitizeKpi(entry as InitiativeStageKPI))
-          .filter((entry): entry is InitiativeStageKPI => Boolean(entry))
-      : [];
-    acc[key] = {
-      ...stage,
-      name: stage.name.trim(),
-      description: stage.description.trim(),
-      periodMonth: periodSettings.periodMonth,
-      periodYear: periodSettings.periodYear,
-      valueStepTaskId: stage.valueStepTaskId?.trim() || null,
-      additionalCommentary: stage.additionalCommentary?.trim() ?? '',
-      calculationLogic: initiativeFinancialKinds.reduce((logicAcc, kind) => {
-        const raw = calcLogicSource[kind];
-        logicAcc[kind] = typeof raw === 'string' ? raw.trim() : '';
-        return logicAcc;
-      }, {} as Record<InitiativeFinancialKind, string>),
-      businessCaseFiles,
-      supportingDocs,
-      kpis,
-      financials: initiativeFinancialKinds.reduce((finAcc, kind) => {
-        finAcc[kind] = stage.financials[kind].map((entry) => ({
-          ...entry,
-          label: entry.label.trim(),
-          category: entry.category.trim(),
-          lineCode: entry.lineCode ? entry.lineCode.trim() : null,
-          distribution: Object.fromEntries(
-            Object.entries(entry.distribution).map(([month, amount]) => [month, sanitizeNumber(amount)])
-          )
-        }));
-        return finAcc;
-      }, {} as Initiative['stages'][InitiativeStageKey]['financials'])
-    };
-    return acc;
-  }, {} as Initiative['stages']);
-  const sanitizedStageState = initiativeStageKeys.reduce((acc, key) => {
-    const state = initiative.stageState[key];
-    acc[key] = {
-      status: state?.status ?? 'draft',
-      roundIndex: Number.isFinite(state?.roundIndex) ? Number(state?.roundIndex) : 0,
-      comment: state?.comment?.trim() || null
-    };
-    return acc;
-  }, {} as Initiative['stageState']);
-  const sanitizedPlan = sanitizePlanModel(initiative.plan);
-  const valueStepTaskId =
-    sanitizedPlan.tasks.find(
-      (task) => (task.milestoneType ?? '').toLowerCase() === VALUE_STEP_LABEL.toLowerCase()
-    )?.id ?? null;
-  const normalizedStages = initiativeStageKeys.reduce((acc, key) => {
-    acc[key] = { ...sanitizedStages[key], valueStepTaskId };
-    return acc;
-  }, {} as Initiative['stages']);
+    const trimmedId = initiative.id.trim();
+    const trimmedWorkstream = initiative.workstreamId.trim();
+    const trimmedName = initiative.name.trim();
+    const trimmedDescription = initiative.description.trim();
+    const trimmedStatus = initiative.currentStatus.trim() || 'draft';
+    const trimmedOwnerName = initiative.ownerName?.trim() || null;
+    const trimmedOwnerAccountId = initiative.ownerAccountId?.trim() || null;
+    const sanitizedStages = initiativeStageKeys.reduce((acc, key) => {
+      const stage = initiative.stages[key];
+      const calcLogicSource =
+        stage?.calculationLogic && typeof stage.calculationLogic === 'object'
+          ? (stage.calculationLogic as Record<string, unknown>)
+          : {};
+      const businessCaseFiles = Array.isArray(stage?.businessCaseFiles)
+        ? stage.businessCaseFiles
+            .map((file) => sanitizeBusinessCaseFile(file))
+            .filter((file): file is InitiativeBusinessCaseFile => Boolean(file))
+        : [];
+      const supportingDocs = Array.isArray(stage?.supportingDocs)
+        ? stage.supportingDocs
+            .map((file) => sanitizeSupportingDoc(file))
+            .filter((file): file is InitiativeSupportingDocument => Boolean(file))
+        : [];
+      const kpis = Array.isArray(stage?.kpis)
+        ? stage.kpis
+            .map((entry) => sanitizeKpi(entry as InitiativeStageKPI))
+            .filter((entry): entry is InitiativeStageKPI => Boolean(entry))
+        : [];
+      acc[key] = {
+        ...stage,
+        name: stage.name.trim(),
+        description: stage.description.trim(),
+        periodMonth: periodSettings.periodMonth,
+        periodYear: periodSettings.periodYear,
+        valueStepTaskId: stage.valueStepTaskId?.trim() || null,
+        additionalCommentary: stage.additionalCommentary?.trim() ?? '',
+        calculationLogic: initiativeFinancialKinds.reduce((logicAcc, kind) => {
+          const raw = calcLogicSource[kind];
+          logicAcc[kind] = typeof raw === 'string' ? raw.trim() : '';
+          return logicAcc;
+        }, {} as Record<InitiativeFinancialKind, string>),
+        businessCaseFiles,
+        supportingDocs,
+        kpis,
+        financials: initiativeFinancialKinds.reduce((finAcc, kind) => {
+          finAcc[kind] = stage.financials[kind].map((entry) => ({
+            ...entry,
+            label: entry.label.trim(),
+            category: entry.category.trim(),
+            lineCode: entry.lineCode ? entry.lineCode.trim() : null,
+            distribution: Object.fromEntries(
+              Object.entries(entry.distribution).map(([month, amount]) => [month, sanitizeNumber(amount)])
+            )
+          }));
+          return finAcc;
+        }, {} as Initiative['stages'][InitiativeStageKey]['financials'])
+      };
+      return acc;
+    }, {} as Initiative['stages']);
+    const sanitizedStageState = initiativeStageKeys.reduce((acc, key) => {
+      const state = initiative.stageState[key];
+      acc[key] = {
+        status: state?.status ?? 'draft',
+        roundIndex: Number.isFinite(state?.roundIndex) ? Number(state?.roundIndex) : 0,
+        comment: state?.comment?.trim() || null
+      };
+      return acc;
+    }, {} as Initiative['stageState']);
+    const sanitizedPlan = sanitizePlanModel(initiative.plan);
+    const valueStepTaskId =
+      sanitizedPlan.tasks.find(
+        (task) => (task.milestoneType ?? '').toLowerCase() === VALUE_STEP_LABEL.toLowerCase()
+      )?.id ?? null;
+    const normalizedStages = initiativeStageKeys.reduce((acc, key) => {
+      acc[key] = { ...sanitizedStages[key], valueStepTaskId };
+      return acc;
+    }, {} as Initiative['stages']);
 
-  return {
-    ...initiative,
-    id: trimmedId,
-    workstreamId: trimmedWorkstream,
-    name: trimmedName,
-    description: trimmedDescription,
-    currentStatus: trimmedStatus,
-    ownerName: trimmedOwnerName,
-    ownerAccountId: trimmedOwnerAccountId,
-    stages: normalizedStages,
-    stageState: sanitizedStageState,
-    plan: sanitizedPlan
+    return {
+      ...initiative,
+      id: trimmedId,
+      workstreamId: trimmedWorkstream,
+      name: trimmedName,
+      description: trimmedDescription,
+      currentStatus: trimmedStatus,
+      ownerName: trimmedOwnerName,
+      ownerAccountId: trimmedOwnerAccountId,
+      stages: normalizedStages,
+      stageState: sanitizedStageState,
+      plan: sanitizedPlan
+    };
   };
-};
 
   const value = useMemo<AppStateContextValue>(() => ({
     cases: {
