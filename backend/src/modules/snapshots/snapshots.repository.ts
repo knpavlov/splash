@@ -8,6 +8,7 @@ import type {
   StageMetricMap,
   StageSummaryMap
 } from './snapshots.types.js';
+import type { SnapshotSettings } from './snapshots.types.js';
 
 const stageColumnKeys: StageColumnKey[] = [
   'l0',
@@ -78,19 +79,25 @@ export interface SnapshotListFilters {
 export class SnapshotsRepository {
   private readonly settingsId = 1;
 
-  private mapSettings(row: SnapshotSettingsRow) {
+  private async ensureKpiColumn() {
+    await postgresPool.query(
+      `ALTER TABLE snapshot_settings
+         ADD COLUMN IF NOT EXISTS kpi_options JSONB NOT NULL DEFAULT '[]'::jsonb;`
+    );
+  }
+
+  private mapSettings(row: SnapshotSettingsRow): SnapshotSettings {
     const kpiOptions =
       Array.isArray(row.kpi_options) && row.kpi_options.every((item) => typeof item === 'string')
         ? (row.kpi_options as string[])
         : [];
     return {
-      autoEnabled: Boolean(row.auto_enabled),
+      enabled: Boolean(row.auto_enabled),
       retentionDays: Number(row.retention_days ?? 60),
       timezone: typeof row.timezone === 'string' && row.timezone.trim() ? row.timezone.trim() : 'Australia/Sydney',
       scheduleHour: Number.isInteger(row.schedule_hour) ? Number(row.schedule_hour) : 19,
       scheduleMinute: Number.isInteger(row.schedule_minute) ? Number(row.schedule_minute) : 0,
-      kpiOptions,
-      updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : new Date().toISOString()
+      kpiOptions
     };
   }
 
@@ -150,47 +157,55 @@ export class SnapshotsRepository {
     };
   }
 
-  async getSettings() {
-    const result = await postgresPool.query<SnapshotSettingsRow>(
-      `SELECT auto_enabled,
-              retention_days,
-              timezone,
-              schedule_hour,
-              schedule_minute,
-              kpi_options,
-              updated_at
-         FROM snapshot_settings
-        WHERE id = $1
-        LIMIT 1;`,
-      [this.settingsId]
-    );
-    const row = result.rows?.[0];
-    if (row) {
-      return this.mapSettings(row);
+  async getSettings(): Promise<SnapshotSettings> {
+    try {
+      const result = await postgresPool.query<SnapshotSettingsRow>(
+        `SELECT auto_enabled,
+                retention_days,
+                timezone,
+                schedule_hour,
+                schedule_minute,
+                kpi_options,
+                updated_at
+           FROM snapshot_settings
+          WHERE id = $1
+          LIMIT 1;`,
+        [this.settingsId]
+      );
+      const row = result.rows?.[0];
+      if (row) {
+        return this.mapSettings(row);
+      }
+      await postgresPool.query(
+        `INSERT INTO snapshot_settings (id, auto_enabled, retention_days, timezone, schedule_hour, schedule_minute, kpi_options)
+         VALUES ($1, FALSE, 60, 'Australia/Sydney', 19, 0, '[]'::jsonb)
+         ON CONFLICT (id) DO NOTHING;`,
+        [this.settingsId]
+      );
+      const fallback = await postgresPool.query<SnapshotSettingsRow>(
+        `SELECT auto_enabled,
+                retention_days,
+                timezone,
+                schedule_hour,
+                schedule_minute,
+                kpi_options,
+                updated_at
+           FROM snapshot_settings
+          WHERE id = $1
+          LIMIT 1;`,
+        [this.settingsId]
+      );
+      return this.mapSettings(fallback.rows?.[0] as SnapshotSettingsRow);
+    } catch (error) {
+      if (error instanceof Error && /kpi_options/i.test(error.message)) {
+        await this.ensureKpiColumn();
+        return this.getSettings();
+      }
+      throw error;
     }
-    await postgresPool.query(
-      `INSERT INTO snapshot_settings (id, auto_enabled, retention_days, timezone, schedule_hour, schedule_minute, kpi_options)
-       VALUES ($1, FALSE, 60, 'Australia/Sydney', 19, 0, '[]'::jsonb)
-       ON CONFLICT (id) DO NOTHING;`,
-      [this.settingsId]
-    );
-    const fallback = await postgresPool.query<SnapshotSettingsRow>(
-      `SELECT auto_enabled,
-              retention_days,
-              timezone,
-              schedule_hour,
-              schedule_minute,
-              kpi_options,
-              updated_at
-         FROM snapshot_settings
-        WHERE id = $1
-        LIMIT 1;`,
-      [this.settingsId]
-    );
-    return this.mapSettings(fallback.rows?.[0] as SnapshotSettingsRow);
   }
 
-  async updateSettings(patch: Partial<Omit<SnapshotSettingsRow, 'updated_at'>>) {
+  async updateSettings(patch: Partial<Omit<SnapshotSettingsRow, 'updated_at'>>): Promise<SnapshotSettings> {
     const fields: string[] = [];
     const values: unknown[] = [];
     let index = 1;
@@ -224,26 +239,34 @@ export class SnapshotsRepository {
     const queryValues = [...baseValues, ...values];
     const assignments = fields.length ? `${fields.join(', ')}, updated_at = NOW()` : 'updated_at = NOW()';
 
-    const result = await postgresPool.query<SnapshotSettingsRow>(
-      `
-        UPDATE snapshot_settings
-           SET ${assignments}
-         WHERE id = $1
-        RETURNING auto_enabled,
-                  retention_days,
-                  timezone,
-                  schedule_hour,
-                  schedule_minute,
-                  kpi_options,
-                  updated_at;
-      `,
-      queryValues
-    );
-    const row = result.rows?.[0];
-    if (row) {
-      return this.mapSettings(row);
+    try {
+      const result = await postgresPool.query<SnapshotSettingsRow>(
+        `
+          UPDATE snapshot_settings
+             SET ${assignments}
+           WHERE id = $1
+          RETURNING auto_enabled,
+                    retention_days,
+                    timezone,
+                    schedule_hour,
+                    schedule_minute,
+                    kpi_options,
+                    updated_at;
+        `,
+        queryValues
+      );
+      const row = result.rows?.[0];
+      if (row) {
+        return this.mapSettings(row);
+      }
+      return this.getSettings();
+    } catch (error) {
+      if (error instanceof Error && /kpi_options/i.test(error.message)) {
+        await this.ensureKpiColumn();
+        return this.updateSettings(patch);
+      }
+      throw error;
     }
-    return this.getSettings();
   }
 
   async insertSnapshot(model: SnapshotInsertModel) {

@@ -621,15 +621,6 @@ export const InitiativeProfile = ({
     { status: 'draft', roundIndex: 0, comment: null };
   const selectedWorkstream = workstreams.find((ws) => ws.id === draft.workstreamId) ?? null;
   const stageGateKey = getGateKeyForStage(selectedStage);
-  const periodMonthLabel = useMemo(
-    () =>
-      new Date(
-        2000,
-        Math.max(0, (periodSettings.periodMonth ?? 1) - 1),
-        1
-      ).toLocaleString('en-US', { month: 'long' }),
-    [periodSettings.periodMonth]
-  );
   const planValueStepTask =
     useMemo(
       () =>
@@ -1344,23 +1335,8 @@ export const InitiativeProfile = ({
           />
         </label>
 
-        <div className={styles.periodRow}>
-          <label className={styles.fieldBlock} {...buildStageAnchor('period-month', 'Period month')}>
-            <div className={styles.periodSummary}>
-              <span className={styles.periodPill}>
-                <small>Month</small>
-                {periodMonthLabel}
-              </span>
-              <span className={styles.periodPill}>
-                <small>Year</small>
-                {periodSettings.periodYear}
-              </span>
-            </div>
-            <p className={styles.fieldHint}>
-              Managed once in General settings and applied to every initiative stage.
-            </p>
-          </label>
-          {selectedStage === 'l4' && (
+        {selectedStage === 'l4' && (
+          <div className={styles.periodRow}>
             <label {...buildStageAnchor('stage-l4-date', 'Stage L4 date')}>
               <span>L4 date</span>
               <input
@@ -1370,8 +1346,8 @@ export const InitiativeProfile = ({
                 disabled={!isStageEditable}
               />
             </label>
-          )}
-        </div>
+          </div>
+        )}
 
           </>
         )}

@@ -447,7 +447,7 @@ export class SnapshotsService {
     const lastAuto = await this.repository.getLatestAutomaticSnapshot();
     const schedulerNext = this.scheduler?.getNextRunTime() ?? null;
     return {
-      enabled: settings.autoEnabled,
+      enabled: settings.enabled,
       retentionDays: Math.max(settings.retentionDays, this.minimumRetentionDays),
       timezone: settings.timezone,
       scheduleHour: settings.scheduleHour,

@@ -54,7 +54,7 @@ export class SnapshotScheduler {
   private async scheduleNext() {
     this.clearTimer();
     const settings = await this.service.getRawSettings();
-    if (!settings.autoEnabled) {
+    if (!settings.enabled) {
       this.nextRun = null;
       return;
     }
