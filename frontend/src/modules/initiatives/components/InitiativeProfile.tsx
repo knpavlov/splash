@@ -948,7 +948,10 @@ export const InitiativeProfile = ({
 
   const netRunRate = useMemo(() => {
     const stageData = draft.stages[draft.activeStage];
-    const months = buildMonthRange(stageData);
+    const months = buildMonthRange(stageData, {
+      endYear: periodSettings.periodYear,
+      endMonth: periodSettings.periodMonth
+    });
     const monthKeys = months.map((month) => month.key);
     const totalsByKind = initiativeFinancialKinds.reduce(
       (acc, kind) => {
@@ -966,11 +969,14 @@ export const InitiativeProfile = ({
         (totalsByKind['oneoff-costs'][key] ?? 0);
     });
     return calculateRunRate(monthKeys, netTotals);
-  }, [draft]);
+  }, [draft, periodSettings.periodMonth, periodSettings.periodYear]);
 
   const financialSeries = useMemo(() => {
     const stageData = draft.stages[draft.activeStage];
-    const months = buildMonthRange(stageData);
+    const months = buildMonthRange(stageData, {
+      endYear: periodSettings.periodYear,
+      endMonth: periodSettings.periodMonth
+    });
     const monthKeys = months.map((month) => month.key);
     const totalsByKind = initiativeFinancialKinds.reduce(
       (acc, kind) => {
@@ -996,7 +1002,7 @@ export const InitiativeProfile = ({
         impact: impact.reduce((acc, value) => acc + value, 0)
       }
     };
-  }, [draft]);
+  }, [draft, periodSettings.periodMonth, periodSettings.periodYear]);
 
   const formatTaskDateRange = (task: InitiativePlanTask | null) => {
     if (!task) {
@@ -1340,7 +1346,6 @@ export const InitiativeProfile = ({
 
         <div className={styles.periodRow}>
           <label className={styles.fieldBlock} {...buildStageAnchor('period-month', 'Period month')}>
-            <span>Period (shared)</span>
             <div className={styles.periodSummary}>
               <span className={styles.periodPill}>
                 <small>Month</small>

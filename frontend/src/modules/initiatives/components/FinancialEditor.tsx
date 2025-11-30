@@ -17,7 +17,7 @@ import {
   YearSummaryEntry
 } from './financials.helpers';
 import { createCommentAnchor, CommentAnchorAttributes } from '../comments/commentAnchors';
-import { useFinancialsState } from '../../../app/state/AppStateContext';
+import { useFinancialsState, usePlanSettingsState } from '../../../app/state/AppStateContext';
 import { DEFAULT_FISCAL_YEAR_START_MONTH } from '../../../shared/config/finance';
 import { convertFilesToRecords } from '../../cases/services/fileAdapter';
 
@@ -1125,7 +1125,11 @@ export const PlanVsActualChart = ({
 };
 
 export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: FinancialEditorProps) => {
-  const months = useMemo<MonthDescriptor[]>(() => buildMonthRange(stage), [stage]);
+  const { periodSettings } = usePlanSettingsState();
+  const months = useMemo<MonthDescriptor[]>(
+    () => buildMonthRange(stage, { endYear: periodSettings.periodYear, endMonth: periodSettings.periodMonth }),
+    [stage, periodSettings.periodMonth, periodSettings.periodYear]
+  );
   const scopeKey = commentScope ?? stage.key ?? 'stage';
   const gridTemplateColumns = useMemo(
     () => `${CATEGORY_COLUMN_WIDTH}px repeat(${Math.max(months.length, 1)}, minmax(110px, 1fr))`,

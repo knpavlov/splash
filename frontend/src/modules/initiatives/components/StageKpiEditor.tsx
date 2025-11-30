@@ -7,6 +7,7 @@ import {
 } from '../../../shared/types/initiative';
 import { buildMonthRange } from './financials.helpers';
 import { generateId } from '../../../shared/ui/generateId';
+import { usePlanSettingsState } from '../../../app/state/AppStateContext';
 
 interface StageKpiEditorProps {
   stage: InitiativeStageData;
@@ -25,7 +26,11 @@ const clampNumber = (value: string) => {
 };
 
 export const StageKpiEditor = ({ stage, disabled, kpiOptions, onChange }: StageKpiEditorProps) => {
-  const months = useMemo(() => buildMonthRange(stage), [stage]);
+  const { periodSettings } = usePlanSettingsState();
+  const months = useMemo(
+    () => buildMonthRange(stage, { endYear: periodSettings.periodYear, endMonth: periodSettings.periodMonth }),
+    [stage, periodSettings.periodMonth, periodSettings.periodYear]
+  );
   const monthKeys = months.map((m) => m.key);
   const monthColumnWidth = 96;
   const columnTemplate = useMemo(() => {

@@ -5,6 +5,7 @@ import { InitiativeStageData, InitiativeStageKPI } from '../../../shared/types/i
 import { buildMonthRange } from './financials.helpers';
 import { PlanVsActualChart, ChartMonthStack, ChartSegment } from './FinancialEditor';
 import { createCommentAnchor } from '../comments/commentAnchors';
+import { usePlanSettingsState } from '../../../app/state/AppStateContext';
 
 interface StageKpiActualsProps {
   stage: InitiativeStageData;
@@ -99,7 +100,11 @@ const buildKpiChartStacks = (
   });
 
 export const StageKpiActuals = ({ stage, disabled, onChange, commentScope }: StageKpiActualsProps) => {
-  const months = useMemo(() => buildMonthRange(stage), [stage]);
+  const { periodSettings } = usePlanSettingsState();
+  const months = useMemo(
+    () => buildMonthRange(stage, { endYear: periodSettings.periodYear, endMonth: periodSettings.periodMonth }),
+    [stage, periodSettings.periodMonth, periodSettings.periodYear]
+  );
   const monthKeys = useMemo(() => months.map((m) => m.key), [months]);
   const scopedKpis = useMemo(
     () => (stage.kpis ?? []).map((kpi) => ensureMonthKeys(kpi, monthKeys)),

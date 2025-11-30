@@ -20,20 +20,22 @@ export const parseMonthKey = (key: string) => {
   };
 };
 
-export const buildMonthRange = (stage: InitiativeStageData) => {
+export const buildMonthRange = (
+  stage: InitiativeStageData,
+  options?: { endYear?: number | null; endMonth?: number | null }
+) => {
   const now = new Date();
   now.setDate(1);
 
   const defaultEnd = new Date(now);
   defaultEnd.setMonth(defaultEnd.getMonth() + 11);
 
-  const endYear = stage.periodYear ?? defaultEnd.getFullYear();
-  const endMonth = stage.periodMonth ?? defaultEnd.getMonth() + 1;
+  const endYear = options?.endYear ?? stage.periodYear ?? defaultEnd.getFullYear();
+  const endMonth = options?.endMonth ?? stage.periodMonth ?? defaultEnd.getMonth() + 1;
   const endCandidate = new Date(endYear, endMonth - 1, 1);
   const end = endCandidate.getTime() < now.getTime() ? defaultEnd : endCandidate;
 
   let earliestTime: number | null = null;
-  let latestTime: number | null = null;
   for (const kind of initiativeFinancialKinds) {
     stage.financials[kind].forEach((entry) => {
       const scanKeys = (source: Record<string, number>) => {
@@ -45,9 +47,6 @@ export const buildMonthRange = (stage: InitiativeStageData) => {
           const timestamp = parsed.date.getTime();
           if (!earliestTime || timestamp < earliestTime) {
             earliestTime = timestamp;
-          }
-          if (!latestTime || timestamp > latestTime) {
-            latestTime = timestamp;
           }
         });
       };
@@ -66,9 +65,6 @@ export const buildMonthRange = (stage: InitiativeStageData) => {
         if (!earliestTime || timestamp < earliestTime) {
           earliestTime = timestamp;
         }
-        if (!latestTime || timestamp > latestTime) {
-          latestTime = timestamp;
-        }
       });
     };
     scanKeys(kpi.distribution ?? {});
@@ -76,14 +72,14 @@ export const buildMonthRange = (stage: InitiativeStageData) => {
   });
 
   let start = now;
-  if (typeof earliestTime === 'number' && earliestTime < now.getTime()) {
+  if (typeof earliestTime === 'number' && earliestTime <= end.getTime()) {
     start = new Date(earliestTime);
+  }
+  if (start.getTime() > end.getTime()) {
+    start = new Date(end);
   }
   const months: { key: string; label: string; year: number; index: number }[] = [];
 
-  if (typeof latestTime === 'number' && latestTime > end.getTime()) {
-    end.setTime(latestTime);
-  }
   const cursor = new Date(start);
   let index = 0;
   while (cursor.getTime() <= end.getTime() && months.length < 360) {

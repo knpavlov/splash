@@ -511,11 +511,12 @@ export class SnapshotsService {
       resolved.retention_days = Math.floor(days);
     }
     if (patch.timezone !== undefined) {
-      const tz = patch.timezone.trim();
+      const tz = typeof patch.timezone === 'string' ? patch.timezone.trim() : '';
       if (!tz) {
-        throw new Error('INVALID_TIMEZONE');
+        // Ignore empty timezone updates to avoid hard failures on optional input.
+      } else {
+        resolved.timezone = tz;
       }
-      resolved.timezone = tz;
     }
     if (patch.scheduleHour !== undefined) {
       const hour = Number(patch.scheduleHour);

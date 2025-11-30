@@ -229,12 +229,13 @@ export class SnapshotsRepository {
         UPDATE snapshot_settings
            SET ${assignments}
          WHERE id = $1
-         RETURNING auto_enabled,
-                   retention_days,
-                   timezone,
-                   schedule_hour,
-                   schedule_minute,
-                   updated_at;
+        RETURNING auto_enabled,
+                  retention_days,
+                  timezone,
+                  schedule_hour,
+                  schedule_minute,
+                  kpi_options,
+                  updated_at;
       `,
       queryValues
     );
