@@ -18,7 +18,7 @@ const buildPoolConfig = (): PoolConfig => {
       connectionString,
       ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false },
       connectionTimeoutMillis: connectionTimeoutMs
-    };
+    } as PoolConfig;
   }
 
   const config: PoolConfig = {
@@ -26,9 +26,9 @@ const buildPoolConfig = (): PoolConfig => {
     port: Number(process.env.PGPORT ?? 5432),
     user: process.env.PGUSER,
     password: process.env.PGPASSWORD,
-    database: process.env.PGDATABASE,
-    connectionTimeoutMillis: connectionTimeoutMs
+    database: process.env.PGDATABASE
   };
+  (config as PoolConfig & { connectionTimeoutMillis?: number }).connectionTimeoutMillis = connectionTimeoutMs;
 
   if (process.env.NODE_ENV === 'production') {
     const missing = ['PGHOST', 'PGUSER', 'PGDATABASE'].filter((key) => !(process.env as Record<string, string | undefined>)[key]);
