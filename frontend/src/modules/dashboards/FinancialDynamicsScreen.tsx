@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/FinancialDynamicsScreen.module.css';
 import { useFinancialsState, useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { FinancialLineItem } from '../../shared/types/financials';
@@ -7,7 +7,8 @@ import {
   initiativeStageKeys,
   initiativeStageLabels,
   Initiative,
-  InitiativeFinancialEntry
+  InitiativeFinancialEntry,
+  InitiativeStageKPI
 } from '../../shared/types/initiative';
 import { DEFAULT_FISCAL_YEAR_START_MONTH } from '../../shared/config/finance';
 import {
@@ -52,6 +53,19 @@ interface LineSeries {
   maxAbs: number;
 }
 
+interface KpiSeries {
+  key: string;
+  name: string;
+  unit: string;
+  baseline: number;
+  plan: ChartMonthStack[];
+  actual: ChartMonthStack[];
+  lastActual: number;
+  lastPlan: number;
+  delta: number;
+  maxAbs: number;
+}
+
 interface InitiativeBreakdownRow {
   initiativeId: string | null;
   name: string;
@@ -68,6 +82,7 @@ interface BreakdownState {
 }
 
 const SETTINGS_STORAGE_KEY = 'pl-dynamics-settings';
+const FAVORITES_STORAGE_KEY = 'pl-dynamics-favorites';
 const planColor = '#1d4ed8';
 const actualColor = '#0ea5e9';
 const baseColor = '#cbd5e1';
@@ -101,6 +116,13 @@ const sumForPeriod = (record: Record<string, number> | undefined, keys: string[]
   keys.reduce((sum, key) => sum + (record?.[key] ?? 0), 0);
 
 const stackNet = (stack: ChartMonthStack) => stack.positiveTotal - stack.negativeTotal;
+
+const normalizeString = (value: string | undefined | null) => value?.trim() || '';
+const buildKpiKey = (kpi: InitiativeStageKPI) => {
+  const name = normalizeString(kpi.name).toLowerCase();
+  const unit = normalizeString(kpi.unit).toLowerCase();
+  return `${name || 'kpi'}|${unit || 'unitless'}`;
+};
 
 const buildSingleValueStack = (bucketKey: string, rawValue: number, label: string, color: string): ChartMonthStack => {
   const value = Math.abs(rawValue);
@@ -274,6 +296,68 @@ const buildInitiativeBreakdownMap = (
   return map;
 };
 
+interface KpiAggregate {
+  key: string;
+  name: string;
+  unit: string;
+  baseline: number;
+  plan: Record<string, number>;
+  actual: Record<string, number>;
+}
+
+const buildKpiAggregates = (initiatives: Initiative[], monthKeys: string[]) => {
+  const monthSet = new Set(monthKeys);
+  const emptyRecord = () => buildEmptyRecord(monthKeys);
+  const map = new Map<string, KpiAggregate>();
+
+  initiatives.forEach((initiative) => {
+    const stage = initiative.stages[initiative.activeStage];
+    if (!stage) {
+      return;
+    }
+    (stage.kpis ?? []).forEach((kpi) => {
+      const key = buildKpiKey(kpi);
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          name: normalizeString(kpi.name) || 'KPI',
+          unit: normalizeString(kpi.unit) || 'Unitless',
+          baseline: 0,
+          plan: emptyRecord(),
+          actual: emptyRecord()
+        });
+      }
+      const record = map.get(key)!;
+      const baseline = Number(kpi.baseline);
+      if (Number.isFinite(baseline)) {
+        record.baseline += baseline;
+      }
+      Object.entries(kpi.distribution ?? {}).forEach(([monthKey, raw]) => {
+        if (!monthSet.has(monthKey)) {
+          return;
+        }
+        const numeric = Number(raw);
+        if (!Number.isFinite(numeric)) {
+          return;
+        }
+        record.plan[monthKey] += numeric;
+      });
+      Object.entries(kpi.actuals ?? {}).forEach(([monthKey, raw]) => {
+        if (!monthSet.has(monthKey)) {
+          return;
+        }
+        const numeric = Number(raw);
+        if (!Number.isFinite(numeric)) {
+          return;
+        }
+        record.actual[monthKey] += numeric;
+      });
+    });
+  });
+
+  return Array.from(map.values());
+};
+
 export const FinancialDynamicsScreen = () => {
   const { blueprint, loading: blueprintLoading, error: blueprintError, refresh: refreshBlueprint } = useFinancialsState();
   const { list: initiatives } = useInitiativesState();
@@ -281,6 +365,18 @@ export const FinancialDynamicsScreen = () => {
   const [settings, setSettings] = useState<PersistedSettings>(() => loadSettings());
   const [workstreamMenuOpen, setWorkstreamMenuOpen] = useState(false);
   const [breakdown, setBreakdown] = useState<BreakdownState | null>(null);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    if (typeof window === 'undefined') {
+      return [];
+    }
+    try {
+      const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+      const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+      return Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === 'string') : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -292,6 +388,17 @@ export const FinancialDynamicsScreen = () => {
       console.warn('Failed to persist P&L dashboard settings', error);
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    try {
+      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+    } catch (error) {
+      console.warn('Failed to persist P&L dashboard favorites', error);
+    }
+  }, [favorites]);
 
   useEffect(() => {
     if (!blueprint && !blueprintLoading) {
@@ -334,6 +441,10 @@ export const FinancialDynamicsScreen = () => {
           Object.keys(entry.distribution ?? {}).forEach((key) => keys.add(key));
           Object.keys(entry.actuals ?? {}).forEach((key) => keys.add(key));
         });
+      });
+      (stage.kpis ?? []).forEach((kpi) => {
+        Object.keys(kpi.distribution ?? {}).forEach((key) => keys.add(key));
+        Object.keys(kpi.actuals ?? {}).forEach((key) => keys.add(key));
       });
     });
     return Array.from(keys)
@@ -489,6 +600,11 @@ export const FinancialDynamicsScreen = () => {
     return map;
   }, [initiatives]);
 
+  const kpiAggregates = useMemo(
+    () => (monthKeys.length ? buildKpiAggregates(filteredInitiatives, monthKeys) : []),
+    [filteredInitiatives, monthKeys]
+  );
+
   const series = useMemo<LineSeries[]>(() => {
     if (!blueprint || !buckets.length) {
       return [];
@@ -577,6 +693,86 @@ export const FinancialDynamicsScreen = () => {
     });
   }, [series, settings.query, settings.hideZeros, settings.sortMode]);
 
+  const kpiSeries = useMemo<KpiSeries[]>(() => {
+    if (!buckets.length || !kpiAggregates.length) {
+      return [];
+    }
+    return kpiAggregates.map((kpi) => {
+      const buildStack = (bucket: ChartBucket, value: number, label: string, color: string): ChartMonthStack => {
+        const baseValue = settings.baseMode === 'baseline' ? kpi.baseline : 0;
+        const segments: ChartSegment[] = [];
+        if (settings.baseMode === 'baseline' && baseValue) {
+          segments.push({
+            value: Math.abs(baseValue),
+            color: baseColor,
+            label: 'Baseline',
+            rawValue: baseValue,
+            kind: 'base'
+          });
+        }
+        if (value) {
+          segments.push({
+            value: Math.abs(value),
+            color,
+            label,
+            rawValue: value,
+            kind: 'other'
+          });
+        }
+        const positiveSegments = segments.filter((segment) => segment.rawValue >= 0);
+        const negativeSegments = segments.filter((segment) => segment.rawValue < 0);
+        return {
+          key: bucket.key,
+          positiveSegments,
+          negativeSegments,
+          positiveTotal: positiveSegments.reduce((sum, segment) => sum + segment.value, 0),
+          negativeTotal: negativeSegments.reduce((sum, segment) => sum + segment.value, 0)
+        };
+      };
+
+      const planStacks = buckets.map((bucket) =>
+        buildStack(bucket, sumForPeriod(kpi.plan, bucket.monthKeys), 'Plan KPI', planColor)
+      );
+      const actualStacks = buckets.map((bucket) =>
+        buildStack(bucket, sumForPeriod(kpi.actual, bucket.monthKeys), 'Actual KPI', actualColor)
+      );
+      const lastPlan = planStacks.length ? stackNet(planStacks[planStacks.length - 1]) : 0;
+      const lastActual = actualStacks.length ? stackNet(actualStacks[actualStacks.length - 1]) : 0;
+      const delta = lastActual - lastPlan;
+      const maxAbs = Math.max(netAbsMax(planStacks), netAbsMax(actualStacks));
+      return { key: kpi.key, name: kpi.name, unit: kpi.unit, baseline: kpi.baseline, plan: planStacks, actual: actualStacks, lastActual, lastPlan, delta, maxAbs };
+    });
+  }, [buckets, kpiAggregates, settings.baseMode]);
+
+  const filteredKpiSeries = useMemo(() => {
+    const query = settings.query.trim().toLowerCase();
+    const matchesQuery = (entry: KpiSeries) =>
+      !query || entry.name.toLowerCase().includes(query) || entry.unit.toLowerCase().includes(query);
+
+    const visible = kpiSeries.filter((entry) => {
+      if (!matchesQuery(entry)) {
+        return false;
+      }
+      if (settings.hideZeros && entry.maxAbs === 0) {
+        return false;
+      }
+      return true;
+    });
+
+    return visible.sort((a, b) => {
+      if (settings.sortMode === 'name') {
+        return a.name.localeCompare(b.name);
+      }
+      if (settings.sortMode === 'delta') {
+        return Math.abs(b.delta) - Math.abs(a.delta);
+      }
+      if (settings.sortMode === 'impact-asc') {
+        return Math.abs(a.lastActual) - Math.abs(b.lastActual);
+      }
+      return Math.abs(b.lastActual) - Math.abs(a.lastActual);
+    });
+  }, [kpiSeries, settings.query, settings.hideZeros, settings.sortMode]);
+
   const buildBucketBreakdown = useCallback(
     (lineId: string, bucket: ChartBucket, mode: 'plan' | 'actual') => {
       const source = mode === 'plan' ? planInitiativeBreakdown : actualInitiativeBreakdown;
@@ -652,6 +848,12 @@ export const FinancialDynamicsScreen = () => {
     [buckets, buildBucketBreakdown]
   );
 
+  const toFavoriteKey = (kind: 'pl' | 'kpi', id: string) => `${kind}:${id}`;
+  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
+  const toggleFavorite = (key: string) => {
+    setFavorites((prev) => (prev.includes(key) ? prev.filter((entry) => entry !== key) : [key, ...prev]));
+  };
+
   const columnMinWidth = useMemo(() => (settings.viewMode === 'months' ? 82 : 96), [settings.viewMode]);
   const gridTemplateColumns = useMemo(
     () => `repeat(${Math.max(buckets.length, 1)}, minmax(${columnMinWidth}px, 1fr))`,
@@ -691,6 +893,7 @@ export const FinancialDynamicsScreen = () => {
           </p>
           <div className={styles.metaRow}>
             <span className={styles.metaBadge}>{filteredSeries.length} lines visible</span>
+            <span className={styles.metaBadge}>{filteredKpiSeries.length} KPIs visible</span>
             <span className={styles.metaBadge}>{filteredInitiatives.length} initiatives in scope</span>
             {latestBucket && (
               <span className={styles.metaBadge}>
@@ -758,8 +961,8 @@ export const FinancialDynamicsScreen = () => {
             value={settings.sortMode}
             onChange={(event) => setSettings((prev) => ({ ...prev, sortMode: event.target.value as SortMode }))}
           >
-            <option value="impact-desc">Impact ↓</option>
-            <option value="impact-asc">Impact ↑</option>
+            <option value="impact-desc">Impact в†“</option>
+            <option value="impact-asc">Impact в†‘</option>
             <option value="delta">Delta vs plan</option>
             <option value="name">Name</option>
           </select>
@@ -866,94 +1069,236 @@ export const FinancialDynamicsScreen = () => {
       )}
 
       {blueprint && buckets.length > 0 && (
-        <div className={styles.linesGrid}>
-          {filteredSeries.length === 0 && (
-            <div className={styles.placeholder}>
-              <p>No lines match the current filters.</p>
-            </div>
-          )}
+        <>
+          {(() => {
+            const months = buckets.map((bucket) => ({
+              key: bucket.key,
+              label: bucket.label,
+              year: bucket.year,
+              index: bucket.index
+            }));
+            const lineSeriesByKey = new Map(filteredSeries.map((entry) => [toFavoriteKey('pl', entry.line.id), entry]));
+            const kpiSeriesByKey = new Map(filteredKpiSeries.map((entry) => [toFavoriteKey('kpi', entry.key), entry]));
+            const pinnedCards = favorites.flatMap<
+              { kind: 'pl'; entry: LineSeries; key: string } | { kind: 'kpi'; entry: KpiSeries; key: string }
+            >((key) => {
+              const lineEntry = lineSeriesByKey.get(key);
+              if (lineEntry) {
+                return [{ kind: 'pl' as const, entry: lineEntry, key }];
+              }
+              const kpiEntry = kpiSeriesByKey.get(key);
+              if (kpiEntry) {
+                return [{ kind: 'kpi' as const, entry: kpiEntry, key }];
+              }
+              return [];
+            });
+            const remainingLineCards = filteredSeries.filter((entry) => !favoriteSet.has(toFavoriteKey('pl', entry.line.id)));
+            const remainingKpiCards = filteredKpiSeries.filter((entry) => !favoriteSet.has(toFavoriteKey('kpi', entry.key)));
 
-          {filteredSeries.map((entry) => (
-            <article key={entry.line.id} className={styles.lineCard}>
-              <div className={styles.lineInfo}>
-                <p className={styles.lineCode}>{entry.line.code}</p>
-                <h3>{entry.line.name}</h3>
-                <p className={styles.lineMeta}>
-                  {entry.line.nature === 'summary'
-                    ? 'Summary'
-                    : entry.line.nature === 'revenue'
-                    ? 'Revenue'
-                    : 'Cost'}{' '}
-                  ·{' '}
-                  {entry.line.computation === 'manual'
-                    ? 'Manual'
-                    : entry.line.computation === 'children'
-                    ? 'Roll-up'
-                    : 'Cumulative'}
-                </p>
+            const renderPinButton = (key: string, isPinned: boolean) => (
+              <button
+                type="button"
+                className={`${styles.pinButton} ${isPinned ? styles.pinActive : ''}`}
+                onClick={() => toggleFavorite(key)}
+              >
+                {isPinned ? 'Unpin' : 'Pin to favourites'}
+              </button>
+            );
 
-                <div className={styles.lineStatsGrid}>
-                  <div>
-                    <span className={styles.statLabel}>Actual ({latestBucket?.label} {latestBucket?.year})</span>
-                    <strong>{formatCurrency(entry.lastActual)}</strong>
+            const renderLineCard = (entry: LineSeries, favoriteKey: string) => (
+              <article key={entry.line.id} className={styles.lineCard}>
+                <div className={styles.lineInfo}>
+                  <div className={styles.lineHeaderRow}>
+                    <div>
+                      <p className={styles.lineCode}>{entry.line.code}</p>
+                      <h3>{entry.line.name}</h3>
+                      <p className={styles.lineMeta}>
+                        {entry.line.nature === 'summary'
+                          ? 'Summary'
+                          : entry.line.nature === 'revenue'
+                          ? 'Revenue'
+                          : 'Cost'}{' '}
+                        •{' '}
+                        {entry.line.computation === 'manual'
+                          ? 'Manual'
+                          : entry.line.computation === 'children'
+                          ? 'Roll-up'
+                          : 'Cumulative'}
+                      </p>
+                    </div>
+                    {renderPinButton(favoriteKey, favoriteSet.has(favoriteKey))}
                   </div>
-                  <div>
-                    <span className={styles.statLabel}>Plan</span>
-                    <strong>{formatCurrency(entry.lastPlan)}</strong>
-                  </div>
-                  <div>
-                    <span className={styles.statLabel}>Δ vs plan</span>
-                    <strong className={entry.delta > 0 ? styles.deltaPositive : entry.delta < 0 ? styles.deltaNegative : ''}>
-                      {formatCurrency(entry.delta)}
-                    </strong>
+
+                  <div className={styles.lineStatsGrid}>
+                    <div>
+                      <span className={styles.statLabel}>Actual ({latestBucket?.label} {latestBucket?.year})</span>
+                      <strong>{formatCurrency(entry.lastActual)}</strong>
+                    </div>
+                    <div>
+                      <span className={styles.statLabel}>Plan</span>
+                      <strong>{formatCurrency(entry.lastPlan)}</strong>
+                    </div>
+                    <div>
+                      <span className={styles.statLabel}>? vs plan</span>
+                      <strong className={entry.delta > 0 ? styles.deltaPositive : entry.delta < 0 ? styles.deltaNegative : ''}>
+                        {formatCurrency(entry.delta)}
+                      </strong>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className={styles.chartShell}>
-                {entry.maxAbs === 0 ? (
-                  <div className={styles.chartPlaceholder}>No plan or actuals yet for this line.</div>
-                ) : (
-                  <PlanVsActualChart
-                    months={buckets.map((bucket) => ({
-                      key: bucket.key,
-                      label: bucket.label,
-                      year: bucket.year,
-                      index: bucket.index
-                    }))}
-                    gridTemplateColumns={gridTemplateColumns}
-                    planData={entry.plan}
-                    actualData={entry.actual}
-                    showPlanAsLine
-                    planLineMode="impact"
-                    lineSource="actual"
-                    lineTagLabel="Actual impact"
-                    hidePlanBars={false}
-                    hideActualBars
-                    legendLabel={null}
-                    monthStartColumn={1}
-                    showValueLabels
-                    showPeriodLabels
-                    periodLabelFormatter={(month) => `${month.label} ${month.year}`}
-                    height={settings.viewMode === 'months' ? 200 : 170}
-                    className={styles.chartCompact}
-                    formatValue={formatCurrency}
-                    onSegmentClick={handleSegmentClick(entry.line)}
-                  />
+                <div className={styles.chartShell}>
+                  {entry.maxAbs === 0 ? (
+                    <div className={styles.chartPlaceholder}>No plan or actuals yet for this line.</div>
+                  ) : (
+                    <PlanVsActualChart
+                      months={months}
+                      gridTemplateColumns={gridTemplateColumns}
+                      planData={entry.plan}
+                      actualData={entry.actual}
+                      showPlanAsLine
+                      planLineMode="impact"
+                      lineSource="actual"
+                      lineTagLabel="Actual impact"
+                      hidePlanBars={false}
+                      hideActualBars
+                      legendLabel={null}
+                      monthStartColumn={1}
+                      showValueLabels
+                      showPeriodLabels
+                      periodLabelFormatter={(month) => `${month.label} ${month.year}`}
+                      height={settings.viewMode === 'months' ? 200 : 170}
+                      className={styles.chartCompact}
+                      formatValue={formatCurrency}
+                      onSegmentClick={handleSegmentClick(entry.line)}
+                    />
+                  )}
+                </div>
+              </article>
+            );
+
+            const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+            const formatKpiValue = (value: number) => numberFormatter.format(Math.round((value ?? 0) * 100) / 100);
+
+            const renderKpiCard = (entry: KpiSeries, favoriteKey: string) => (
+              <article key={entry.key} className={styles.lineCard}>
+                <div className={styles.lineInfo}>
+                  <div className={styles.lineHeaderRow}>
+                    <div>
+                      <p className={styles.lineCode}>KPI</p>
+                      <h3>{entry.name}</h3>
+                      <p className={styles.lineMeta}>Unit: {entry.unit || 'Unitless'}</p>
+                    </div>
+                    {renderPinButton(favoriteKey, favoriteSet.has(favoriteKey))}
+                  </div>
+
+                  <div className={styles.lineStatsGrid}>
+                    <div>
+                      <span className={styles.statLabel}>Actual ({latestBucket?.label} {latestBucket?.year})</span>
+                      <strong>{formatKpiValue(entry.lastActual)}</strong>
+                    </div>
+                    <div>
+                      <span className={styles.statLabel}>Plan</span>
+                      <strong>{formatKpiValue(entry.lastPlan)}</strong>
+                    </div>
+                    <div>
+                      <span className={styles.statLabel}>? vs plan</span>
+                      <strong className={entry.delta > 0 ? styles.deltaPositive : entry.delta < 0 ? styles.deltaNegative : ''}>
+                        {formatKpiValue(entry.delta)}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.chartShell}>
+                  {entry.maxAbs === 0 ? (
+                    <div className={styles.chartPlaceholder}>No plan or actuals yet for this KPI.</div>
+                  ) : (
+                    <PlanVsActualChart
+                      months={months}
+                      gridTemplateColumns={gridTemplateColumns}
+                      planData={entry.plan}
+                      actualData={entry.actual}
+                      showPlanAsLine
+                      planLineMode="impact"
+                      lineSource="actual"
+                      lineTagLabel="Actual KPI"
+                      hidePlanBars={false}
+                      hideActualBars
+                      legendLabel={null}
+                      monthStartColumn={1}
+                      showValueLabels
+                      showPeriodLabels
+                      periodLabelFormatter={(month) => `${month.label} ${month.year}`}
+                      height={settings.viewMode === 'months' ? 200 : 170}
+                      className={styles.chartCompact}
+                      formatValue={(value) => `${formatKpiValue(value)} ${entry.unit ? entry.unit : ''}`.trim()}
+                    />
+                  )}
+                </div>
+              </article>
+            );
+
+            return (
+              <div className={styles.linesGridWrapper}>
+                {pinnedCards.length > 0 && (
+                  <div className={styles.groupBlock}>
+                    <div className={styles.groupHeader}>
+                      <h3>Pinned favourites</h3>
+                      <span className={styles.groupMeta}>{pinnedCards.length}</span>
+                    </div>
+                    <div className={styles.linesGrid}>
+                      {pinnedCards.map((card) =>
+                        card.kind === 'pl'
+                          ? renderLineCard(card.entry, card.key)
+                          : renderKpiCard(card.entry, card.key)
+                      )}
+                    </div>
+                  </div>
                 )}
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
 
-      {breakdown && (
+                <div className={styles.groupBlock}>
+                  <div className={styles.groupHeader}>
+                    <h3>P&L lines</h3>
+                    <span className={styles.groupMeta}>{remainingLineCards.length}</span>
+                  </div>
+                  {remainingLineCards.length === 0 ? (
+                    <div className={styles.placeholder}>
+                      <p>No P&L lines match the current filters.</p>
+                    </div>
+                  ) : (
+                    <div className={styles.linesGrid}>
+                      {remainingLineCards.map((entry) => renderLineCard(entry, toFavoriteKey('pl', entry.line.id)))}
+                    </div>
+                  )}
+                </div>
+
+                <div className={styles.groupBlock}>
+                  <div className={styles.groupHeader}>
+                    <h3>KPIs</h3>
+                    <span className={styles.groupMeta}>{remainingKpiCards.length}</span>
+                  </div>
+                  {remainingKpiCards.length === 0 ? (
+                    <div className={styles.placeholder}>
+                      <p>No KPIs match the current filters.</p>
+                    </div>
+                  ) : (
+                    <div className={styles.linesGrid}>
+                      {remainingKpiCards.map((entry) => renderKpiCard(entry, toFavoriteKey('kpi', entry.key)))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </>
+      )}      {breakdown && (
         <div className={styles.breakdownOverlay} onClick={() => setBreakdown(null)}>
           <div className={styles.breakdownCard} onClick={(event) => event.stopPropagation()}>
             <header className={styles.breakdownHeader}>
               <div>
                 <p className={styles.breakdownOverline}>
-                  {breakdown.bucketLabel} ·{' '}
+                  {breakdown.bucketLabel} В·{' '}
                   {breakdown.mode === 'plan' ? 'Plan initiatives' : 'Actual initiatives'}
                 </p>
                 <h4>{breakdown.lineName}</h4>
@@ -1002,3 +1347,8 @@ export const FinancialDynamicsScreen = () => {
     </section>
   );
 };
+
+
+
+
+

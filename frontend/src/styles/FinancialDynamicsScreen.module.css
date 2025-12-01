@@ -211,6 +211,39 @@
   gap: 12px;
 }
 
+.linesGridWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.groupBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.groupHeader h3 {
+  margin: 0;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.groupMeta {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  font-size: 12px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
 .lineCard {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
@@ -237,6 +270,13 @@
   color: #94a3b8;
 }
 
+.lineHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
 .lineMeta {
   margin: 0 0 8px;
   font-size: 13px;
@@ -258,6 +298,22 @@
 .lineStatsGrid strong {
   display: block;
   color: #0f172a;
+}
+
+.pinButton {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pinActive {
+  background: #0f172a;
+  color: #fff;
 }
 
 .deltaPositive {
