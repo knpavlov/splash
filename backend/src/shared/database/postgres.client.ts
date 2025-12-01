@@ -10,11 +10,14 @@ type EnsureConnectionOptions = {
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const buildPoolConfig = (): PoolConfig => {
+  const connectionTimeoutMs = Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? 8000);
   const connectionString = process.env.DATABASE_URL;
+
   if (connectionString) {
     return {
       connectionString,
-      ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false }
+      ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: connectionTimeoutMs
     };
   }
 
@@ -23,10 +26,17 @@ const buildPoolConfig = (): PoolConfig => {
     port: Number(process.env.PGPORT ?? 5432),
     user: process.env.PGUSER,
     password: process.env.PGPASSWORD,
-    database: process.env.PGDATABASE
+    database: process.env.PGDATABASE,
+    connectionTimeoutMillis: connectionTimeoutMs
   };
 
   if (process.env.NODE_ENV === 'production') {
+    const missing = ['PGHOST', 'PGUSER', 'PGDATABASE'].filter((key) => !(process.env as Record<string, string | undefined>)[key]);
+    if (missing.length) {
+      throw new Error(
+        `Database configuration is missing required env vars: ${missing.join(', ')}. Provide DATABASE_URL or PG* vars.`
+      );
+    }
     config.ssl = { rejectUnauthorized: false };
   }
 
@@ -44,7 +54,7 @@ export const postgresPool = pool;
 // Многократно пытаемся подключиться к базе, чтобы пережить старт инфраструктуры на Railway
 export const ensurePostgresConnection = async (options: EnsureConnectionOptions = {}) => {
   const {
-    attempts = Number(process.env.DB_CONNECT_MAX_ATTEMPTS ?? 10),
+    attempts = Number(process.env.DB_CONNECT_MAX_ATTEMPTS ?? 5),
     baseDelayMs = Number(process.env.DB_CONNECT_RETRY_DELAY_MS ?? 500),
     logger = console.warn
   } = options;
