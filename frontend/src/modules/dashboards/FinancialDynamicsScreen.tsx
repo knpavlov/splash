@@ -854,13 +854,15 @@ export const FinancialDynamicsScreen = () => {
     setFavorites((prev) => (prev.includes(key) ? prev.filter((entry) => entry !== key) : [key, ...prev]));
   };
 
-  const columnMinWidth = useMemo(() => (settings.viewMode === 'months' ? 82 : 96), [settings.viewMode]);
+  const columnMinWidth = useMemo(() => (settings.viewMode === 'months' ? 60 : 80), [settings.viewMode]);
   const gridTemplateColumns = useMemo(
     () => `repeat(${Math.max(buckets.length, 1)}, minmax(${columnMinWidth}px, 1fr))`,
     [buckets.length, columnMinWidth]
   );
 
   const latestBucket = buckets[buckets.length - 1];
+  const [plCollapsed, setPlCollapsed] = useState(false);
+  const [kpiCollapsed, setKpiCollapsed] = useState(false);
 
   const toggleStage = (key: typeof initiativeStageKeys[number]) => {
     setSettings((prev) => {
@@ -961,8 +963,8 @@ export const FinancialDynamicsScreen = () => {
             value={settings.sortMode}
             onChange={(event) => setSettings((prev) => ({ ...prev, sortMode: event.target.value as SortMode }))}
           >
-            <option value="impact-desc">Impact в†“</option>
-            <option value="impact-asc">Impact в†‘</option>
+            <option value="impact-desc">Impact (desc)</option>
+            <option value="impact-asc">Impact (asc)</option>
             <option value="delta">Delta vs plan</option>
             <option value="name">Name</option>
           </select>
@@ -1077,6 +1079,7 @@ export const FinancialDynamicsScreen = () => {
               year: bucket.year,
               index: bucket.index
             }));
+            const chartMinWidth = Math.max(months.length * (columnMinWidth + 20), 520);
             const lineSeriesByKey = new Map(filteredSeries.map((entry) => [toFavoriteKey('pl', entry.line.id), entry]));
             const kpiSeriesByKey = new Map(filteredKpiSeries.map((entry) => [toFavoriteKey('kpi', entry.key), entry]));
             const pinnedCards = favorites.flatMap<
@@ -1101,7 +1104,7 @@ export const FinancialDynamicsScreen = () => {
                 className={`${styles.pinButton} ${isPinned ? styles.pinActive : ''}`}
                 onClick={() => toggleFavorite(key)}
               >
-                {isPinned ? 'Unpin' : 'Pin to favourites'}
+                {isPinned ? '★' : '☆'}
               </button>
             );
 
@@ -1139,7 +1142,7 @@ export const FinancialDynamicsScreen = () => {
                       <strong>{formatCurrency(entry.lastPlan)}</strong>
                     </div>
                     <div>
-                      <span className={styles.statLabel}>? vs plan</span>
+                    <span className={styles.statLabel}>Δ vs plan</span>
                       <strong className={entry.delta > 0 ? styles.deltaPositive : entry.delta < 0 ? styles.deltaNegative : ''}>
                         {formatCurrency(entry.delta)}
                       </strong>
@@ -1171,6 +1174,7 @@ export const FinancialDynamicsScreen = () => {
                       className={styles.chartCompact}
                       formatValue={formatCurrency}
                       onSegmentClick={handleSegmentClick(entry.line)}
+                      style={{ minWidth: chartMinWidth }}
                     />
                   )}
                 </div>
@@ -1202,7 +1206,7 @@ export const FinancialDynamicsScreen = () => {
                       <strong>{formatKpiValue(entry.lastPlan)}</strong>
                     </div>
                     <div>
-                      <span className={styles.statLabel}>? vs plan</span>
+                      <span className={styles.statLabel}>Δ vs plan</span>
                       <strong className={entry.delta > 0 ? styles.deltaPositive : entry.delta < 0 ? styles.deltaNegative : ''}>
                         {formatKpiValue(entry.delta)}
                       </strong>
@@ -1233,6 +1237,7 @@ export const FinancialDynamicsScreen = () => {
                       height={settings.viewMode === 'months' ? 200 : 170}
                       className={styles.chartCompact}
                       formatValue={(value) => `${formatKpiValue(value)} ${entry.unit ? entry.unit : ''}`.trim()}
+                      style={{ minWidth: chartMinWidth }}
                     />
                   )}
                 </div>
@@ -1261,8 +1266,15 @@ export const FinancialDynamicsScreen = () => {
                   <div className={styles.groupHeader}>
                     <h3>P&L lines</h3>
                     <span className={styles.groupMeta}>{remainingLineCards.length}</span>
+                    <button
+                      type="button"
+                      className={styles.groupToggle}
+                      onClick={() => setPlCollapsed((prev) => !prev)}
+                    >
+                      {plCollapsed ? 'Show' : 'Hide'}
+                    </button>
                   </div>
-                  {remainingLineCards.length === 0 ? (
+                  {!plCollapsed && (remainingLineCards.length === 0 ? (
                     <div className={styles.placeholder}>
                       <p>No P&L lines match the current filters.</p>
                     </div>
@@ -1270,15 +1282,22 @@ export const FinancialDynamicsScreen = () => {
                     <div className={styles.linesGrid}>
                       {remainingLineCards.map((entry) => renderLineCard(entry, toFavoriteKey('pl', entry.line.id)))}
                     </div>
-                  )}
+                  ))}
                 </div>
 
                 <div className={styles.groupBlock}>
                   <div className={styles.groupHeader}>
                     <h3>KPIs</h3>
                     <span className={styles.groupMeta}>{remainingKpiCards.length}</span>
+                    <button
+                      type="button"
+                      className={styles.groupToggle}
+                      onClick={() => setKpiCollapsed((prev) => !prev)}
+                    >
+                      {kpiCollapsed ? 'Show' : 'Hide'}
+                    </button>
                   </div>
-                  {remainingKpiCards.length === 0 ? (
+                  {!kpiCollapsed && (remainingKpiCards.length === 0 ? (
                     <div className={styles.placeholder}>
                       <p>No KPIs match the current filters.</p>
                     </div>
@@ -1286,7 +1305,7 @@ export const FinancialDynamicsScreen = () => {
                     <div className={styles.linesGrid}>
                       {remainingKpiCards.map((entry) => renderKpiCard(entry, toFavoriteKey('kpi', entry.key)))}
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
             );
@@ -1347,6 +1366,7 @@ export const FinancialDynamicsScreen = () => {
     </section>
   );
 };
+
 
 
 
