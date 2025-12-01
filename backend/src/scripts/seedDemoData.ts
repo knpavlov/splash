@@ -1,4 +1,4 @@
-
+﻿
 import { createHash } from 'crypto';
 import { pathToFileURL } from 'url';
 import { postgresPool } from '../shared/database/postgres.client.js';
@@ -13,25 +13,25 @@ import {
 } from './demoData.assets.js';
 import { toUuid } from './demoData.shared.js';
 
-// Набор кодов ошибок, которые сигнализируют о невозможности соединиться с базой
+// РќР°Р±РѕСЂ РєРѕРґРѕРІ РѕС€РёР±РѕРє, РєРѕС‚РѕСЂС‹Рµ СЃРёРіРЅР°Р»РёР·РёСЂСѓСЋС‚ Рѕ РЅРµРІРѕР·РјРѕР¶РЅРѕСЃС‚Рё СЃРѕРµРґРёРЅРёС‚СЊСЃСЏ СЃ Р±Р°Р·РѕР№
 const CONNECTION_ERROR_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNRESET']);
 
-// Интерфейс-описание AggregateError для окружений, где тип не объявлен явно
+// РРЅС‚РµСЂС„РµР№СЃ-РѕРїРёСЃР°РЅРёРµ AggregateError РґР»СЏ РѕРєСЂСѓР¶РµРЅРёР№, РіРґРµ С‚РёРї РЅРµ РѕР±СЉСЏРІР»РµРЅ СЏРІРЅРѕ
 interface AggregateErrorLike extends Error {
   errors: unknown[];
 }
 
-// Проверка, что ошибка похожа на AggregateError
+// РџСЂРѕРІРµСЂРєР°, С‡С‚Рѕ РѕС€РёР±РєР° РїРѕС…РѕР¶Р° РЅР° AggregateError
 const isAggregateError = (error: unknown): error is AggregateErrorLike => {
   return Boolean(error) && typeof error === 'object' && Array.isArray((error as AggregateErrorLike).errors);
 };
 
-// Проверка, что ошибка похожа на стандартное исключение Node.js с полями errno/code
+// РџСЂРѕРІРµСЂРєР°, С‡С‚Рѕ РѕС€РёР±РєР° РїРѕС…РѕР¶Р° РЅР° СЃС‚Р°РЅРґР°СЂС‚РЅРѕРµ РёСЃРєР»СЋС‡РµРЅРёРµ Node.js СЃ РїРѕР»СЏРјРё errno/code
 const isErrnoException = (error: unknown): error is NodeJS.ErrnoException => {
   return Boolean(error) && typeof error === 'object' && 'code' in (error as Record<string, unknown>);
 };
 
-// Рекурсивно ищем первопричину ошибки подключения (AggregateError, cause и т.д.)
+// Р РµРєСѓСЂСЃРёРІРЅРѕ РёС‰РµРј РїРµСЂРІРѕРїСЂРёС‡РёРЅСѓ РѕС€РёР±РєРё РїРѕРґРєР»СЋС‡РµРЅРёСЏ (AggregateError, cause Рё С‚.Рґ.)
 const unwrapConnectionError = (error: unknown): NodeJS.ErrnoException | undefined => {
   if (!error) {
     return undefined;
@@ -63,7 +63,7 @@ interface DatabaseClient {
   release: () => void;
 }
 
-// Настройки, позволяющие переиспользовать сидер вне CLI
+// РќР°СЃС‚СЂРѕР№РєРё, РїРѕР·РІРѕР»СЏСЋС‰РёРµ РїРµСЂРµРёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ СЃРёРґРµСЂ РІРЅРµ CLI
 export interface SeedDemoDataOptions {
   runMigrations?: boolean;
   shutdownPool?: boolean;
@@ -74,7 +74,7 @@ export interface SeedDemoDataOptions {
   };
 }
 
-// Короткое резюме результата прогонки сидера
+// РљРѕСЂРѕС‚РєРѕРµ СЂРµР·СЋРјРµ СЂРµР·СѓР»СЊС‚Р°С‚Р° РїСЂРѕРіРѕРЅРєРё СЃРёРґРµСЂР°
 export interface SeedDemoDataResult {
   candidatesProcessed: number;
   evaluationsProcessed: number;
@@ -92,9 +92,9 @@ const refreshReferenceNow = () => {
   referenceNow = new Date();
 };
 
-// Базовый час отправки формы, если он не задан явно
+// Р‘Р°Р·РѕРІС‹Р№ С‡Р°СЃ РѕС‚РїСЂР°РІРєРё С„РѕСЂРјС‹, РµСЃР»Рё РѕРЅ РЅРµ Р·Р°РґР°РЅ СЏРІРЅРѕ
 const BASE_FORM_SUBMISSION_HOUR = 11;
-// Сдвиг между интервью по умолчанию, чтобы их метки не накладывались
+// РЎРґРІРёРі РјРµР¶РґСѓ РёРЅС‚РµСЂРІСЊСЋ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ, С‡С‚РѕР±С‹ РёС… РјРµС‚РєРё РЅРµ РЅР°РєР»Р°РґС‹РІР°Р»РёСЃСЊ
 const INTERVIEW_OFFSET_HOURS = 30;
 
 // Returns a past date offset by the provided number of days and a fixed time of day
@@ -105,7 +105,7 @@ const daysAgo = (offset: number, hour = 10, minute = 0) => {
   return date;
 };
 
-// Список разрешённых интервьюеров; имена подтянем из базы при запуске
+// РЎРїРёСЃРѕРє СЂР°Р·СЂРµС€С‘РЅРЅС‹С… РёРЅС‚РµСЂРІСЊСЋРµСЂРѕРІ; РёРјРµРЅР° РїРѕРґС‚СЏРЅРµРј РёР· Р±Р°Р·С‹ РїСЂРё Р·Р°РїСѓСЃРєРµ
 const INTERVIEWER_EMAILS = [
   'knpavlov@gmail.com',
   'kpavlov.me@gmail.com',
@@ -222,7 +222,7 @@ const REQUIRED_FIT_CRITERIA: Record<FitQuestionKey, FitCriterionKey[]> = fitQues
   }
 );
 
-// Сопоставление старых слагов с новыми ключами для каждого фит-вопроса
+// РЎРѕРїРѕСЃС‚Р°РІР»РµРЅРёРµ СЃС‚Р°СЂС‹С… СЃР»Р°РіРѕРІ СЃ РЅРѕРІС‹РјРё РєР»СЋС‡Р°РјРё РґР»СЏ РєР°Р¶РґРѕРіРѕ С„РёС‚-РІРѕРїСЂРѕСЃР°
 const LEGACY_FIT_CRITERION_ALIASES: Record<FitQuestionKey, Record<string, FitCriterionKey>> = {
   'client-trust': {
     'fit-communication': 'clientCommunication',
@@ -247,7 +247,7 @@ const LEGACY_FIT_CRITERION_ALIASES: Record<FitQuestionKey, Record<string, FitCri
   }
 };
 
-// Сопоставление старых слагов критериев кейса с новыми ключами
+// РЎРѕРїРѕСЃС‚Р°РІР»РµРЅРёРµ СЃС‚Р°СЂС‹С… СЃР»Р°РіРѕРІ РєСЂРёС‚РµСЂРёРµРІ РєРµР№СЃР° СЃ РЅРѕРІС‹РјРё РєР»СЋС‡Р°РјРё
 const LEGACY_CASE_CRITERION_ALIASES: Record<string, CaseCriterionKey> = Object.entries(caseCriteriaCatalog).reduce(
   (acc, [key, definition]) => {
     acc[definition.slug] = key as CaseCriterionKey;
@@ -921,7 +921,7 @@ const candidates: CandidateSeed[] = [
               caseScore: 4.6,
               notes:
                 'Outlined a step-by-step value creation plan in the final conversation and anchored it in real deal examples.',
-              fitNotes: 'Earned the trust of a portfolio-company CEO within two months — standout story.',
+              fitNotes: 'Earned the trust of a portfolio-company CEO within two months вЂ” standout story.',
               caseNotes: 'Built the financial model cleanly and identified the key value drivers independently.',
               offerRecommendation: 'yes_priority',
               fitCriteria: [
@@ -1062,7 +1062,7 @@ const candidates: CandidateSeed[] = [
               fitScore: 4.3,
               caseScore: 4.1,
               notes:
-                'Delivered a thorough diagnostic of the bank’s digital channels and proposed an 18-month release roadmap.',
+                'Delivered a thorough diagnostic of the bankвЂ™s digital channels and proposed an 18-month release roadmap.',
               fitNotes: 'Great example about launching agile tribes and aligning with IT.',
               caseNotes: 'Quantified cross-sell impact and spotted cannibalisation risks.',
               offerRecommendation: 'yes_strong',
@@ -1537,7 +1537,7 @@ const loadFitQuestionDirectory = async (
     }
 
     logWarn(
-      `Fit question "${reference.shortTitle}" не найден по названию. Используем вопрос "${fallbackRow.short_title}".`
+      `Fit question "${reference.shortTitle}" РЅРµ РЅР°Р№РґРµРЅ РїРѕ РЅР°Р·РІР°РЅРёСЋ. РСЃРїРѕР»СЊР·СѓРµРј РІРѕРїСЂРѕСЃ "${fallbackRow.short_title}".`
     );
 
     assigned.set(reference.key, {
@@ -1569,7 +1569,7 @@ const hydrateCaseCriteriaCatalog = async (
   );
 
   if (!result.rows || result.rows.length === 0) {
-    logWarn('В таблице case_criteria не найдено записей. Критерии кейса будут пропущены.');
+    logWarn('Р’ С‚Р°Р±Р»РёС†Рµ case_criteria РЅРµ РЅР°Р№РґРµРЅРѕ Р·Р°РїРёСЃРµР№. РљСЂРёС‚РµСЂРёРё РєРµР№СЃР° Р±СѓРґСѓС‚ РїСЂРѕРїСѓС‰РµРЅС‹.');
     return;
   }
 
@@ -1599,7 +1599,7 @@ const hydrateCaseCriteriaCatalog = async (
 
     if (!fallbackId) {
       logWarn(
-        `Для критерия кейса "${definition.title}" не нашлось ни одной подходящей записи в базе. Значение будет пропущено.`
+        `Р”Р»СЏ РєСЂРёС‚РµСЂРёСЏ РєРµР№СЃР° "${definition.title}" РЅРµ РЅР°С€Р»РѕСЃСЊ РЅРё РѕРґРЅРѕР№ РїРѕРґС…РѕРґСЏС‰РµР№ Р·Р°РїРёСЃРё РІ Р±Р°Р·Рµ. Р—РЅР°С‡РµРЅРёРµ Р±СѓРґРµС‚ РїСЂРѕРїСѓС‰РµРЅРѕ.`
       );
       continue;
     }
@@ -1607,7 +1607,7 @@ const hydrateCaseCriteriaCatalog = async (
     const fallbackTitle = allTitlesById.get(fallbackId) ?? fallbackId;
 
     logWarn(
-      `Категория кейса "${definition.title}" не найдена по названию. Использован критерий "${fallbackTitle}" (ID ${fallbackId}).`
+      `РљР°С‚РµРіРѕСЂРёСЏ РєРµР№СЃР° "${definition.title}" РЅРµ РЅР°Р№РґРµРЅР° РїРѕ РЅР°Р·РІР°РЅРёСЋ. РСЃРїРѕР»СЊР·РѕРІР°РЅ РєСЂРёС‚РµСЂРёР№ "${fallbackTitle}" (ID ${fallbackId}).`
     );
     definition.resolvedId = fallbackId;
     unused.delete(fallbackId);
@@ -1628,7 +1628,7 @@ const hydrateFitCriteriaCatalog = async (
   );
 
   if (!result.rows || result.rows.length === 0) {
-    logWarn('В таблице fit_question_criteria отсутствуют записи. Оценки по fit будут без детализации.');
+    logWarn('Р’ С‚Р°Р±Р»РёС†Рµ fit_question_criteria РѕС‚СЃСѓС‚СЃС‚РІСѓСЋС‚ Р·Р°РїРёСЃРё. РћС†РµРЅРєРё РїРѕ fit Р±СѓРґСѓС‚ Р±РµР· РґРµС‚Р°Р»РёР·Р°С†РёРё.');
   }
 
   const byQuestion = new Map<string, Map<string, string>>();
@@ -1648,7 +1648,7 @@ const hydrateFitCriteriaCatalog = async (
   for (const definition of Object.values(fitCriteriaCatalog)) {
     const questionId = directory.map.get(definition.question);
     if (!questionId) {
-      logWarn(`Фит-вопрос с ключом "${definition.question}" отсутствует в базе. Связанные критерии пропущены.`);
+      logWarn(`Р¤РёС‚-РІРѕРїСЂРѕСЃ СЃ РєР»СЋС‡РѕРј "${definition.question}" РѕС‚СЃСѓС‚СЃС‚РІСѓРµС‚ РІ Р±Р°Р·Рµ. РЎРІСЏР·Р°РЅРЅС‹Рµ РєСЂРёС‚РµСЂРёРё РїСЂРѕРїСѓС‰РµРЅС‹.`);
       continue;
     }
 
@@ -1674,7 +1674,7 @@ const hydrateFitCriteriaCatalog = async (
 
     if (!fallbackId) {
       logWarn(
-        `Для фит-критерия "${definition.title}" (вопрос ${definition.question}) нет записей в базе. Критерий будет пропущен.`
+        `Р”Р»СЏ С„РёС‚-РєСЂРёС‚РµСЂРёСЏ "${definition.title}" (РІРѕРїСЂРѕСЃ ${definition.question}) РЅРµС‚ Р·Р°РїРёСЃРµР№ РІ Р±Р°Р·Рµ. РљСЂРёС‚РµСЂРёР№ Р±СѓРґРµС‚ РїСЂРѕРїСѓС‰РµРЅ.`
       );
       continue;
     }
@@ -1682,7 +1682,7 @@ const hydrateFitCriteriaCatalog = async (
     const fallbackTitle = result.rows.find((row) => row.id === fallbackId)?.title ?? fallbackId;
 
     logWarn(
-      `Критерий fit "${definition.title}" не найден по названию. Использован критерий "${fallbackTitle}" (ID ${fallbackId}).`
+      `РљСЂРёС‚РµСЂРёР№ fit "${definition.title}" РЅРµ РЅР°Р№РґРµРЅ РїРѕ РЅР°Р·РІР°РЅРёСЋ. РСЃРїРѕР»СЊР·РѕРІР°РЅ РєСЂРёС‚РµСЂРёР№ "${fallbackTitle}" (ID ${fallbackId}).`
     );
     definition.resolvedId = fallbackId;
     fallbackSet?.delete(fallbackId);
@@ -1693,7 +1693,7 @@ const ensureInterviewerAccounts = async (
   client: DatabaseClient,
   logWarn: (message: string) => void = console.warn
 ): Promise<Map<InterviewerEmail, string>> => {
-  // Проверяем, что все интервьюеры уже имеют аккаунты в системе и вытаскиваем их отображаемые имена
+  // РџСЂРѕРІРµСЂСЏРµРј, С‡С‚Рѕ РІСЃРµ РёРЅС‚РµСЂРІСЊСЋРµСЂС‹ СѓР¶Рµ РёРјРµСЋС‚ Р°РєРєР°СѓРЅС‚С‹ РІ СЃРёСЃС‚РµРјРµ Рё РІС‹С‚Р°СЃРєРёРІР°РµРј РёС… РѕС‚РѕР±СЂР°Р¶Р°РµРјС‹Рµ РёРјРµРЅР°
   const emails = [...INTERVIEWER_EMAILS];
   const result = await client.query<{
     email: string;
@@ -1734,7 +1734,7 @@ const ensureInterviewerAccounts = async (
 
     if (!resolvedName) {
       logWarn(
-        `Имя для интервьюера ${normalizedEmail} не заполнено в базе. Будет использован адрес e-mail.`
+        `РРјСЏ РґР»СЏ РёРЅС‚РµСЂРІСЊСЋРµСЂР° ${normalizedEmail} РЅРµ Р·Р°РїРѕР»РЅРµРЅРѕ РІ Р±Р°Р·Рµ. Р‘СѓРґРµС‚ РёСЃРїРѕР»СЊР·РѕРІР°РЅ Р°РґСЂРµСЃ e-mail.`
       );
       resolvedName = normalizedEmail;
     }
@@ -1996,7 +1996,7 @@ export const seedDemoData = async (
         ]
       );
 
-      const initiativeLabel = `Initiative — ${candidate.firstName} ${candidate.lastName}`.trim();
+      const initiativeLabel = `Initiative вЂ” ${candidate.firstName} ${candidate.lastName}`.trim();
       await client.query(
         `INSERT INTO initiatives (evaluation_id, name, created_at, updated_at)
            VALUES ($1, $2, NOW(), NOW())
@@ -2167,7 +2167,13 @@ export const eraseDemoData = async (
 if (process.argv[1]) {
   const entryUrl = pathToFileURL(process.argv[1]).href;
   if (import.meta.url === entryUrl) {
-    seedDemoData({ runMigrations: true, shutdownPool: true })
+    const timeoutMs = Number(process.env.SEED_TIMEOUT_MS ?? 60000);
+    const seedPromise = seedDemoData({ runMigrations: true, shutdownPool: true });
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Demo seed exceeded timeout of ${timeoutMs}ms`)), timeoutMs)
+    );
+
+    Promise.race([seedPromise, timeout])
       .then(() => {
         console.log('Done.');
       })
@@ -2178,9 +2184,7 @@ if (process.argv[1]) {
           const socketMeta = connectionError as NodeJS.ErrnoException & { address?: string; port?: number };
           if (socketMeta.address || socketMeta.port) {
             console.error(
-              `Текущее соединение пыталось обратиться к ${socketMeta.address ?? 'неизвестному хосту'}:${
-                socketMeta.port ?? 'неизвестный порт'
-              }.`
+              `Текущий процесс пытался обратиться к ${socketMeta.address ?? 'неизвестному хосту'}:${socketMeta.port ?? 'неизвестному порту'}.`
             );
           }
           console.error('Исходная ошибка подключения:', connectionError.message);
@@ -2189,7 +2193,7 @@ if (process.argv[1]) {
         }
 
         void postgresPool.end().catch((closeError) => {
-          console.error('Не удалось корректно закрыть пул соединений:', closeError);
+          console.error('Не удалось корректно закрыть соединения с пулом:', closeError);
         });
         process.exit(1);
       });

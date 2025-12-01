@@ -10,6 +10,10 @@ type EnsureConnectionOptions = {
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const buildPoolConfig = (): PoolConfig => {
+  // Safety net for pg native connect timeout if env is not provided by the host
+  if (!process.env.PGCONNECT_TIMEOUT) {
+    process.env.PGCONNECT_TIMEOUT = '10'; // seconds
+  }
   const connectionTimeoutMs = Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? 8000);
   const connectionString = process.env.DATABASE_URL;
 
