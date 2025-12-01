@@ -2,7 +2,7 @@ import {
   initiativeStageKeys,
   initiativeFinancialKinds,
   InitiativeStageMap,
-  InitiativeRecord,
+  InitiativeFinancialSummary,
   InitiativeTotals
 } from './initiatives.types.js';
 
@@ -21,16 +21,34 @@ const sumFinancialEntries = (stages: InitiativeStageMap, kind: (typeof initiativ
   return total;
 };
 
-export const buildInitiativeTotals = (record: InitiativeRecord): InitiativeTotals => {
-  const recurringBenefits = sumFinancialEntries(record.stages, 'recurring-benefits');
-  const recurringCosts = sumFinancialEntries(record.stages, 'recurring-costs');
-  const oneoffBenefits = sumFinancialEntries(record.stages, 'oneoff-benefits');
-  const oneoffCosts = sumFinancialEntries(record.stages, 'oneoff-costs');
+const buildTotals = (stages: InitiativeStageMap): InitiativeTotals => {
+  const recurringBenefits = sumFinancialEntries(stages, 'recurring-benefits');
+  const recurringCosts = sumFinancialEntries(stages, 'recurring-costs');
+  const oneoffBenefits = sumFinancialEntries(stages, 'oneoff-benefits');
+  const oneoffCosts = sumFinancialEntries(stages, 'oneoff-costs');
   return {
     recurringBenefits,
     recurringCosts,
     oneoffBenefits,
     oneoffCosts,
     recurringImpact: recurringBenefits - recurringCosts
+  };
+};
+
+export const buildInitiativeTotals = (record: { stages: InitiativeStageMap }): InitiativeTotals =>
+  buildTotals(record.stages);
+
+export const calculateRoiFromTotals = (totals: InitiativeTotals): number | null => {
+  if (!Number.isFinite(totals.recurringCosts) || totals.recurringCosts === 0) {
+    return null;
+  }
+  const roi = totals.recurringImpact / totals.recurringCosts;
+  return Number.isFinite(roi) ? roi : null;
+};
+
+export const buildInitiativeFinancialSummary = (record: { stages: InitiativeStageMap }): InitiativeFinancialSummary => {
+  const totals = buildTotals(record.stages);
+  return {
+    roi: calculateRoiFromTotals(totals)
   };
 };

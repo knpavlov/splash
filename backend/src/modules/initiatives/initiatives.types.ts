@@ -99,6 +99,7 @@ export interface InitiativeRow extends Record<string, unknown> {
   stage_payload: unknown;
   stage_state: unknown;
   plan_payload: unknown;
+  financial_summary: unknown;
   version: number;
   created_at: Date;
   updated_at: Date;
@@ -119,6 +120,7 @@ export interface InitiativeRecord {
   updatedAt: string;
   stages: InitiativeStageMap;
   stageState: InitiativeStageStateMap;
+  financialSummary: InitiativeFinancialSummary;
   plan: InitiativePlanModel;
 }
 
@@ -134,6 +136,7 @@ export interface InitiativeWriteModel {
   l4Date: string | null;
   stages: InitiativeStageMap;
   stageState: InitiativeStageStateMap;
+  financialSummary: InitiativeFinancialSummary;
   plan: InitiativePlanModel;
 }
 
@@ -143,6 +146,10 @@ export interface InitiativeTotals {
   oneoffBenefits: number;
   oneoffCosts: number;
   recurringImpact: number;
+}
+
+export interface InitiativeFinancialSummary {
+  roi: number | null;
 }
 
 export interface InitiativeResponse extends InitiativeRecord {

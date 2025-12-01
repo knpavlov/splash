@@ -251,6 +251,7 @@ const createTables = async () => {
       stage_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
       stage_state JSONB NOT NULL DEFAULT '{}'::jsonb,
       plan_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      financial_summary JSONB NOT NULL DEFAULT '{}'::jsonb,
       version INTEGER NOT NULL DEFAULT 1,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -268,6 +269,7 @@ const createTables = async () => {
       ADD COLUMN IF NOT EXISTS stage_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
       ADD COLUMN IF NOT EXISTS stage_state JSONB NOT NULL DEFAULT '{}'::jsonb,
       ADD COLUMN IF NOT EXISTS plan_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      ADD COLUMN IF NOT EXISTS financial_summary JSONB NOT NULL DEFAULT '{}'::jsonb,
       ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1,
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();

@@ -22,7 +22,7 @@ import { generateId } from '../../../shared/ui/generateId';
 import { DomainResult } from '../../../shared/types/results';
 import { resolveAccountName } from '../../../shared/utils/accountName';
 import { initiativesApi, InitiativeEventEntry } from '../services/initiativesApi';
-import { buildKindMonthlyTotals, buildMonthRange, calculateRunRate } from './financials.helpers';
+import { buildKindActualMonthlyTotals, buildKindMonthlyTotals, buildMonthRange, calculateRunRate } from './financials.helpers';
 import { CommentSidebar } from '../comments/CommentSidebar';
 import { CommentSelectionOverlay } from '../comments/CommentSelectionOverlay';
 import { CommentHighlights } from '../comments/CommentHighlights';
@@ -139,6 +139,14 @@ const calculateTotals = (stages: Initiative['stages']) => {
   };
 };
 
+const calculateFinancialSummary = (totals: Initiative['totals']): Initiative['financialSummary'] => {
+  if (!Number.isFinite(totals.recurringCosts) || totals.recurringCosts === 0) {
+    return { roi: null };
+  }
+  const roi = totals.recurringImpact / totals.recurringCosts;
+  return { roi: Number.isFinite(roi) ? roi : null };
+};
+
 const createDefaultStageState = () =>
   initiativeStageKeys.reduce(
     (acc, key) => {
@@ -183,12 +191,22 @@ const createEmptyInitiative = (workstreamId?: string, period?: PeriodSettings): 
     stages,
     stageState: createDefaultStageState(),
     totals: calculateTotals(stages),
+    financialSummary: { roi: null },
     plan: createEmptyPlanModel()
   };
 };
 
 const formatImpact = (value: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+
+const formatRoi = (value: number | null) =>
+  value === null || Number.isNaN(value)
+    ? '—'
+    : new Intl.NumberFormat('en-US', {
+        style: 'percent',
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+      }).format(value);
 
 const formatDate = (value: string | null) => {
   if (!value) {
@@ -204,14 +222,15 @@ const formatDate = (value: string | null) => {
 interface SparklineCardProps {
   label: string;
   value: string;
+  valueLabel: string;
+  periodLabel: string;
   values: number[];
   color: string;
-  invert?: boolean;
 }
 
-const SparklineCard = ({ label, value, values, color, invert = false }: SparklineCardProps) => {
+const SparklineCard = ({ label, value, valueLabel, periodLabel, values, color }: SparklineCardProps) => {
   const width = 120;
-  const height = 42;
+  const height = 48;
 
   const min = values.length ? Math.min(...values) : 0;
   const max = values.length ? Math.max(...values) : 0;
@@ -226,7 +245,7 @@ const SparklineCard = ({ label, value, values, color, invert = false }: Sparklin
       : values.map((point, index) => {
           const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
           const normalized = (point - min) / range;
-          const y = invert ? normalized * height : height - normalized * height;
+          const y = height - normalized * height;
           return { x, y };
         });
 
@@ -235,8 +254,14 @@ const SparklineCard = ({ label, value, values, color, invert = false }: Sparklin
   return (
     <div className={styles.sparkCard}>
       <div className={styles.sparkHeader}>
-        <span className={styles.quickLabel}>{label}</span>
-        <span className={styles.sparkValue}>{value}</span>
+        <div>
+          <span className={styles.quickLabel}>{label}</span>
+          <span className={styles.sparkSubLabel}>{valueLabel}</span>
+        </div>
+        <div className={styles.sparkValueGroup}>
+          <span className={styles.sparkValue}>{value}</span>
+          <span className={styles.sparkPeriodLabel}>{periodLabel}</span>
+        </div>
       </div>
       <svg className={styles.sparkline} width={width} height={height} role="img" aria-label={label}>
         <defs>
@@ -481,6 +506,8 @@ export const InitiativeProfile = ({
   const [changeLog, setChangeLog] = useState<InitiativeEventEntry[]>([]);
   const [isLogLoading, setIsLogLoading] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [includeOneOffs, setIncludeOneOffs] = useState(true);
+  const [seriesMode, setSeriesMode] = useState<'plan' | 'actuals'>('plan');
   const [kpiOptions, setKpiOptions] = useState<string[]>([]);
   const { session } = useAuth();
   const commentActor = useMemo(
@@ -786,7 +813,8 @@ export const InitiativeProfile = ({
   const updateStage = (stageKey: InitiativeStageKey, nextStage: InitiativeStageData) => {
     setDraft((prev) => {
       const stages = { ...prev.stages, [stageKey]: nextStage };
-      return { ...prev, stages, totals: calculateTotals(stages) };
+      const totals = calculateTotals(stages);
+      return { ...prev, stages, totals, financialSummary: calculateFinancialSummary(totals) };
     });
   };
 
@@ -937,63 +965,69 @@ export const InitiativeProfile = ({
     }
   };
 
-  const netRunRate = useMemo(() => {
-    const stageData = draft.stages[draft.activeStage];
-    const months = buildMonthRange(stageData, {
-      endYear: periodSettings.periodYear,
-      endMonth: periodSettings.periodMonth
-    });
-    const monthKeys = months.map((month) => month.key);
-    const totalsByKind = initiativeFinancialKinds.reduce(
-      (acc, kind) => {
-        acc[kind] = buildKindMonthlyTotals(stageData, kind);
-        return acc;
-      },
-      {} as Record<InitiativeFinancialKind, Record<string, number>>
-    );
-    const netTotals: Record<string, number> = {};
-    monthKeys.forEach((key) => {
-      netTotals[key] =
-        (totalsByKind['recurring-benefits'][key] ?? 0) +
-        (totalsByKind['oneoff-benefits'][key] ?? 0) -
-        (totalsByKind['recurring-costs'][key] ?? 0) -
-        (totalsByKind['oneoff-costs'][key] ?? 0);
-    });
-    return calculateRunRate(monthKeys, netTotals);
-  }, [draft, periodSettings.periodMonth, periodSettings.periodYear]);
-
   const financialSeries = useMemo(() => {
     const stageData = draft.stages[draft.activeStage];
     const months = buildMonthRange(stageData, {
       endYear: periodSettings.periodYear,
       endMonth: periodSettings.periodMonth
     });
-    const monthKeys = months.map((month) => month.key);
+    const windowMonths = months.slice(-12);
+    const monthKeys = windowMonths.map((month) => month.key);
     const totalsByKind = initiativeFinancialKinds.reduce(
       (acc, kind) => {
-        acc[kind] = buildKindMonthlyTotals(stageData, kind);
+        acc[kind] =
+          seriesMode === 'actuals' ? buildKindActualMonthlyTotals(stageData, kind) : buildKindMonthlyTotals(stageData, kind);
         return acc;
       },
       {} as Record<InitiativeFinancialKind, Record<string, number>>
     );
-    const benefits = monthKeys.map(
-      (key) => (totalsByKind['recurring-benefits'][key] ?? 0) + (totalsByKind['oneoff-benefits'][key] ?? 0)
-    );
-    const costs = monthKeys.map(
-      (key) => (totalsByKind['recurring-costs'][key] ?? 0) + (totalsByKind['oneoff-costs'][key] ?? 0)
-    );
-    const impact = benefits.map((value, index) => value - (costs[index] ?? 0));
+    const benefitsByMonth: Record<string, number> = {};
+    const costsByMonth: Record<string, number> = {};
+
+    monthKeys.forEach((key) => {
+      const recurringBenefits = totalsByKind['recurring-benefits'][key] ?? 0;
+      const recurringCosts = totalsByKind['recurring-costs'][key] ?? 0;
+      const oneoffBenefits = totalsByKind['oneoff-benefits'][key] ?? 0;
+      const oneoffCosts = totalsByKind['oneoff-costs'][key] ?? 0;
+      benefitsByMonth[key] = recurringBenefits + (includeOneOffs ? oneoffBenefits : 0);
+      costsByMonth[key] = recurringCosts + (includeOneOffs ? oneoffCosts : 0);
+    });
+
+    const impactByMonth: Record<string, number> = {};
+    monthKeys.forEach((key) => {
+      impactByMonth[key] = (benefitsByMonth[key] ?? 0) - (costsByMonth[key] ?? 0);
+    });
+
+    const benefits = monthKeys.map((key) => benefitsByMonth[key] ?? 0);
+    const costs = monthKeys.map((key) => costsByMonth[key] ?? 0);
+    const impact = monthKeys.map((key) => impactByMonth[key] ?? 0);
+
+    const periodLabel =
+      windowMonths.length >= 2
+        ? `${windowMonths[0].label} ${windowMonths[0].year} – ${windowMonths[windowMonths.length - 1].label} ${windowMonths[windowMonths.length - 1].year}`
+        : windowMonths.length === 1
+          ? `${windowMonths[0].label} ${windowMonths[0].year}`
+          : 'Awaiting financial data';
+
     return {
       benefits,
       costs,
       impact,
+      runRates: {
+        benefits: calculateRunRate(monthKeys, benefitsByMonth),
+        costs: calculateRunRate(monthKeys, costsByMonth),
+        impact: calculateRunRate(monthKeys, impactByMonth)
+      },
       totals: {
         benefits: benefits.reduce((acc, value) => acc + value, 0),
         costs: costs.reduce((acc, value) => acc + value, 0),
         impact: impact.reduce((acc, value) => acc + value, 0)
-      }
+      },
+      periodLabel,
+      modeLabel: seriesMode === 'actuals' ? 'Actuals' : 'Plan',
+      oneOffLabel: includeOneOffs ? 'With one-offs' : 'Recurring only'
     };
-  }, [draft, periodSettings.periodMonth, periodSettings.periodYear]);
+  }, [draft, includeOneOffs, periodSettings.periodMonth, periodSettings.periodYear, seriesMode]);
 
   const formatTaskDateRange = (task: InitiativePlanTask | null) => {
     if (!task) {
@@ -1046,6 +1080,8 @@ export const InitiativeProfile = ({
       </section>
     );
   }
+  const roiValue = draft.financialSummary?.roi ?? calculateFinancialSummary(draft.totals).roi;
+  const sparklineMetaLabel = `${financialSeries.modeLabel} · ${financialSeries.oneOffLabel}`;
   const commentButtonLabel = isLoadingComments ? 'Loading comments...' : `Comments${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
   const profileContentClass = `${styles.profileContent}${hideBackLink ? ` ${styles.profileContentNoBack}` : ''}`;
   const buildProfileAnchor = (key: string, label?: string) => createCommentAnchor(`profile.${key}`, label);
@@ -1087,45 +1123,112 @@ export const InitiativeProfile = ({
           </div>
         </div>
         <div className={styles.quickInfoCard}>
-          <div className={styles.initiativeSummary}>
-            <div {...buildProfileAnchor('overview.name', 'Initiative name')}>
-              <p className={styles.quickLabel}>Initiative</p>
-              <h2>{draft.name || 'Unnamed initiative'}</h2>
+          <div className={styles.quickInfoGrid}>
+            <div className={styles.initiativeSummary}>
+              <div {...buildProfileAnchor('overview.name', 'Initiative name')}>
+                <p className={styles.quickLabel}>Initiative</p>
+                <h2>{draft.name || 'Unnamed initiative'}</h2>
+              </div>
+              <div className={styles.summaryMeta} {...buildProfileAnchor('overview.owner', 'Initiative owner display')}>
+                <p className={styles.quickLabel}>Owner</p>
+                <h3>{draft.ownerName || 'Unassigned'}</h3>
+              </div>
+              <div className={styles.summaryMeta} {...buildProfileAnchor('overview.l4', 'Stage L4 date')}>
+                <p className={styles.quickLabel}>L4 date</p>
+                <h3>{formatDate(l4Date)}</h3>
+              </div>
             </div>
-            <div className={styles.summaryMeta} {...buildProfileAnchor('overview.owner', 'Initiative owner display')}>
-              <p className={styles.quickLabel}>Owner</p>
-              <h3>{draft.ownerName || 'Unassigned'}</h3>
-            </div>
-            <div className={styles.summaryMeta} {...buildProfileAnchor('overview.l4', 'Stage L4 date')}>
-              <p className={styles.quickLabel}>L4 date</p>
-              <h3>{formatDate(l4Date)}</h3>
-            </div>
-          </div>
-          <div className={styles.summaryMeta} {...buildProfileAnchor('overview.run-rate', 'Net run rate')}>
-            <p className={styles.quickLabel}>Net run rate (last 12 months)</p>
-            <h1 className={styles.impactValue}>{formatImpact(netRunRate)}</h1>
-          </div>
 
-          <div className={styles.sparklineGrid}>
-            <SparklineCard
-              label="Benefits trend"
-              value={formatImpact(financialSeries.totals.benefits)}
-              color="#22c55e"
-              values={financialSeries.benefits}
-            />
-            <SparklineCard
-              label="Impact trend"
-              value={formatImpact(financialSeries.totals.impact)}
-              color="#0ea5e9"
-              values={financialSeries.impact}
-            />
-            <SparklineCard
-              label="Cost profile"
-              value={formatImpact(financialSeries.totals.costs)}
-              color="#f97316"
-              values={financialSeries.costs}
-              invert
-            />
+            <div className={styles.metricStack}>
+              <div className={styles.metricCard} {...buildProfileAnchor('overview.run-rate', 'Run rate impact')}>
+                <p className={styles.quickLabel}>Run rate impact</p>
+                <div className={styles.metricValueRow}>
+                  <span className={styles.metricValue}>{formatImpact(financialSeries.runRates.impact)}</span>
+                  <span className={styles.metricBadge}>{financialSeries.modeLabel}</span>
+                </div>
+                <p className={styles.metricHint}>{financialSeries.oneOffLabel}</p>
+              </div>
+              <div className={styles.metricCard} {...buildProfileAnchor('overview.roi', 'Return on investment')}>
+                <p className={styles.quickLabel}>ROI</p>
+                <div className={styles.metricValueRow}>
+                  <span className={styles.metricValue}>{formatRoi(roiValue)}</span>
+                  <span className={styles.metricBadge}>Run rate</span>
+                </div>
+                <p className={styles.metricHint}>Recurring impact vs recurring costs</p>
+              </div>
+            </div>
+
+            <div className={styles.sparkColumn}>
+              <div className={styles.sparkControls}>
+                <div className={styles.toggleGroup} role="group" aria-label="Run rate source">
+                  <button
+                    className={seriesMode === 'plan' ? styles.toggleButtonActive : styles.toggleButton}
+                    type="button"
+                    onClick={() => setSeriesMode('plan')}
+                    aria-pressed={seriesMode === 'plan'}
+                  >
+                    Plan
+                  </button>
+                  <button
+                    className={seriesMode === 'actuals' ? styles.toggleButtonActive : styles.toggleButton}
+                    type="button"
+                    onClick={() => setSeriesMode('actuals')}
+                    aria-pressed={seriesMode === 'actuals'}
+                  >
+                    Actuals
+                  </button>
+                </div>
+                <div className={styles.toggleGroup} role="group" aria-label="One-off inclusion toggle">
+                  <button
+                    className={includeOneOffs ? styles.toggleButtonActive : styles.toggleButton}
+                    type="button"
+                    onClick={() => setIncludeOneOffs(true)}
+                    aria-pressed={includeOneOffs}
+                  >
+                    With one-offs
+                  </button>
+                  <button
+                    className={!includeOneOffs ? styles.toggleButtonActive : styles.toggleButton}
+                    type="button"
+                    onClick={() => setIncludeOneOffs(false)}
+                    aria-pressed={!includeOneOffs}
+                  >
+                    Recurring only
+                  </button>
+                </div>
+                <div className={styles.sparkPeriod}>
+                  <span>Period</span>
+                  <strong>{financialSeries.periodLabel}</strong>
+                </div>
+              </div>
+              <div className={styles.sparkMeta}>{sparklineMetaLabel}</div>
+              <div className={styles.sparklineGrid}>
+                <SparklineCard
+                  label="Benefits trend"
+                  value={formatImpact(financialSeries.runRates.benefits)}
+                  valueLabel="12m run rate"
+                  periodLabel={financialSeries.periodLabel}
+                  color="#22c55e"
+                  values={financialSeries.benefits}
+                />
+                <SparklineCard
+                  label="Impact trend"
+                  value={formatImpact(financialSeries.runRates.impact)}
+                  valueLabel="12m run rate"
+                  periodLabel={financialSeries.periodLabel}
+                  color="#0ea5e9"
+                  values={financialSeries.impact}
+                />
+                <SparklineCard
+                  label="Cost profile"
+                  value={formatImpact(financialSeries.runRates.costs)}
+                  valueLabel="12m run rate"
+                  periodLabel={financialSeries.periodLabel}
+                  color="#f97316"
+                  values={financialSeries.costs}
+                />
+              </div>
+            </div>
           </div>
         </div>
 

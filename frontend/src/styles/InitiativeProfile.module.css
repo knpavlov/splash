@@ -45,10 +45,8 @@
 }
 
 .quickInfoCard {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  padding: 24px;
+  display: block;
+  padding: 20px 22px;
   border-radius: 24px;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
   border: 1px solid rgba(148, 163, 184, 0.1);
@@ -56,6 +54,19 @@
   box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.5);
   position: relative;
   overflow: hidden;
+}
+
+.quickInfoGrid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.2fr) minmax(260px, 0.9fr) minmax(380px, 1.1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 1280px) {
+  .quickInfoGrid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
 }
 
 .quickInfoCard::before {
@@ -69,25 +80,16 @@
 }
 
 .initiativeSummary {
-  grid-column: span 2;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  align-items: flex-end;
-}
-
-@media (max-width: 720px) {
-  .initiativeSummary {
-    grid-column: span 1;
-    flex-direction: column;
-    align-items: flex-start;
-  }
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: flex-start;
 }
 
 .quickLabel {
   margin: 0;
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   color: #cbd5f5;
 }
@@ -104,6 +106,15 @@
   margin: 4px 0 0;
 }
 
+.initiativeSummary h2 {
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.initiativeSummary h3 {
+  font-size: 16px;
+}
+
 .summaryMeta h3 {
   color: #e2e8f0;
   margin: 6px 0 0;
@@ -115,11 +126,123 @@
   gap: 4px;
 }
 
-.sparklineGrid {
-  grid-column: span 2;
+.metricStack {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
+  align-items: stretch;
+}
+
+.metricCard {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 104px;
+}
+
+.metricValueRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metricValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.metricBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  font-size: 11px;
+  color: #e2e8f0;
+}
+
+.metricHint {
+  margin: 0;
+  color: #cbd5f5;
+  font-size: 12px;
+}
+
+.sparkColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sparkControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.toggleGroup {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.toggleButton {
+  border: none;
+  background: transparent;
+  color: #cbd5f5;
+  padding: 6px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.toggleButtonActive {
+  padding: 6px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  background: rgba(59, 130, 246, 0.25);
+  color: #e2e8f0;
+  border: 1px solid rgba(59, 130, 246, 0.6);
+}
+
+.sparkPeriod {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  color: #cbd5f5;
+  font-size: 12px;
+}
+
+.sparkPeriod strong {
+  color: #f8fafc;
+  font-size: 13px;
+}
+
+.sparkMeta {
+  text-align: right;
+  font-size: 12px;
+  color: #cbd5f5;
+}
+
+.sparklineGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
 }
 
 .sparkCard {
@@ -135,19 +258,40 @@
 
 .sparkHeader {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
 
+.sparkSubLabel {
+  display: block;
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+.sparkValueGroup {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+}
+
 .sparkValue {
   font-weight: 700;
+  font-size: 18px;
   color: #f8fafc;
+}
+
+.sparkPeriodLabel {
+  color: #cbd5f5;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .sparkline {
   width: 100%;
-  height: 42px;
+  height: 48px;
 }
 
 .stageMetaGrid {

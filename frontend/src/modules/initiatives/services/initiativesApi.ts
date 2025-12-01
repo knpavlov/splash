@@ -10,6 +10,7 @@ import {
   InitiativeStageData,
   InitiativeStageMap,
   InitiativeTotals,
+  InitiativeFinancialSummary,
   InitiativeStageKey,
   InitiativeStageStateMap,
   InitiativeCommentSelection,
@@ -354,6 +355,15 @@ const normalizeTotals = (value: unknown): InitiativeTotals => {
   };
 };
 
+const normalizeFinancialSummary = (value: unknown): InitiativeFinancialSummary => {
+  if (!value || typeof value !== 'object') {
+    return { roi: null };
+  }
+  const payload = value as Record<string, unknown>;
+  const roi = typeof payload.roi === 'number' && Number.isFinite(payload.roi) ? payload.roi : null;
+  return { roi };
+};
+
 
 const normalizeInitiative = (value: unknown): Initiative | null => {
   if (!value || typeof value !== 'object') {
@@ -380,6 +390,7 @@ const normalizeInitiative = (value: unknown): Initiative | null => {
   const stages = normalizeStageMap(payload.stages);
   const stageState = normalizeStageState(payload.stageState);
   const totals = normalizeTotals(payload.totals);
+  const financialSummary = normalizeFinancialSummary(payload.financialSummary);
   const plan = normalizePlanModel(payload.plan);
 
   return {
@@ -398,6 +409,7 @@ const normalizeInitiative = (value: unknown): Initiative | null => {
     stages,
     stageState,
     totals,
+    financialSummary,
     plan
   };
 };

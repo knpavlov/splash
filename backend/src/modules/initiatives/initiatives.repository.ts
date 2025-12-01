@@ -406,6 +406,15 @@ const ensureStageState = (value: unknown): InitiativeStageStateMap => {
   return base;
 };
 
+const normalizeFinancialSummary = (value: unknown): InitiativeRecord['financialSummary'] => {
+  if (!value || typeof value !== 'object') {
+    return { roi: null };
+  }
+  const payload = value as { roi?: unknown };
+  const roi = typeof payload.roi === 'number' && Number.isFinite(payload.roi) ? payload.roi : null;
+  return { roi };
+};
+
 const mapRowToRecord = (row: InitiativeRow): InitiativeRecord => ({
   id: row.id,
   workstreamId: row.workstream_id,
@@ -421,6 +430,7 @@ const mapRowToRecord = (row: InitiativeRow): InitiativeRecord => ({
   updatedAt: toIsoString(row.updated_at) ?? new Date().toISOString(),
   stages: ensureStageMap(row.stage_payload),
   stageState: ensureStageState(row.stage_state),
+  financialSummary: normalizeFinancialSummary(row.financial_summary),
   plan: normalizePlanModel(row.plan_payload)
 });
 
@@ -449,8 +459,8 @@ export class InitiativesRepository {
 
   async createInitiative(model: InitiativeWriteModel): Promise<InitiativeRecord> {
     const result = await postgresPool.query<InitiativeRow>(
-      `INSERT INTO workstream_initiatives (id, workstream_id, name, description, owner_account_id, owner_name, current_status, active_stage, l4_date, stage_payload, stage_state, plan_payload, version, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, 1, NOW(), NOW())
+      `INSERT INTO workstream_initiatives (id, workstream_id, name, description, owner_account_id, owner_name, current_status, active_stage, l4_date, stage_payload, stage_state, plan_payload, financial_summary, version, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, 1, NOW(), NOW())
        RETURNING *;`,
       [
         model.id,
@@ -464,7 +474,8 @@ export class InitiativesRepository {
         model.l4Date,
         JSON.stringify(model.stages),
         JSON.stringify(model.stageState),
-        JSON.stringify(model.plan ?? createEmptyPlanModel())
+        JSON.stringify(model.plan ?? createEmptyPlanModel()),
+        JSON.stringify(model.financialSummary ?? { roi: null })
       ]
     );
     return mapRowToRecord(result.rows[0]);
@@ -487,9 +498,10 @@ export class InitiativesRepository {
               stage_payload = $10::jsonb,
               stage_state = $11::jsonb,
               plan_payload = $12::jsonb,
+              financial_summary = $13::jsonb,
               version = version + 1,
               updated_at = NOW()
-        WHERE id = $1 AND version = $13
+        WHERE id = $1 AND version = $14
         RETURNING *;`,
       [
         model.id,
@@ -504,6 +516,7 @@ export class InitiativesRepository {
         JSON.stringify(model.stages),
         JSON.stringify(model.stageState),
         JSON.stringify(model.plan ?? createEmptyPlanModel()),
+        JSON.stringify(model.financialSummary ?? { roi: null }),
         expectedVersion
       ]
     );

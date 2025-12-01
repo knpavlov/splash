@@ -187,6 +187,10 @@ export interface InitiativeTotals {
   recurringImpact: number;
 }
 
+export interface InitiativeFinancialSummary {
+  roi: number | null;
+}
+
 export interface Initiative {
   id: string;
   workstreamId: string;
@@ -203,6 +207,7 @@ export interface Initiative {
   stages: InitiativeStageMap;
   stageState: InitiativeStageStateMap;
   totals: InitiativeTotals;
+  financialSummary: InitiativeFinancialSummary;
   plan: InitiativePlanModel;
 }
 

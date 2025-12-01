@@ -41,7 +41,7 @@ import {
   WorkstreamApprovalRound,
   WorkstreamRoleAssignmentRecord
 } from '../workstreams/workstreams.types.js';
-import { buildInitiativeTotals } from './initiativeTotals.js';
+import { buildInitiativeFinancialSummary, buildInitiativeTotals } from './initiativeTotals.js';
 
 const sanitizeString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
 
@@ -637,6 +637,7 @@ export class InitiativesService {
     }, {} as InitiativeStageMap);
     const activeStage = normalizeStageKey(input.activeStage);
     const l4Date = sanitizeOptionalString(input.l4Date) ?? stages.l4.l4Date ?? null;
+    const financialSummary = buildInitiativeFinancialSummary({ stages: normalizedStages });
 
     return {
       id,
@@ -650,6 +651,7 @@ export class InitiativesService {
       l4Date,
       stages: normalizedStages,
       stageState,
+      financialSummary,
       plan
     };
   }
@@ -1225,6 +1227,7 @@ export class InitiativesService {
       updatedAt: toIsoString(row.updated_at) ?? new Date().toISOString(),
       stages,
       stageState: stageStateMap,
+      financialSummary: buildInitiativeFinancialSummary({ stages }),
       plan: normalizePlanModel(row.plan_payload)
     };
     return {
