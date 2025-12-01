@@ -147,6 +147,7 @@ export interface ChartSegment {
   color: string;
   label: string;
   rawValue: number;
+  kind?: 'base' | 'initiatives' | 'other';
 }
 
 export interface ChartMonthStack {
@@ -643,14 +644,25 @@ interface PlanVsActualChartProps {
   actualData: ChartMonthStack[];
   showPlanAsLine: boolean;
   planLineMode: 'impact' | 'split';
+  lineSource?: 'plan' | 'actual';
+  lineData?: ChartMonthStack[];
+  hidePlanBars?: boolean;
+  hideActualBars?: boolean;
+  planTagLabel?: string;
+  actualTagLabel?: string;
+  lineTagLabel?: string;
+  showValueLabels?: boolean;
+  showPeriodLabels?: boolean;
+  periodLabelFormatter?: (month: MonthDescriptor) => string;
   anchorScope?: string;
-  legendLabel?: string;
+  legendLabel?: string | null;
   formatValue?: (value: number) => string;
   monthStartColumn?: number;
   legendSpanColumns?: number;
   height?: number;
   className?: string;
   style?: React.CSSProperties;
+  onSegmentClick?: (payload: { month: MonthDescriptor; dataset: 'plan' | 'actual'; segment: ChartSegment }) => void;
 }
 
 export const PlanVsActualChart = ({
@@ -660,24 +672,44 @@ export const PlanVsActualChart = ({
   actualData,
   showPlanAsLine,
   planLineMode,
+  lineSource = 'plan',
+  lineData,
+  hidePlanBars,
+  hideActualBars = false,
+  planTagLabel = 'Plan',
+  actualTagLabel = 'Actual',
+  lineTagLabel,
+  showValueLabels = false,
+  showPeriodLabels = false,
+  periodLabelFormatter,
   anchorScope,
   legendLabel,
   formatValue,
-  monthStartColumn = 2,
-  legendSpanColumns = 1,
+  monthStartColumn,
+  legendSpanColumns,
   height,
   className,
-  style
+  style,
+  onSegmentClick
 }: PlanVsActualChartProps) => {
+  const effectiveLegend = legendLabel === undefined ? 'Plan vs actuals' : legendLabel;
+  const hasLegend = Boolean(effectiveLegend);
+  const monthStart = monthStartColumn ?? (hasLegend ? 2 : 1);
+  const legendColumns = legendSpanColumns ?? (hasLegend ? 1 : 0);
+  const shouldHidePlanBars = hidePlanBars ?? showPlanAsLine;
+  const lineSeries = lineData ?? (lineSource === 'plan' ? planData : actualData);
+  const lineLabel = lineTagLabel ?? (lineSource === 'plan' ? 'Plan impact' : 'Actual impact');
   const maxPositive = Math.max(
     0,
     ...planData.map((stat) => stat.positiveTotal),
-    ...actualData.map((stat) => stat.positiveTotal)
+    ...actualData.map((stat) => stat.positiveTotal),
+    ...lineSeries.map((stat) => stat.positiveTotal)
   );
   const maxNegative = Math.max(
     0,
     ...planData.map((stat) => stat.negativeTotal),
-    ...actualData.map((stat) => stat.negativeTotal)
+    ...actualData.map((stat) => stat.negativeTotal),
+    ...lineSeries.map((stat) => stat.negativeTotal)
   );
   const totalSpan = maxPositive + maxNegative || 1;
   const positiveShare = maxPositive ? maxPositive / totalSpan : 0;
@@ -749,12 +781,19 @@ export const PlanVsActualChart = ({
     signed?: boolean;
   } | null>(null);
   const renderValue = formatValue ?? formatCurrency;
+  const emptyStack: ChartMonthStack = {
+    key: 'empty',
+    positiveSegments: [],
+    negativeSegments: [],
+    positiveTotal: 0,
+    negativeTotal: 0
+  };
 
   const handleSegmentHover = (
     event: React.MouseEvent<HTMLDivElement>,
     segment: ChartSegment,
     position: 'positive' | 'negative',
-    tag: 'Plan' | 'Actual'
+    tag: string
   ) => {
     const container = chartRef.current;
     if (!container) {
@@ -786,11 +825,17 @@ export const PlanVsActualChart = ({
   };
 
   const clearTooltip = () => setTooltip(null);
+  const handleSegmentClick = (dataset: 'plan' | 'actual', segment: ChartSegment, month: MonthDescriptor) => {
+    if (!onSegmentClick) {
+      return;
+    }
+    onSegmentClick({ month, dataset, segment });
+  };
 
   const impactLinePoints = useMemo(
     () =>
       showPlanAsLine && months.length > 0
-        ? planData.map((month, index) => {
+        ? lineSeries.map((month, index) => {
           const net = month.positiveTotal - month.negativeTotal;
           const isPositive = net >= 0;
           const scale = isPositive ? positiveScale : negativeScale;
@@ -802,21 +847,22 @@ export const PlanVsActualChart = ({
             y: Number.isFinite(y) ? y : zeroLinePx,
             value: net,
             label: `${months[index].label} ${months[index].year}`,
-            tag: 'Plan impact'
+            tag: lineLabel
           };
         })
         : [],
     [
       showPlanAsLine,
       months,
-      planData,
+      lineSeries,
       positiveScale,
       negativeScale,
       positiveAreaPx,
       negativeAreaPx,
       zeroLinePx,
       lineLayout.xs,
-      fallbackColumnWidth
+      fallbackColumnWidth,
+      lineLabel
     ]
   );
 
@@ -824,7 +870,7 @@ export const PlanVsActualChart = ({
     if (!showPlanAsLine || months.length === 0) {
       return { benefits: [] as typeof impactLinePoints, costs: [] as typeof impactLinePoints };
     }
-    const benefits = planData.map((month, index) => {
+    const benefits = lineSeries.map((month, index) => {
       const ratio = positiveScale ? Math.min(1, month.positiveTotal / positiveScale) : 0;
       const y = zeroLinePx - ratio * positiveAreaPx;
       return {
@@ -832,10 +878,10 @@ export const PlanVsActualChart = ({
         y: Number.isFinite(y) ? y : zeroLinePx,
         value: month.positiveTotal,
         label: `${months[index].label} ${months[index].year}`,
-        tag: 'Plan benefits'
+        tag: `${lineLabel} benefits`
       };
     });
-    const costs = planData.map((month, index) => {
+    const costs = lineSeries.map((month, index) => {
       const ratio = negativeScale ? Math.min(1, month.negativeTotal / negativeScale) : 0;
       const y = zeroLinePx + ratio * negativeAreaPx;
       return {
@@ -843,21 +889,22 @@ export const PlanVsActualChart = ({
         y: Number.isFinite(y) ? y : zeroLinePx,
         value: -month.negativeTotal,
         label: `${months[index].label} ${months[index].year}`,
-        tag: 'Plan costs'
+        tag: `${lineLabel} costs`
       };
     });
     return { benefits, costs };
   }, [
     showPlanAsLine,
     months,
-    planData,
+    lineSeries,
     positiveScale,
     negativeScale,
     positiveAreaPx,
     negativeAreaPx,
     zeroLinePx,
     lineLayout.xs,
-    fallbackColumnWidth
+    fallbackColumnWidth,
+    lineLabel
   ]);
 
   return (
@@ -866,12 +913,16 @@ export const PlanVsActualChart = ({
       style={{ gridTemplateColumns, minHeight: chartHeightPx, ...style }}
       ref={chartRef}
     >
-      <div className={styles.chartLegend} style={{ gridColumn: `1 / span ${legendSpanColumns}` }}>
-        {legendLabel ?? 'Plan vs actuals'}
-      </div>
+      {hasLegend && (
+        <div className={styles.chartLegend} style={{ gridColumn: `1 / span ${legendColumns}` }}>
+          {effectiveLegend}
+        </div>
+      )}
       {months.map((month, index) => {
-        const plan = planData[index];
-        const actual = actualData[index];
+        const plan = planData[index] ?? emptyStack;
+        const actual = actualData[index] ?? emptyStack;
+        const barLabelSource =
+          !hideActualBars && actual ? actual : !shouldHidePlanBars ? plan : emptyStack;
         const positiveRatioPlan = positiveScale ? Math.min(1, plan.positiveTotal / positiveScale) : 0;
         const negativeRatioPlan = negativeScale ? Math.min(1, plan.negativeTotal / negativeScale) : 0;
         const positiveRatioActual = positiveScale ? Math.min(1, actual.positiveTotal / positiveScale) : 0;
@@ -900,11 +951,22 @@ export const PlanVsActualChart = ({
           `${anchorScope ?? 'financial-chart'}.${month.key}`,
           `${month.label} ${month.year} plan vs actual`
         );
+        const barLabelValue = barLabelSource.positiveTotal - barLabelSource.negativeTotal;
+        const isPlanLabel = barLabelSource === plan;
+        const barPositiveRatio = isPlanLabel ? positiveRatioPlan : positiveRatioActual;
+        const barNegativeRatio = isPlanLabel ? negativeRatioPlan : negativeRatioActual;
+        const barValueOffset = Number.isFinite(barLabelValue)
+          ? barLabelValue >= 0
+            ? zeroLine - barPositiveRatio * positiveArea
+            : zeroLine + barNegativeRatio * negativeArea
+          : zeroLine;
+        const shouldShowBarValue = showValueLabels && (!hideActualBars || !shouldHidePlanBars);
+        const periodLabel = periodLabelFormatter ? periodLabelFormatter(month) : `${month.label} ${month.year}`;
         return (
           <div
             key={month.key}
             className={styles.chartCell}
-            style={{ gridRow: 1, gridColumn: index + monthStartColumn }}
+            style={{ gridRow: 1, gridColumn: index + monthStart }}
             data-month-index={index}
             {...chartAnchor}
           >
@@ -912,7 +974,7 @@ export const PlanVsActualChart = ({
               <div className={styles.dualStackWrapper}>
                 <div className={styles.dualPositive} style={{ height: `${positivePortion * 100}%` }}>
                   <div className={styles.dualBarRow}>
-                    {!showPlanAsLine && (
+                    {!shouldHidePlanBars && (
                       <div className={`${styles.dualBar} ${styles.planBar}`} style={{ height: `${positiveRatioPlan * 100}%` }}>
                         <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
                           {plan.positiveSegments.map((segment, segmentIndex) => {
@@ -922,38 +984,42 @@ export const PlanVsActualChart = ({
                                 key={`${month.key}-plan-pos-${segmentIndex}`}
                                 className={styles.chartSegment}
                                 style={{ height: `${height}%`, background: segment.color }}
-                                onMouseEnter={(event) => handleSegmentHover(event, segment, 'positive', 'Plan')}
-                                onMouseMove={(event) => handleSegmentHover(event, segment, 'positive', 'Plan')}
+                                onMouseEnter={(event) => handleSegmentHover(event, segment, 'positive', planTagLabel)}
+                                onMouseMove={(event) => handleSegmentHover(event, segment, 'positive', planTagLabel)}
                                 onMouseLeave={clearTooltip}
+                                onClick={() => handleSegmentClick('plan', segment, month)}
                               />
                             );
                           })}
                         </div>
                       </div>
                     )}
-                    <div
-                      className={`${styles.dualBar} ${styles.actualBar}`}
-                      style={{
-                        height: `${positiveRatioActual * 100}%`,
-                        width: showPlanAsLine ? '46%' : undefined
-                      }}
-                    >
-                      <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
-                        {actual.positiveSegments.map((segment, segmentIndex) => {
-                          const height = (segment.value / positiveActualScale) * 100;
-                          return (
-                            <div
-                              key={`${month.key}-actual-pos-${segmentIndex}`}
-                              className={styles.chartSegment}
-                              style={{ height: `${height}%`, background: segment.color }}
-                              onMouseEnter={(event) => handleSegmentHover(event, segment, 'positive', 'Actual')}
-                              onMouseMove={(event) => handleSegmentHover(event, segment, 'positive', 'Actual')}
-                              onMouseLeave={clearTooltip}
-                            />
-                          );
-                        })}
+                    {!hideActualBars && (
+                      <div
+                        className={`${styles.dualBar} ${styles.actualBar}`}
+                        style={{
+                          height: `${positiveRatioActual * 100}%`,
+                          width: showPlanAsLine ? '46%' : undefined
+                        }}
+                      >
+                        <div className={`${styles.stackFill} ${styles.stackFillPositive}`}>
+                          {actual.positiveSegments.map((segment, segmentIndex) => {
+                            const height = (segment.value / positiveActualScale) * 100;
+                            return (
+                              <div
+                                key={`${month.key}-actual-pos-${segmentIndex}`}
+                                className={styles.chartSegment}
+                                style={{ height: `${height}%`, background: segment.color }}
+                                onMouseEnter={(event) => handleSegmentHover(event, segment, 'positive', actualTagLabel)}
+                                onMouseMove={(event) => handleSegmentHover(event, segment, 'positive', actualTagLabel)}
+                                onMouseLeave={clearTooltip}
+                                onClick={() => handleSegmentClick('actual', segment, month)}
+                              />
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                   {lineMarker && lineMarker.area === 'positive' && (
                     <div className={styles.planLineDot} style={{ bottom: `${lineMarker.offset}%` }} />
@@ -961,7 +1027,7 @@ export const PlanVsActualChart = ({
                 </div>
                 <div className={styles.dualNegative} style={{ height: `${negativePortion * 100}%` }}>
                   <div className={`${styles.dualBarRow} ${styles.dualBarRowNegative}`}>
-                    {!showPlanAsLine && (
+                    {!shouldHidePlanBars && (
                       <div
                         className={`${styles.dualBar} ${styles.planBar}`}
                         style={{ height: `${negativeRatioPlan * 100}%` }}
@@ -971,18 +1037,20 @@ export const PlanVsActualChart = ({
                             const height = (segment.value / negativePlanScale) * 100;
                             return (
                               <div
-                                key={`${month.key}-plan-neg-${segmentIndex}`}
-                                className={styles.chartSegment}
-                                style={{ height: `${height}%`, background: segment.color }}
-                                onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative', 'Plan')}
-                                onMouseMove={(event) => handleSegmentHover(event, segment, 'negative', 'Plan')}
-                                onMouseLeave={clearTooltip}
-                              />
-                            );
-                          })}
-                        </div>
+                              key={`${month.key}-plan-neg-${segmentIndex}`}
+                              className={styles.chartSegment}
+                              style={{ height: `${height}%`, background: segment.color }}
+                              onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative', planTagLabel)}
+                              onMouseMove={(event) => handleSegmentHover(event, segment, 'negative', planTagLabel)}
+                              onMouseLeave={clearTooltip}
+                              onClick={() => handleSegmentClick('plan', segment, month)}
+                            />
+                          );
+                        })}
                       </div>
-                    )}
+                    </div>
+                  )}
+                  {!hideActualBars && (
                     <div
                       className={`${styles.dualBar} ${styles.actualBar}`}
                       style={{
@@ -998,14 +1066,16 @@ export const PlanVsActualChart = ({
                               key={`${month.key}-actual-neg-${segmentIndex}`}
                               className={styles.chartSegment}
                               style={{ height: `${height}%`, background: segment.color }}
-                              onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative', 'Actual')}
-                              onMouseMove={(event) => handleSegmentHover(event, segment, 'negative', 'Actual')}
+                              onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative', actualTagLabel)}
+                              onMouseMove={(event) => handleSegmentHover(event, segment, 'negative', actualTagLabel)}
                               onMouseLeave={clearTooltip}
+                              onClick={() => handleSegmentClick('actual', segment, month)}
                             />
                           );
                         })}
                       </div>
                     </div>
+                  )}
                   </div>
                   {lineMarker && lineMarker.area === 'negative' && (
                     <div className={styles.planLineDotNegative} style={{ top: `${lineMarker.offset}%` }} />
@@ -1013,7 +1083,16 @@ export const PlanVsActualChart = ({
                 </div>
               </div>
               <div className={styles.chartZeroLine} style={{ top: `${positivePortion * 100}%` }} />
+              {shouldShowBarValue && (
+                <div
+                  className={styles.barValueLabel}
+                  style={{ top: `${Math.max(2, Math.min(98, barValueOffset))}%` }}
+                >
+                  {renderValue(barLabelValue)}
+                </div>
+              )}
             </div>
+            {showPeriodLabels && <div className={styles.chartPeriodLabel}>{periodLabel}</div>}
           </div>
         );
       })}
@@ -1050,6 +1129,16 @@ export const PlanVsActualChart = ({
               />
             ))}
           </svg>
+          {showValueLabels &&
+            impactLinePoints.map((point, index) => (
+              <div
+                key={`line-value-${index}`}
+                className={styles.lineValueLabel}
+                style={{ left: point.x, top: Math.max(0, point.y - 18) }}
+              >
+                {renderValue(point.value)}
+              </div>
+            ))}
         </div>
       )}
       {showPlanAsLine &&
@@ -1106,11 +1195,33 @@ export const PlanVsActualChart = ({
                   r={3}
                   vectorEffect="non-scaling-stroke"
                   onMouseEnter={(event) => handlePlanPointHover(event, point)}
-                  onMouseMove={(event) => handlePlanPointHover(event, point)}
-                  onMouseLeave={clearTooltip}
-                />
-              ))}
+                onMouseMove={(event) => handlePlanPointHover(event, point)}
+                onMouseLeave={clearTooltip}
+              />
+            ))}
             </svg>
+            {showValueLabels && (
+              <>
+                {splitLinePoints.benefits.map((point, index) => (
+                  <div
+                    key={`benefit-value-${index}`}
+                    className={`${styles.lineValueLabel} ${styles.lineValueBenefit}`}
+                    style={{ left: point.x, top: Math.max(0, point.y - 18) }}
+                  >
+                    {renderValue(point.value)}
+                  </div>
+                ))}
+                {splitLinePoints.costs.map((point, index) => (
+                  <div
+                    key={`cost-value-${index}`}
+                    className={`${styles.lineValueLabel} ${styles.lineValueCost}`}
+                    style={{ left: point.x, top: Math.max(0, point.y - 18) }}
+                  >
+                    {renderValue(point.value)}
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
       {tooltip && (

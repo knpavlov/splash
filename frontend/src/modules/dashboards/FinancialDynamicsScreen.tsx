@@ -20,7 +20,7 @@ import {
 } from '../../shared/utils/financialMath';
 import { ChartMonthStack, ChartSegment, PlanVsActualChart } from '../initiatives/components/FinancialEditor';
 
-type ViewMode = 'months' | 'calendar' | 'fiscal';
+type ViewMode = 'months' | 'quarters' | 'calendar' | 'fiscal';
 type BaseMode = 'zero' | 'baseline';
 type SortMode = 'impact-desc' | 'impact-asc' | 'delta' | 'name';
 
@@ -52,8 +52,22 @@ interface LineSeries {
   maxAbs: number;
 }
 
+interface InitiativeBreakdownRow {
+  initiativeId: string | null;
+  name: string;
+  value: number;
+  share: number;
+}
+
+interface BreakdownState {
+  bucketLabel: string;
+  mode: 'plan' | 'actual';
+  lineName: string;
+  total: number;
+  rows: InitiativeBreakdownRow[];
+}
+
 const SETTINGS_STORAGE_KEY = 'pl-dynamics-settings';
-const CATEGORY_COLUMN_WIDTH = 240;
 const planColor = '#1d4ed8';
 const actualColor = '#0ea5e9';
 const baseColor = '#cbd5e1';
@@ -108,7 +122,7 @@ const netAbsMax = (stacks: ChartMonthStack[]) =>
   stacks.reduce((max, stack) => Math.max(max, Math.abs(stackNet(stack))), 0);
 
 const clampViewMode = (value: string | undefined): ViewMode =>
-  value === 'calendar' || value === 'fiscal' ? value : 'months';
+  value === 'calendar' || value === 'fiscal' || value === 'quarters' ? value : 'months';
 
 const clampBaseMode = (value: string | undefined): BaseMode =>
   value === 'zero' || value === 'baseline' ? value : 'baseline';
@@ -208,12 +222,65 @@ const buildInitiativeManualMap = (
   return map;
 };
 
+type InitiativeContributionMap = Map<string, Record<string, Record<string, number>>>;
+
+const buildInitiativeBreakdownMap = (
+  initiatives: Initiative[],
+  lineByCode: Map<string, FinancialLineItem>,
+  monthKeys: string[],
+  selector: (entry: InitiativeFinancialEntry) => Record<string, number>
+): InitiativeContributionMap => {
+  const map: InitiativeContributionMap = new Map();
+  if (!monthKeys.length) {
+    return map;
+  }
+  const monthSet = new Set(monthKeys);
+  for (const initiative of initiatives) {
+    const stage = initiative.stages[initiative.activeStage];
+    if (!stage) {
+      continue;
+    }
+    for (const kind of initiativeFinancialKinds) {
+      stage.financials[kind].forEach((entry) => {
+        const code = entry.lineCode?.trim().toUpperCase();
+        if (!code) {
+          return;
+        }
+        const line = lineByCode.get(code);
+        if (!line) {
+          return;
+        }
+        const distribution = selector(entry) ?? {};
+        Object.entries(distribution).forEach(([monthKey, raw]) => {
+          if (!monthSet.has(monthKey)) {
+            return;
+          }
+          const numeric = Number(raw);
+          if (!Number.isFinite(numeric) || !numeric) {
+            return;
+          }
+          if (!map.has(line.id)) {
+            map.set(line.id, {});
+          }
+          const lineMap = map.get(line.id)!;
+          if (!lineMap[monthKey]) {
+            lineMap[monthKey] = {};
+          }
+          lineMap[monthKey][initiative.id] = (lineMap[monthKey][initiative.id] ?? 0) + numeric * lineEffect(line);
+        });
+      });
+    }
+  }
+  return map;
+};
+
 export const FinancialDynamicsScreen = () => {
   const { blueprint, loading: blueprintLoading, error: blueprintError, refresh: refreshBlueprint } = useFinancialsState();
   const { list: initiatives } = useInitiativesState();
   const { list: workstreams } = useWorkstreamsState();
   const [settings, setSettings] = useState<PersistedSettings>(() => loadSettings());
   const [workstreamMenuOpen, setWorkstreamMenuOpen] = useState(false);
+  const [breakdown, setBreakdown] = useState<BreakdownState | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -293,6 +360,32 @@ export const FinancialDynamicsScreen = () => {
         year: month.year,
         index: month.index,
         monthKeys: [month.key]
+      }));
+    }
+    if (settings.viewMode === 'quarters') {
+      const groups = new Map<
+        string,
+        {
+          year: number;
+          index: number;
+          monthKeys: string[];
+          label: string;
+        }
+      >();
+      monthDescriptors.forEach((month) => {
+        const quarter = Math.floor((month.month - 1) / 3) + 1;
+        const key = `${month.year}-Q${quarter}`;
+        if (!groups.has(key)) {
+          groups.set(key, { year: month.year, index: groups.size, monthKeys: [], label: `Q${quarter}` });
+        }
+        groups.get(key)!.monthKeys.push(month.key);
+      });
+      return Array.from(groups.entries()).map(([key, value]) => ({
+        key,
+        label: value.label,
+        year: value.year,
+        index: value.index,
+        monthKeys: value.monthKeys
       }));
     }
     const groups = new Map<number, string[]>();
@@ -375,6 +468,27 @@ export const FinancialDynamicsScreen = () => {
     [blueprint, monthKeys, childMap, actualManualMap, actualCumulative]
   );
 
+  const planInitiativeBreakdown = useMemo(
+    () =>
+      blueprint && monthKeys.length
+        ? buildInitiativeBreakdownMap(filteredInitiatives, lineByCode, monthKeys, (entry) => entry.distribution)
+        : new Map(),
+    [blueprint, monthKeys, filteredInitiatives, lineByCode]
+  );
+  const actualInitiativeBreakdown = useMemo(
+    () =>
+      blueprint && monthKeys.length
+        ? buildInitiativeBreakdownMap(filteredInitiatives, lineByCode, monthKeys, (entry) => entry.actuals ?? {})
+        : new Map(),
+    [blueprint, monthKeys, filteredInitiatives, lineByCode]
+  );
+
+  const initiativeNameLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    initiatives.forEach((initiative) => map.set(initiative.id, initiative.name || 'Untitled initiative'));
+    return map;
+  }, [initiatives]);
+
   const series = useMemo<LineSeries[]>(() => {
     if (!blueprint || !buckets.length) {
       return [];
@@ -385,23 +499,25 @@ export const FinancialDynamicsScreen = () => {
       const planRecord = planValueMap.get(line.id) ?? empty;
       const actualRecord = actualValueMap.get(line.id) ?? empty;
 
-      const planStacks = buckets.map((bucket) =>
-        buildSingleValueStack(bucket.key, sumForPeriod(planRecord, bucket.monthKeys), 'Plan impact', planColor)
-      );
-
-      const actualStacks = buckets.map((bucket) => {
+      const buildStack = (bucket: ChartBucket, initiativeValue: number, label: string, color: string): ChartMonthStack => {
         const baseValue = settings.baseMode === 'baseline' ? sumForPeriod(baseRecord, bucket.monthKeys) : 0;
-        const initiativeActual = sumForPeriod(actualRecord, bucket.monthKeys);
         const segments: ChartSegment[] = [];
         if (settings.baseMode === 'baseline' && baseValue) {
-          segments.push({ value: Math.abs(baseValue), color: baseColor, label: 'Base P&L', rawValue: baseValue });
-        }
-        if (initiativeActual) {
           segments.push({
-            value: Math.abs(initiativeActual),
-            color: actualColor,
-            label: 'Initiative actuals',
-            rawValue: initiativeActual
+            value: Math.abs(baseValue),
+            color: baseColor,
+            label: 'Base P&L',
+            rawValue: baseValue,
+            kind: 'base'
+          });
+        }
+        if (initiativeValue) {
+          segments.push({
+            value: Math.abs(initiativeValue),
+            color,
+            label,
+            rawValue: initiativeValue,
+            kind: 'initiatives'
           });
         }
         const positiveSegments = segments.filter((segment) => segment.rawValue >= 0);
@@ -413,7 +529,15 @@ export const FinancialDynamicsScreen = () => {
           positiveTotal: positiveSegments.reduce((sum, segment) => sum + segment.value, 0),
           negativeTotal: negativeSegments.reduce((sum, segment) => sum + segment.value, 0)
         };
-      });
+      };
+
+      const planStacks = buckets.map((bucket) =>
+        buildStack(bucket, sumForPeriod(planRecord, bucket.monthKeys), 'Plan initiatives', planColor)
+      );
+
+      const actualStacks = buckets.map((bucket) =>
+        buildStack(bucket, sumForPeriod(actualRecord, bucket.monthKeys), 'Actual initiatives', actualColor)
+      );
 
       const lastPlan = planStacks.length ? stackNet(planStacks[planStacks.length - 1]) : 0;
       const lastActual = actualStacks.length ? stackNet(actualStacks[actualStacks.length - 1]) : 0;
@@ -453,9 +577,85 @@ export const FinancialDynamicsScreen = () => {
     });
   }, [series, settings.query, settings.hideZeros, settings.sortMode]);
 
+  const buildBucketBreakdown = useCallback(
+    (lineId: string, bucket: ChartBucket, mode: 'plan' | 'actual') => {
+      const source = mode === 'plan' ? planInitiativeBreakdown : actualInitiativeBreakdown;
+      const lineMap = source.get(lineId);
+      if (!lineMap) {
+        return { total: 0, rows: [] as InitiativeBreakdownRow[] };
+      }
+      const totals: Record<string, number> = {};
+      bucket.monthKeys.forEach((key) => {
+        const monthTotals = lineMap[key];
+        if (!monthTotals) {
+          return;
+        }
+        Object.entries(monthTotals).forEach(([initiativeId, raw]) => {
+          const numeric = Number(raw);
+          if (!Number.isFinite(numeric)) {
+            return;
+          }
+          totals[initiativeId] = (totals[initiativeId] ?? 0) + numeric;
+        });
+      });
+      const entries = Object.entries(totals)
+        .filter(([, value]) => value !== 0)
+        .map(([initiativeId, value]) => ({
+          initiativeId,
+          name: initiativeNameLookup.get(initiativeId) ?? 'Initiative',
+          value
+        }))
+        .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+      const totalAbs = entries.reduce((sum, entry) => sum + Math.abs(entry.value), 0);
+      if (totalAbs === 0) {
+        return { total: 0, rows: [] as InitiativeBreakdownRow[] };
+      }
+      const total = entries.reduce((sum, entry) => sum + entry.value, 0);
+      const rows: InitiativeBreakdownRow[] = entries.slice(0, 10).map((entry) => ({
+        ...entry,
+        share: Math.round(((Math.abs(entry.value) / totalAbs) * 1000)) / 10
+      }));
+      const others = entries.slice(10);
+      if (others.length) {
+        const usedShare = rows.reduce((sum, entry) => sum + entry.share, 0);
+        const othersShare = Math.max(0, Math.round((100 - usedShare) * 10) / 10);
+        const othersValue = others.reduce((sum, entry) => sum + entry.value, 0);
+        rows.push({ initiativeId: null, name: 'Others', value: othersValue, share: othersShare });
+      }
+      return { total, rows };
+    },
+    [planInitiativeBreakdown, actualInitiativeBreakdown, initiativeNameLookup]
+  );
+
+  const handleSegmentClick = useCallback(
+    (line: FinancialLineItem) =>
+      (payload: { month: { key: string; label: string; year: number }; dataset: 'plan' | 'actual'; segment: ChartSegment }) => {
+        if (payload.segment.kind !== 'initiatives') {
+          return;
+        }
+        const bucket = buckets.find((entry) => entry.key === payload.month.key);
+        if (!bucket) {
+          return;
+        }
+        const breakdownResult = buildBucketBreakdown(line.id, bucket, payload.dataset);
+        if (!breakdownResult.rows.length) {
+          return;
+        }
+        setBreakdown({
+          bucketLabel: `${bucket.label} ${bucket.year}`,
+          mode: payload.dataset,
+          lineName: line.name,
+          total: breakdownResult.total,
+          rows: breakdownResult.rows
+        });
+      },
+    [buckets, buildBucketBreakdown]
+  );
+
+  const columnMinWidth = useMemo(() => (settings.viewMode === 'months' ? 82 : 96), [settings.viewMode]);
   const gridTemplateColumns = useMemo(
-    () => `${CATEGORY_COLUMN_WIDTH}px repeat(${Math.max(buckets.length, 1)}, minmax(110px, 1fr))`,
-    [buckets.length]
+    () => `repeat(${Math.max(buckets.length, 1)}, minmax(${columnMinWidth}px, 1fr))`,
+    [buckets.length, columnMinWidth]
   );
 
   const latestBucket = buckets[buckets.length - 1];
@@ -513,14 +713,20 @@ export const FinancialDynamicsScreen = () => {
         <div className={styles.controlGroup}>
           <span className={styles.controlLabel}>Timeline</span>
           <div className={styles.segmented}>
-            {(['months', 'calendar', 'fiscal'] as ViewMode[]).map((mode) => (
+            {(['months', 'quarters', 'calendar', 'fiscal'] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
                 type="button"
                 className={settings.viewMode === mode ? styles.segmentActive : ''}
                 onClick={() => setSettings((prev) => ({ ...prev, viewMode: mode }))}
               >
-                {mode === 'months' ? 'Months' : mode === 'calendar' ? 'Calendar years' : 'Fiscal years'}
+                {mode === 'months'
+                  ? 'Months'
+                  : mode === 'quarters'
+                  ? 'Quarters'
+                  : mode === 'calendar'
+                  ? 'Calendar years'
+                  : 'Fiscal years'}
               </button>
             ))}
           </div>
@@ -720,17 +926,77 @@ export const FinancialDynamicsScreen = () => {
                     actualData={entry.actual}
                     showPlanAsLine
                     planLineMode="impact"
-                    legendLabel="Actuals vs plan"
-                    monthStartColumn={2}
-                    legendSpanColumns={1}
+                    lineSource="actual"
+                    lineTagLabel="Actual impact"
+                    hidePlanBars={false}
+                    hideActualBars
+                    legendLabel={null}
+                    monthStartColumn={1}
+                    showValueLabels
+                    showPeriodLabels
+                    periodLabelFormatter={(month) => `${month.label} ${month.year}`}
                     height={settings.viewMode === 'months' ? 200 : 170}
                     className={styles.chartCompact}
                     formatValue={formatCurrency}
+                    onSegmentClick={handleSegmentClick(entry.line)}
                   />
                 )}
               </div>
             </article>
           ))}
+        </div>
+      )}
+
+      {breakdown && (
+        <div className={styles.breakdownOverlay} onClick={() => setBreakdown(null)}>
+          <div className={styles.breakdownCard} onClick={(event) => event.stopPropagation()}>
+            <header className={styles.breakdownHeader}>
+              <div>
+                <p className={styles.breakdownOverline}>
+                  {breakdown.bucketLabel} ·{' '}
+                  {breakdown.mode === 'plan' ? 'Plan initiatives' : 'Actual initiatives'}
+                </p>
+                <h4>{breakdown.lineName}</h4>
+                <p className={styles.breakdownTotal}>
+                  Total contribution: <strong>{formatCurrency(breakdown.total)}</strong>
+                </p>
+              </div>
+              <button type="button" className={styles.closeButton} onClick={() => setBreakdown(null)}>
+                Close
+              </button>
+            </header>
+
+            {breakdown.rows.length === 0 ? (
+              <p className={styles.placeholder}>No initiatives recorded for this period.</p>
+            ) : (
+              <table className={styles.breakdownTable}>
+                <thead>
+                  <tr>
+                    <th>Initiative</th>
+                    <th>Value</th>
+                    <th>Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdown.rows.map((row) => (
+                    <tr key={row.initiativeId ?? 'others'}>
+                      <td>
+                        {row.initiativeId ? (
+                          <a href={`#/initiatives/view/${row.initiativeId}`} className={styles.initiativeLink}>
+                            {row.name}
+                          </a>
+                        ) : (
+                          row.name
+                        )}
+                      </td>
+                      <td>{formatCurrency(row.value)}</td>
+                      <td>{row.share.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
     </section>
