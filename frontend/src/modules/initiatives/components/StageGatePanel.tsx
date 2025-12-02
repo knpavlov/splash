@@ -1,6 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import styles from '../../../styles/StageGatePanel.module.css';
-import { InitiativeStageKey, InitiativeStageMap, initiativeStageKeys, InitiativeStageStateMap } from '../../../shared/types/initiative';
+import {
+  InitiativeStageKey,
+  InitiativeStageMap,
+  initiativeStageKeys,
+  InitiativeStageStateMap,
+  InitiativeStageStatus
+} from '../../../shared/types/initiative';
 import {
   defaultWorkstreamRoleOptions,
   Workstream,
@@ -91,6 +97,7 @@ const isGateKey = (value: InitiativeStageKey | undefined | null): value is Works
   Boolean(value && gateKeySet.has(value as WorkstreamGateKey));
 
 type RoundStatus = 'complete' | 'current' | 'upcoming' | 'returned' | 'rejected';
+type ApproverTone = 'pending' | 'approved' | 'returned' | 'rejected';
 
 const resolveRoundStatus = (state: InitiativeStageStateMap[InitiativeStageKey] | undefined, index: number): RoundStatus => {
   if (!state) {
@@ -138,6 +145,26 @@ const roundStatusLabel: Record<RoundStatus, string> = {
   rejected: 'Rejected'
 };
 
+const approverToneLabels: Record<ApproverTone, string> = {
+  pending: 'Pending review',
+  approved: 'Approved',
+  returned: 'Returned for updates',
+  rejected: 'Rejected'
+};
+
+const resolveApproverTone = (status: InitiativeStageStatus | undefined): ApproverTone => {
+  switch (status) {
+    case 'approved':
+      return 'approved';
+    case 'returned':
+      return 'returned';
+    case 'rejected':
+      return 'rejected';
+    default:
+      return 'pending';
+  }
+};
+
 export const StageGatePanel = ({
   stages,
   stageState,
@@ -151,7 +178,6 @@ export const StageGatePanel = ({
   const activeIndex = initiativeStageKeys.indexOf(activeStage);
   const [hoveredGate, setHoveredGate] = useState<WorkstreamGateKey | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
-  const normalizedInitiativeName = initiativeName.trim().toLowerCase();
 
   const roleLabelMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -184,12 +210,17 @@ export const StageGatePanel = ({
     }
     const parentStageKey = getStageKeyForGate(hoveredGate);
     const gateState = parentStageKey ? stageState[parentStageKey] : undefined;
+    const tone = resolveApproverTone(gateState?.status);
+    const toneLabel = approverToneLabels[tone];
     const rounds = workstream?.gates[hoveredGate] ?? [];
     return (
       <div className={styles.gateTooltip} style={{ left: tooltipPos.x, top: tooltipPos.y }}>
-        <p>
-          <strong>{hoveredGate.toUpperCase()}</strong> · {formatGateStatusLabel(gateState?.status)}
-        </p>
+        <div className={styles.tooltipHeader}>
+          <p className={styles.tooltipTitle}>Required approvals for next stage</p>
+          <span className={styles.tooltipMeta}>
+            {hoveredGate.toUpperCase()} Gate{gateState?.status ? ` - ${formatGateStatusLabel(gateState.status)}` : ''}
+          </span>
+        </div>
         {rounds.length === 0 ? (
           <span>No approvers configured.</span>
         ) : (
@@ -197,13 +228,17 @@ export const StageGatePanel = ({
             {rounds.map((round, index) => (
               <li key={round.id}>
                 <span className={styles.tooltipRoundTitle}>
-                  Round {index + 1} · {roundStatusLabel[resolveRoundStatus(gateState, index)]}
+                  Round {index + 1} - {roundStatusLabel[resolveRoundStatus(gateState, index)]}
                 </span>
                 <div className={styles.tooltipApprovers}>
                   {round.approvers.map((approver) => (
-                    <div key={approver.id}>
-                      <strong>{roleLabelMap.get(approver.role) ?? approver.role}</strong>
-                      <span>{approver.rule.toUpperCase()}</span>
+                    <div key={approver.id} className={styles.tooltipApproverRow}>
+                      <span className={`${styles.statusDot} ${styles[`tone-${tone}`]}`} aria-hidden="true" />
+                      <div className={styles.approverInfo}>
+                        <strong>{roleLabelMap.get(approver.role) ?? approver.role}</strong>
+                        <span className={styles.approverRule}>{approver.rule.toUpperCase()}</span>
+                      </div>
+                      <span className={styles.approverStatus}>{toneLabel}</span>
                     </div>
                   ))}
                 </div>
@@ -211,6 +246,14 @@ export const StageGatePanel = ({
             ))}
           </ul>
         )}
+        <div className={styles.tooltipLegend}>
+          {(['pending', 'approved', 'returned', 'rejected'] as ApproverTone[]).map((legendTone) => (
+            <span key={legendTone} className={styles.legendItem}>
+              <span className={`${styles.statusDot} ${styles[`tone-${legendTone}`]}`} aria-hidden="true" />
+              {approverToneLabels[legendTone]}
+            </span>
+          ))}
+        </div>
       </div>
     );
   };
@@ -223,15 +266,11 @@ export const StageGatePanel = ({
           const state = stageState[key] ?? { status: 'draft' };
           const nextStage = getNextStageKey(key);
 
-          // Determine classes based on state
           const isSelected = selectedStage === key;
           const isActive = key === activeStage;
 
-          // Layering logic: Left items should be on top of right items to make the chevron "head" visible over the next item's "tail".
-          // Base z-index decreases as index increases.
-          // Selected/Active items get a massive boost to sit on top of everything.
           const baseZIndex = (initiativeStageKeys.length - index) * 10;
-          const zIndex = (isSelected || isActive) ? 1000 : baseZIndex;
+          const zIndex = isSelected || isActive ? 1000 : baseZIndex;
 
           const stageClassNames = [
             styles.stage,

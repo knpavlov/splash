@@ -70,6 +70,14 @@ type ValidationErrors = {
 };
 
 const VALUE_STEP_LABEL = 'Value Step';
+const submitChecklistByStage: Record<InitiativeStageKey, string[]> = {
+  l0: ['Placeholder: confirm L0 scope definition', 'Placeholder: upload initial overview pack'],
+  l1: ['Placeholder: confirm L1 data pack is complete', 'Placeholder: log key risks and mitigations'],
+  l2: ['Placeholder: upload L2 financial assumptions', 'Placeholder: capture stakeholder alignment notes'],
+  l3: ['Placeholder: attach L3 evidence deck', 'Placeholder: validate benefits and costs inputs'],
+  l4: ['Placeholder: confirm go-live readiness items', 'Placeholder: document rollback/contingency approach'],
+  l5: ['Placeholder: add post-implementation review draft', 'Placeholder: set up ongoing benefits tracking']
+};
 
 const createEmptyStage = (key: InitiativeStageKey, period?: PeriodSettings): InitiativeStageData => {
   const now = new Date();
@@ -539,6 +547,7 @@ export const InitiativeProfile = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [changeLog, setChangeLog] = useState<InitiativeEventEntry[]>([]);
   const [isLogLoading, setIsLogLoading] = useState(false);
@@ -695,6 +704,8 @@ export const InitiativeProfile = ({
     );
   const planValueStepTaskId = planValueStepTask?.id ?? null;
   const stageRounds = stageGateKey && selectedWorkstream ? selectedWorkstream.gates[stageGateKey]?.length ?? 0 : 0;
+  const submitChecklistItems = submitChecklistByStage[selectedStage] ?? ['Placeholder checklist item for this gate'];
+  const selectedStageLabel = initiativeStageLabels[selectedStage] ?? selectedStage.toUpperCase();
   const canSubmitStage = isStageEditable && currentStageState.status !== 'pending';
   const stageStatusLabel = (() => {
     switch (currentStageState.status) {
@@ -970,6 +981,17 @@ export const InitiativeProfile = ({
     }
   };
 
+  const handleSubmitPrompt = () => {
+    if (!initiative || !canSubmitStage) {
+      return;
+    }
+    setIsSubmitConfirmOpen(true);
+  };
+
+  const handleCancelSubmit = () => {
+    setIsSubmitConfirmOpen(false);
+  };
+
   const handleSubmitClick = async () => {
     if (!initiative) {
       return;
@@ -980,6 +1002,7 @@ export const InitiativeProfile = ({
     setIsSubmitting(true);
     const result = await onSubmitStage(initiative.id);
     setIsSubmitting(false);
+    setIsSubmitConfirmOpen(false);
     if (!result.ok) {
       const message =
         result.error === 'stage-pending'
@@ -1282,7 +1305,7 @@ export const InitiativeProfile = ({
             {mode === 'view' && initiative && isStageEditable && !stageLocked && (
               <button
                 className={styles.secondaryButton}
-                onClick={handleSubmitClick}
+                onClick={handleSubmitPrompt}
                 disabled={isSubmitting || !canSubmitStage}
                 type="button"
               >
@@ -1296,15 +1319,31 @@ export const InitiativeProfile = ({
           </div>
         </header>
         {!stageProgressCollapsed && (
-          <StageGatePanel
-            activeStage={draft.activeStage}
-            selectedStage={selectedStage}
-            stages={draft.stages}
-            stageState={draft.stageState}
-            initiativeName={draft.name}
-            onSelectStage={handleStageChange}
-            workstream={selectedWorkstream}
-          />
+          <>
+            <StageGatePanel
+              activeStage={draft.activeStage}
+              selectedStage={selectedStage}
+              stages={draft.stages}
+              stageState={draft.stageState}
+              initiativeName={draft.name}
+              onSelectStage={handleStageChange}
+              workstream={selectedWorkstream}
+            />
+            <div className={styles.stageProgressSummary}>
+              <div className={styles.stageStatusRow} {...buildStageAnchor('status', 'Stage status')}>
+                <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
+                  {stageStatusLabel}
+                </span>
+                <span className={styles.stageStatusMeta}>{stageStatusDetails}</span>
+              </div>
+              {currentStageState.comment && currentStageState.status !== 'draft' && (
+                <div className={styles.stageAlert}>
+                  <strong>Reviewer note:</strong>
+                  <p>{currentStageState.comment}</p>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </section>
 
@@ -1332,19 +1371,6 @@ export const InitiativeProfile = ({
         </header>
         {!stageDetailsCollapsed && (
           <>
-        <div className={styles.stageStatusRow} {...buildStageAnchor('status', 'Stage status')}>
-          <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
-            {stageStatusLabel}
-          </span>
-          <span className={styles.stageStatusMeta}>{stageStatusDetails}</span>
-        </div>
-        {currentStageState.comment && currentStageState.status !== 'draft' && (
-          <div className={styles.stageAlert}>
-            <strong>Reviewer note:</strong>
-            <p>{currentStageState.comment}</p>
-          </div>
-        )}
-
         {stageLocked && <p className={styles.lockedNote}>Complete previous gates before editing this stage.</p>}
 
         <label
@@ -1725,6 +1751,37 @@ export const InitiativeProfile = ({
           </>
         )}
       </footer>
+      {isSubmitConfirmOpen && (
+        <div
+          className={styles.submitOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm stage submission"
+          onClick={handleCancelSubmit}
+        >
+          <div className={styles.submitModal} onClick={(event) => event.stopPropagation()}>
+            <div className={styles.submitHeader}>
+              <h4>Submit {selectedStageLabel}</h4>
+              <p className={styles.submitPrompt}>
+                I confirm that I've provided all required checklist items for the submission for this stage gate:
+              </p>
+            </div>
+            <ul className={styles.submitChecklist}>
+              {submitChecklistItems.map((item, index) => (
+                <li key={`${selectedStage}-${index}`}>{item}</li>
+              ))}
+            </ul>
+            <div className={styles.submitActions}>
+              <button className={styles.cancelSubmitButton} onClick={handleCancelSubmit} type="button" disabled={isSubmitting}>
+                Hold on, don’t submit
+              </button>
+              <button className={styles.confirmSubmitButton} onClick={handleSubmitClick} type="button" disabled={isSubmitting}>
+                {isSubmitting ? 'Submitting...' : 'I confirm, submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <CommentInputPopover
         containerRef={contentRef}
         draft={pendingSelection}

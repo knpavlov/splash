@@ -80,8 +80,8 @@
   min-width: 0;
   padding: 8px 16px 8px 24px;
   border: none;
-  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
-  color: #334155;
+  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+  color: #1f2937;
   text-align: left;
   cursor: pointer;
   clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%, 16px 50%);
@@ -103,7 +103,7 @@
   font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #64748b;
+  color: #475569;
   font-weight: 700;
 }
 
@@ -121,7 +121,7 @@
 /* Active border simulation using drop-shadow filter */
 .active {
   /* Bright Blue Glow for Active Stage */
-  filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.8));
+  filter: drop-shadow(0 8px 18px rgba(14, 165, 233, 0.3));
 }
 
 .complete {
@@ -134,22 +134,22 @@
 }
 
 .upcoming {
-  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-  color: #94a3b8;
+  background: linear-gradient(135deg, #e4e9f0, #cfd7e2);
+  color: #475569;
 }
 
 /* Selected Stage - "Viewing Details" */
 .selected {
-  box-shadow: 0 0 0 4px #f97316, 0 0 0 8px rgba(249, 115, 22, 0.18);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 6px #ea580c, 0 12px 28px rgba(249, 115, 22, 0.22);
 }
 
 /* If both active and selected, combine effects */
 .active.selected {
-  box-shadow: 0 0 0 4px #f97316, 0 0 0 10px rgba(14, 165, 233, 0.35);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 7px #ea580c, 0 0 0 12px rgba(14, 165, 233, 0.45);
 }
 
 .current {
-  box-shadow: 0 0 0 4px #0ea5e9 inset, 0 0 0 7px rgba(14, 165, 233, 0.35);
+  box-shadow: inset 0 0 0 3px #0ea5e9, 0 0 0 4px #e0f2fe, 0 0 0 9px rgba(14, 165, 233, 0.55);
 }
 
 /* Gate styles */
@@ -169,8 +169,8 @@
   width: 100%;
   padding: 8px 8px 8px 16px;
   border: none;
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  color: #475569;
+  background: linear-gradient(135deg, #d5dce6, #bbc6d5);
+  color: #1f2937;
   text-transform: uppercase;
   font-size: 10px;
   font-weight: 600;
@@ -187,7 +187,7 @@
   font-size: 9px;
   letter-spacing: 0.05em;
   font-weight: 700;
-  color: #334155;
+  color: #1f2937;
   line-height: 1.1;
 }
 
@@ -227,23 +227,20 @@
 /* Tooltip */
 .gateTooltip {
   position: fixed;
-  min-width: 200px;
+  min-width: 300px;
+  max-width: 420px;
   background: #1e293b;
   color: #f8fafc;
-  padding: 12px;
+  padding: 14px;
   border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.28);
   z-index: 5000;
   pointer-events: none;
   font-size: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.gateTooltip p {
-  margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .gateTooltip ul {
@@ -252,30 +249,111 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+}
+
+.tooltipHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tooltipTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.tooltipMeta {
+  font-size: 11px;
+  color: rgba(226, 232, 240, 0.75);
 }
 
 .tooltipRoundTitle {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #94a3b8;
+  color: #cbd5e1;
 }
 
 .tooltipApprovers {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 2px;
+  gap: 6px;
+  margin-top: 4px;
 }
 
-.tooltipApprovers div {
+.tooltipApproverRow {
   display: flex;
-  justify-content: space-between;
-  font-size: 11px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.tooltipApprovers span {
-  color: rgba(255, 255, 255, 0.5);
+.approverInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.approverRule {
+  color: rgba(226, 232, 240, 0.65);
   font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.approverStatus {
+  font-size: 11px;
+  font-weight: 700;
+  color: #e2e8f0;
+  white-space: nowrap;
+}
+
+.statusDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+
+.tone-pending {
+  background: #cbd5e1;
+}
+
+.tone-approved {
+  background: #22c55e;
+}
+
+.tone-returned {
+  background: #f59e0b;
+}
+
+.tone-rejected {
+  background: #ef4444;
+}
+
+.tooltipLegend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  margin-top: 4px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #cbd5e1;
 }
