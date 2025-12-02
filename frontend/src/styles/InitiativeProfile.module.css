@@ -179,10 +179,8 @@
 
 .chartRow {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(230px, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
-  overflow-x: auto;
   padding-bottom: 4px;
   align-items: stretch;
 }
@@ -194,9 +192,9 @@
   padding: 12px 12px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-  min-width: 250px;
+  min-width: 260px;
 }
 
 .sparkHeader {
@@ -231,7 +229,7 @@
 .sparkFigure {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   flex: 1;
 }
 
@@ -256,7 +254,7 @@
 
 .sparkline {
   width: 100%;
-  height: 68px;
+  height: 72px;
 }
 
 .roiCard {
