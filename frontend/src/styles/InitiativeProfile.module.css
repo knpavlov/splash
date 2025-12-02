@@ -109,6 +109,13 @@
 .initiativeSummary h2 {
   font-size: 22px;
   line-height: 1.25;
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+  font-size: clamp(18px, 2.3vw, 22px);
 }
 
 .initiativeSummary h3 {
@@ -197,6 +204,33 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+}
+
+.sparkBody {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.sparkAxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 48px;
+}
+
+.sparkAxisLabel {
+  font-size: 11px;
+  color: #cbd5f5;
+  white-space: nowrap;
+}
+
+.sparkFigure {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .sparkSubLabel {

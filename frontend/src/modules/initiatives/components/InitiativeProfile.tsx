@@ -226,9 +226,18 @@ interface SparklineCardProps {
   periodLabel: string;
   values: number[];
   color: string;
+  formatValue?: (value: number) => string;
 }
 
-const SparklineCard = ({ label, value, valueLabel, periodLabel, values, color }: SparklineCardProps) => {
+const SparklineCard = ({
+  label,
+  value,
+  valueLabel,
+  periodLabel,
+  values,
+  color,
+  formatValue
+}: SparklineCardProps) => {
   const width = 180;
   const height = 56;
 
@@ -260,32 +269,40 @@ const SparklineCard = ({ label, value, valueLabel, periodLabel, values, color }:
         </div>
         <div className={styles.sparkValue}>{value}</div>
       </div>
-      <svg
-        className={styles.sparkline}
-        width="100%"
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="none"
-        role="img"
-        aria-label={label}
-      >
-        <defs>
-          <linearGradient id={`spark-gradient-${label.replace(/\s+/g, '-')}`} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.05" />
-          </linearGradient>
-        </defs>
-        <path
-          d={`${path} V ${height} H 0 Z`}
-          fill={`url(#spark-gradient-${label.replace(/\s+/g, '-')})`}
-          stroke="none"
-        />
-        <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
-        {points.map((point, index) => (
-          <circle key={`${label}-${index}`} cx={point.x} cy={point.y} r={2} fill={color} />
-        ))}
-      </svg>
-      <div className={styles.sparkPeriodLabel}>{periodLabel}</div>
+      <div className={styles.sparkBody}>
+        <div className={styles.sparkAxis}>
+          <span className={styles.sparkAxisLabel}>{(formatValue ?? ((v: number) => v.toFixed(0)))(max)}</span>
+          <span className={styles.sparkAxisLabel}>{(formatValue ?? ((v: number) => v.toFixed(0)))(min)}</span>
+        </div>
+        <div className={styles.sparkFigure}>
+          <svg
+            className={styles.sparkline}
+            width="100%"
+            height={height}
+            viewBox={`0 0 ${width} ${height}`}
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label={label}
+          >
+            <defs>
+              <linearGradient id={`spark-gradient-${label.replace(/\s+/g, '-')}`} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+                <stop offset="100%" stopColor={color} stopOpacity="0.05" />
+              </linearGradient>
+            </defs>
+            <path
+              d={`${path} V ${height} H 0 Z`}
+              fill={`url(#spark-gradient-${label.replace(/\s+/g, '-')})`}
+              stroke="none"
+            />
+            <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+            {points.map((point, index) => (
+              <circle key={`${label}-${index}`} cx={point.x} cy={point.y} r={2.4} fill={color} />
+            ))}
+          </svg>
+          <div className={styles.sparkPeriodLabel}>{periodLabel}</div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -1219,6 +1236,7 @@ export const InitiativeProfile = ({
               periodLabel={financialSeries.periodLabel}
               color="#22c55e"
               values={financialSeries.benefits}
+              formatValue={formatImpact}
             />
             <SparklineCard
               label="Impact trend"
@@ -1227,6 +1245,7 @@ export const InitiativeProfile = ({
               periodLabel={financialSeries.periodLabel}
               color="#0ea5e9"
               values={financialSeries.impact}
+              formatValue={formatImpact}
             />
             <SparklineCard
               label="Cost profile"
@@ -1235,6 +1254,7 @@ export const InitiativeProfile = ({
               periodLabel={financialSeries.periodLabel}
               color="#f97316"
               values={financialSeries.costs}
+              formatValue={formatImpact}
             />
             <RoiCard value={formatRoi(roiValue)} periodLabel={financialSeries.periodLabel} />
           </div>
