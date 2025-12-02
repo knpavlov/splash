@@ -258,10 +258,7 @@ const SparklineCard = ({ label, value, valueLabel, periodLabel, values, color }:
           <span className={styles.quickLabel}>{label}</span>
           <span className={styles.sparkSubLabel}>{valueLabel}</span>
         </div>
-        <div className={styles.sparkValueGroup}>
-          <span className={styles.sparkValue}>{value}</span>
-          <span className={styles.sparkPeriodLabel}>{periodLabel}</span>
-        </div>
+        <div className={styles.sparkValue}>{value}</div>
       </div>
       <svg className={styles.sparkline} width={width} height={height} role="img" aria-label={label}>
         <defs>
@@ -280,9 +277,24 @@ const SparklineCard = ({ label, value, valueLabel, periodLabel, values, color }:
           <circle key={`${label}-${index}`} cx={point.x} cy={point.y} r={2} fill={color} />
         ))}
       </svg>
+      <div className={styles.sparkPeriodLabel}>{periodLabel}</div>
     </div>
   );
 };
+
+const RoiCard = ({ value, periodLabel }: { value: string; periodLabel: string }) => (
+  <div className={`${styles.sparkCard} ${styles.roiCard}`}>
+    <div className={styles.sparkHeader}>
+      <div>
+        <span className={styles.quickLabel}>ROI</span>
+        <span className={styles.sparkSubLabel}>Recurring impact vs recurring costs</span>
+      </div>
+      <div className={styles.sparkValue}>{value}</div>
+    </div>
+    <div className={styles.roiPlaceholder}>Run rate view</div>
+    <div className={styles.sparkPeriodLabel}>{periodLabel}</div>
+  </div>
+);
 
 const logFieldLabels: Record<string, string> = {
   name: 'Name',
@@ -990,7 +1002,8 @@ export const InitiativeProfile = ({
       const oneoffBenefits = totalsByKind['oneoff-benefits'][key] ?? 0;
       const oneoffCosts = totalsByKind['oneoff-costs'][key] ?? 0;
       benefitsByMonth[key] = recurringBenefits + (includeOneOffs ? oneoffBenefits : 0);
-      costsByMonth[key] = recurringCosts + (includeOneOffs ? oneoffCosts : 0);
+      const rawCosts = recurringCosts + (includeOneOffs ? oneoffCosts : 0);
+      costsByMonth[key] = Math.abs(rawCosts);
     });
 
     const impactByMonth: Record<string, number> = {};
@@ -1139,25 +1152,6 @@ export const InitiativeProfile = ({
               </div>
             </div>
 
-            <div className={styles.metricStack}>
-              <div className={styles.metricCard} {...buildProfileAnchor('overview.run-rate', 'Run rate impact')}>
-                <p className={styles.quickLabel}>Run rate impact</p>
-                <div className={styles.metricValueRow}>
-                  <span className={styles.metricValue}>{formatImpact(financialSeries.runRates.impact)}</span>
-                  <span className={styles.metricBadge}>{financialSeries.modeLabel}</span>
-                </div>
-                <p className={styles.metricHint}>{financialSeries.oneOffLabel}</p>
-              </div>
-              <div className={styles.metricCard} {...buildProfileAnchor('overview.roi', 'Return on investment')}>
-                <p className={styles.quickLabel}>ROI</p>
-                <div className={styles.metricValueRow}>
-                  <span className={styles.metricValue}>{formatRoi(roiValue)}</span>
-                  <span className={styles.metricBadge}>Run rate</span>
-                </div>
-                <p className={styles.metricHint}>Recurring impact vs recurring costs</p>
-              </div>
-            </div>
-
             <div className={styles.sparkColumn}>
               <div className={styles.sparkControls}>
                 <div className={styles.toggleGroup} role="group" aria-label="Run rate source">
@@ -1196,10 +1190,6 @@ export const InitiativeProfile = ({
                     Recurring only
                   </button>
                 </div>
-                <div className={styles.sparkPeriod}>
-                  <span>Period</span>
-                  <strong>{financialSeries.periodLabel}</strong>
-                </div>
               </div>
               <div className={styles.sparkMeta}>{sparklineMetaLabel}</div>
               <div className={styles.sparklineGrid}>
@@ -1227,6 +1217,7 @@ export const InitiativeProfile = ({
                   color="#f97316"
                   values={financialSeries.costs}
                 />
+                <RoiCard value={formatRoi(roiValue)} periodLabel={financialSeries.periodLabel} />
               </div>
             </div>
           </div>

@@ -58,7 +58,8 @@
 
 .quickInfoGrid {
   display: grid;
-  grid-template-columns: minmax(320px, 1.2fr) minmax(260px, 0.9fr) minmax(380px, 1.1fr);
+  grid-template-columns: minmax(320px, 1fr) minmax(440px, 1.2fr);
+  grid-template-areas: "summary spark";
   gap: 16px;
   align-items: stretch;
 }
@@ -66,6 +67,9 @@
 @media (max-width: 1280px) {
   .quickInfoGrid {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-areas:
+      "summary"
+      "spark";
   }
 }
 
@@ -80,6 +84,7 @@
 }
 
 .initiativeSummary {
+  grid-area: summary;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
@@ -126,56 +131,8 @@
   gap: 4px;
 }
 
-.metricStack {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-  align-items: stretch;
-}
-
-.metricCard {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(148, 163, 184, 0.15);
-  border-radius: 14px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 104px;
-}
-
-.metricValueRow {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.metricValue {
-  font-size: 22px;
-  font-weight: 700;
-  color: #f8fafc;
-}
-
-.metricBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.16);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  font-size: 11px;
-  color: #e2e8f0;
-}
-
-.metricHint {
-  margin: 0;
-  color: #cbd5f5;
-  font-size: 12px;
-}
-
 .sparkColumn {
+  grid-area: spark;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -186,7 +143,7 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .toggleGroup {
@@ -218,30 +175,16 @@
   border: 1px solid rgba(59, 130, 246, 0.6);
 }
 
-.sparkPeriod {
-  margin-left: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  color: #cbd5f5;
-  font-size: 12px;
-}
-
-.sparkPeriod strong {
-  color: #f8fafc;
-  font-size: 13px;
-}
-
 .sparkMeta {
-  text-align: right;
+  text-align: left;
   font-size: 12px;
   color: #cbd5f5;
+  padding: 0 4px;
 }
 
 .sparklineGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 10px;
 }
 
@@ -269,14 +212,6 @@
   font-size: 11px;
 }
 
-.sparkValueGroup {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  text-align: right;
-}
-
 .sparkValue {
   font-weight: 700;
   font-size: 18px;
@@ -287,11 +222,23 @@
   color: #cbd5f5;
   font-size: 11px;
   white-space: nowrap;
+  margin-top: 4px;
 }
 
 .sparkline {
   width: 100%;
   height: 48px;
+}
+
+.roiCard {
+  min-height: 150px;
+  justify-content: space-between;
+}
+
+.roiPlaceholder {
+  color: #cbd5f5;
+  font-size: 13px;
+  padding: 8px 4px 0;
 }
 
 .stageMetaGrid {
