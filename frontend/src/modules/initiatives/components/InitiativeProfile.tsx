@@ -238,8 +238,8 @@ const SparklineCard = ({
   color,
   formatValue
 }: SparklineCardProps) => {
-  const width = 180;
-  const height = 56;
+  const width = 200;
+  const height = 68;
 
   const min = values.length ? Math.min(...values) : 0;
   const max = values.length ? Math.max(...values) : 0;

@@ -191,12 +191,12 @@
   background: rgba(15, 23, 42, 0.45);
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 14px;
-  padding: 12px;
+  padding: 12px 12px 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
-  min-width: 230px;
+  min-width: 250px;
 }
 
 .sparkHeader {
@@ -208,9 +208,9 @@
 
 .sparkBody {
   display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 8px;
+  grid-template-columns: 42px 1fr;
+  align-items: stretch;
+  gap: 6px;
 }
 
 .sparkAxis {
@@ -218,7 +218,8 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 6px;
-  min-width: 48px;
+  min-width: 42px;
+  padding-top: 2px;
 }
 
 .sparkAxisLabel {
@@ -230,7 +231,8 @@
 .sparkFigure {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  flex: 1;
 }
 
 .sparkSubLabel {
@@ -254,7 +256,7 @@
 
 .sparkline {
   width: 100%;
-  height: 56px;
+  height: 68px;
 }
 
 .roiCard {
