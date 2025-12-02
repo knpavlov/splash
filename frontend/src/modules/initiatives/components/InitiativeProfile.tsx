@@ -229,8 +229,8 @@ interface SparklineCardProps {
 }
 
 const SparklineCard = ({ label, value, valueLabel, periodLabel, values, color }: SparklineCardProps) => {
-  const width = 120;
-  const height = 48;
+  const width = 180;
+  const height = 56;
 
   const min = values.length ? Math.min(...values) : 0;
   const max = values.length ? Math.max(...values) : 0;
@@ -260,7 +260,15 @@ const SparklineCard = ({ label, value, valueLabel, periodLabel, values, color }:
         </div>
         <div className={styles.sparkValue}>{value}</div>
       </div>
-      <svg className={styles.sparkline} width={width} height={height} role="img" aria-label={label}>
+      <svg
+        className={styles.sparkline}
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={label}
+      >
         <defs>
           <linearGradient id={`spark-gradient-${label.replace(/\s+/g, '-')}`} x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity="0.35" />
@@ -983,8 +991,7 @@ export const InitiativeProfile = ({
       endYear: periodSettings.periodYear,
       endMonth: periodSettings.periodMonth
     });
-    const windowMonths = months.slice(-12);
-    const monthKeys = windowMonths.map((month) => month.key);
+    const monthKeys = months.map((month) => month.key);
     const totalsByKind = initiativeFinancialKinds.reduce(
       (acc, kind) => {
         acc[kind] =
@@ -1015,11 +1022,22 @@ export const InitiativeProfile = ({
     const costs = monthKeys.map((key) => costsByMonth[key] ?? 0);
     const impact = monthKeys.map((key) => impactByMonth[key] ?? 0);
 
+    const lastValueIndex = monthKeys.reduce((idx, key, index) => {
+      const hasValue =
+        Math.abs(benefitsByMonth[key] ?? 0) > 0 ||
+        Math.abs(costsByMonth[key] ?? 0) > 0 ||
+        Math.abs(impactByMonth[key] ?? 0) > 0;
+      return hasValue ? index : idx;
+    }, -1);
+    const endIndex = lastValueIndex >= 0 ? lastValueIndex : monthKeys.length - 1;
+    const startIndex = Math.max(0, endIndex - 11);
+    const runRateKeys = monthKeys.slice(startIndex, endIndex + 1);
+
     const periodLabel =
-      windowMonths.length >= 2
-        ? `${windowMonths[0].label} ${windowMonths[0].year} – ${windowMonths[windowMonths.length - 1].label} ${windowMonths[windowMonths.length - 1].year}`
-        : windowMonths.length === 1
-          ? `${windowMonths[0].label} ${windowMonths[0].year}`
+      months.length >= 2
+        ? `${months[0].label} ${months[0].year} – ${months[months.length - 1].label} ${months[months.length - 1].year}`
+        : months.length === 1
+          ? `${months[0].label} ${months[0].year}`
           : 'Awaiting financial data';
 
     return {
@@ -1027,9 +1045,9 @@ export const InitiativeProfile = ({
       costs,
       impact,
       runRates: {
-        benefits: calculateRunRate(monthKeys, benefitsByMonth),
-        costs: calculateRunRate(monthKeys, costsByMonth),
-        impact: calculateRunRate(monthKeys, impactByMonth)
+        benefits: calculateRunRate(runRateKeys, benefitsByMonth),
+        costs: calculateRunRate(runRateKeys, costsByMonth),
+        impact: calculateRunRate(runRateKeys, impactByMonth)
       },
       totals: {
         benefits: benefits.reduce((acc, value) => acc + value, 0),
@@ -1136,7 +1154,8 @@ export const InitiativeProfile = ({
           </div>
         </div>
         <div className={styles.quickInfoCard}>
-          <div className={styles.quickInfoGrid}>
+        <div className={styles.quickInfoGrid}>
+          <div className={styles.quickInfoTop}>
             <div className={styles.initiativeSummary}>
               <div {...buildProfileAnchor('overview.name', 'Initiative name')}>
                 <p className={styles.quickLabel}>Initiative</p>
@@ -1151,76 +1170,75 @@ export const InitiativeProfile = ({
                 <h3>{formatDate(l4Date)}</h3>
               </div>
             </div>
-
-            <div className={styles.sparkColumn}>
-              <div className={styles.sparkControls}>
-                <div className={styles.toggleGroup} role="group" aria-label="Run rate source">
-                  <button
-                    className={seriesMode === 'plan' ? styles.toggleButtonActive : styles.toggleButton}
-                    type="button"
-                    onClick={() => setSeriesMode('plan')}
-                    aria-pressed={seriesMode === 'plan'}
-                  >
-                    Plan
-                  </button>
-                  <button
-                    className={seriesMode === 'actuals' ? styles.toggleButtonActive : styles.toggleButton}
-                    type="button"
-                    onClick={() => setSeriesMode('actuals')}
-                    aria-pressed={seriesMode === 'actuals'}
-                  >
-                    Actuals
-                  </button>
-                </div>
-                <div className={styles.toggleGroup} role="group" aria-label="One-off inclusion toggle">
-                  <button
-                    className={includeOneOffs ? styles.toggleButtonActive : styles.toggleButton}
-                    type="button"
-                    onClick={() => setIncludeOneOffs(true)}
-                    aria-pressed={includeOneOffs}
-                  >
-                    With one-offs
-                  </button>
-                  <button
-                    className={!includeOneOffs ? styles.toggleButtonActive : styles.toggleButton}
-                    type="button"
-                    onClick={() => setIncludeOneOffs(false)}
-                    aria-pressed={!includeOneOffs}
-                  >
-                    Recurring only
-                  </button>
-                </div>
+            <div className={styles.sparkControls}>
+              <div className={styles.toggleGroup} role="group" aria-label="Run rate source">
+                <button
+                  className={seriesMode === 'plan' ? styles.toggleButtonActive : styles.toggleButton}
+                  type="button"
+                  onClick={() => setSeriesMode('plan')}
+                  aria-pressed={seriesMode === 'plan'}
+                >
+                  Plan
+                </button>
+                <button
+                  className={seriesMode === 'actuals' ? styles.toggleButtonActive : styles.toggleButton}
+                  type="button"
+                  onClick={() => setSeriesMode('actuals')}
+                  aria-pressed={seriesMode === 'actuals'}
+                >
+                  Actuals
+                </button>
+              </div>
+              <div className={styles.toggleGroup} role="group" aria-label="One-off inclusion toggle">
+                <button
+                  className={includeOneOffs ? styles.toggleButtonActive : styles.toggleButton}
+                  type="button"
+                  onClick={() => setIncludeOneOffs(true)}
+                  aria-pressed={includeOneOffs}
+                >
+                  With one-offs
+                </button>
+                <button
+                  className={!includeOneOffs ? styles.toggleButtonActive : styles.toggleButton}
+                  type="button"
+                  onClick={() => setIncludeOneOffs(false)}
+                  aria-pressed={!includeOneOffs}
+                >
+                  Recurring only
+                </button>
               </div>
               <div className={styles.sparkMeta}>{sparklineMetaLabel}</div>
-              <div className={styles.sparklineGrid}>
-                <SparklineCard
-                  label="Benefits trend"
-                  value={formatImpact(financialSeries.runRates.benefits)}
-                  valueLabel="12m run rate"
-                  periodLabel={financialSeries.periodLabel}
-                  color="#22c55e"
-                  values={financialSeries.benefits}
-                />
-                <SparklineCard
-                  label="Impact trend"
-                  value={formatImpact(financialSeries.runRates.impact)}
-                  valueLabel="12m run rate"
-                  periodLabel={financialSeries.periodLabel}
-                  color="#0ea5e9"
-                  values={financialSeries.impact}
-                />
-                <SparklineCard
-                  label="Cost profile"
-                  value={formatImpact(financialSeries.runRates.costs)}
-                  valueLabel="12m run rate"
-                  periodLabel={financialSeries.periodLabel}
-                  color="#f97316"
-                  values={financialSeries.costs}
-                />
-                <RoiCard value={formatRoi(roiValue)} periodLabel={financialSeries.periodLabel} />
-              </div>
             </div>
           </div>
+
+          <div className={styles.chartRow}>
+            <SparklineCard
+              label="Benefits trend"
+              value={formatImpact(financialSeries.runRates.benefits)}
+              valueLabel="12m run rate"
+              periodLabel={financialSeries.periodLabel}
+              color="#22c55e"
+              values={financialSeries.benefits}
+            />
+            <SparklineCard
+              label="Impact trend"
+              value={formatImpact(financialSeries.runRates.impact)}
+              valueLabel="12m run rate"
+              periodLabel={financialSeries.periodLabel}
+              color="#0ea5e9"
+              values={financialSeries.impact}
+            />
+            <SparklineCard
+              label="Cost profile"
+              value={formatImpact(financialSeries.runRates.costs)}
+              valueLabel="12m run rate"
+              periodLabel={financialSeries.periodLabel}
+              color="#f97316"
+              values={financialSeries.costs}
+            />
+            <RoiCard value={formatRoi(roiValue)} periodLabel={financialSeries.periodLabel} />
+          </div>
+        </div>
         </div>
 
       <section className={styles.cardSection} {...buildProfileAnchor('stage-gates', 'Stage progression')}>
