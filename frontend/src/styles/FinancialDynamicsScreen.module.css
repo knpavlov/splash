@@ -65,16 +65,31 @@
 }
 
 .controls {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   align-items: flex-end;
+}
+
+.filtersRow {
+  gap: 8px;
+}
+
+.stageControls {
+  align-items: flex-start;
+}
+
+.wideControl {
+  flex: 1 1 100% !important;
+  min-width: 100%;
 }
 
 .controlGroup {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 150px;
+  flex: 0 1 180px;
 }
 
 .controlLabel {
@@ -86,43 +101,53 @@
 .controlGroup select,
 .controlGroup input[type='search'],
 .dropdownTrigger {
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid #cbd5e1;
   background: #fff;
   color: #0f172a;
-  font-size: 14px;
+  font-size: 13px;
+  width: 100%;
 }
 
-.segmented {
+.toggleGroup {
   display: inline-flex;
-  border: 1px solid #cbd5e1;
+  flex-wrap: wrap;
+  align-self: flex-start;
+  gap: 6px;
+  padding: 4px;
   border-radius: 12px;
-  overflow: hidden;
+  border: 1px solid #cbd5e1;
   background: #fff;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
 }
 
-.segmented button {
+.toggleButton {
   border: none;
-  padding: 8px 12px;
   background: transparent;
+  color: #475569;
+  padding: 6px 10px;
+  border-radius: 10px;
   cursor: pointer;
-  color: #334155;
+  font-weight: 600;
+  font-size: 13px;
 }
 
-.segmentActive {
+.toggleButtonActive {
   background: #0f172a;
   color: #fff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
 }
 
 .checkboxControl {
   flex-direction: row;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid #cbd5e1;
   background: #fff;
+  flex: 0 0 auto;
 }
 
 .pillRow {
@@ -161,8 +186,10 @@
 
 .dropdownTrigger {
   width: 100%;
+  min-width: 180px;
   text-align: left;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .dropdownPanel {

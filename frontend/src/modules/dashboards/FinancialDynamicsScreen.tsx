@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/FinancialDynamicsScreen.module.css';
-import { useFinancialsState, useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
+import { useFinancialsState, useInitiativesState, usePlanSettingsState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { FinancialLineItem } from '../../shared/types/financials';
 import {
   initiativeFinancialKinds,
@@ -20,6 +20,7 @@ import {
   parseMonthKey
 } from '../../shared/utils/financialMath';
 import { ChartMonthStack, ChartSegment, PlanVsActualChart } from '../initiatives/components/FinancialEditor';
+import { calculateRunRate } from '../initiatives/components/financials.helpers';
 
 type ViewMode = 'months' | 'quarters' | 'calendar' | 'fiscal';
 type BaseMode = 'zero' | 'baseline';
@@ -47,8 +48,8 @@ interface LineSeries {
   line: FinancialLineItem;
   plan: ChartMonthStack[];
   actual: ChartMonthStack[];
-  lastActual: number;
-  lastPlan: number;
+  actualRunRate: number;
+  planRunRate: number;
   delta: number;
   maxAbs: number;
 }
@@ -60,8 +61,8 @@ interface KpiSeries {
   baseline: number;
   plan: ChartMonthStack[];
   actual: ChartMonthStack[];
-  lastActual: number;
-  lastPlan: number;
+  actualRunRate: number;
+  planRunRate: number;
   delta: number;
   maxAbs: number;
 }
@@ -94,6 +95,36 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 });
 
 const formatCurrency = (value: number) => currencyFormatter.format(Math.round(value || 0));
+
+const buildMonthKey = (year: number, month: number) => `${year}-${String(month).padStart(2, '0')}`;
+
+const extendMonthsToPeriod = (
+  months: { year: number; month: number }[],
+  period: { periodMonth: number; periodYear: number }
+) => {
+  if (!months.length) {
+    return months;
+  }
+  const start = new Date(months[0].year, months[0].month - 1, 1);
+  const targetMonth = Math.min(12, Math.max(1, Math.trunc(period.periodMonth ?? 0)));
+  const targetYear = Math.max(2000, Math.trunc(period.periodYear ?? 0));
+  const hasTarget = Number.isFinite(period.periodMonth) && Number.isFinite(period.periodYear);
+  const last = new Date(months[months.length - 1].year, months[months.length - 1].month - 1, 1);
+  const target = hasTarget ? new Date(targetYear, targetMonth - 1, 1) : null;
+  const end = target && target.getTime() > last.getTime() ? target : last;
+  const result: { year: number; month: number }[] = [];
+  const cursor = new Date(start);
+  let guard = 0;
+  while (cursor.getTime() <= end.getTime() && guard < 480) {
+    result.push({ year: cursor.getFullYear(), month: cursor.getMonth() + 1 });
+    cursor.setMonth(cursor.getMonth() + 1);
+    guard += 1;
+  }
+  return result;
+};
+
+const applyDisplayEffect = (line: FinancialLineItem, value: number) =>
+  line.nature === 'cost' ? -value : value;
 
 const buildChildMap = (lines: FinancialLineItem[]) => {
   const map = new Map<string, string[]>();
@@ -362,6 +393,7 @@ export const FinancialDynamicsScreen = () => {
   const { blueprint, loading: blueprintLoading, error: blueprintError, refresh: refreshBlueprint } = useFinancialsState();
   const { list: initiatives } = useInitiativesState();
   const { list: workstreams } = useWorkstreamsState();
+  const { periodSettings } = usePlanSettingsState();
   const [settings, setSettings] = useState<PersistedSettings>(() => loadSettings());
   const [workstreamMenuOpen, setWorkstreamMenuOpen] = useState(false);
   const [breakdown, setBreakdown] = useState<BreakdownState | null>(null);
@@ -447,16 +479,23 @@ export const FinancialDynamicsScreen = () => {
         Object.keys(kpi.actuals ?? {}).forEach((key) => keys.add(key));
       });
     });
-    return Array.from(keys)
+    const parsed = Array.from(keys)
       .map((key) => parseMonthKey(key))
       .filter((value): value is NonNullable<ReturnType<typeof parseMonthKey>> => Boolean(value))
       .sort((a, b) => (a.year === b.year ? a.month - b.month : a.year - b.year))
-      .map((month, index) => ({
-        ...month,
-        label: new Date(month.year, month.month - 1, 1).toLocaleString('en-US', { month: 'short' }),
-        index
-      }));
-  }, [blueprint, filteredInitiatives]);
+      .map((month) => ({ year: month.year, month: month.month }));
+    if (!parsed.length) {
+      return [];
+    }
+    const expanded = extendMonthsToPeriod(parsed, periodSettings);
+    return expanded.map((month, index) => ({
+      key: buildMonthKey(month.year, month.month),
+      label: new Date(month.year, month.month - 1, 1).toLocaleString('en-US', { month: 'short' }),
+      year: month.year,
+      month: month.month,
+      index
+    }));
+  }, [blueprint, filteredInitiatives, periodSettings]);
 
   const monthKeys = useMemo(() => monthDescriptors.map((month) => month.key), [monthDescriptors]);
 
@@ -618,21 +657,23 @@ export const FinancialDynamicsScreen = () => {
       const buildStack = (bucket: ChartBucket, initiativeValue: number, label: string, color: string): ChartMonthStack => {
         const baseValue = settings.baseMode === 'baseline' ? sumForPeriod(baseRecord, bucket.monthKeys) : 0;
         const segments: ChartSegment[] = [];
-        if (settings.baseMode === 'baseline' && baseValue) {
+        const baseDisplay = applyDisplayEffect(line, baseValue);
+        const initiativeDisplay = applyDisplayEffect(line, initiativeValue);
+        if (settings.baseMode === 'baseline' && baseDisplay) {
           segments.push({
-            value: Math.abs(baseValue),
+            value: Math.abs(baseDisplay),
             color: baseColor,
             label: 'Base P&L',
-            rawValue: baseValue,
+            rawValue: baseDisplay,
             kind: 'base'
           });
         }
-        if (initiativeValue) {
+        if (initiativeDisplay) {
           segments.push({
-            value: Math.abs(initiativeValue),
+            value: Math.abs(initiativeDisplay),
             color,
             label,
-            rawValue: initiativeValue,
+            rawValue: initiativeDisplay,
             kind: 'initiatives'
           });
         }
@@ -655,12 +696,32 @@ export const FinancialDynamicsScreen = () => {
         buildStack(bucket, sumForPeriod(actualRecord, bucket.monthKeys), 'Actual initiatives', actualColor)
       );
 
-      const lastPlan = planStacks.length ? stackNet(planStacks[planStacks.length - 1]) : 0;
-      const lastActual = actualStacks.length ? stackNet(actualStacks[actualStacks.length - 1]) : 0;
-      const delta = lastActual - lastPlan;
+      const withBaseTotals = (record: Record<string, number>) =>
+        monthKeys.reduce((acc, key) => {
+          const baseValue = settings.baseMode === 'baseline' ? baseRecord[key] ?? 0 : 0;
+          acc[key] = (record[key] ?? 0) + baseValue;
+          return acc;
+        }, {} as Record<string, number>);
+
+      const planWithBase = withBaseTotals(planRecord);
+      const actualWithBase = withBaseTotals(actualRecord);
+
+      const planRunRate = calculateRunRate(monthKeys, planWithBase);
+      const actualRunRate = calculateRunRate(monthKeys, actualWithBase);
+      const delta = actualRunRate - planRunRate;
+      const planRunRateDisplay = applyDisplayEffect(line, planRunRate);
+      const actualRunRateDisplay = applyDisplayEffect(line, actualRunRate);
       const maxAbs = Math.max(netAbsMax(planStacks), netAbsMax(actualStacks));
 
-      return { line, plan: planStacks, actual: actualStacks, lastActual, lastPlan, delta, maxAbs };
+      return {
+        line,
+        plan: planStacks,
+        actual: actualStacks,
+        actualRunRate: actualRunRateDisplay,
+        planRunRate: planRunRateDisplay,
+        delta,
+        maxAbs
+      };
     });
   }, [blueprint, buckets, monthKeys, baseValueMap, planValueMap, actualValueMap, settings.baseMode]);
 
@@ -687,9 +748,9 @@ export const FinancialDynamicsScreen = () => {
         return Math.abs(b.delta) - Math.abs(a.delta);
       }
       if (settings.sortMode === 'impact-asc') {
-        return Math.abs(a.lastActual) - Math.abs(b.lastActual);
+        return Math.abs(a.actualRunRate) - Math.abs(b.actualRunRate);
       }
-      return Math.abs(b.lastActual) - Math.abs(a.lastActual);
+      return Math.abs(b.actualRunRate) - Math.abs(a.actualRunRate);
     });
   }, [series, settings.query, settings.hideZeros, settings.sortMode]);
 
@@ -698,15 +759,15 @@ export const FinancialDynamicsScreen = () => {
       return [];
     }
     return kpiAggregates.map((kpi) => {
+      const baselineValue = settings.baseMode === 'baseline' ? kpi.baseline : 0;
       const buildStack = (bucket: ChartBucket, value: number, label: string, color: string): ChartMonthStack => {
-        const baseValue = settings.baseMode === 'baseline' ? kpi.baseline : 0;
         const segments: ChartSegment[] = [];
-        if (settings.baseMode === 'baseline' && baseValue) {
+        if (settings.baseMode === 'baseline' && baselineValue) {
           segments.push({
-            value: Math.abs(baseValue),
+            value: Math.abs(baselineValue),
             color: baseColor,
             label: 'Baseline',
-            rawValue: baseValue,
+            rawValue: baselineValue,
             kind: 'base'
           });
         }
@@ -736,13 +797,29 @@ export const FinancialDynamicsScreen = () => {
       const actualStacks = buckets.map((bucket) =>
         buildStack(bucket, sumForPeriod(kpi.actual, bucket.monthKeys), 'Actual KPI', actualColor)
       );
-      const lastPlan = planStacks.length ? stackNet(planStacks[planStacks.length - 1]) : 0;
-      const lastActual = actualStacks.length ? stackNet(actualStacks[actualStacks.length - 1]) : 0;
-      const delta = lastActual - lastPlan;
+      const withBaselineTotals = (record: Record<string, number>) =>
+        monthKeys.reduce((acc, key) => {
+          acc[key] = (record[key] ?? 0) + baselineValue;
+          return acc;
+        }, {} as Record<string, number>);
+      const planRunRate = calculateRunRate(monthKeys, withBaselineTotals(kpi.plan));
+      const actualRunRate = calculateRunRate(monthKeys, withBaselineTotals(kpi.actual));
+      const delta = actualRunRate - planRunRate;
       const maxAbs = Math.max(netAbsMax(planStacks), netAbsMax(actualStacks));
-      return { key: kpi.key, name: kpi.name, unit: kpi.unit, baseline: kpi.baseline, plan: planStacks, actual: actualStacks, lastActual, lastPlan, delta, maxAbs };
+      return {
+        key: kpi.key,
+        name: kpi.name,
+        unit: kpi.unit,
+        baseline: kpi.baseline,
+        plan: planStacks,
+        actual: actualStacks,
+        actualRunRate,
+        planRunRate,
+        delta,
+        maxAbs
+      };
     });
-  }, [buckets, kpiAggregates, settings.baseMode]);
+  }, [buckets, kpiAggregates, settings.baseMode, monthKeys]);
 
   const filteredKpiSeries = useMemo(() => {
     const query = settings.query.trim().toLowerCase();
@@ -767,9 +844,9 @@ export const FinancialDynamicsScreen = () => {
         return Math.abs(b.delta) - Math.abs(a.delta);
       }
       if (settings.sortMode === 'impact-asc') {
-        return Math.abs(a.lastActual) - Math.abs(b.lastActual);
+        return Math.abs(a.actualRunRate) - Math.abs(b.actualRunRate);
       }
-      return Math.abs(b.lastActual) - Math.abs(a.lastActual);
+      return Math.abs(b.actualRunRate) - Math.abs(a.actualRunRate);
     });
   }, [kpiSeries, settings.query, settings.hideZeros, settings.sortMode]);
 
@@ -837,12 +914,13 @@ export const FinancialDynamicsScreen = () => {
         if (!breakdownResult.rows.length) {
           return;
         }
+        const normalizeValue = (value: number) => (line.nature === 'cost' ? Math.abs(value) : value);
         setBreakdown({
           bucketLabel: `${bucket.label} ${bucket.year}`,
           mode: payload.dataset,
           lineName: line.name,
-          total: breakdownResult.total,
-          rows: breakdownResult.rows
+          total: normalizeValue(breakdownResult.total),
+          rows: breakdownResult.rows.map((row) => ({ ...row, value: normalizeValue(row.value) }))
         });
       },
     [buckets, buildBucketBreakdown]
@@ -914,24 +992,18 @@ export const FinancialDynamicsScreen = () => {
         </div>
       </header>
 
-      <div className={styles.controls}>
+      <div className={`${styles.controls} ${styles.filtersRow}`}>
         <div className={styles.controlGroup}>
           <span className={styles.controlLabel}>Timeline</span>
-          <div className={styles.segmented}>
+          <div className={styles.toggleGroup}>
             {(['months', 'quarters', 'calendar', 'fiscal'] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
                 type="button"
-                className={settings.viewMode === mode ? styles.segmentActive : ''}
+                className={`${styles.toggleButton} ${settings.viewMode === mode ? styles.toggleButtonActive : ''}`}
                 onClick={() => setSettings((prev) => ({ ...prev, viewMode: mode }))}
               >
-                {mode === 'months'
-                  ? 'Months'
-                  : mode === 'quarters'
-                  ? 'Quarters'
-                  : mode === 'calendar'
-                  ? 'Calendar years'
-                  : 'Fiscal years'}
+                {mode === 'months' ? 'Months' : mode === 'quarters' ? 'Quarters' : mode === 'calendar' ? 'CY' : 'FY'}
               </button>
             ))}
           </div>
@@ -939,77 +1011,20 @@ export const FinancialDynamicsScreen = () => {
 
         <div className={styles.controlGroup}>
           <span className={styles.controlLabel}>Base</span>
-          <div className={styles.segmented}>
+          <div className={styles.toggleGroup}>
             <button
               type="button"
-              className={settings.baseMode === 'zero' ? styles.segmentActive : ''}
+              className={`${styles.toggleButton} ${settings.baseMode === 'zero' ? styles.toggleButtonActive : ''}`}
               onClick={() => setSettings((prev) => ({ ...prev, baseMode: 'zero' }))}
             >
               Zero base
             </button>
             <button
               type="button"
-              className={settings.baseMode === 'baseline' ? styles.segmentActive : ''}
+              className={`${styles.toggleButton} ${settings.baseMode === 'baseline' ? styles.toggleButtonActive : ''}`}
               onClick={() => setSettings((prev) => ({ ...prev, baseMode: 'baseline' }))}
             >
               Add base P&amp;L
-            </button>
-          </div>
-        </div>
-
-        <div className={styles.controlGroup}>
-          <span className={styles.controlLabel}>Sort</span>
-          <select
-            value={settings.sortMode}
-            onChange={(event) => setSettings((prev) => ({ ...prev, sortMode: event.target.value as SortMode }))}
-          >
-            <option value="impact-desc">Impact (desc)</option>
-            <option value="impact-asc">Impact (asc)</option>
-            <option value="delta">Delta vs plan</option>
-            <option value="name">Name</option>
-          </select>
-        </div>
-
-        <div className={styles.controlGroup}>
-          <span className={styles.controlLabel}>Search</span>
-          <input
-            type="search"
-            placeholder="Line name or code"
-            value={settings.query}
-            onChange={(event) => setSettings((prev) => ({ ...prev, query: event.target.value }))}
-          />
-        </div>
-
-        <label className={`${styles.controlGroup} ${styles.checkboxControl}`}>
-          <input
-            type="checkbox"
-            checked={settings.hideZeros}
-            onChange={(event) => setSettings((prev) => ({ ...prev, hideZeros: event.target.checked }))}
-          />
-          <span>Hide flat lines</span>
-        </label>
-      </div>
-
-      <div className={styles.controls}>
-        <div className={styles.controlGroup}>
-          <span className={styles.controlLabel}>Stage gates</span>
-          <div className={styles.pillRow}>
-            {initiativeStageKeys.map((key) => (
-              <button
-                key={key}
-                type="button"
-                className={`${styles.pill} ${settings.stageKeys.includes(key) ? styles.pillActive : ''}`}
-                onClick={() => toggleStage(key)}
-              >
-                {initiativeStageLabels[key]}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={styles.linkButton}
-              onClick={() => setSettings((prev) => ({ ...prev, stageKeys: [...initiativeStageKeys] }))}
-            >
-              Select all
             </button>
           </div>
         </div>
@@ -1050,6 +1065,63 @@ export const FinancialDynamicsScreen = () => {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+
+        <div className={styles.controlGroup}>
+          <span className={styles.controlLabel}>Sort</span>
+          <select
+            value={settings.sortMode}
+            onChange={(event) => setSettings((prev) => ({ ...prev, sortMode: event.target.value as SortMode }))}
+          >
+            <option value="impact-desc">Impact (desc)</option>
+            <option value="impact-asc">Impact (asc)</option>
+            <option value="delta">Delta vs plan</option>
+            <option value="name">Name</option>
+          </select>
+        </div>
+
+        <div className={styles.controlGroup}>
+          <span className={styles.controlLabel}>Search</span>
+          <input
+            type="search"
+            placeholder="Line name"
+            value={settings.query}
+            onChange={(event) => setSettings((prev) => ({ ...prev, query: event.target.value }))}
+          />
+        </div>
+
+        <label className={`${styles.controlGroup} ${styles.checkboxControl}`}>
+          <input
+            type="checkbox"
+            checked={settings.hideZeros}
+            onChange={(event) => setSettings((prev) => ({ ...prev, hideZeros: event.target.checked }))}
+          />
+          <span>Hide flat lines</span>
+        </label>
+      </div>
+
+      <div className={`${styles.controls} ${styles.stageControls}`}>
+        <div className={`${styles.controlGroup} ${styles.wideControl}`}>
+          <span className={styles.controlLabel}>Stage gates</span>
+          <div className={styles.pillRow}>
+            {initiativeStageKeys.map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={`${styles.pill} ${settings.stageKeys.includes(key) ? styles.pillActive : ''}`}
+                onClick={() => toggleStage(key)}
+              >
+                {initiativeStageLabels[key]}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={styles.linkButton}
+              onClick={() => setSettings((prev) => ({ ...prev, stageKeys: [...initiativeStageKeys] }))}
+            >
+              Select all
+            </button>
           </div>
         </div>
       </div>
@@ -1104,7 +1176,7 @@ export const FinancialDynamicsScreen = () => {
                 className={`${styles.pinButton} ${isPinned ? styles.pinActive : ''}`}
                 onClick={() => toggleFavorite(key)}
               >
-                {isPinned ? '★' : '☆'}
+                {isPinned ? '?' : '?'}
               </button>
             );
 
@@ -1113,7 +1185,6 @@ export const FinancialDynamicsScreen = () => {
                 <div className={styles.lineInfo}>
                   <div className={styles.lineHeaderRow}>
                     <div>
-                      <p className={styles.lineCode}>{entry.line.code}</p>
                       <h3>{entry.line.name}</h3>
                       <p className={styles.lineMeta}>
                         {entry.line.nature === 'summary'
@@ -1121,7 +1192,7 @@ export const FinancialDynamicsScreen = () => {
                           : entry.line.nature === 'revenue'
                           ? 'Revenue'
                           : 'Cost'}{' '}
-                        •{' '}
+                        |{' '}
                         {entry.line.computation === 'manual'
                           ? 'Manual'
                           : entry.line.computation === 'children'
@@ -1134,15 +1205,15 @@ export const FinancialDynamicsScreen = () => {
 
                   <div className={styles.lineStatsGrid}>
                     <div>
-                      <span className={styles.statLabel}>Actual ({latestBucket?.label} {latestBucket?.year})</span>
-                      <strong>{formatCurrency(entry.lastActual)}</strong>
+                      <span className={styles.statLabel}>Actual (12m run rate)</span>
+                      <strong>{formatCurrency(entry.actualRunRate)}</strong>
                     </div>
                     <div>
-                      <span className={styles.statLabel}>Plan</span>
-                      <strong>{formatCurrency(entry.lastPlan)}</strong>
+                      <span className={styles.statLabel}>Plan (12m run rate)</span>
+                      <strong>{formatCurrency(entry.planRunRate)}</strong>
                     </div>
                     <div>
-                    <span className={styles.statLabel}>Δ vs plan</span>
+                      <span className={styles.statLabel}>Delta vs plan</span>
                       <strong className={entry.delta > 0 ? styles.deltaPositive : entry.delta < 0 ? styles.deltaNegative : ''}>
                         {formatCurrency(entry.delta)}
                       </strong>
@@ -1198,15 +1269,15 @@ export const FinancialDynamicsScreen = () => {
 
                   <div className={styles.lineStatsGrid}>
                     <div>
-                      <span className={styles.statLabel}>Actual ({latestBucket?.label} {latestBucket?.year})</span>
-                      <strong>{formatKpiValue(entry.lastActual)}</strong>
+                      <span className={styles.statLabel}>Actual (12m run rate)</span>
+                      <strong>{formatKpiValue(entry.actualRunRate)}</strong>
                     </div>
                     <div>
-                      <span className={styles.statLabel}>Plan</span>
-                      <strong>{formatKpiValue(entry.lastPlan)}</strong>
+                      <span className={styles.statLabel}>Plan (12m run rate)</span>
+                      <strong>{formatKpiValue(entry.planRunRate)}</strong>
                     </div>
                     <div>
-                      <span className={styles.statLabel}>Δ vs plan</span>
+                      <span className={styles.statLabel}>Delta vs plan</span>
                       <strong className={entry.delta > 0 ? styles.deltaPositive : entry.delta < 0 ? styles.deltaNegative : ''}>
                         {formatKpiValue(entry.delta)}
                       </strong>
@@ -1366,6 +1437,13 @@ export const FinancialDynamicsScreen = () => {
     </section>
   );
 };
+
+
+
+
+
+
+
 
 
 
