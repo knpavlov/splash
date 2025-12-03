@@ -144,6 +144,7 @@ export const GeneralSettingsScreen = () => {
   const [statusSettings, setStatusSettings] = useState<StatusReportSettings>(statusReportSettings);
   const [periodForm, setPeriodForm] = useState<PeriodSettings>(periodSettings);
   const [roleOptionDrafts, setRoleOptionDrafts] = useState<WorkstreamRoleOption[]>(roleOptions);
+  const [rolesCollapsed, setRolesCollapsed] = useState(false);
 
   const [snapshotSettings, setSnapshotSettings] = useState<SnapshotSettingsPayload | null>(null);
   const [snapshotForm, setSnapshotForm] = useState<SnapshotFormState>(() => buildFormState(null));
@@ -233,11 +234,12 @@ export const GeneralSettingsScreen = () => {
         if (i !== index) {
           return option;
         }
-        if (field === 'label') {
-          const nextValue = option.value || slugifyRole(value);
-          return { ...option, label: value, value: nextValue };
-        }
-        return { ...option, value };
+        const nextLabel = field === 'label' ? value : option.label;
+        const nextValue =
+          field === 'label'
+            ? slugifyRole(value || option.value || `role-${index + 1}`)
+            : slugifyRole(value || option.label || `role-${index + 1}`);
+        return { ...option, label: nextLabel, value: nextValue };
       })
     );
     setToast(null);
@@ -507,6 +509,63 @@ export const GeneralSettingsScreen = () => {
         {toast && <div className={styles.successBanner}>{toast}</div>}
         {snapshotMessage && <div className={styles.successBanner}>{snapshotMessage}</div>}
       </div>
+
+      <section className={`${styles.card} ${styles.fullWidthCard}`}>
+        <div className={styles.cardHeader}>
+          <div className={styles.cardHeaderLeft}>
+            <p className={styles.cardEyebrow}>Access control</p>
+            <h3 className={styles.cardTitle}>Workstream roles</h3>
+            <p className={styles.cardSubtitle}>Edit the role list used for account assignments and approvers.</p>
+          </div>
+          <div className={styles.cardActions}>
+            <button
+              className={`${styles.collapseButton} ${rolesCollapsed ? styles.collapsed : ''}`}
+              type="button"
+              aria-label={rolesCollapsed ? 'Expand workstream roles' : 'Collapse workstream roles'}
+              onClick={() => setRolesCollapsed((prev) => !prev)}
+            >
+              ▾
+            </button>
+            <button className={styles.secondaryButton} type="button" onClick={handleResetRoleOptions}>
+              Reset to defaults
+            </button>
+            <button className={styles.primaryButton} type="button" onClick={handleSaveRoleOptionList}>
+              Save roles
+            </button>
+          </div>
+        </div>
+
+        {!rolesCollapsed && (
+          <>
+            <div className={styles.roleGrid}>
+              {roleOptionDrafts.map((option, index) => (
+                <div key={`${option.value || 'role'}-${index}`} className={styles.optionRow}>
+                  <input
+                    value={option.label}
+                    onChange={(event) => handleRoleOptionChange(index, 'label', event.target.value)}
+                    className={styles.optionInput}
+                    placeholder="Display label"
+                  />
+                  <button
+                    type="button"
+                    className={styles.removeButton}
+                    onClick={() => handleRemoveRoleOption(index)}
+                    title="Remove role"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className={styles.addRow}>
+              <button className={styles.secondaryButton} type="button" onClick={handleAddRoleOptionRow}>
+                Add role
+              </button>
+            </div>
+          </>
+        )}
+      </section>
 
       <div className={styles.sectionsGrid}>
         <section className={styles.card}>
