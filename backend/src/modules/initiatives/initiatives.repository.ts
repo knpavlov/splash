@@ -47,9 +47,10 @@ export interface ApprovalTaskRow extends InitiativeApprovalRow {
   plan_payload: unknown;
   account_name: string | null;
   account_email: string | null;
-  role_total: number;
-  role_approved: number;
-  role_pending: number;
+  account_role: string | null;
+  round_total: number;
+  round_approved: number;
+  round_pending: number;
 }
 
 const toIsoString = (value: Date | null | undefined) =>
@@ -739,8 +740,7 @@ export class InitiativesRepository {
       conditions.push(`wa.account_id = $${params.length}`);
     }
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const partition =
-      'PARTITION BY wa.initiative_id, wa.stage_key, wa.round_index, wa.role';
+    const partition = 'PARTITION BY wa.initiative_id, wa.stage_key, wa.round_index';
     const result = await postgresPool.query<ApprovalTaskRow>(
       `
         SELECT
@@ -768,13 +768,16 @@ export class InitiativesRepository {
             NULLIF(trim(a.email), '')
           ) AS account_name,
           a.email AS account_email,
-          COUNT(*) OVER (${partition}) AS role_total,
-          COUNT(*) FILTER (WHERE wa.status = 'approved') OVER (${partition}) AS role_approved,
-          COUNT(*) FILTER (WHERE wa.status = 'pending') OVER (${partition}) AS role_pending
+          wra.role AS account_role,
+          COUNT(*) OVER (${partition}) AS round_total,
+          COUNT(*) FILTER (WHERE wa.status = 'approved') OVER (${partition}) AS round_approved,
+          COUNT(*) FILTER (WHERE wa.status = 'pending') OVER (${partition}) AS round_pending
         FROM workstream_initiative_approvals wa
         JOIN workstream_initiatives i ON i.id = wa.initiative_id
         JOIN workstreams w ON w.id = i.workstream_id
         LEFT JOIN accounts a ON a.id = wa.account_id
+        LEFT JOIN workstream_role_assignments wra
+          ON wra.account_id = wa.account_id AND wra.workstream_id = i.workstream_id
         ${whereClause}
         ORDER BY wa.created_at ASC;
       `,

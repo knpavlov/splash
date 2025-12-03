@@ -355,12 +355,16 @@ interface AppStateContextValue {
   workstreams: {
     list: Workstream[];
     roleOptions: WorkstreamRoleOption[];
+    saveRoleOptions: (options: WorkstreamRoleOption[]) => Promise<DomainResult<WorkstreamRoleOption[]>>;
     saveWorkstream: (
       workstream: Workstream,
       expectedVersion: number | null
     ) => Promise<DomainResult<Workstream>>;
     removeWorkstream: (id: string) => Promise<DomainResult<string>>;
     listAssignments: (accountId: string) => Promise<DomainResult<WorkstreamRoleAssignment[]>>;
+    listAssignmentsByWorkstream: (
+      workstreamId: string
+    ) => Promise<DomainResult<WorkstreamRoleAssignment[]>>;
     saveAssignments: (
       accountId: string,
       roles: WorkstreamRoleSelection[]
@@ -1137,6 +1141,22 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     workstreams: {
       list: workstreams,
       roleOptions: workstreamRoleOptions,
+      saveRoleOptions: async (options) => {
+        try {
+          const sanitized = options
+            .map((option) => ({
+              value: option.value.trim(),
+              label: option.label.trim()
+            }))
+            .filter((option) => option.value && option.label);
+          const saved = await workstreamsApi.saveRoleOptions(sanitized);
+          setWorkstreamRoleOptions(saved);
+          return { ok: true, data: saved };
+        } catch (error) {
+          console.error('Failed to save workstream roles:', error);
+          return { ok: false, error: 'unknown' };
+        }
+      },
       saveWorkstream: async (workstream, expectedVersion) => {
         const trimmedId = workstream.id.trim();
         if (!trimmedId) {
@@ -1215,11 +1235,27 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
           console.error('Failed to load workstream roles:', error);
           return { ok: false, error: 'unknown' };
         }
-    },
-    saveAssignments: async (accountId, roles) => {
-      const trimmed = accountId.trim();
-      if (!trimmed) {
-        return { ok: false, error: 'invalid-input' };
+      },
+      listAssignmentsByWorkstream: async (workstreamId) => {
+        const trimmed = workstreamId.trim();
+        if (!trimmed) {
+          return { ok: false, error: 'invalid-input' };
+        }
+        try {
+          const assignments = await workstreamsApi.listAssignmentsByWorkstream(trimmed);
+          return { ok: true, data: assignments };
+        } catch (error) {
+          if (error instanceof ApiError && (error.code === 'not-found' || error.status === 404)) {
+            return { ok: false, error: 'not-found' };
+          }
+          console.error('Failed to load workstream assignments:', error);
+          return { ok: false, error: 'unknown' };
+        }
+      },
+      saveAssignments: async (accountId, roles) => {
+        const trimmed = accountId.trim();
+        if (!trimmed) {
+          return { ok: false, error: 'invalid-input' };
       }
       try {
         const saved = await workstreamsApi.saveAssignments(trimmed, roles);

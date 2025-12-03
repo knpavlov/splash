@@ -5,11 +5,13 @@ import {
   WorkstreamGateKey,
   WorkstreamApprovalRound,
   WorkstreamApproverRequirement,
-  WorkstreamRoleOption
+  WorkstreamRoleAssignment
 } from '../../../shared/types/workstream';
 import styles from '../../../styles/WorkstreamModal.module.css';
 import { WorkstreamGateEditor } from './WorkstreamGateEditor';
 import { generateId } from '../../../shared/ui/generateId';
+import { AccountRecord } from '../../../shared/types/account';
+import { DomainResult } from '../../../shared/types/results';
 
 type ModalFeedback = { type: 'info' | 'error'; text: string } | null;
 
@@ -23,19 +25,21 @@ interface WorkstreamModalProps {
   onClose: () => void;
   feedback: ModalFeedback;
   onFeedbackClear: () => void;
-  roleOptions: WorkstreamRoleOption[];
+  accounts: AccountRecord[];
+  loadAssignments: (workstreamId: string) => Promise<DomainResult<WorkstreamRoleAssignment[]>>;
 }
 
 const gateKeys: WorkstreamGateKey[] = ['l1', 'l2', 'l3', 'l4', 'l5'];
 
 const createEmptyApprover = () => ({
   id: generateId(),
-  role: '',
-  rule: 'any' as const
+  accountId: null as string | null,
+  role: null as string | null
 });
 
 const createEmptyRound = (): WorkstreamApprovalRound => ({
   id: generateId(),
+  rule: 'any',
   approvers: [createEmptyApprover()]
 });
 
@@ -50,11 +54,12 @@ const ensureGates = (value?: WorkstreamGates): WorkstreamGates => {
     return createEmptyGates();
   }
   return gateKeys.reduce<WorkstreamGates>((acc, key) => {
-    acc[key] = value[key]?.map((round) => ({
-      ...round,
-      approvers:
-        round.approvers.length > 0 ? round.approvers : [createEmptyApprover()]
-    })) ?? [];
+    acc[key] =
+      value[key]?.map((round) => ({
+        ...round,
+        rule: round.rule ?? 'any',
+        approvers: round.approvers.length > 0 ? round.approvers : [createEmptyApprover()]
+      })) ?? [];
     return acc;
   }, {} as WorkstreamGates);
 };
@@ -76,17 +81,33 @@ export const WorkstreamModal = ({
   onClose,
   feedback,
   onFeedbackClear,
-  roleOptions
+  accounts,
+  loadAssignments
 }: WorkstreamModalProps) => {
   const [workstream, setWorkstream] = useState<Workstream>(createEmptyWorkstream());
+  const [roleLookup, setRoleLookup] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     if (initialWorkstream) {
       setWorkstream({ ...initialWorkstream, gates: ensureGates(initialWorkstream.gates) });
+      void loadAssignments(initialWorkstream.id).then((result) => {
+        if (result.ok) {
+          const map = new Map<string, string>();
+          result.data.forEach((assignment) => {
+            if (assignment.accountId) {
+              map.set(assignment.accountId, assignment.role);
+            }
+          });
+          setRoleLookup(map);
+        } else {
+          setRoleLookup(new Map());
+        }
+      });
     } else {
       setWorkstream(createEmptyWorkstream());
+      setRoleLookup(new Map());
     }
-  }, [initialWorkstream]);
+  }, [initialWorkstream, loadAssignments]);
 
   const expectedVersion = initialWorkstream ? initialWorkstream.version : null;
 
@@ -95,11 +116,13 @@ export const WorkstreamModal = ({
       const rounds = workstream.gates[key] ?? [];
       acc[key] = rounds.map((round) => ({
         ...round,
+        rule: round.rule ?? 'any',
         approvers:
           round.approvers.length > 0
             ? round.approvers.map((approver) => ({
                 ...approver,
-                role: approver.role.trim()
+                accountId: approver.accountId?.trim() ?? null,
+                role: approver.role ? approver.role.trim() : null
               }))
             : [createEmptyApprover()]
       }));
@@ -171,8 +194,7 @@ export const WorkstreamModal = ({
     gateKey: WorkstreamGateKey,
     roundId: string,
     approverId: string,
-    field: 'role' | 'rule',
-    value: string
+    accountId: string
   ) => {
     updateGate(gateKey, (rounds) =>
       rounds.map((round) =>
@@ -180,19 +202,17 @@ export const WorkstreamModal = ({
           ? {
               ...round,
               approvers: round.approvers.map((approver) =>
-                approver.id === approverId
-                  ? {
-                      ...approver,
-                      [field]:
-                        field === 'rule'
-                          ? (value as WorkstreamApproverRequirement['rule'])
-                          : value
-                    }
-                  : approver
+                approver.id === approverId ? { ...approver, accountId: accountId || null } : approver
               )
             }
           : round
       )
+    );
+  };
+
+  const handleRuleChange = (gateKey: WorkstreamGateKey, roundId: string, rule: WorkstreamApprovalRound['rule']) => {
+    updateGate(gateKey, (rounds) =>
+      rounds.map((round) => (round.id === roundId ? { ...round, rule } : round))
     );
   };
 
@@ -254,15 +274,19 @@ export const WorkstreamModal = ({
               key={gateKey}
               gateKey={gateKey}
               rounds={workstream.gates[gateKey] ?? []}
-              roleOptions={roleOptions}
+              accounts={accounts}
+              roleLookup={roleLookup}
               onAddRound={() => handleAddRound(gateKey)}
               onRemoveRound={(roundId) => handleRemoveRound(gateKey, roundId)}
               onAddApprover={(roundId) => handleAddApprover(gateKey, roundId)}
               onRemoveApprover={(roundId, approverId) =>
                 handleRemoveApprover(gateKey, roundId, approverId)
               }
-              onApproverChange={(roundId, approverId, field, value) =>
-                handleApproverChange(gateKey, roundId, approverId, field, value)
+              onApproverChange={(roundId, approverId, accountId) =>
+                handleApproverChange(gateKey, roundId, approverId, accountId)
+              }
+              onRuleChange={(roundId, rule) =>
+                handleRuleChange(gateKey, roundId, rule)
               }
             />
           ))}

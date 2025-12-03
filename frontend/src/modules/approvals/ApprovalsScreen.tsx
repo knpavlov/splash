@@ -166,9 +166,17 @@ export const ApprovalsScreen = () => {
         </button>
         <div>
           <h2>{selectedTask?.initiativeName}</h2>
-          <p>
-            {selectedTask?.workstreamName} В· {selectedTask?.role}
-          </p>
+          {selectedTask && (
+            <p>
+              {selectedTask.workstreamName} · Round {selectedTask.roundIndex + 1} of {selectedTask.roundCount} ·{' '}
+              {selectedTask.rule === 'all'
+                ? 'All approvers'
+                : selectedTask.rule === 'majority'
+                  ? 'Majority'
+                  : 'Any one'}{' '}
+              · {selectedTask.accountRole || selectedTask.role || 'No role set'}
+            </p>
+          )}
         </div>
         <button className={styles.refreshButton} type="button" onClick={() => loadTasks()}>
           Refresh queue

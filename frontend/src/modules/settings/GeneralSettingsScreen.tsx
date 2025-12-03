@@ -1,6 +1,11 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/GeneralSettingsScreen.module.css';
-import { PeriodSettings, StatusReportSettings, usePlanSettingsState } from '../../app/state/AppStateContext';
+import {
+  PeriodSettings,
+  StatusReportSettings,
+  usePlanSettingsState,
+  useWorkstreamsState
+} from '../../app/state/AppStateContext';
 import { snapshotsApi } from '../snapshots/services/snapshotsApi';
 import {
   ProgramSnapshotDetail,
@@ -9,6 +14,7 @@ import {
   StageColumnKey
 } from '../../shared/types/snapshot';
 import { initiativeStageKeys, initiativeStageLabels } from '../../shared/types/initiative';
+import { WorkstreamRoleOption, defaultWorkstreamRoleOptions } from '../../shared/types/workstream';
 
 const DEFAULT_OPTIONS = ['Standard', 'Value Step', 'Change Management'];
 const VALUE_STEP_LABEL = 'Value Step';
@@ -131,11 +137,13 @@ export const GeneralSettingsScreen = () => {
     statusReportSettings,
     saveStatusReportSettings
   } = usePlanSettingsState();
+  const { roleOptions, saveRoleOptions } = useWorkstreamsState();
   const [draftOptions, setDraftOptions] = useState<string[]>(() => normalizeOptions(milestoneTypes));
   const [newOption, setNewOption] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [statusSettings, setStatusSettings] = useState<StatusReportSettings>(statusReportSettings);
   const [periodForm, setPeriodForm] = useState<PeriodSettings>(periodSettings);
+  const [roleOptionDrafts, setRoleOptionDrafts] = useState<WorkstreamRoleOption[]>(roleOptions);
 
   const [snapshotSettings, setSnapshotSettings] = useState<SnapshotSettingsPayload | null>(null);
   const [snapshotForm, setSnapshotForm] = useState<SnapshotFormState>(() => buildFormState(null));
@@ -161,7 +169,17 @@ export const GeneralSettingsScreen = () => {
     setPeriodForm(periodSettings);
   }, [periodSettings]);
 
+  useEffect(() => {
+    setRoleOptionDrafts(roleOptions);
+  }, [roleOptions]);
+
   const normalizedOptions = useMemo(() => normalizeOptions(draftOptions), [draftOptions]);
+  const slugifyRole = (label: string) =>
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/--+/g, '-');
 
   const updateStatusSetting = <K extends keyof StatusReportSettings>(key: K, value: StatusReportSettings[K]) => {
     setStatusSettings((prev) => ({ ...prev, [key]: value }));
@@ -207,6 +225,50 @@ export const GeneralSettingsScreen = () => {
     setDraftOptions((prev) => [...prev, trimmed]);
     setNewOption('');
     setToast(null);
+  };
+
+  const handleRoleOptionChange = (index: number, field: 'label' | 'value', value: string) => {
+    setRoleOptionDrafts((prev) =>
+      prev.map((option, i) => {
+        if (i !== index) {
+          return option;
+        }
+        if (field === 'label') {
+          const nextValue = option.value || slugifyRole(value);
+          return { ...option, label: value, value: nextValue };
+        }
+        return { ...option, value };
+      })
+    );
+    setToast(null);
+  };
+
+  const handleAddRoleOptionRow = () => {
+    setRoleOptionDrafts((prev) => [
+      ...prev,
+      { label: '', value: `role-${prev.length + 1}-${Date.now().toString(36)}` }
+    ]);
+    setToast(null);
+  };
+
+  const handleRemoveRoleOption = (index: number) => {
+    setRoleOptionDrafts((prev) => prev.filter((_, i) => i !== index));
+    setToast(null);
+  };
+
+  const handleResetRoleOptions = () => {
+    setRoleOptionDrafts([...defaultWorkstreamRoleOptions]);
+    setToast(null);
+  };
+
+  const handleSaveRoleOptionList = async () => {
+    const result = await saveRoleOptions(roleOptionDrafts);
+    if (result.ok) {
+      setRoleOptionDrafts(result.data);
+      setToast('Workstream roles updated.');
+    } else {
+      setToast('Failed to update workstream roles.');
+    }
   };
 
   const loadSnapshotSettings = useCallback(async () => {
@@ -489,6 +551,58 @@ export const GeneralSettingsScreen = () => {
             <button className={styles.secondaryButton} type="button" onClick={handleAdd}>
               Add
             </button>
+          </div>
+        </section>
+
+        <section className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div>
+              <p className={styles.cardEyebrow}>Access control</p>
+              <h3 className={styles.cardTitle}>Workstream roles</h3>
+              <p className={styles.cardSubtitle}>Edit the role list used for account assignments and approvers.</p>
+            </div>
+            <div className={styles.cardActions}>
+              <button className={styles.secondaryButton} type="button" onClick={handleResetRoleOptions}>
+                Reset to defaults
+              </button>
+              <button className={styles.primaryButton} type="button" onClick={handleSaveRoleOptionList}>
+                Save roles
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.optionsGrid}>
+            {roleOptionDrafts.map((option, index) => (
+              <div key={`${option.value || 'role'}-${index}`} className={styles.optionRow}>
+                <input
+                  value={option.label}
+                  onChange={(event) => handleRoleOptionChange(index, 'label', event.target.value)}
+                  className={styles.optionInput}
+                  placeholder="Display label"
+                />
+                <input
+                  value={option.value}
+                  onChange={(event) => handleRoleOptionChange(index, 'value', event.target.value)}
+                  className={styles.optionInput}
+                  placeholder="Value (used internally)"
+                />
+                <button
+                  type="button"
+                  className={styles.removeButton}
+                  onClick={() => handleRemoveRoleOption(index)}
+                  title="Remove role"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className={styles.addRow}>
+            <button className={styles.secondaryButton} type="button" onClick={handleAddRoleOptionRow}>
+              Add role
+            </button>
+            <p className={styles.helpText}>Roles save instantly to keep Account management and approvals in sync.</p>
           </div>
         </section>
 

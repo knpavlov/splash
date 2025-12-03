@@ -7,6 +7,7 @@ import {
   WorkstreamRecord,
   WorkstreamRole,
   WorkstreamRoleAssignmentRecord,
+  WorkstreamRoleOption,
   WorkstreamWriteModel
 } from './workstreams.types.js';
 
@@ -29,34 +30,43 @@ type AssignmentRow = {
   updated_at: Date;
 };
 
-const isApprovalRule = (value: unknown): value is WorkstreamApproverRequirement['rule'] =>
+const isApprovalRule = (value: unknown): value is WorkstreamApprovalRound['rule'] =>
   value === 'any' || value === 'all' || value === 'majority';
 
 const normalizeApprover = (value: unknown): WorkstreamApproverRequirement | null => {
   if (!value || typeof value !== 'object') {
     return null;
   }
-  const source = value as { id?: unknown; role?: unknown; rule?: unknown };
+  const source = value as { id?: unknown; role?: unknown; accountId?: unknown };
   const id = typeof source.id === 'string' && source.id.trim() ? source.id.trim() : randomUUID();
-  const role = typeof source.role === 'string' ? source.role.trim() : '';
-  const rule = isApprovalRule(source.rule) ? source.rule : 'any';
-  if (!role) {
+  const role = typeof source.role === 'string' ? source.role.trim() : null;
+  const accountId = typeof source.accountId === 'string' ? source.accountId.trim() : null;
+  if (!accountId && !role) {
     return null;
   }
-  return { id, role, rule };
+  return { id, accountId, role: role ?? null };
 };
 
 const normalizeRound = (value: unknown): WorkstreamApprovalRound | null => {
   if (!value || typeof value !== 'object') {
     return null;
   }
-  const source = value as { id?: unknown; approvers?: unknown };
+  const source = value as { id?: unknown; approvers?: unknown; rule?: unknown };
   const id = typeof source.id === 'string' && source.id.trim() ? source.id.trim() : randomUUID();
   const approversSource = Array.isArray(source.approvers) ? source.approvers : [];
   const approvers = approversSource
     .map((candidate) => normalizeApprover(candidate))
     .filter((approver): approver is WorkstreamApproverRequirement => Boolean(approver));
-  return { id, approvers: approvers.length ? approvers : [] };
+  const legacyRule =
+    approversSource.find((candidate) => candidate && typeof candidate === 'object' && 'rule' in (candidate as any)) ??
+    null;
+  const roundRuleCandidate =
+    source.rule ??
+    (legacyRule && typeof (legacyRule as { rule?: unknown }).rule === 'string'
+      ? (legacyRule as { rule?: unknown }).rule
+      : null);
+  const rule = isApprovalRule(roundRuleCandidate) ? (roundRuleCandidate as WorkstreamApprovalRound['rule']) : 'any';
+  return { id, approvers: approvers.length ? approvers : [], rule };
 };
 
 const normalizeGates = (value: unknown) => {
@@ -118,6 +128,42 @@ const connectClient = async () =>
   (postgresPool as unknown as { connect: () => Promise<any> }).connect();
 
 export class WorkstreamsRepository {
+  async getRoleOptions(): Promise<WorkstreamRoleOption[]> {
+    const result = await postgresPool.query<{ options: unknown }>(
+      'SELECT options FROM workstream_role_options WHERE id = 1 LIMIT 1;'
+    );
+    const row = result.rows?.[0];
+    if (!row || !Array.isArray(row.options)) {
+      return [];
+    }
+    return row.options
+      .map((item) => {
+        if (!item || typeof item !== 'object') {
+          return null;
+        }
+        const payload = item as { value?: unknown; label?: unknown };
+        const value = typeof payload.value === 'string' ? payload.value.trim() : '';
+        const label = typeof payload.label === 'string' ? payload.label.trim() : '';
+        if (!value || !label) {
+          return null;
+        }
+        return { value, label };
+      })
+      .filter((item): item is WorkstreamRoleOption => Boolean(item));
+  }
+
+  async saveRoleOptions(options: WorkstreamRoleOption[]): Promise<WorkstreamRoleOption[]> {
+    const payload = options.map((option) => ({ value: option.value, label: option.label }));
+    await postgresPool.query(
+      `INSERT INTO workstream_role_options (id, options, updated_at)
+         VALUES (1, $1::jsonb, NOW())
+       ON CONFLICT (id)
+       DO UPDATE SET options = EXCLUDED.options, updated_at = NOW();`,
+      [JSON.stringify(payload)]
+    );
+    return this.getRoleOptions();
+  }
+
   async listWorkstreams(): Promise<WorkstreamRecord[]> {
     const result = await postgresPool.query<DbRow>('SELECT * FROM workstreams ORDER BY updated_at DESC;');
     return (result.rows ?? []).map((row) => mapRowToWorkstream(row));

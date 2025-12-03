@@ -35,8 +35,19 @@ router.get('/', async (_req, res) => {
   res.json(workstreams);
 });
 
-router.get('/role-options', (_req, res) => {
-  res.json(workstreamsService.getRoleOptions());
+router.get('/role-options', async (_req, res) => {
+  const options = await workstreamsService.getRoleOptions();
+  res.json(options);
+});
+
+router.put('/role-options', async (req, res) => {
+  try {
+    const { options } = req.body as { options?: unknown };
+    const saved = await workstreamsService.saveRoleOptions(options);
+    res.json(saved);
+  } catch (error) {
+    handleError(error, res);
+  }
 });
 
 router.post('/', async (req, res) => {
@@ -71,6 +82,15 @@ router.delete('/:id', async (req, res) => {
   try {
     const id = await workstreamsService.removeWorkstream(req.params.id);
     res.json({ id });
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.get('/:id/assignments', async (req, res) => {
+  try {
+    const assignments = await workstreamsService.listAssignmentsByWorkstream(req.params.id);
+    res.json(assignments);
   } catch (error) {
     handleError(error, res);
   }

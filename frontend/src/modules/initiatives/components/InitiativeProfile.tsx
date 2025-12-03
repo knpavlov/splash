@@ -14,7 +14,7 @@ import {
   InitiativePlanModel,
   InitiativePlanTask
 } from '../../../shared/types/initiative';
-import { Workstream, WorkstreamGateKey } from '../../../shared/types/workstream';
+import { Workstream, WorkstreamGateKey, WorkstreamRoleAssignment } from '../../../shared/types/workstream';
 import { AccountRecord } from '../../../shared/types/account';
 import { StageGatePanel } from './StageGatePanel';
 import { FinancialActuals, FinancialEditor } from './FinancialEditor';
@@ -32,7 +32,7 @@ import { useCommentAnchors } from '../comments/useCommentAnchors';
 import { createCommentAnchor } from '../comments/commentAnchors';
 import { useInitiativeComments } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../auth/AuthContext';
-import { PeriodSettings, usePlanSettingsState } from '../../../app/state/AppStateContext';
+import { PeriodSettings, usePlanSettingsState, useWorkstreamsState } from '../../../app/state/AppStateContext';
 import { createEmptyPlanActualsModel, createEmptyPlanModel } from '../plan/planModel';
 import { InitiativePlanModule } from './plan/InitiativePlanModule';
 import { StageKpiEditor } from './StageKpiEditor';
@@ -583,6 +583,7 @@ export const InitiativeProfile = ({
   openComments = false
 }: InitiativeProfileProps) => {
   const { periodSettings } = usePlanSettingsState();
+  const { listAssignmentsByWorkstream } = useWorkstreamsState();
   const [draft, setDraft] = useState<Initiative>(() =>
     initiative ?? createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id, periodSettings)
   );
@@ -599,6 +600,7 @@ export const InitiativeProfile = ({
   const [includeOneOffs, setIncludeOneOffs] = useState(true);
   const [seriesMode, setSeriesMode] = useState<'plan' | 'actuals'>('plan');
   const [kpiOptions, setKpiOptions] = useState<string[]>([]);
+  const [workstreamAssignments, setWorkstreamAssignments] = useState<WorkstreamRoleAssignment[]>([]);
   const { session } = useAuth();
   const commentActor = useMemo(
     () => (session ? { accountId: session.accountId, name: session.email } : undefined),
@@ -737,6 +739,28 @@ export const InitiativeProfile = ({
     draft.stageState[selectedStage] ??
     { status: 'draft', roundIndex: 0, comment: null };
   const selectedWorkstream = workstreams.find((ws) => ws.id === draft.workstreamId) ?? null;
+
+  useEffect(() => {
+    if (!selectedWorkstream) {
+      setWorkstreamAssignments([]);
+      return;
+    }
+    let cancelled = false;
+    void listAssignmentsByWorkstream(selectedWorkstream.id).then((result) => {
+      if (cancelled) {
+        return;
+      }
+      if (result.ok) {
+        setWorkstreamAssignments(result.data);
+      } else {
+        setWorkstreamAssignments([]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [listAssignmentsByWorkstream, selectedWorkstream?.id]);
+
   const stageGateKey = getGateKeyForStage(selectedStage);
   const planValueStepTask =
     useMemo(
@@ -1380,6 +1404,8 @@ export const InitiativeProfile = ({
               initiativeName={draft.name}
               onSelectStage={handleStageChange}
               workstream={selectedWorkstream}
+              accounts={accounts}
+              roleAssignments={workstreamAssignments}
             />
             <div className={styles.stageProgressSummary}>
               <div className={styles.stageSummaryRow} {...buildStageAnchor('status', 'Stage status')}>

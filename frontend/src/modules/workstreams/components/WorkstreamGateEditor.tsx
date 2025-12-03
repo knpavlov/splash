@@ -2,36 +2,36 @@ import {
   approvalRuleOptions,
   gateLabels,
   WorkstreamApprovalRound,
-  WorkstreamGateKey,
-  WorkstreamRoleOption
+  WorkstreamGateKey
 } from '../../../shared/types/workstream';
 import styles from '../../../styles/WorkstreamModal.module.css';
+import { AccountRecord } from '../../../shared/types/account';
+import { resolveAccountName } from '../../../shared/utils/accountName';
 
 interface WorkstreamGateEditorProps {
   gateKey: WorkstreamGateKey;
   rounds: WorkstreamApprovalRound[];
-  roleOptions: WorkstreamRoleOption[];
+  accounts: AccountRecord[];
+  roleLookup: Map<string, string>;
   onAddRound: () => void;
   onRemoveRound: (roundId: string) => void;
   onAddApprover: (roundId: string) => void;
   onRemoveApprover: (roundId: string, approverId: string) => void;
-  onApproverChange: (
-    roundId: string,
-    approverId: string,
-    field: 'role' | 'rule',
-    value: string
-  ) => void;
+  onApproverChange: (roundId: string, approverId: string, accountId: string) => void;
+  onRuleChange: (roundId: string, rule: WorkstreamApprovalRound['rule']) => void;
 }
 
 export const WorkstreamGateEditor = ({
   gateKey,
   rounds,
-  roleOptions,
+  accounts,
+  roleLookup,
   onAddRound,
   onRemoveRound,
   onAddApprover,
   onRemoveApprover,
-  onApproverChange
+  onApproverChange,
+  onRuleChange
 }: WorkstreamGateEditorProps) => (
   <section className={styles.section}>
     <div className={styles.gateHeader}>
@@ -56,40 +56,43 @@ export const WorkstreamGateEditor = ({
           </div>
         </div>
 
+        <label className={styles.fieldGroup}>
+          <span>Approval rule for this round</span>
+          <select
+            className={styles.dropdown}
+            value={round.rule}
+            onChange={(event) => onRuleChange(round.id, event.target.value as WorkstreamApprovalRound['rule'])}
+          >
+            {approvalRuleOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
         {round.approvers.map((approver) => (
           <div key={approver.id} className={styles.approverRow}>
             <select
               className={styles.dropdown}
-              value={approver.role}
-              onChange={(event) =>
-                onApproverChange(round.id, approver.id, 'role', event.target.value)
-              }
+              value={approver.accountId ?? ''}
+              onChange={(event) => onApproverChange(round.id, approver.id, event.target.value)}
             >
-              <option value="">Select role</option>
-              {roleOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-              {approver.role &&
-                !roleOptions.some((option) => option.value === approver.role) && (
-                  <option value={approver.role}>{approver.role}</option>
-                )}
+              <option value="">Select approver</option>
+              {[...accounts]
+                .sort((a, b) => resolveAccountName(a).localeCompare(resolveAccountName(b)))
+                .map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {resolveAccountName(account)}
+                  </option>
+                ))}
             </select>
 
-            <select
-              className={styles.dropdown}
-              value={approver.rule}
-              onChange={(event) =>
-                onApproverChange(round.id, approver.id, 'rule', event.target.value)
-              }
-            >
-              {approvalRuleOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div className={styles.roleHint}>
+              {approver.accountId && roleLookup.get(approver.accountId)
+                ? `Role: ${roleLookup.get(approver.accountId)}`
+                : 'No workstream role set'}
+            </div>
 
             {round.approvers.length > 1 && (
               <button

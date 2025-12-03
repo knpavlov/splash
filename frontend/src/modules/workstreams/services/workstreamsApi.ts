@@ -13,8 +13,6 @@ import {
   WorkstreamRoleSelection
 } from '../../../shared/types/workstream';
 
-const allowedRoles = new Set(defaultWorkstreamRoleOptions.map((item) => item.value));
-
 const normalizeIso = (value: unknown): string | null => {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -38,28 +36,28 @@ const normalizeString = (value: unknown): string | null => {
   return null;
 };
 
-const isApprovalRule = (value: unknown): value is WorkstreamApproverRequirement['rule'] =>
+const isApprovalRule = (value: unknown): value is WorkstreamApprovalRound['rule'] =>
   approvalRuleOptions.some((option) => option.value === value);
 
 const normalizeApprover = (value: unknown): WorkstreamApproverRequirement | null => {
   if (!value || typeof value !== 'object') {
     return null;
   }
-  const payload = value as { id?: unknown; role?: unknown; rule?: unknown };
+  const payload = value as { id?: unknown; role?: unknown; accountId?: unknown };
   const id = normalizeString(payload.id);
+  const accountId = normalizeString(payload.accountId);
   const role = normalizeString(payload.role);
-  const rule = isApprovalRule(payload.rule) ? payload.rule : 'any';
-  if (!id || !role) {
+  if (!id || (!accountId && !role)) {
     return null;
   }
-  return { id, role, rule };
+  return { id, accountId: accountId ?? null, role };
 };
 
 const normalizeRound = (value: unknown): WorkstreamApprovalRound | null => {
   if (!value || typeof value !== 'object') {
     return null;
   }
-  const payload = value as { id?: unknown; approvers?: unknown };
+  const payload = value as { id?: unknown; approvers?: unknown; rule?: unknown };
   const id = normalizeString(payload.id);
   if (!id) {
     return null;
@@ -68,7 +66,13 @@ const normalizeRound = (value: unknown): WorkstreamApprovalRound | null => {
   const approvers = approversSource
     .map((item) => normalizeApprover(item))
     .filter((approver): approver is WorkstreamApproverRequirement => Boolean(approver));
-  return { id, approvers };
+  const legacyRuleCandidate =
+    approversSource.find((entry) => entry && typeof entry === 'object' && 'rule' in (entry as Record<string, unknown>)) as
+      | { rule?: unknown }
+      | undefined;
+  const ruleCandidate = payload.rule ?? legacyRuleCandidate?.rule;
+  const rule = isApprovalRule(ruleCandidate) ? (ruleCandidate as WorkstreamApprovalRound['rule']) : 'any';
+  return { id, approvers, rule };
 };
 
 const normalizeGates = (value: unknown) => {
@@ -149,10 +153,11 @@ const serializeWorkstream = (workstream: Workstream) => ({
     (acc, key) => {
       acc[key] = workstream.gates[key]?.map((round) => ({
         ...round,
+        rule: round.rule ?? 'any',
         approvers: round.approvers.map((approver) => ({
           ...approver,
-          role: approver.role.trim(),
-          rule: approver.rule
+          accountId: approver.accountId?.trim() ?? null,
+          role: approver.role?.trim() || null
         }))
       }));
       return acc;
@@ -168,7 +173,7 @@ const normalizeRoleOption = (value: unknown): WorkstreamRoleOption | null => {
   const payload = value as { value?: unknown; label?: unknown };
   const roleValue = typeof payload.value === 'string' ? payload.value.trim() : '';
   const label = typeof payload.label === 'string' ? payload.label.trim() : '';
-  if (!roleValue || !label || !allowedRoles.has(roleValue as WorkstreamRole)) {
+  if (!roleValue || !label) {
     return null;
   }
   return { value: roleValue as WorkstreamRole, label };
@@ -203,9 +208,6 @@ const normalizeRoleAssignment = (value: unknown): WorkstreamRoleAssignment | nul
   const createdAt = normalizeIso(payload.createdAt);
   const updatedAt = normalizeIso(payload.updatedAt);
   if (!id || !accountId || !workstreamId || !role || !createdAt || !updatedAt) {
-    return null;
-  }
-  if (!allowedRoles.has(role as WorkstreamRole)) {
     return null;
   }
   return {
@@ -249,8 +251,17 @@ export const workstreamsApi = {
       return identifier;
     }),
   roleOptions: async () => ensureRoleOptions(await apiRequest<unknown>('/workstreams/role-options')),
+  saveRoleOptions: async (options: WorkstreamRoleOption[]) =>
+    ensureRoleOptions(
+      await apiRequest<unknown>('/workstreams/role-options', {
+        method: 'PUT',
+        body: { options }
+      })
+    ),
   listAssignments: async (accountId: string) =>
     ensureAssignments(await apiRequest<unknown>(`/accounts/${accountId}/workstream-roles`)),
+  listAssignmentsByWorkstream: async (workstreamId: string) =>
+    ensureAssignments(await apiRequest<unknown>(`/workstreams/${workstreamId}/assignments`)),
   saveAssignments: async (accountId: string, roles: WorkstreamRoleSelection[]) =>
     ensureAssignments(
       await apiRequest<unknown>(`/accounts/${accountId}/workstream-roles`, {

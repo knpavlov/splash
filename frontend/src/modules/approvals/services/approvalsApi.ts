@@ -23,6 +23,7 @@ const normalizeTask = (value: unknown): ApprovalTask | null => {
     roundIndex: Number(payload.roundIndex ?? 0),
     roundCount: Number(payload.roundCount ?? 0),
     role: typeof payload.role === 'string' ? payload.role : '',
+    accountRole: typeof payload.accountRole === 'string' ? payload.accountRole : null,
     rule: (payload.rule as ApprovalTask['rule']) ?? 'any',
     status: (payload.status as ApprovalTask['status']) ?? 'pending',
     accountId: typeof payload.accountId === 'string' ? payload.accountId : null,
@@ -57,9 +58,9 @@ const normalizeTask = (value: unknown): ApprovalTask | null => {
       oneoffCosts: 0,
       recurringImpact: 0
     },
-    roleTotal: Number(payload.roleTotal ?? 0),
-    roleApproved: Number(payload.roleApproved ?? 0),
-    rolePending: Number(payload.rolePending ?? 0)
+    roundTotal: Number(payload.roundTotal ?? 0),
+    roundApproved: Number(payload.roundApproved ?? 0),
+    roundPending: Number(payload.roundPending ?? 0)
   };
 };
 

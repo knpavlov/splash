@@ -238,6 +238,35 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS workstream_role_options (
+      id SMALLINT PRIMARY KEY DEFAULT 1,
+      options JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`
+    INSERT INTO workstream_role_options (id, options)
+    VALUES (
+      1,
+      '[
+        {"value":"initiative-owner","label":"Initiative Owner"},
+        {"value":"milestone-owner","label":"Milestone Owner"},
+        {"value":"workstream-lead","label":"Workstream Lead"},
+        {"value":"manager-full-viewing-rights","label":"Manager (Full Viewing Rights)"},
+        {"value":"sponsor","label":"Sponsor"},
+        {"value":"head-of-transformation","label":"Head of Transformation"},
+        {"value":"transformation-lead","label":"Transformation Lead"},
+        {"value":"transformation-office-team-member","label":"Transformation Office Team Member"},
+        {"value":"finance-team-member","label":"Finance Team Member"},
+        {"value":"head-of-finance","label":"Head of Finance"},
+        {"value":"manager-limited-viewing-rights","label":"Manager (Limited Viewing Rights)"}
+      ]'::jsonb
+    )
+    ON CONFLICT (id) DO NOTHING;
+  `);
+
+  await postgresPool.query(`
     CREATE TABLE IF NOT EXISTS workstream_initiatives (
       id UUID PRIMARY KEY,
       workstream_id UUID NOT NULL REFERENCES workstreams(id) ON DELETE CASCADE,

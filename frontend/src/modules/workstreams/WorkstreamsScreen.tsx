@@ -3,12 +3,13 @@ import styles from '../../styles/WorkstreamsScreen.module.css';
 import { Workstream } from '../../shared/types/workstream';
 import { WorkstreamCard } from './components/WorkstreamCard';
 import { WorkstreamModal } from './components/WorkstreamModal';
-import { useWorkstreamsState } from '../../app/state/AppStateContext';
+import { useAccountsState, useWorkstreamsState } from '../../app/state/AppStateContext';
 
 type Banner = { type: 'info' | 'error'; text: string } | null;
 
 export const WorkstreamsScreen = () => {
-  const { list, saveWorkstream, removeWorkstream, roleOptions } = useWorkstreamsState();
+  const { list, saveWorkstream, removeWorkstream, listAssignmentsByWorkstream } = useWorkstreamsState();
+  const { list: accounts } = useAccountsState();
   const [banner, setBanner] = useState<Banner>(null);
   const [modalBanner, setModalBanner] = useState<Banner>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -131,7 +132,8 @@ export const WorkstreamsScreen = () => {
           onDelete={handleDelete}
           feedback={modalBanner}
           onFeedbackClear={() => setModalBanner(null)}
-          roleOptions={roleOptions}
+          accounts={accounts}
+          loadAssignments={listAssignmentsByWorkstream}
         />
       )}
     </section>

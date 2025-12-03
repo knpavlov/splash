@@ -167,12 +167,16 @@
   align-items: center;
 }
 
-.approverRow .dropdown:first-of-type {
-  flex: 1 1 240px;
+.approverRow .dropdown {
+  flex: 1 1 260px;
+  min-width: 220px;
 }
 
-.approverRow .dropdown:last-of-type {
-  flex: 0 0 160px;
+.roleHint {
+  flex: 1 1 200px;
+  min-width: 180px;
+  font-size: 13px;
+  color: #64748b;
 }
 
 .dropdown {

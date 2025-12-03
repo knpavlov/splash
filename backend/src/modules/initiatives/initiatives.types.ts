@@ -264,6 +264,7 @@ export interface InitiativeApprovalTask {
   roundIndex: number;
   roundCount: number;
   role: string;
+  accountRole: string | null;
   rule: InitiativeApprovalRule;
   status: 'pending' | 'approved' | 'returned' | 'rejected';
   accountId: string | null;
@@ -277,9 +278,9 @@ export interface InitiativeApprovalTask {
   stageState: InitiativeStageState;
   totals: InitiativeTotals;
   workstreamDescription: string | null;
-  roleTotal: number;
-  roleApproved: number;
-  rolePending: number;
+  roundTotal: number;
+  roundApproved: number;
+  roundPending: number;
 }
 
 export interface InitiativeBusinessCaseFile {

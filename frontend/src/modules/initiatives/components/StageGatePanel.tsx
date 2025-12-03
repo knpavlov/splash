@@ -7,13 +7,10 @@ import {
   InitiativeStageStateMap,
   InitiativeStageStatus
 } from '../../../shared/types/initiative';
-import {
-  defaultWorkstreamRoleOptions,
-  Workstream,
-  WorkstreamGateKey,
-  workstreamGateKeys
-} from '../../../shared/types/workstream';
+import { Workstream, WorkstreamGateKey, workstreamGateKeys, WorkstreamRoleAssignment } from '../../../shared/types/workstream';
 import { createCommentAnchor } from '../comments/commentAnchors';
+import { AccountRecord } from '../../../shared/types/account';
+import { resolveAccountName } from '../../../shared/utils/accountName';
 
 interface StageGatePanelProps {
   stages: InitiativeStageMap;
@@ -23,6 +20,8 @@ interface StageGatePanelProps {
   initiativeName: string;
   onSelectStage: (stage: InitiativeStageKey) => void;
   workstream: Workstream | null;
+  accounts: AccountRecord[];
+  roleAssignments?: WorkstreamRoleAssignment[];
   compact?: boolean;
 }
 
@@ -173,19 +172,31 @@ export const StageGatePanel = ({
   initiativeName,
   onSelectStage,
   workstream,
+  accounts,
+  roleAssignments,
   compact = false
 }: StageGatePanelProps) => {
   const activeIndex = initiativeStageKeys.indexOf(activeStage);
   const [hoveredGate, setHoveredGate] = useState<WorkstreamGateKey | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
 
-  const roleLabelMap = useMemo(() => {
+  const accountNameLookup = useMemo(() => {
     const map = new Map<string, string>();
-    defaultWorkstreamRoleOptions.forEach((option) => {
-      map.set(option.value, option.label);
+    accounts.forEach((account) => {
+      map.set(account.id, resolveAccountName(account));
     });
     return map;
-  }, []);
+  }, [accounts]);
+
+  const roleLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    (roleAssignments ?? []).forEach((assignment) => {
+      if (assignment.accountId) {
+        map.set(assignment.accountId, assignment.role);
+      }
+    });
+    return map;
+  }, [roleAssignments]);
 
   const handleGateMouseEnter = useCallback(
     (gateKey: WorkstreamGateKey, event: React.MouseEvent<HTMLDivElement>) => {
@@ -213,6 +224,12 @@ export const StageGatePanel = ({
     const tone = resolveApproverTone(gateState?.status);
     const toneLabel = approverToneLabels[tone];
     const rounds = workstream?.gates[hoveredGate] ?? [];
+    const resolveRoleLabel = (role?: string | null) => {
+      if (!role) {
+        return 'No role set';
+      }
+      return role;
+    };
     return (
       <div className={styles.gateTooltip} style={{ left: tooltipPos.x, top: tooltipPos.y }}>
         <div className={styles.tooltipHeader}>
@@ -228,15 +245,24 @@ export const StageGatePanel = ({
             {rounds.map((round, index) => (
               <li key={round.id}>
                 <span className={styles.tooltipRoundTitle}>
-                  Round {index + 1} - {roundStatusLabel[resolveRoundStatus(gateState, index)]}
+                  Round {index + 1} - {roundStatusLabel[resolveRoundStatus(gateState, index)]} · Rule:{' '}
+                  {round.rule === 'all' ? 'All approvers' : round.rule === 'majority' ? 'Majority' : 'Any one'}
                 </span>
                 <div className={styles.tooltipApprovers}>
                   {round.approvers.map((approver) => (
                     <div key={approver.id} className={styles.tooltipApproverRow}>
                       <span className={`${styles.statusDot} ${styles[`tone-${tone}`]}`} aria-hidden="true" />
                       <div className={styles.approverInfo}>
-                        <strong>{roleLabelMap.get(approver.role) ?? approver.role}</strong>
-                        <span className={styles.approverRule}>{approver.rule.toUpperCase()}</span>
+                        <strong>
+                          {approver.accountId
+                            ? accountNameLookup.get(approver.accountId) ?? 'Unassigned approver'
+                            : 'Unassigned approver'}
+                        </strong>
+                        <span className={styles.approverRule}>
+                          {approver.accountId
+                            ? resolveRoleLabel(roleLookup.get(approver.accountId) ?? approver.role ?? null)
+                            : resolveRoleLabel(approver.role)}
+                        </span>
                       </div>
                       <span className={styles.approverStatus}>{toneLabel}</span>
                     </div>

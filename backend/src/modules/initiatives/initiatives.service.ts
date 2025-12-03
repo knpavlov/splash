@@ -495,14 +495,12 @@ const readRoundCount = (gates: unknown, stageKey: InitiativeStageKey): number =>
 };
 
 const buildRoleAssignmentsMap = (assignments: WorkstreamRoleAssignmentRecord[]) => {
-  const map = new Map<string, string[]>();
+  const map = new Map<string, string>();
   for (const assignment of assignments) {
-    if (!assignment.role) {
+    if (!assignment.role || !assignment.accountId) {
       continue;
     }
-    const list = map.get(assignment.role) ?? [];
-    list.push(assignment.accountId);
-    map.set(assignment.role, list);
+    map.set(assignment.accountId, assignment.role);
   }
   return map;
 };
@@ -745,9 +743,6 @@ export class InitiativesService {
     }
     const firstRound = rounds[0];
     const approvalsPayload = this.composeApprovalsPayload(record.id, stageKey, 0, firstRound, roleAssignments);
-    if (!approvalsPayload.length) {
-      throw new Error('MISSING_APPROVERS');
-    }
     await this.repository.deleteApprovalsForStage(record.id, stageKey);
     await this.repository.insertApprovals(approvalsPayload);
     const nextStageState = {
@@ -841,46 +836,29 @@ export class InitiativesService {
       return toResponse(updated);
     }
 
-    const roundApprovals = await this.repository.listApprovalsForStage(record.id, stageKey, approval.roundIndex);
-    const roleTotals = new Map<string, { total: number; approved: number }>();
-    for (const entry of roundApprovals) {
-      const bucket = roleTotals.get(entry.role) ?? { total: 0, approved: 0 };
-      bucket.total += 1;
-      if (entry.status === 'approved') {
-        bucket.approved += 1;
-      }
-      roleTotals.set(entry.role, bucket);
-    }
     const gateKey = getGateKeyForStage(stageKey);
     const currentRound = gateKey ? workstream.gates[gateKey]?.[approval.roundIndex] : null;
-    if (!currentRound) {
+    const roundApprovals = await this.repository.listApprovalsForStage(record.id, stageKey, approval.roundIndex);
+    const rule = currentRound?.rule ?? approval.rule ?? 'any';
+    const approvedCount = roundApprovals.filter((entry) => entry.status === 'approved').length;
+    const total = roundApprovals.length;
+    if (!currentRound || total === 0) {
       const updated = await this.finalizeStage(record, stageKey, approval.roundIndex);
       await this.recordEvents(record, updated, actorMeta, 'update');
       return toResponse(updated);
     }
-    const requirement = currentRound.approvers.find((item) => item.role === approval.role);
-    if (requirement && isRequirementSatisfied(requirement.rule, roleTotals.get(approval.role)?.approved ?? 0, roleTotals.get(approval.role)?.total ?? 0)) {
-      await this.repository.updateApprovalsForRole(
-        record.id,
-        stageKey,
-        approval.roundIndex,
-        approval.role,
-        ['pending'],
-        'approved',
-        'Auto-approved (rule satisfied)'
-      );
-    }
-    const roundSatisfied = currentRound.approvers.every((item) => {
-      const stats = roleTotals.get(item.role);
-      if (!stats) {
-        return false;
-      }
-      return isRequirementSatisfied(item.rule, stats.approved, stats.total);
-    });
+    const roundSatisfied = isRequirementSatisfied(rule, approvedCount, total);
     if (!roundSatisfied) {
       const updated = await this.repository.findInitiative(record.id);
       return toResponse(updated ?? record);
     }
+    await this.repository.updateApprovalsForStage(
+      record.id,
+      stageKey,
+      ['pending'],
+      'approved',
+      'Auto-approved (rule satisfied)'
+    );
     const nextRoundIndex = approval.roundIndex + 1;
     const rounds = gateKey ? workstream.gates[gateKey] ?? [] : [];
     if (nextRoundIndex >= rounds.length) {
@@ -889,10 +867,13 @@ export class InitiativesService {
       return toResponse(updated);
     }
     const assignments = await this.workstreamsRepository.listAssignmentsByWorkstream(record.workstreamId);
-    const payload = this.composeApprovalsPayload(record.id, stageKey, nextRoundIndex, rounds[nextRoundIndex], buildRoleAssignmentsMap(assignments));
-    if (!payload.length) {
-      throw new Error('MISSING_APPROVERS');
-    }
+    const payload = this.composeApprovalsPayload(
+      record.id,
+      stageKey,
+      nextRoundIndex,
+      rounds[nextRoundIndex],
+      buildRoleAssignmentsMap(assignments)
+    );
     await this.repository.insertApprovals(payload);
     const updated = await this.updateStageState(record, stageKey, {
       status: 'pending',
@@ -1124,7 +1105,7 @@ export class InitiativesService {
     stageKey: InitiativeStageKey,
     roundIndex: number,
     round: WorkstreamApprovalRound,
-    roleAssignments: Map<string, string[]>
+    roleAssignments: Map<string, string>
   ) {
     const approvals: Array<{
       id: string;
@@ -1135,22 +1116,26 @@ export class InitiativesService {
       rule: InitiativeApprovalRule;
       accountId: string | null;
     }> = [];
+    const seen = new Set<string>();
+    const rule = round.rule ?? 'any';
     for (const approver of round.approvers) {
-      const accounts = roleAssignments.get(approver.role) ?? [];
-      if (!accounts.length) {
-        throw new Error('MISSING_APPROVERS');
+      const accountId = approver.accountId?.trim() ?? null;
+      if (!accountId || seen.has(accountId)) {
+        continue;
       }
-      for (const accountId of accounts) {
-        approvals.push({
-          id: randomUUID(),
-          initiativeId,
-          stageKey,
-          roundIndex,
-          role: approver.role,
-          rule: approver.rule,
-          accountId
-        });
-      }
+      seen.add(accountId);
+      approvals.push({
+        id: randomUUID(),
+        initiativeId,
+        stageKey,
+        roundIndex,
+        role: roleAssignments.get(accountId) ?? approver.role ?? 'Approver',
+        rule,
+        accountId
+      });
+    }
+    if (!approvals.length) {
+      throw new Error('MISSING_APPROVERS');
     }
     return approvals;
   }
@@ -1241,6 +1226,7 @@ export class InitiativesService {
       roundIndex: Number(row.round_index ?? 0),
       roundCount: readRoundCount(row.workstream_gates, stageKey),
       role: row.role,
+      accountRole: row.account_role ?? null,
       rule: (row.rule as InitiativeApprovalRule) ?? 'any',
       status: row.status as InitiativeApprovalRecord['status'],
       accountId: row.account_id ?? null,
@@ -1253,9 +1239,9 @@ export class InitiativesService {
       stage,
       stageState,
       totals: buildInitiativeTotals(initiativeRecord),
-      roleTotal: Number(row.role_total ?? 0),
-      roleApproved: Number(row.role_approved ?? 0),
-      rolePending: Number(row.role_pending ?? 0)
+      roundTotal: Number(row.round_total ?? 0),
+      roundApproved: Number(row.round_approved ?? 0),
+      roundPending: Number(row.round_pending ?? 0)
     };
   }
 

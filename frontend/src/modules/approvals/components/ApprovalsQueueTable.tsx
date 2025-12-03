@@ -34,7 +34,7 @@ export const ApprovalsQueueTable = ({ tasks, isLoading, onSelect }: ApprovalsQue
             <th>Workstream</th>
             <th>Stage</th>
             <th>Round</th>
-            <th>Role</th>
+            <th>Approver</th>
             <th>Requested</th>
           </tr>
         </thead>
@@ -45,6 +45,9 @@ export const ApprovalsQueueTable = ({ tasks, isLoading, onSelect }: ApprovalsQue
               task.roundCount > 0
                 ? `Round ${Math.min(task.roundIndex + 1, task.roundCount)} of ${task.roundCount}`
                 : `Round ${task.roundIndex + 1}`;
+            const ruleLabel = task.rule === 'all' ? 'All' : task.rule === 'majority' ? 'Majority' : 'Any';
+            const approverLabel = task.accountName ?? task.accountEmail ?? 'Unassigned';
+            const roleLabel = task.accountRole || task.role || '';
             return (
               <tr
                 key={task.id}
@@ -64,8 +67,14 @@ export const ApprovalsQueueTable = ({ tasks, isLoading, onSelect }: ApprovalsQue
                 </td>
                 <td>{task.workstreamName}</td>
                 <td>{stageLabel}</td>
-                <td>{roundLabel}</td>
-                <td>{`${task.role} · ${task.rule === 'all' ? 'All' : task.rule === 'majority' ? 'Majority' : 'Any'}`}</td>
+                <td>
+                  {roundLabel}
+                  <div className={styles.rowMeta}>{ruleLabel} required</div>
+                </td>
+                <td>
+                  <div className={styles.rowTitle}>{approverLabel}</div>
+                  <div className={styles.rowMeta}>{roleLabel || 'No role set'}</div>
+                </td>
                 <td>{formatDateTime(task.requestedAt)}</td>
               </tr>
             );

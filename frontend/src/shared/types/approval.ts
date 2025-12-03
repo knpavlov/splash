@@ -15,6 +15,7 @@ export interface ApprovalTask {
   roundIndex: number;
   roundCount: number;
   role: string;
+  accountRole: string | null;
   rule: ApprovalRule;
   status: ApprovalStatus;
   accountId: string | null;
@@ -27,7 +28,7 @@ export interface ApprovalTask {
   stage: InitiativeStageData;
   stageState: InitiativeStageState;
   totals: InitiativeTotals;
-  roleTotal: number;
-  roleApproved: number;
-  rolePending: number;
+  roundTotal: number;
+  roundApproved: number;
+  roundPending: number;
 }

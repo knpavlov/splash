@@ -1,7 +1,5 @@
 import { randomUUID } from 'crypto';
-import {
-  WorkstreamsRepository
-} from './workstreams.repository.js';
+import { WorkstreamsRepository } from './workstreams.repository.js';
 import {
   workstreamGateKeys,
   WorkstreamApprovalRound,
@@ -9,6 +7,7 @@ import {
   WorkstreamRole,
   WorkstreamRoleAssignmentRecord,
   workstreamRoleOptions,
+  WorkstreamRoleOption,
   WorkstreamWriteModel
 } from './workstreams.types.js';
 
@@ -21,37 +20,40 @@ const buildEmptyGates = () =>
     {} as WorkstreamWriteModel['gates']
   );
 
-const isApprovalRule = (value: unknown): value is WorkstreamApproverRequirement['rule'] =>
+const isApprovalRule = (value: unknown): value is WorkstreamApprovalRound['rule'] =>
   value === 'any' || value === 'all' || value === 'majority';
 
 const normalizeApprover = (value: unknown): WorkstreamApproverRequirement | null => {
   if (!value || typeof value !== 'object') {
     return null;
   }
-  const input = value as { id?: unknown; role?: unknown; rule?: unknown };
+  const input = value as { id?: unknown; role?: unknown; accountId?: unknown };
   const id = typeof input.id === 'string' && input.id.trim() ? input.id.trim() : randomUUID();
-  const role = typeof input.role === 'string' ? input.role.trim() : '';
-  const rule = isApprovalRule(input.rule) ? input.rule : 'any';
-  if (!role) {
+  const role = typeof input.role === 'string' ? input.role.trim() : null;
+  const accountId = typeof input.accountId === 'string' ? input.accountId.trim() : null;
+  if (!accountId && !role) {
     return null;
   }
-  return { id, role, rule };
+  return { id, accountId, role: role ?? null };
 };
 
 const normalizeRound = (value: unknown): WorkstreamApprovalRound | null => {
   if (!value || typeof value !== 'object') {
     return null;
   }
-  const input = value as { id?: unknown; approvers?: unknown };
+  const input = value as { id?: unknown; approvers?: unknown; rule?: unknown };
   const id = typeof input.id === 'string' && input.id.trim() ? input.id.trim() : randomUUID();
   const approversSource = Array.isArray(input.approvers) ? input.approvers : [];
   const approvers = approversSource
     .map((candidate) => normalizeApprover(candidate))
     .filter((approver): approver is WorkstreamApproverRequirement => Boolean(approver));
-  if (!approvers.length) {
-    return null;
-  }
-  return { id, approvers };
+  const roundRuleCandidate =
+    input.rule ??
+    (approversSource.find((item) => item && typeof item === 'object' && 'rule' in (item as Record<string, unknown>)) as
+      | { rule?: unknown }
+      | undefined)?.rule;
+  const rule = isApprovalRule(roundRuleCandidate) ? (roundRuleCandidate as WorkstreamApprovalRound['rule']) : 'any';
+  return { id, approvers, rule };
 };
 
 const normalizeGates = (value: unknown) => {
@@ -70,21 +72,60 @@ const normalizeGates = (value: unknown) => {
   return base;
 };
 
-const allowedRoleValues = new Set(workstreamRoleOptions.map((item) => item.value));
-
-const normalizeRole = (value: unknown): WorkstreamRole | null => {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-  return allowedRoleValues.has(trimmed as WorkstreamRole) ? (trimmed as WorkstreamRole) : null;
-};
+const slugifyRoleValue = (label: string) =>
+  label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/--+/g, '-')
+    .trim();
 
 export class WorkstreamsService {
   constructor(private readonly repository: WorkstreamsRepository) {}
+
+  private async loadRoleOptions(): Promise<WorkstreamRoleOption[]> {
+    const stored = await this.repository.getRoleOptions();
+    if (stored.length) {
+      return stored;
+    }
+    return [...workstreamRoleOptions];
+  }
+
+  private sanitizeRoleOptions(options: unknown): WorkstreamRoleOption[] {
+    if (!Array.isArray(options)) {
+      return [...workstreamRoleOptions];
+    }
+    const seen = new Set<string>();
+    const result: WorkstreamRoleOption[] = [];
+    (options as unknown[]).forEach((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return;
+      }
+      const item = entry as { value?: unknown; label?: unknown };
+      const rawLabel = typeof item.label === 'string' ? item.label.trim() : '';
+      const rawValue = typeof item.value === 'string' ? item.value.trim() : '';
+      const label = rawLabel || rawValue;
+      const value = rawValue || slugifyRoleValue(label) || randomUUID();
+      const key = value.toLowerCase();
+      if (!label || seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      result.push({ value, label });
+    });
+    return result.length ? result : [...workstreamRoleOptions];
+  }
+
+  private normalizeRoleValue(value: unknown, allowed: Set<string>): WorkstreamRole | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    return allowed.has(trimmed) ? trimmed : null;
+  }
 
   async listWorkstreams() {
     return this.repository.listWorkstreams();
@@ -157,8 +198,13 @@ export class WorkstreamsService {
     return id;
   }
 
-  getRoleOptions() {
-    return workstreamRoleOptions;
+  async getRoleOptions() {
+    return this.loadRoleOptions();
+  }
+
+  async saveRoleOptions(options: unknown) {
+    const normalized = this.sanitizeRoleOptions(options);
+    return this.repository.saveRoleOptions(normalized);
   }
 
   async listAssignments(accountId: string): Promise<WorkstreamRoleAssignmentRecord[]> {
@@ -185,10 +231,11 @@ export class WorkstreamsService {
     if (!exists) {
       throw new Error('ACCOUNT_NOT_FOUND');
     }
+    const allowed = new Set((await this.loadRoleOptions()).map((item) => item.value));
     const normalizedAssignments = assignments
       .map((assignment) => ({
         workstreamId: typeof assignment.workstreamId === 'string' ? assignment.workstreamId.trim() : '',
-        role: normalizeRole(assignment.role)
+        role: this.normalizeRoleValue(assignment.role, allowed)
       }))
       .filter((assignment) => assignment.workstreamId);
 
@@ -201,5 +248,17 @@ export class WorkstreamsService {
     }
 
     return this.repository.saveAssignments(trimmedId, normalizedAssignments);
+  }
+
+  async listAssignmentsByWorkstream(workstreamId: string) {
+    const trimmed = workstreamId.trim();
+    if (!trimmed) {
+      throw new Error('WORKSTREAM_NOT_FOUND');
+    }
+    const existingIds = await this.repository.findExistingWorkstreamIds([trimmed]);
+    if (!existingIds.includes(trimmed)) {
+      throw new Error('WORKSTREAM_NOT_FOUND');
+    }
+    return this.repository.listAssignmentsByWorkstream(trimmed);
   }
 }

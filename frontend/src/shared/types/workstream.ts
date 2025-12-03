@@ -5,12 +5,13 @@ export type ApprovalRule = 'any' | 'all' | 'majority';
 
 export interface WorkstreamApproverRequirement {
   id: string;
-  role: string;
-  rule: ApprovalRule;
+  accountId: string | null;
+  role?: string | null;
 }
 
 export interface WorkstreamApprovalRound {
   id: string;
+  rule: ApprovalRule;
   approvers: WorkstreamApproverRequirement[];
 }
 
@@ -54,7 +55,7 @@ export const defaultWorkstreamRoleOptions = [
   { value: 'manager-limited-viewing-rights', label: 'Manager (Limited Viewing Rights)' }
 ] as const;
 
-export type WorkstreamRole = (typeof defaultWorkstreamRoleOptions)[number]['value'];
+export type WorkstreamRole = string;
 
 export interface WorkstreamRoleOption {
   value: WorkstreamRole;
