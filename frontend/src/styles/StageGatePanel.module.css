@@ -85,7 +85,7 @@
   text-align: left;
   cursor: pointer;
   clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 50%, calc(100% - 16px) 100%, 0 100%, 16px 50%);
-  margin-right: -16px;
+  margin-right: -10px;
   /* z-index handled inline */
 }
 
@@ -140,16 +140,16 @@
 
 /* Selected Stage - "Viewing Details" */
 .selected {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 6px #ea580c, 0 12px 28px rgba(249, 115, 22, 0.22);
+  box-shadow: 0 0 0 3px #fff, 0 0 0 8px #ea580c, 0 14px 30px rgba(249, 115, 22, 0.25);
 }
 
 /* If both active and selected, combine effects */
 .active.selected {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 7px #ea580c, 0 0 0 12px rgba(14, 165, 233, 0.45);
+  box-shadow: 0 0 0 3px #fff, 0 0 0 8px #ea580c, 0 0 0 14px rgba(14, 165, 233, 0.5);
 }
 
 .current {
-  box-shadow: inset 0 0 0 3px #0ea5e9, 0 0 0 4px #e0f2fe, 0 0 0 9px rgba(14, 165, 233, 0.55);
+  box-shadow: inset 0 0 0 3px #0ea5e9, 0 0 0 5px #e0f2fe, 0 0 0 11px rgba(14, 165, 233, 0.6);
 }
 
 /* Gate styles */
@@ -176,7 +176,7 @@
   font-weight: 600;
   clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%);
   align-items: flex-start;
-  margin-left: -12px;
+  margin-left: -10px;
 }
 
 .gate:hover {
@@ -342,18 +342,61 @@
 }
 
 .tooltipLegend {
+  display: none;
+}
+
+.chevronLegend {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 12px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(148, 163, 184, 0.25);
-  margin-top: 4px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px 14px;
+  align-items: center;
+  padding: 4px 10px 0;
+  color: #334155;
+  font-size: 12px;
 }
 
 .legendItem {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: #cbd5e1;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.legendDot,
+.statusDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
+}
+
+.legendDot {
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.35);
+}
+
+.tone-pending,
+.dot-upcoming {
+  background: #cbd5e1;
+}
+
+.tone-approved,
+.dot-complete {
+  background: #22c55e;
+}
+
+.tone-returned,
+.dot-returned {
+  background: #f59e0b;
+}
+
+.tone-rejected,
+.dot-rejected {
+  background: #ef4444;
+}
+
+.dot-current {
+  background: #3b82f6;
 }

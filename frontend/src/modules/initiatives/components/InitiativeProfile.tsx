@@ -1301,22 +1301,6 @@ export const InitiativeProfile = ({
               <p>Track each L gate and review status in one place.</p>
             </div>
           </div>
-          <div className={styles.stageActions}>
-            {mode === 'view' && initiative && isStageEditable && !stageLocked && (
-              <button
-                className={styles.secondaryButton}
-                onClick={handleSubmitPrompt}
-                disabled={isSubmitting || !canSubmitStage}
-                type="button"
-              >
-                {currentStageState.status === 'pending'
-                  ? 'Waiting for approvals'
-                  : isSubmitting
-                    ? 'Submitting...'
-                    : 'Submit for next gate'}
-              </button>
-            )}
-          </div>
         </header>
         {!stageProgressCollapsed && (
           <>
@@ -1330,11 +1314,29 @@ export const InitiativeProfile = ({
               workstream={selectedWorkstream}
             />
             <div className={styles.stageProgressSummary}>
-              <div className={styles.stageStatusRow} {...buildStageAnchor('status', 'Stage status')}>
-                <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
-                  {stageStatusLabel}
-                </span>
-                <span className={styles.stageStatusMeta}>{stageStatusDetails}</span>
+              <div className={styles.stageSummaryRow} {...buildStageAnchor('status', 'Stage status')}>
+                <div className={styles.stageStatusRow}>
+                  <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
+                    {stageStatusLabel}
+                  </span>
+                  <span className={styles.stageStatusMeta}>{stageStatusDetails}</span>
+                </div>
+                {mode === 'view' && initiative && isStageEditable && !stageLocked && (
+                  <div className={styles.stageSummaryActions}>
+                    <button
+                      className={styles.secondaryButton}
+                      onClick={handleSubmitPrompt}
+                      disabled={isSubmitting || !canSubmitStage}
+                      type="button"
+                    >
+                      {currentStageState.status === 'pending'
+                        ? 'Waiting for approvals'
+                        : isSubmitting
+                          ? 'Submitting...'
+                          : 'Submit for next gate'}
+                    </button>
+                  </div>
+                )}
               </div>
               {currentStageState.comment && currentStageState.status !== 'draft' && (
                 <div className={styles.stageAlert}>

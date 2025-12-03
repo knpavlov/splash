@@ -246,17 +246,34 @@ export const StageGatePanel = ({
             ))}
           </ul>
         )}
-        <div className={styles.tooltipLegend}>
-          {(['pending', 'approved', 'returned', 'rejected'] as ApproverTone[]).map((legendTone) => (
-            <span key={legendTone} className={styles.legendItem}>
-              <span className={`${styles.statusDot} ${styles[`tone-${legendTone}`]}`} aria-hidden="true" />
-              {approverToneLabels[legendTone]}
-            </span>
-          ))}
-        </div>
       </div>
     );
   };
+
+  const renderChevronLegend = () => (
+    <div className={styles.chevronLegend}>
+      <span className={styles.legendItem}>
+        <span className={`${styles.legendDot} ${styles['dot-upcoming']}`} aria-hidden="true" />
+        Pending review
+      </span>
+      <span className={styles.legendItem}>
+        <span className={`${styles.legendDot} ${styles['dot-complete']}`} aria-hidden="true" />
+        Approved
+      </span>
+      <span className={styles.legendItem}>
+        <span className={`${styles.legendDot} ${styles['dot-current']}`} aria-hidden="true" />
+        In progress
+      </span>
+      <span className={styles.legendItem}>
+        <span className={`${styles.legendDot} ${styles['dot-returned']}`} aria-hidden="true" />
+        Returned for updates
+      </span>
+      <span className={styles.legendItem}>
+        <span className={`${styles.legendDot} ${styles['dot-rejected']}`} aria-hidden="true" />
+        Rejected
+      </span>
+    </div>
+  );
 
   return (
     <div className={`${styles.wrapper} ${compact ? styles.wrapperCompact : ''}`}>
@@ -313,6 +330,7 @@ export const StageGatePanel = ({
         })}
       </div>
       {renderGateTooltip()}
+      {renderChevronLegend()}
     </div>
   );
 };
