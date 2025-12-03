@@ -682,7 +682,6 @@ export const GeneralSettingsScreen = () => {
             <p className={styles.helpText}>Roles save instantly to keep Account management and approvals in sync.</p>
           </div>
         </section>
-
         <section className={styles.card}>
           <div className={styles.cardHeader}>
             <div className={styles.cardTitleRow}>
