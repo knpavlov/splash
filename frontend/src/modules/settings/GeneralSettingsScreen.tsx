@@ -145,6 +145,10 @@ export const GeneralSettingsScreen = () => {
   const [periodForm, setPeriodForm] = useState<PeriodSettings>(periodSettings);
   const [roleOptionDrafts, setRoleOptionDrafts] = useState<WorkstreamRoleOption[]>(roleOptions);
   const [rolesCollapsed, setRolesCollapsed] = useState(false);
+  const [milestoneCollapsed, setMilestoneCollapsed] = useState(false);
+  const [periodCollapsed, setPeriodCollapsed] = useState(false);
+  const [statusCollapsed, setStatusCollapsed] = useState(false);
+  const [kpiCollapsed, setKpiCollapsed] = useState(false);
 
   const [snapshotSettings, setSnapshotSettings] = useState<SnapshotSettingsPayload | null>(null);
   const [snapshotForm, setSnapshotForm] = useState<SnapshotFormState>(() => buildFormState(null));
@@ -235,10 +239,8 @@ export const GeneralSettingsScreen = () => {
           return option;
         }
         const nextLabel = field === 'label' ? value : option.label;
-        const nextValue =
-          field === 'label'
-            ? slugifyRole(value || option.value || `role-${index + 1}`)
-            : slugifyRole(value || option.label || `role-${index + 1}`);
+        const baseValue = field === 'label' ? value : option.label;
+        const nextValue = slugifyRole(baseValue || option.value || `role-${index + 1}`);
         return { ...option, label: nextLabel, value: nextValue };
       })
     );
@@ -512,12 +514,7 @@ export const GeneralSettingsScreen = () => {
 
       <section className={`${styles.card} ${styles.fullWidthCard}`}>
         <div className={styles.cardHeader}>
-          <div className={styles.cardHeaderLeft}>
-            <p className={styles.cardEyebrow}>Access control</p>
-            <h3 className={styles.cardTitle}>Workstream roles</h3>
-            <p className={styles.cardSubtitle}>Edit the role list used for account assignments and approvers.</p>
-          </div>
-          <div className={styles.cardActions}>
+          <div className={styles.cardTitleRow}>
             <button
               className={`${styles.collapseButton} ${rolesCollapsed ? styles.collapsed : ''}`}
               type="button"
@@ -526,6 +523,13 @@ export const GeneralSettingsScreen = () => {
             >
               ▾
             </button>
+            <div className={styles.cardHeaderLeft}>
+              <p className={styles.cardEyebrow}>Access control</p>
+              <h3 className={styles.cardTitle}>Workstream roles</h3>
+              <p className={styles.cardSubtitle}>Edit the role list used for account assignments and approvers.</p>
+            </div>
+          </div>
+          <div className={styles.cardActions}>
             <button className={styles.secondaryButton} type="button" onClick={handleResetRoleOptions}>
               Reset to defaults
             </button>
@@ -539,7 +543,7 @@ export const GeneralSettingsScreen = () => {
           <>
             <div className={styles.roleGrid}>
               {roleOptionDrafts.map((option, index) => (
-                <div key={`${option.value || 'role'}-${index}`} className={styles.optionRow}>
+                <div key={`role-${index}`} className={styles.optionRow}>
                   <input
                     value={option.label}
                     onChange={(event) => handleRoleOptionChange(index, 'label', event.target.value)}
@@ -570,47 +574,61 @@ export const GeneralSettingsScreen = () => {
       <div className={styles.sectionsGrid}>
         <section className={styles.card}>
           <div className={styles.cardHeader}>
-            <div>
-              <p className={styles.cardEyebrow}>Plan module</p>
-              <h3 className={styles.cardTitle}>Milestone types</h3>
-              <p className={styles.cardSubtitle}>Value Step is required, everything else is program-specific.</p>
+            <div className={styles.cardTitleRow}>
+              <button
+                className={`${styles.collapseButton} ${milestoneCollapsed ? styles.collapsed : ''}`}
+                type="button"
+                aria-label={milestoneCollapsed ? 'Expand milestone types' : 'Collapse milestone types'}
+                onClick={() => setMilestoneCollapsed((prev) => !prev)}
+              >
+                ▾
+              </button>
+              <div>
+                <p className={styles.cardEyebrow}>Plan module</p>
+                <h3 className={styles.cardTitle}>Milestone types</h3>
+                <p className={styles.cardSubtitle}>Value Step is required, everything else is program-specific.</p>
+              </div>
             </div>
             <button className={styles.primaryButton} type="button" onClick={handleSaveMilestones}>
               Save
             </button>
           </div>
 
-          <div className={styles.optionsGrid}>
-            {normalizedOptions.map((option, index) => (
-              <div key={`${option}${index}`} className={styles.optionRow}>
+          {!milestoneCollapsed && (
+            <>
+              <div className={styles.optionsGrid}>
+                {normalizedOptions.map((option, index) => (
+                  <div key={`${option}${index}`} className={styles.optionRow}>
+                    <input
+                      value={option}
+                      onChange={(event) => handleUpdate(index, event.target.value)}
+                      className={styles.optionInput}
+                    />
+                    <button
+                      type="button"
+                      className={styles.removeButton}
+                      onClick={() => handleRemove(index)}
+                      disabled={option.toLowerCase() === VALUE_STEP_LABEL.toLowerCase()}
+                      title={option.toLowerCase() === VALUE_STEP_LABEL.toLowerCase() ? 'Value Step cannot be removed' : ''}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className={styles.addRow}>
                 <input
-                  value={option}
-                  onChange={(event) => handleUpdate(index, event.target.value)}
-                  className={styles.optionInput}
+                  value={newOption}
+                  onChange={(event) => setNewOption(event.target.value)}
+                  placeholder="Add milestone type"
                 />
-                <button
-                  type="button"
-                  className={styles.removeButton}
-                  onClick={() => handleRemove(index)}
-                  disabled={option.toLowerCase() === VALUE_STEP_LABEL.toLowerCase()}
-                  title={option.toLowerCase() === VALUE_STEP_LABEL.toLowerCase() ? 'Value Step cannot be removed' : ''}
-                >
-                  Remove
+                <button className={styles.secondaryButton} type="button" onClick={handleAdd}>
+                  Add
                 </button>
               </div>
-            ))}
-          </div>
-
-          <div className={styles.addRow}>
-            <input
-              value={newOption}
-              onChange={(event) => setNewOption(event.target.value)}
-              placeholder="Add milestone type"
-            />
-            <button className={styles.secondaryButton} type="button" onClick={handleAdd}>
-              Add
-            </button>
-          </div>
+            </>
+          )}
         </section>
 
         <section className={styles.card}>
@@ -667,150 +685,186 @@ export const GeneralSettingsScreen = () => {
 
         <section className={styles.card}>
           <div className={styles.cardHeader}>
-            <div>
-              <p className={styles.cardEyebrow}>Planning window</p>
-              <h3 className={styles.cardTitle}>Period defaults</h3>
-              <p className={styles.cardSubtitle}>One set of dates, applied across every initiative stage.</p>
+            <div className={styles.cardTitleRow}>
+              <button
+                className={`${styles.collapseButton} ${periodCollapsed ? styles.collapsed : ''}`}
+                type="button"
+                aria-label={periodCollapsed ? 'Expand period defaults' : 'Collapse period defaults'}
+                onClick={() => setPeriodCollapsed((prev) => !prev)}
+              >
+                ▾
+              </button>
+              <div>
+                <p className={styles.cardEyebrow}>Planning window</p>
+                <h3 className={styles.cardTitle}>Period defaults</h3>
+                <p className={styles.cardSubtitle}>One set of dates, applied across every initiative stage.</p>
+              </div>
             </div>
             <button className={styles.primaryButton} type="button" onClick={handleSavePeriodSettings}>
               Save period
             </button>
           </div>
 
-          <div className={styles.settingsGrid}>
-            <label className={styles.field}>
-              <span>Period month</span>
-              <select
-                value={periodForm.periodMonth}
-                onChange={(event) => {
-                  setPeriodForm((prev) => ({
-                    ...prev,
-                    periodMonth: Number(event.target.value) || prev.periodMonth
-                  }));
-                  setToast(null);
-                }}
-              >
-                {monthOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.field}>
-              <span>Period year</span>
-              <input
-                type="number"
-                min={2000}
-                value={periodForm.periodYear}
-                onChange={(event) => {
-                  const year = Number(event.target.value);
-                  setPeriodForm((prev) => ({
-                    ...prev,
-                    periodYear: Number.isFinite(year) ? year : prev.periodYear
-                  }));
-                  setToast(null);
-                }}
-              />
-            </label>
-          </div>
-          <p className={styles.cardSubtitle}>Change once in settings and remove busywork from initiative editing.</p>
+          {!periodCollapsed && (
+            <>
+              <div className={styles.settingsGrid}>
+                <label className={styles.field}>
+                  <span>Period month</span>
+                  <select
+                    value={periodForm.periodMonth}
+                    onChange={(event) => {
+                      setPeriodForm((prev) => ({
+                        ...prev,
+                        periodMonth: Number(event.target.value) || prev.periodMonth
+                      }));
+                      setToast(null);
+                    }}
+                  >
+                    {monthOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.field}>
+                  <span>Period year</span>
+                  <input
+                    type="number"
+                    min={2000}
+                    value={periodForm.periodYear}
+                    onChange={(event) => {
+                      const year = Number(event.target.value);
+                      setPeriodForm((prev) => ({
+                        ...prev,
+                        periodYear: Number.isFinite(year) ? year : prev.periodYear
+                      }));
+                      setToast(null);
+                    }}
+                  />
+                </label>
+              </div>
+              <p className={styles.cardSubtitle}>Change once in settings and remove busywork from initiative editing.</p>
+            </>
+          )}
         </section>
 
         <section className={styles.card}>
           <div className={styles.cardHeader}>
-            <div>
-              <p className={styles.cardEyebrow}>Status reports</p>
-              <h3 className={styles.cardTitle}>Reporting cadence</h3>
-              <p className={styles.cardSubtitle}>Control template resets and what gets included each cycle.</p>
+            <div className={styles.cardTitleRow}>
+              <button
+                className={`${styles.collapseButton} ${statusCollapsed ? styles.collapsed : ''}`}
+                type="button"
+                aria-label={statusCollapsed ? 'Expand reporting cadence' : 'Collapse reporting cadence'}
+                onClick={() => setStatusCollapsed((prev) => !prev)}
+              >
+                ▾
+              </button>
+              <div>
+                <p className={styles.cardEyebrow}>Status reports</p>
+                <h3 className={styles.cardTitle}>Reporting cadence</h3>
+                <p className={styles.cardSubtitle}>Control template resets and what gets included each cycle.</p>
+              </div>
             </div>
             <button className={styles.primaryButton} type="button" onClick={handleSaveStatusSettings}>
               Save
             </button>
           </div>
 
-          <div className={styles.settingsGrid}>
-            <label className={styles.field}>
-              <span>Template reset day</span>
-              <select
-                value={statusSettings.templateResetDay}
-                onChange={(event) =>
-                  updateStatusSetting('templateResetDay', event.target.value as StatusReportSettings['templateResetDay'])
-                }
-              >
-                {dayOptions.map((day) => (
-                  <option key={day} value={day}>
-                    {day.charAt(0).toUpperCase() + day.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.field}>
-              <span>Template reset time</span>
-              <input
-                type="time"
-                value={statusSettings.templateResetTime}
-                onChange={(event) => updateStatusSetting('templateResetTime', event.target.value)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span>Report refresh frequency</span>
-              <select
-                value={statusSettings.refreshFrequency}
-                onChange={(event) =>
-                  updateStatusSetting('refreshFrequency', event.target.value as StatusReportSettings['refreshFrequency'])
-                }
-              >
-                {frequencyOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.field}>
-              <span>Submit deadline day</span>
-              <select
-                value={statusSettings.submitDeadlineDay}
-                onChange={(event) =>
-                  updateStatusSetting('submitDeadlineDay', event.target.value as StatusReportSettings['submitDeadlineDay'])
-                }
-              >
-                {dayOptions.map((day) => (
-                  <option key={day} value={day}>
-                    {day.charAt(0).toUpperCase() + day.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={styles.field}>
-              <span>Submit deadline time</span>
-              <input
-                type="time"
-                value={statusSettings.submitDeadlineTime}
-                onChange={(event) => updateStatusSetting('submitDeadlineTime', event.target.value)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span>Upcoming window (days)</span>
-              <input
-                type="number"
-                min={1}
-                value={statusSettings.upcomingWindowDays}
-                onChange={(event) =>
-                  updateStatusSetting('upcomingWindowDays', Math.max(1, Number(event.target.value) || 1))
-                }
-              />
-            </label>
-          </div>
+          {!statusCollapsed && (
+            <div className={styles.settingsGrid}>
+              <label className={styles.field}>
+                <span>Template reset day</span>
+                <select
+                  value={statusSettings.templateResetDay}
+                  onChange={(event) =>
+                    updateStatusSetting('templateResetDay', event.target.value as StatusReportSettings['templateResetDay'])
+                  }
+                >
+                  {dayOptions.map((day) => (
+                    <option key={day} value={day}>
+                      {day.charAt(0).toUpperCase() + day.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Template reset time</span>
+                <input
+                  type="time"
+                  value={statusSettings.templateResetTime}
+                  onChange={(event) => updateStatusSetting('templateResetTime', event.target.value)}
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Report refresh frequency</span>
+                <select
+                  value={statusSettings.refreshFrequency}
+                  onChange={(event) =>
+                    updateStatusSetting('refreshFrequency', event.target.value as StatusReportSettings['refreshFrequency'])
+                  }
+                >
+                  {frequencyOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Submit deadline day</span>
+                <select
+                  value={statusSettings.submitDeadlineDay}
+                  onChange={(event) =>
+                    updateStatusSetting('submitDeadlineDay', event.target.value as StatusReportSettings['submitDeadlineDay'])
+                  }
+                >
+                  {dayOptions.map((day) => (
+                    <option key={day} value={day}>
+                      {day.charAt(0).toUpperCase() + day.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.field}>
+                <span>Submit deadline time</span>
+                <input
+                  type="time"
+                  value={statusSettings.submitDeadlineTime}
+                  onChange={(event) => updateStatusSetting('submitDeadlineTime', event.target.value)}
+                />
+              </label>
+              <label className={styles.field}>
+                <span>Upcoming window (days)</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={statusSettings.upcomingWindowDays}
+                  onChange={(event) =>
+                    updateStatusSetting('upcomingWindowDays', Math.max(1, Number(event.target.value) || 1))
+                  }
+                />
+              </label>
+            </div>
+          )}
         </section>
 
         <section className={styles.card}>
           <div className={styles.cardHeader}>
-            <div>
-              <p className={styles.cardEyebrow}>KPI catalog</p>
-              <h3 className={styles.cardTitle}>Shared KPI options</h3>
-              <p className={styles.cardSubtitle}>These KPIs appear in the initiative selector.</p>
+            <div className={styles.cardTitleRow}>
+              <button
+                className={`${styles.collapseButton} ${kpiCollapsed ? styles.collapsed : ''}`}
+                type="button"
+                aria-label={kpiCollapsed ? 'Expand KPI options' : 'Collapse KPI options'}
+                onClick={() => setKpiCollapsed((prev) => !prev)}
+              >
+                ▾
+              </button>
+              <div>
+                <p className={styles.cardEyebrow}>KPI catalog</p>
+                <h3 className={styles.cardTitle}>Shared KPI options</h3>
+                <p className={styles.cardSubtitle}>These KPIs appear in the initiative selector.</p>
+              </div>
             </div>
             <button
               type="button"
@@ -821,35 +875,37 @@ export const GeneralSettingsScreen = () => {
               {snapshotSaving ? 'Saving...' : 'Save catalog'}
             </button>
           </div>
-          <div className={styles.kpiGrid}>
-            {(snapshotForm.kpiOptions ?? []).map((option) => (
-              <div key={option} className={styles.kpiRow}>
+          {!kpiCollapsed && (
+            <div className={styles.kpiGrid}>
+              {(snapshotForm.kpiOptions ?? []).map((option) => (
+                <div key={option} className={styles.kpiRow}>
+                  <input
+                    value={option}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setSnapshotForm((prev) => ({
+                        ...prev,
+                        kpiOptions: prev.kpiOptions.map((item) => (item === option ? next : item))
+                      }));
+                    }}
+                  />
+                  <button className={styles.removeButton} type="button" onClick={() => handleRemoveKpiOption(option)}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <div className={styles.kpiRow}>
                 <input
-                  value={option}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    setSnapshotForm((prev) => ({
-                      ...prev,
-                      kpiOptions: prev.kpiOptions.map((item) => (item === option ? next : item))
-                    }));
-                  }}
+                  value={newKpiOption}
+                  onChange={(event) => setNewKpiOption(event.target.value)}
+                  placeholder="Add KPI"
                 />
-                <button className={styles.removeButton} type="button" onClick={() => handleRemoveKpiOption(option)}>
-                  Remove
+                <button className={styles.secondaryButton} type="button" onClick={handleAddKpiOption}>
+                  Add
                 </button>
               </div>
-            ))}
-            <div className={styles.kpiRow}>
-              <input
-                value={newKpiOption}
-                onChange={(event) => setNewKpiOption(event.target.value)}
-                placeholder="Add KPI"
-              />
-              <button className={styles.secondaryButton} type="button" onClick={handleAddKpiOption}>
-                Add
-              </button>
             </div>
-          </div>
+          )}
         </section>
       </div>
 

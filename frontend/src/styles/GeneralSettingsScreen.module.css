@@ -80,8 +80,8 @@
 }
 
 .sectionsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
@@ -112,6 +112,12 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .cardEyebrow {
