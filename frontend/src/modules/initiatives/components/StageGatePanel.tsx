@@ -254,7 +254,7 @@ export const StageGatePanel = ({
     <div className={styles.chevronLegend}>
       <span className={styles.legendItem}>
         <span className={`${styles.legendDot} ${styles['dot-upcoming']}`} aria-hidden="true" />
-        Pending review
+        Not started
       </span>
       <span className={styles.legendItem}>
         <span className={`${styles.legendDot} ${styles['dot-complete']}`} aria-hidden="true" />
