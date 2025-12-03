@@ -1258,13 +1258,15 @@ export const InitiativeProfile = ({
                   <p className={styles.quickLabel}>Initiative</p>
                   <h2>{draft.name || 'Unnamed initiative'}</h2>
                 </div>
-                <div className={styles.summaryMeta} {...buildProfileAnchor('overview.owner', 'Initiative owner display')}>
-                  <p className={styles.quickLabel}>Owner</p>
-                  <h3>{draft.ownerName || 'Unassigned'}</h3>
-                </div>
-                <div className={styles.summaryMeta} {...buildProfileAnchor('overview.l4', 'Stage L4 date')}>
-                  <p className={styles.quickLabel}>L4 date</p>
-                  <h3>{formatDate(l4Date)}</h3>
+                <div className={styles.summaryMetaRow}>
+                  <div className={styles.summaryMeta} {...buildProfileAnchor('overview.owner', 'Initiative owner display')}>
+                    <p className={styles.quickLabel}>Owner</p>
+                    <h3>{draft.ownerName || 'Unassigned'}</h3>
+                  </div>
+                  <div className={styles.summaryMeta} {...buildProfileAnchor('overview.l4', 'Stage L4 date')}>
+                    <p className={styles.quickLabel}>L4 date</p>
+                    <h3>{formatDate(l4Date)}</h3>
+                  </div>
                 </div>
               </div>
               <div className={styles.sparkControls}>
@@ -1309,24 +1311,24 @@ export const InitiativeProfile = ({
 
             <div className={styles.chartRow}>
               <SparklineCard
-                label="Benefits trend"
-                value={formatImpact(financialSeries.runRates.benefits)}
-                valueLabel="12m run rate"
-                periodStart={financialSeries.periodStartLabel}
-                periodEnd={financialSeries.periodEndLabel}
-                color="#22c55e"
-                values={financialSeries.benefits}
-                formatValue={formatImpact}
-                yBounds={sparklineBounds}
-              />
-              <SparklineCard
-                label="Impact trend"
+                label="Impact profile"
                 value={formatImpact(financialSeries.runRates.impact)}
                 valueLabel="12m run rate"
                 periodStart={financialSeries.periodStartLabel}
                 periodEnd={financialSeries.periodEndLabel}
                 color="#0ea5e9"
                 values={financialSeries.impact}
+                formatValue={formatImpact}
+                yBounds={sparklineBounds}
+              />
+              <SparklineCard
+                label="Benefits profile"
+                value={formatImpact(financialSeries.runRates.benefits)}
+                valueLabel="12m run rate"
+                periodStart={financialSeries.periodStartLabel}
+                periodEnd={financialSeries.periodEndLabel}
+                color="#22c55e"
+                values={financialSeries.benefits}
                 formatValue={formatImpact}
                 yBounds={sparklineBounds}
               />
