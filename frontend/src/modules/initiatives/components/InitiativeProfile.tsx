@@ -148,10 +148,12 @@ const calculateTotals = (stages: Initiative['stages']) => {
 };
 
 const calculateFinancialSummary = (totals: Initiative['totals']): Initiative['financialSummary'] => {
-  if (!Number.isFinite(totals.recurringCosts) || totals.recurringCosts === 0) {
+  const denominator = totals.oneoffCosts;
+  if (!Number.isFinite(denominator) || denominator === 0) {
     return { roi: null };
   }
-  const roi = totals.recurringImpact / totals.recurringCosts;
+  const roi =
+    (totals.recurringBenefits + totals.oneoffBenefits - totals.recurringCosts - totals.oneoffCosts) / denominator;
   return { roi: Number.isFinite(roi) ? roi : null };
 };
 
@@ -231,37 +233,73 @@ interface SparklineCardProps {
   label: string;
   value: string;
   valueLabel: string;
-  periodLabel: string;
+  periodStart: string;
+  periodEnd: string;
   values: number[];
   color: string;
   formatValue?: (value: number) => string;
+  yBounds?: { min: number; max: number };
 }
 
 const SparklineCard = ({
   label,
   value,
   valueLabel,
-  periodLabel,
+  periodStart,
+  periodEnd,
   values,
   color,
-  formatValue
+  formatValue,
+  yBounds
 }: SparklineCardProps) => {
-  const width = 240;
+  const [plotWidth, setPlotWidth] = useState(240);
   const height = 70;
 
-  const min = values.length ? Math.min(...values) : 0;
-  const max = values.length ? Math.max(...values) : 0;
-  const range = max - min || 1;
+  const figureRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = figureRef.current;
+    if (!node) {
+      return;
+    }
+    const updateWidth = () => {
+      const nextWidth = node.clientWidth;
+      if (Number.isFinite(nextWidth) && nextWidth > 0) {
+        setPlotWidth(Math.max(140, nextWidth));
+      }
+    };
+    updateWidth();
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => updateWidth());
+      observer.observe(node);
+      return () => observer.disconnect();
+    }
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+
+  const baseMin = values.length ? Math.min(...values) : 0;
+  const baseMax = values.length ? Math.max(...values) : 0;
+  const domainMin = Number.isFinite(yBounds?.min) ? (yBounds?.min as number) : baseMin;
+  const domainMax = Number.isFinite(yBounds?.max) ? (yBounds?.max as number) : baseMax;
+  const span = domainMax - domainMin || 1;
+  const padding = Math.max(6, Math.abs(span) * 0.1);
+  const paddedMin = domainMin - padding;
+  const paddedMax = domainMax + padding;
+  const range = paddedMax - paddedMin || 1;
+
+  const axisMin = domainMin;
+  const axisMax = domainMax;
 
   const points =
     values.length === 0
       ? [
           { x: 0, y: height / 2 },
-          { x: width, y: height / 2 }
+          { x: plotWidth, y: height / 2 }
         ]
       : values.map((point, index) => {
-          const x = values.length === 1 ? width / 2 : (index / (values.length - 1)) * width;
-          const normalized = (point - min) / range;
+          const x = values.length === 1 ? plotWidth / 2 : (index / (values.length - 1)) * plotWidth;
+          const normalized = (point - paddedMin) / range;
           const y = height - normalized * height;
           return { x, y };
         });
@@ -279,15 +317,15 @@ const SparklineCard = ({
       </div>
       <div className={styles.sparkBody}>
         <div className={styles.sparkAxis}>
-          <span className={styles.sparkAxisLabel}>{(formatValue ?? ((v: number) => v.toFixed(0)))(max)}</span>
-          <span className={styles.sparkAxisLabel}>{(formatValue ?? ((v: number) => v.toFixed(0)))(min)}</span>
+          <span className={styles.sparkAxisLabel}>{(formatValue ?? ((v: number) => v.toFixed(0)))(axisMax)}</span>
+          <span className={styles.sparkAxisLabel}>{(formatValue ?? ((v: number) => v.toFixed(0)))(axisMin)}</span>
         </div>
-        <div className={styles.sparkFigure}>
+        <div className={styles.sparkFigure} ref={figureRef}>
           <svg
             className={styles.sparkline}
             width="100%"
             height={height}
-            viewBox={`0 0 ${width} ${height}`}
+            viewBox={`0 0 ${plotWidth} ${height}`}
             preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label={label}
@@ -308,24 +346,30 @@ const SparklineCard = ({
               <circle key={`${label}-${index}`} cx={point.x} cy={point.y} r={2.4} fill={color} />
             ))}
           </svg>
-          <div className={styles.sparkPeriodLabel}>{periodLabel}</div>
+          <div className={styles.sparkPeriodRange}>
+            <span>{periodStart}</span>
+            <span>{periodEnd}</span>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-const RoiCard = ({ value, periodLabel }: { value: string; periodLabel: string }) => (
+const RoiCard = ({ value, periodStart, periodEnd }: { value: string; periodStart: string; periodEnd: string }) => (
   <div className={`${styles.sparkCard} ${styles.roiCard}`}>
     <div className={styles.sparkHeader}>
       <div>
         <span className={styles.quickLabel}>ROI</span>
-        <span className={styles.sparkSubLabel}>Recurring impact vs recurring costs</span>
+        <span className={styles.sparkSubLabel}>Full-period benefits vs costs</span>
       </div>
       <div className={styles.sparkValue}>{value}</div>
     </div>
-    <div className={styles.roiPlaceholder}>Run rate view</div>
-    <div className={styles.sparkPeriodLabel}>{periodLabel}</div>
+    <div className={styles.roiPlaceholder}>Includes recurring and one-off totals for the entire timeline.</div>
+    <div className={styles.sparkPeriodRange}>
+      <span>{periodStart}</span>
+      <span>{periodEnd}</span>
+    </div>
   </div>
 );
 
@@ -1073,12 +1117,10 @@ export const InitiativeProfile = ({
     const startIndex = Math.max(0, endIndex - 11);
     const runRateKeys = monthKeys.slice(startIndex, endIndex + 1);
 
-    const periodLabel =
-      months.length >= 2
-        ? `${months[0].label} ${months[0].year} – ${months[months.length - 1].label} ${months[months.length - 1].year}`
-        : months.length === 1
-          ? `${months[0].label} ${months[0].year}`
-          : 'Awaiting financial data';
+    const periodStartLabel = months.length >= 1 ? `${months[0].label} ${months[0].year}` : 'Awaiting financial data';
+    const periodEndLabel =
+      months.length >= 1 ? `${months[months.length - 1].label} ${months[months.length - 1].year}` : 'Awaiting financial data';
+    const periodLabel = months.length >= 2 ? `${periodStartLabel} - ${periodEndLabel}` : periodStartLabel;
 
     return {
       benefits,
@@ -1094,11 +1136,27 @@ export const InitiativeProfile = ({
         costs: costs.reduce((acc, value) => acc + value, 0),
         impact: impact.reduce((acc, value) => acc + value, 0)
       },
+      periodStartLabel,
+      periodEndLabel,
       periodLabel,
       modeLabel: seriesMode === 'actuals' ? 'Actuals' : 'Plan',
       oneOffLabel: includeOneOffs ? 'With one-offs' : 'Recurring only'
     };
   }, [draft, includeOneOffs, periodSettings.periodMonth, periodSettings.periodYear, seriesMode]);
+
+  const sparklineBounds = useMemo(() => {
+    const combined = [...financialSeries.benefits, ...financialSeries.costs, ...financialSeries.impact];
+    if (!combined.length) {
+      return { min: 0, max: 0 };
+    }
+    const min = Math.min(...combined, 0);
+    const max = Math.max(...combined, 0);
+    if (min === max) {
+      const padding = Math.max(10, Math.abs(max || 0) * 0.2);
+      return { min: min - padding, max: max + padding };
+    }
+    return { min, max };
+  }, [financialSeries]);
 
   const formatTaskDateRange = (task: InitiativePlanTask | null) => {
     if (!task) {
@@ -1152,7 +1210,6 @@ export const InitiativeProfile = ({
     );
   }
   const roiValue = draft.financialSummary?.roi ?? calculateFinancialSummary(draft.totals).roi;
-  const sparklineMetaLabel = `${financialSeries.modeLabel} · ${financialSeries.oneOffLabel}`;
   const commentButtonLabel = isLoadingComments ? 'Loading comments...' : `Comments${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
   const profileContentClass = `${styles.profileContent}${hideBackLink ? ` ${styles.profileContentNoBack}` : ''}`;
   const buildProfileAnchor = (key: string, label?: string) => createCommentAnchor(`profile.${key}`, label);
@@ -1194,94 +1251,103 @@ export const InitiativeProfile = ({
           </div>
         </div>
         <div className={styles.quickInfoCard}>
-        <div className={styles.quickInfoGrid}>
-          <div className={styles.quickInfoTop}>
-            <div className={styles.initiativeSummary}>
-              <div {...buildProfileAnchor('overview.name', 'Initiative name')}>
-                <p className={styles.quickLabel}>Initiative</p>
-                <h2>{draft.name || 'Unnamed initiative'}</h2>
+          <div className={styles.quickInfoGrid}>
+            <div className={styles.quickInfoTop}>
+              <div className={styles.initiativeSummary}>
+                <div {...buildProfileAnchor('overview.name', 'Initiative name')}>
+                  <p className={styles.quickLabel}>Initiative</p>
+                  <h2>{draft.name || 'Unnamed initiative'}</h2>
+                </div>
+                <div className={styles.summaryMeta} {...buildProfileAnchor('overview.owner', 'Initiative owner display')}>
+                  <p className={styles.quickLabel}>Owner</p>
+                  <h3>{draft.ownerName || 'Unassigned'}</h3>
+                </div>
+                <div className={styles.summaryMeta} {...buildProfileAnchor('overview.l4', 'Stage L4 date')}>
+                  <p className={styles.quickLabel}>L4 date</p>
+                  <h3>{formatDate(l4Date)}</h3>
+                </div>
               </div>
-              <div className={styles.summaryMeta} {...buildProfileAnchor('overview.owner', 'Initiative owner display')}>
-                <p className={styles.quickLabel}>Owner</p>
-                <h3>{draft.ownerName || 'Unassigned'}</h3>
-              </div>
-              <div className={styles.summaryMeta} {...buildProfileAnchor('overview.l4', 'Stage L4 date')}>
-                <p className={styles.quickLabel}>L4 date</p>
-                <h3>{formatDate(l4Date)}</h3>
+              <div className={styles.sparkControls}>
+                <div className={styles.toggleGroup} role="group" aria-label="Run rate source">
+                  <button
+                    className={seriesMode === 'plan' ? styles.toggleButtonActive : styles.toggleButton}
+                    type="button"
+                    onClick={() => setSeriesMode('plan')}
+                    aria-pressed={seriesMode === 'plan'}
+                  >
+                    Plan
+                  </button>
+                  <button
+                    className={seriesMode === 'actuals' ? styles.toggleButtonActive : styles.toggleButton}
+                    type="button"
+                    onClick={() => setSeriesMode('actuals')}
+                    aria-pressed={seriesMode === 'actuals'}
+                  >
+                    Actuals
+                  </button>
+                </div>
+                <div className={styles.toggleGroup} role="group" aria-label="One-off inclusion toggle">
+                  <button
+                    className={includeOneOffs ? styles.toggleButtonActive : styles.toggleButton}
+                    type="button"
+                    onClick={() => setIncludeOneOffs(true)}
+                    aria-pressed={includeOneOffs}
+                  >
+                    With one-offs
+                  </button>
+                  <button
+                    className={!includeOneOffs ? styles.toggleButtonActive : styles.toggleButton}
+                    type="button"
+                    onClick={() => setIncludeOneOffs(false)}
+                    aria-pressed={!includeOneOffs}
+                  >
+                    Recurring only
+                  </button>
+                </div>
               </div>
             </div>
-            <div className={styles.sparkControls}>
-              <div className={styles.toggleGroup} role="group" aria-label="Run rate source">
-                <button
-                  className={seriesMode === 'plan' ? styles.toggleButtonActive : styles.toggleButton}
-                  type="button"
-                  onClick={() => setSeriesMode('plan')}
-                  aria-pressed={seriesMode === 'plan'}
-                >
-                  Plan
-                </button>
-                <button
-                  className={seriesMode === 'actuals' ? styles.toggleButtonActive : styles.toggleButton}
-                  type="button"
-                  onClick={() => setSeriesMode('actuals')}
-                  aria-pressed={seriesMode === 'actuals'}
-                >
-                  Actuals
-                </button>
-              </div>
-              <div className={styles.toggleGroup} role="group" aria-label="One-off inclusion toggle">
-                <button
-                  className={includeOneOffs ? styles.toggleButtonActive : styles.toggleButton}
-                  type="button"
-                  onClick={() => setIncludeOneOffs(true)}
-                  aria-pressed={includeOneOffs}
-                >
-                  With one-offs
-                </button>
-                <button
-                  className={!includeOneOffs ? styles.toggleButtonActive : styles.toggleButton}
-                  type="button"
-                  onClick={() => setIncludeOneOffs(false)}
-                  aria-pressed={!includeOneOffs}
-                >
-                  Recurring only
-                </button>
-              </div>
-              <div className={styles.sparkMeta}>{sparklineMetaLabel}</div>
-            </div>
-          </div>
 
-          <div className={styles.chartRow}>
-            <SparklineCard
-              label="Benefits trend"
-              value={formatImpact(financialSeries.runRates.benefits)}
-              valueLabel="12m run rate"
-              periodLabel={financialSeries.periodLabel}
-              color="#22c55e"
-              values={financialSeries.benefits}
-              formatValue={formatImpact}
-            />
-            <SparklineCard
-              label="Impact trend"
-              value={formatImpact(financialSeries.runRates.impact)}
-              valueLabel="12m run rate"
-              periodLabel={financialSeries.periodLabel}
-              color="#0ea5e9"
-              values={financialSeries.impact}
-              formatValue={formatImpact}
-            />
-            <SparklineCard
-              label="Cost profile"
-              value={formatImpact(financialSeries.runRates.costs)}
-              valueLabel="12m run rate"
-              periodLabel={financialSeries.periodLabel}
-              color="#f97316"
-              values={financialSeries.costs}
-              formatValue={formatImpact}
-            />
-            <RoiCard value={formatRoi(roiValue)} periodLabel={financialSeries.periodLabel} />
+            <div className={styles.chartRow}>
+              <SparklineCard
+                label="Benefits trend"
+                value={formatImpact(financialSeries.runRates.benefits)}
+                valueLabel="12m run rate"
+                periodStart={financialSeries.periodStartLabel}
+                periodEnd={financialSeries.periodEndLabel}
+                color="#22c55e"
+                values={financialSeries.benefits}
+                formatValue={formatImpact}
+                yBounds={sparklineBounds}
+              />
+              <SparklineCard
+                label="Impact trend"
+                value={formatImpact(financialSeries.runRates.impact)}
+                valueLabel="12m run rate"
+                periodStart={financialSeries.periodStartLabel}
+                periodEnd={financialSeries.periodEndLabel}
+                color="#0ea5e9"
+                values={financialSeries.impact}
+                formatValue={formatImpact}
+                yBounds={sparklineBounds}
+              />
+              <SparklineCard
+                label="Cost profile"
+                value={formatImpact(financialSeries.runRates.costs)}
+                valueLabel="12m run rate"
+                periodStart={financialSeries.periodStartLabel}
+                periodEnd={financialSeries.periodEndLabel}
+                color="#f97316"
+                values={financialSeries.costs}
+                formatValue={formatImpact}
+                yBounds={sparklineBounds}
+              />
+              <RoiCard
+                value={formatRoi(roiValue)}
+                periodStart={financialSeries.periodStartLabel}
+                periodEnd={financialSeries.periodEndLabel}
+              />
+            </div>
           </div>
-        </div>
         </div>
 
       <section className={styles.cardSection} {...buildProfileAnchor('stage-gates', 'Stage progression')}>
