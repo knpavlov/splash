@@ -633,57 +633,6 @@ export const GeneralSettingsScreen = () => {
 
         <section className={styles.card}>
           <div className={styles.cardHeader}>
-            <div>
-              <p className={styles.cardEyebrow}>Access control</p>
-              <h3 className={styles.cardTitle}>Workstream roles</h3>
-              <p className={styles.cardSubtitle}>Edit the role list used for account assignments and approvers.</p>
-            </div>
-            <div className={styles.cardActions}>
-              <button className={styles.secondaryButton} type="button" onClick={handleResetRoleOptions}>
-                Reset to defaults
-              </button>
-              <button className={styles.primaryButton} type="button" onClick={handleSaveRoleOptionList}>
-                Save roles
-              </button>
-            </div>
-          </div>
-
-          <div className={styles.optionsGrid}>
-            {roleOptionDrafts.map((option, index) => (
-              <div key={`${option.value || 'role'}-${index}`} className={styles.optionRow}>
-                <input
-                  value={option.label}
-                  onChange={(event) => handleRoleOptionChange(index, 'label', event.target.value)}
-                  className={styles.optionInput}
-                  placeholder="Display label"
-                />
-                <input
-                  value={option.value}
-                  onChange={(event) => handleRoleOptionChange(index, 'value', event.target.value)}
-                  className={styles.optionInput}
-                  placeholder="Value (used internally)"
-                />
-                <button
-                  type="button"
-                  className={styles.removeButton}
-                  onClick={() => handleRemoveRoleOption(index)}
-                  title="Remove role"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className={styles.addRow}>
-            <button className={styles.secondaryButton} type="button" onClick={handleAddRoleOptionRow}>
-              Add role
-            </button>
-            <p className={styles.helpText}>Roles save instantly to keep Account management and approvals in sync.</p>
-          </div>
-        </section>
-        <section className={styles.card}>
-          <div className={styles.cardHeader}>
             <div className={styles.cardTitleRow}>
               <button
                 className={`${styles.collapseButton} ${periodCollapsed ? styles.collapsed : ''}`}
