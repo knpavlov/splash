@@ -990,6 +990,20 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS account_financial_dynamics_preferences (
+      account_id UUID PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+      settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+      favorites TEXT[] NOT NULL DEFAULT '{}'::text[],
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS account_financial_dynamics_preferences_updated_idx
+      ON account_financial_dynamics_preferences(updated_at DESC);
+  `);
+
+  await postgresPool.query(`
     CREATE TABLE IF NOT EXISTS snapshot_settings (
       id SMALLINT PRIMARY KEY DEFAULT 1,
       auto_enabled BOOLEAN NOT NULL DEFAULT FALSE,

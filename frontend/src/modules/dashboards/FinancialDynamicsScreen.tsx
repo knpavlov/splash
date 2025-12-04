@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/FinancialDynamicsScreen.module.css';
 import { useFinancialsState, useInitiativesState, usePlanSettingsState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { FinancialLineItem } from '../../shared/types/financials';
@@ -21,20 +21,21 @@ import {
 } from '../../shared/utils/financialMath';
 import { ChartMonthStack, ChartSegment, PlanVsActualChart } from '../initiatives/components/FinancialEditor';
 import { calculateRunRate } from '../initiatives/components/financials.helpers';
+import { financialDynamicsApi } from './services/financialDynamicsApi';
+import { useAuth } from '../auth/AuthContext';
+import { ChevronIcon } from '../../components/icons/ChevronIcon';
+import { Star } from 'lucide-react';
+import {
+  FinancialDynamicsBaseMode,
+  FinancialDynamicsSettings,
+  FinancialDynamicsSortMode,
+  FinancialDynamicsViewMode
+} from '../../shared/types/financialDynamics';
 
-type ViewMode = 'months' | 'quarters' | 'calendar' | 'fiscal';
-type BaseMode = 'zero' | 'baseline';
-type SortMode = 'impact-desc' | 'impact-asc' | 'delta' | 'name';
-
-interface PersistedSettings {
-  viewMode: ViewMode;
-  baseMode: BaseMode;
-  stageKeys: string[];
-  workstreamIds: string[];
-  sortMode: SortMode;
-  query: string;
-  hideZeros: boolean;
-}
+type ViewMode = FinancialDynamicsViewMode;
+type BaseMode = FinancialDynamicsBaseMode;
+type SortMode = FinancialDynamicsSortMode;
+type PersistedSettings = FinancialDynamicsSettings;
 
 interface ChartBucket {
   key: string;
@@ -82,8 +83,6 @@ interface BreakdownState {
   rows: InitiativeBreakdownRow[];
 }
 
-const SETTINGS_STORAGE_KEY = 'pl-dynamics-settings';
-const FAVORITES_STORAGE_KEY = 'pl-dynamics-favorites';
 const planColor = '#1d4ed8';
 const actualColor = '#0ea5e9';
 const baseColor = '#cbd5e1';
@@ -193,40 +192,49 @@ const defaultSettings = (): PersistedSettings => ({
   hideZeros: false
 });
 
-const loadSettings = (): PersistedSettings => {
+const sanitizeSettings = (value: Partial<PersistedSettings> | null | undefined): PersistedSettings => {
   const fallback = defaultSettings();
-  if (typeof window === 'undefined') {
-    return fallback;
+  const stageKeys = Array.isArray(value?.stageKeys)
+    ? value.stageKeys.filter((key): key is typeof initiativeStageKeys[number] =>
+        initiativeStageKeys.includes(key as typeof initiativeStageKeys[number])
+      )
+    : fallback.stageKeys;
+  const workstreamIds = Array.isArray(value?.workstreamIds)
+    ? value.workstreamIds
+        .map((id) => (typeof id === 'string' ? id.trim() : ''))
+        .filter((id): id is string => Boolean(id))
+    : fallback.workstreamIds;
+  return {
+    ...fallback,
+    ...value,
+    viewMode: clampViewMode(value?.viewMode),
+    baseMode: clampBaseMode(value?.baseMode),
+    stageKeys: stageKeys.length ? stageKeys : fallback.stageKeys,
+    workstreamIds,
+    sortMode: clampSortMode(value?.sortMode),
+    query: typeof value?.query === 'string' ? value.query : '',
+    hideZeros: Boolean(value?.hideZeros)
+  };
+};
+
+const sanitizeFavorites = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
   }
-  try {
-    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) {
-      return fallback;
+  const seen = new Set<string>();
+  const items: string[] = [];
+  value.forEach((entry) => {
+    if (typeof entry !== 'string') {
+      return;
     }
-    const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
-    const stageKeys = Array.isArray(parsed.stageKeys)
-      ? parsed.stageKeys.filter((key): key is typeof initiativeStageKeys[number] =>
-          initiativeStageKeys.includes(key as typeof initiativeStageKeys[number])
-        )
-      : fallback.stageKeys;
-    const workstreamIds = Array.isArray(parsed.workstreamIds)
-      ? parsed.workstreamIds.filter((id) => typeof id === 'string')
-      : fallback.workstreamIds;
-    return {
-      ...fallback,
-      ...parsed,
-      viewMode: clampViewMode(parsed.viewMode),
-      baseMode: clampBaseMode(parsed.baseMode),
-      stageKeys: stageKeys.length ? stageKeys : fallback.stageKeys,
-      workstreamIds,
-      sortMode: clampSortMode(parsed.sortMode),
-      query: typeof parsed.query === 'string' ? parsed.query : '',
-      hideZeros: Boolean(parsed.hideZeros)
-    };
-  } catch (error) {
-    console.warn('Failed to restore P&L dashboard settings', error);
-    return fallback;
-  }
+    const normalized = entry.trim();
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    items.push(normalized);
+  });
+  return items;
 };
 
 const buildInitiativeManualMap = (
@@ -390,47 +398,61 @@ const buildKpiAggregates = (initiatives: Initiative[], monthKeys: string[]) => {
 };
 
 export const FinancialDynamicsScreen = () => {
+  const { session } = useAuth();
   const { blueprint, loading: blueprintLoading, error: blueprintError, refresh: refreshBlueprint } = useFinancialsState();
   const { list: initiatives } = useInitiativesState();
   const { list: workstreams } = useWorkstreamsState();
   const { periodSettings } = usePlanSettingsState();
-  const [settings, setSettings] = useState<PersistedSettings>(() => loadSettings());
+  const accountId = session?.accountId ?? null;
+  const [settings, setSettings] = useState<PersistedSettings>(() => defaultSettings());
   const [workstreamMenuOpen, setWorkstreamMenuOpen] = useState(false);
   const [breakdown, setBreakdown] = useState<BreakdownState | null>(null);
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    if (typeof window === 'undefined') {
-      return [];
-    }
-    try {
-      const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
-      const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-      return Array.isArray(parsed) ? parsed.filter((key): key is string => typeof key === 'string') : [];
-    } catch {
-      return [];
-    }
-  });
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    let cancelled = false;
+    setPreferencesLoaded(false);
+    setSettings(defaultSettings());
+    setFavorites([]);
+    if (!accountId) {
+      setPreferencesLoaded(true);
       return;
     }
-    try {
-      window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-    } catch (error) {
-      console.warn('Failed to persist P&L dashboard settings', error);
-    }
-  }, [settings]);
+    (async () => {
+      try {
+        const response = await financialDynamicsApi.getPreferences(accountId);
+        if (cancelled) {
+          return;
+        }
+        setSettings(sanitizeSettings(response.settings));
+        setFavorites(sanitizeFavorites(response.favorites));
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('Failed to restore P&L dashboard settings', error);
+        }
+      } finally {
+        if (!cancelled) {
+          setPreferencesLoaded(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (!accountId || !preferencesLoaded) {
       return;
     }
-    try {
-      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
-    } catch (error) {
-      console.warn('Failed to persist P&L dashboard favorites', error);
-    }
-  }, [favorites]);
+    const handle = window.setTimeout(() => {
+      void financialDynamicsApi
+        .savePreferences(accountId, { settings, favorites })
+        .catch((error) => console.warn('Failed to persist P&L dashboard preferences', error));
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [accountId, favorites, preferencesLoaded, settings]);
 
   useEffect(() => {
     if (!blueprint && !blueprintLoading) {
@@ -939,6 +961,7 @@ export const FinancialDynamicsScreen = () => {
   );
 
   const latestBucket = buckets[buckets.length - 1];
+  const [pinnedCollapsed, setPinnedCollapsed] = useState(false);
   const [plCollapsed, setPlCollapsed] = useState(false);
   const [kpiCollapsed, setKpiCollapsed] = useState(false);
 
@@ -960,8 +983,6 @@ export const FinancialDynamicsScreen = () => {
     });
   };
 
-  const resetFilters = useCallback(() => setSettings(defaultSettings()), []);
-
   return (
     <section className={styles.screen}>
       <header className={styles.header}>
@@ -982,25 +1003,19 @@ export const FinancialDynamicsScreen = () => {
             )}
           </div>
         </div>
-        <div className={styles.actions}>
-          <button type="button" onClick={() => void refreshBlueprint()} disabled={blueprintLoading}>
-            {blueprintLoading ? 'Refreshing…' : 'Reload blueprint'}
-          </button>
-          <button type="button" className={styles.resetButton} onClick={resetFilters}>
-            Reset view
-          </button>
-        </div>
       </header>
 
       <div className={`${styles.controls} ${styles.filtersRow}`}>
-        <div className={styles.controlGroup}>
-          <span className={styles.controlLabel}>Timeline</span>
-          <div className={styles.toggleGroup}>
+        <div className={styles.segmentedControl}>
+          <span className={styles.segmentedLabel}>Timeline</span>
+          <div className={styles.segmentedGroup}>
             {(['months', 'quarters', 'calendar', 'fiscal'] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
                 type="button"
-                className={`${styles.toggleButton} ${settings.viewMode === mode ? styles.toggleButtonActive : ''}`}
+                className={`${styles.segmentedButton} ${
+                  settings.viewMode === mode ? styles.segmentedButtonActive : ''
+                }`}
                 onClick={() => setSettings((prev) => ({ ...prev, viewMode: mode }))}
               >
                 {mode === 'months' ? 'Months' : mode === 'quarters' ? 'Quarters' : mode === 'calendar' ? 'CY' : 'FY'}
@@ -1009,19 +1024,23 @@ export const FinancialDynamicsScreen = () => {
           </div>
         </div>
 
-        <div className={styles.controlGroup}>
-          <span className={styles.controlLabel}>Base</span>
-          <div className={styles.toggleGroup}>
+        <div className={styles.segmentedControl}>
+          <span className={styles.segmentedLabel}>Base</span>
+          <div className={styles.segmentedGroup}>
             <button
               type="button"
-              className={`${styles.toggleButton} ${settings.baseMode === 'zero' ? styles.toggleButtonActive : ''}`}
+              className={`${styles.segmentedButton} ${
+                settings.baseMode === 'zero' ? styles.segmentedButtonActive : ''
+              }`}
               onClick={() => setSettings((prev) => ({ ...prev, baseMode: 'zero' }))}
             >
               Zero base
             </button>
             <button
               type="button"
-              className={`${styles.toggleButton} ${settings.baseMode === 'baseline' ? styles.toggleButtonActive : ''}`}
+              className={`${styles.segmentedButton} ${
+                settings.baseMode === 'baseline' ? styles.segmentedButtonActive : ''
+              }`}
               onClick={() => setSettings((prev) => ({ ...prev, baseMode: 'baseline' }))}
             >
               Add base P&amp;L
@@ -1175,8 +1194,10 @@ export const FinancialDynamicsScreen = () => {
                 type="button"
                 className={`${styles.pinButton} ${isPinned ? styles.pinActive : ''}`}
                 onClick={() => toggleFavorite(key)}
+                aria-pressed={isPinned}
+                aria-label={isPinned ? 'Unpin from favourites' : 'Pin to favourites'}
               >
-                {isPinned ? '?' : '?'}
+                <Star size={16} strokeWidth={2.25} fill={isPinned ? 'currentColor' : 'none'} />
               </button>
             );
 
@@ -1320,30 +1341,45 @@ export const FinancialDynamicsScreen = () => {
                 {pinnedCards.length > 0 && (
                   <div className={styles.groupBlock}>
                     <div className={styles.groupHeader}>
-                      <h3>Pinned favourites</h3>
-                      <span className={styles.groupMeta}>{pinnedCards.length}</span>
+                      <div className={styles.groupTitle}>
+                        <button
+                          type="button"
+                          className={styles.collapseButton}
+                          aria-label={pinnedCollapsed ? 'Expand pinned favourites' : 'Collapse pinned favourites'}
+                          onClick={() => setPinnedCollapsed((prev) => !prev)}
+                        >
+                          <ChevronIcon direction={pinnedCollapsed ? 'right' : 'down'} size={16} />
+                        </button>
+                        <h3>Pinned favourites</h3>
+                        <span className={styles.groupMeta}>{pinnedCards.length}</span>
+                      </div>
                     </div>
-                    <div className={styles.linesGrid}>
-                      {pinnedCards.map((card) =>
-                        card.kind === 'pl'
-                          ? renderLineCard(card.entry, card.key)
-                          : renderKpiCard(card.entry, card.key)
-                      )}
-                    </div>
+                    {!pinnedCollapsed && (
+                      <div className={styles.linesGrid}>
+                        {pinnedCards.map((card) =>
+                          card.kind === 'pl'
+                            ? renderLineCard(card.entry, card.key)
+                            : renderKpiCard(card.entry, card.key)
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <div className={styles.groupBlock}>
                   <div className={styles.groupHeader}>
-                    <h3>P&L lines</h3>
-                    <span className={styles.groupMeta}>{remainingLineCards.length}</span>
-                    <button
-                      type="button"
-                      className={styles.groupToggle}
-                      onClick={() => setPlCollapsed((prev) => !prev)}
-                    >
-                      {plCollapsed ? 'Show' : 'Hide'}
-                    </button>
+                    <div className={styles.groupTitle}>
+                      <button
+                        type="button"
+                        className={styles.collapseButton}
+                        aria-label={plCollapsed ? 'Expand P&L lines' : 'Collapse P&L lines'}
+                        onClick={() => setPlCollapsed((prev) => !prev)}
+                      >
+                        <ChevronIcon direction={plCollapsed ? 'right' : 'down'} size={16} />
+                      </button>
+                      <h3>P&L lines</h3>
+                      <span className={styles.groupMeta}>{remainingLineCards.length}</span>
+                    </div>
                   </div>
                   {!plCollapsed && (remainingLineCards.length === 0 ? (
                     <div className={styles.placeholder}>
@@ -1358,15 +1394,18 @@ export const FinancialDynamicsScreen = () => {
 
                 <div className={styles.groupBlock}>
                   <div className={styles.groupHeader}>
-                    <h3>KPIs</h3>
-                    <span className={styles.groupMeta}>{remainingKpiCards.length}</span>
-                    <button
-                      type="button"
-                      className={styles.groupToggle}
-                      onClick={() => setKpiCollapsed((prev) => !prev)}
-                    >
-                      {kpiCollapsed ? 'Show' : 'Hide'}
-                    </button>
+                    <div className={styles.groupTitle}>
+                      <button
+                        type="button"
+                        className={styles.collapseButton}
+                        aria-label={kpiCollapsed ? 'Expand KPIs' : 'Collapse KPIs'}
+                        onClick={() => setKpiCollapsed((prev) => !prev)}
+                      >
+                        <ChevronIcon direction={kpiCollapsed ? 'right' : 'down'} size={16} />
+                      </button>
+                      <h3>KPIs</h3>
+                      <span className={styles.groupMeta}>{remainingKpiCards.length}</span>
+                    </div>
                   </div>
                   {!kpiCollapsed && (remainingKpiCards.length === 0 ? (
                     <div className={styles.placeholder}>
@@ -1382,13 +1421,14 @@ export const FinancialDynamicsScreen = () => {
             );
           })()}
         </>
-      )}      {breakdown && (
+      )}
+      {breakdown && (
         <div className={styles.breakdownOverlay} onClick={() => setBreakdown(null)}>
           <div className={styles.breakdownCard} onClick={(event) => event.stopPropagation()}>
             <header className={styles.breakdownHeader}>
               <div>
                 <p className={styles.breakdownOverline}>
-                  {breakdown.bucketLabel} В·{' '}
+                  {breakdown.bucketLabel} ·{' '}
                   {breakdown.mode === 'plan' ? 'Plan initiatives' : 'Actual initiatives'}
                 </p>
                 <h4>{breakdown.lineName}</h4>
