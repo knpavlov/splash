@@ -333,8 +333,8 @@
   background: #fff;
   padding: 14px;
   display: grid;
-  grid-template-columns: minmax(260px, 340px) 1fr;
-  gap: 16px;
+  grid-template-columns: minmax(180px, 220px) 1fr;
+  gap: 12px;
   align-items: stretch;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
 }
@@ -368,8 +368,9 @@
 
 .lineStatsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  align-items: flex-start;
 }
 
 .statLabel {
@@ -417,9 +418,9 @@
 .chartShell {
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 10px;
+  padding: 8px;
   background: #f8fafc;
-  min-height: 200px;
+  min-height: 140px;
   display: flex;
   align-items: center;
   overflow-x: auto;

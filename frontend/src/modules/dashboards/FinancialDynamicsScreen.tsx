@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../styles/FinancialDynamicsScreen.module.css';
 import { useFinancialsState, useInitiativesState, usePlanSettingsState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { FinancialLineItem } from '../../shared/types/financials';
@@ -409,6 +409,7 @@ export const FinancialDynamicsScreen = () => {
   const [breakdown, setBreakdown] = useState<BreakdownState | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const screenRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -875,13 +876,32 @@ export const FinancialDynamicsScreen = () => {
   const buildBucketBreakdown = useCallback(
     (lineId: string, bucket: ChartBucket, mode: 'plan' | 'actual') => {
       const source = mode === 'plan' ? planInitiativeBreakdown : actualInitiativeBreakdown;
-      const lineMap = source.get(lineId);
-      if (!lineMap) {
+      const aggregate: Record<string, Record<string, number>> = {};
+      const collectLineTotals = (id: string) => {
+        const lineMap = source.get(id);
+        if (lineMap) {
+          Object.entries(lineMap).forEach(([monthKey, monthTotals]) => {
+            if (!aggregate[monthKey]) {
+              aggregate[monthKey] = {};
+            }
+            Object.entries(monthTotals).forEach(([initiativeId, raw]) => {
+              const numeric = Number(raw);
+              if (!Number.isFinite(numeric)) {
+                return;
+              }
+              aggregate[monthKey][initiativeId] = (aggregate[monthKey][initiativeId] ?? 0) + numeric;
+            });
+          });
+        }
+        (childMap.get(id) ?? []).forEach(collectLineTotals);
+      };
+      collectLineTotals(lineId);
+      if (!Object.keys(aggregate).length) {
         return { total: 0, rows: [] as InitiativeBreakdownRow[] };
       }
       const totals: Record<string, number> = {};
       bucket.monthKeys.forEach((key) => {
-        const monthTotals = lineMap[key];
+        const monthTotals = aggregate[key];
         if (!monthTotals) {
           return;
         }
@@ -919,7 +939,7 @@ export const FinancialDynamicsScreen = () => {
       }
       return { total, rows };
     },
-    [planInitiativeBreakdown, actualInitiativeBreakdown, initiativeNameLookup]
+    [planInitiativeBreakdown, actualInitiativeBreakdown, initiativeNameLookup, childMap]
   );
 
   const handleSegmentClick = useCallback(
@@ -954,7 +974,7 @@ export const FinancialDynamicsScreen = () => {
     setFavorites((prev) => (prev.includes(key) ? prev.filter((entry) => entry !== key) : [key, ...prev]));
   };
 
-  const columnMinWidth = useMemo(() => (settings.viewMode === 'months' ? 60 : 80), [settings.viewMode]);
+  const columnMinWidth = useMemo(() => (settings.viewMode === 'months' ? 36 : 58), [settings.viewMode]);
   const gridTemplateColumns = useMemo(
     () => `repeat(${Math.max(buckets.length, 1)}, minmax(${columnMinWidth}px, 1fr))`,
     [buckets.length, columnMinWidth]
@@ -964,6 +984,49 @@ export const FinancialDynamicsScreen = () => {
   const [pinnedCollapsed, setPinnedCollapsed] = useState(false);
   const [plCollapsed, setPlCollapsed] = useState(false);
   const [kpiCollapsed, setKpiCollapsed] = useState(false);
+
+  useEffect(() => {
+    const root = screenRef.current;
+    if (!root) {
+      return;
+    }
+    const scrollers = Array.from(
+      root.querySelectorAll('[data-scroll-sync="financial-chart"]')
+    ) as HTMLDivElement[];
+    if (!scrollers.length) {
+      return;
+    }
+    let syncing = false;
+    const handleScroll = (event: Event) => {
+      if (syncing) {
+        return;
+      }
+      const target = event.currentTarget as HTMLDivElement;
+      syncing = true;
+      const { scrollLeft } = target;
+      scrollers.forEach((node) => {
+        if (node !== target && node.scrollLeft !== scrollLeft) {
+          node.scrollLeft = scrollLeft;
+        }
+      });
+      requestAnimationFrame(() => {
+        syncing = false;
+      });
+    };
+    scrollers.forEach((node) => node.addEventListener('scroll', handleScroll, { passive: true }));
+    return () => {
+      scrollers.forEach((node) => node.removeEventListener('scroll', handleScroll));
+    };
+  }, [
+    filteredSeries,
+    filteredKpiSeries,
+    favorites,
+    settings.viewMode,
+    buckets.length,
+    pinnedCollapsed,
+    plCollapsed,
+    kpiCollapsed
+  ]);
 
   const toggleStage = (key: typeof initiativeStageKeys[number]) => {
     setSettings((prev) => {
@@ -984,7 +1047,7 @@ export const FinancialDynamicsScreen = () => {
   };
 
   return (
-    <section className={styles.screen}>
+    <section className={styles.screen} ref={screenRef}>
       <header className={styles.header}>
         <div>
           <h1>P&amp;L dynamics</h1>
@@ -1170,7 +1233,7 @@ export const FinancialDynamicsScreen = () => {
               year: bucket.year,
               index: bucket.index
             }));
-            const chartMinWidth = Math.max(months.length * (columnMinWidth + 20), 520);
+            const chartMinWidth = Math.max(months.length * (columnMinWidth + 10), 420);
             const lineSeriesByKey = new Map(filteredSeries.map((entry) => [toFavoriteKey('pl', entry.line.id), entry]));
             const kpiSeriesByKey = new Map(filteredKpiSeries.map((entry) => [toFavoriteKey('kpi', entry.key), entry]));
             const pinnedCards = favorites.flatMap<
@@ -1186,8 +1249,8 @@ export const FinancialDynamicsScreen = () => {
               }
               return [];
             });
-            const remainingLineCards = filteredSeries.filter((entry) => !favoriteSet.has(toFavoriteKey('pl', entry.line.id)));
-            const remainingKpiCards = filteredKpiSeries.filter((entry) => !favoriteSet.has(toFavoriteKey('kpi', entry.key)));
+            const remainingLineCards = filteredSeries;
+            const remainingKpiCards = filteredKpiSeries;
 
             const renderPinButton = (key: string, isPinned: boolean) => (
               <button
@@ -1242,7 +1305,7 @@ export const FinancialDynamicsScreen = () => {
                   </div>
                 </div>
 
-                <div className={styles.chartShell}>
+                <div className={styles.chartShell} data-scroll-sync="financial-chart">
                   {entry.maxAbs === 0 ? (
                     <div className={styles.chartPlaceholder}>No plan or actuals yet for this line.</div>
                   ) : (
@@ -1262,11 +1325,11 @@ export const FinancialDynamicsScreen = () => {
                       showValueLabels
                       showPeriodLabels
                       periodLabelFormatter={(month) => `${month.label} ${month.year}`}
-                      height={settings.viewMode === 'months' ? 200 : 170}
+                      height={settings.viewMode === 'months' ? 140 : 120}
                       className={styles.chartCompact}
                       formatValue={formatCurrency}
                       onSegmentClick={handleSegmentClick(entry.line)}
-                      style={{ minWidth: chartMinWidth }}
+                      style={{ minWidth: chartMinWidth, width: chartMinWidth }}
                     />
                   )}
                 </div>
@@ -1306,7 +1369,7 @@ export const FinancialDynamicsScreen = () => {
                   </div>
                 </div>
 
-                <div className={styles.chartShell}>
+                <div className={styles.chartShell} data-scroll-sync="financial-chart">
                   {entry.maxAbs === 0 ? (
                     <div className={styles.chartPlaceholder}>No plan or actuals yet for this KPI.</div>
                   ) : (
@@ -1326,10 +1389,10 @@ export const FinancialDynamicsScreen = () => {
                       showValueLabels
                       showPeriodLabels
                       periodLabelFormatter={(month) => `${month.label} ${month.year}`}
-                      height={settings.viewMode === 'months' ? 200 : 170}
+                      height={settings.viewMode === 'months' ? 140 : 120}
                       className={styles.chartCompact}
                       formatValue={(value) => `${formatKpiValue(value)} ${entry.unit ? entry.unit : ''}`.trim()}
-                      style={{ minWidth: chartMinWidth }}
+                      style={{ minWidth: chartMinWidth, width: chartMinWidth }}
                     />
                   )}
                 </div>
