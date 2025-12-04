@@ -641,14 +641,14 @@ export const FinancialDynamicsScreen = () => {
     [blueprint, monthKeys, childMap, actualManualMap, actualCumulative]
   );
 
-  const planInitiativeBreakdown = useMemo(
+  const planInitiativeBreakdown = useMemo<InitiativeContributionMap>(
     () =>
       blueprint && monthKeys.length
         ? buildInitiativeBreakdownMap(filteredInitiatives, lineByCode, monthKeys, (entry) => entry.distribution)
         : new Map(),
     [blueprint, monthKeys, filteredInitiatives, lineByCode]
   );
-  const actualInitiativeBreakdown = useMemo(
+  const actualInitiativeBreakdown = useMemo<InitiativeContributionMap>(
     () =>
       blueprint && monthKeys.length
         ? buildInitiativeBreakdownMap(filteredInitiatives, lineByCode, monthKeys, (entry) => entry.actuals ?? {})
