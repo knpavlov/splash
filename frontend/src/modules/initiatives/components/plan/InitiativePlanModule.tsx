@@ -251,18 +251,6 @@ export const InitiativePlanModule = ({
   const setSelectedTaskId = useCallback((taskId: string | null) => {
     setSelectedTaskIds(taskId ? [taskId] : []);
   }, []);
-  const initiativeRecord = useMemo(
-    () => allInitiatives.find((item) => item.id === initiativeId) ?? null,
-    [allInitiatives, initiativeId]
-  );
-  const statusReportMeta = useMemo(
-    () => ({
-      name: initiativeRecord?.name ?? '',
-      owner: initiativeRecord?.ownerName ?? '',
-      impact: initiativeRecord?.totals?.recurringImpact ?? 0
-    }),
-    [initiativeRecord]
-  );
 
   const handleTaskSelect = useCallback(
     (taskId: string, event?: React.MouseEvent | React.PointerEvent) => {
@@ -2121,9 +2109,6 @@ export const InitiativePlanModule = ({
     <InitiativeStatusReportModule
       plan={normalizedPlan}
       initiativeId={initiativeId}
-      initiativeName={statusReportMeta.name}
-      initiativeOwner={statusReportMeta.owner}
-      recurringImpact={statusReportMeta.impact}
       readOnly={readOnly}
     />
   ) : null;

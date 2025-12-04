@@ -9,14 +9,12 @@ import {
 } from '../../../../shared/types/initiative';
 import { diffInDays, parseDate } from '../../plan/planTimeline';
 import { useAuth } from '../../../auth/AuthContext';
-import { usePlanSettingsState } from '../../../../app/state/AppStateContext';
+import { StatusReportSettings, usePlanSettingsState } from '../../../../app/state/AppStateContext';
+import { ChevronIcon } from '../../../../components/icons/ChevronIcon';
 
 interface InitiativeStatusReportModuleProps {
   plan: InitiativePlanModel;
   initiativeId: string;
-  initiativeName: string;
-  initiativeOwner: string;
-  recurringImpact: number;
   readOnly?: boolean;
 }
 
@@ -30,9 +28,6 @@ type ColumnId =
   | 'start'
   | 'end'
   | 'due'
-  | 'initiative'
-  | 'owner'
-  | 'impact'
   | 'status';
 
 const columnConfig: Record<
@@ -40,15 +35,65 @@ const columnConfig: Record<
   { label: string; minWidth: number; maxWidth: number; defaultWidth: number; resizable: boolean }
 > = {
   name: { label: 'Task', minWidth: 200, maxWidth: 420, defaultWidth: 240, resizable: true },
-  description: { label: 'Description', minWidth: 180, maxWidth: 520, defaultWidth: 240, resizable: true },
-  responsible: { label: 'Responsible', minWidth: 140, maxWidth: 260, defaultWidth: 180, resizable: true },
-  start: { label: 'Start', minWidth: 110, maxWidth: 200, defaultWidth: 130, resizable: true },
-  end: { label: 'End', minWidth: 110, maxWidth: 200, defaultWidth: 130, resizable: true },
-  due: { label: 'Due', minWidth: 140, maxWidth: 240, defaultWidth: 160, resizable: true },
-  initiative: { label: 'Initiative', minWidth: 180, maxWidth: 320, defaultWidth: 200, resizable: true },
-  owner: { label: 'Owner', minWidth: 160, maxWidth: 280, defaultWidth: 190, resizable: true },
-  impact: { label: 'Recurring impact', minWidth: 140, maxWidth: 260, defaultWidth: 170, resizable: true },
-  status: { label: 'Status update', minWidth: 360, maxWidth: 1200, defaultWidth: 480, resizable: true }
+  description: { label: 'Description', minWidth: 160, maxWidth: 520, defaultWidth: 220, resizable: true },
+  responsible: { label: 'Responsible', minWidth: 130, maxWidth: 240, defaultWidth: 160, resizable: true },
+  start: { label: 'Start', minWidth: 96, maxWidth: 180, defaultWidth: 110, resizable: true },
+  end: { label: 'End', minWidth: 96, maxWidth: 180, defaultWidth: 110, resizable: true },
+  due: { label: 'Due', minWidth: 120, maxWidth: 220, defaultWidth: 140, resizable: true },
+  status: { label: 'Status update', minWidth: 320, maxWidth: 1100, defaultWidth: 400, resizable: true }
+};
+
+const dayToIndex: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6
+};
+
+const parseResetTime = (value: string) => {
+  const [hoursRaw, minutesRaw] = value.split(':');
+  const hours = Number.parseInt(hoursRaw ?? '', 10);
+  const minutes = Number.parseInt(minutesRaw ?? '', 10);
+  return {
+    hours: Number.isFinite(hours) && hours >= 0 && hours < 24 ? hours : 9,
+    minutes: Number.isFinite(minutes) && minutes >= 0 && minutes < 60 ? minutes : 0
+  };
+};
+
+const getFrequencyWeeks = (frequency: StatusReportSettings['refreshFrequency']) => {
+  switch (frequency) {
+    case 'biweekly':
+      return 2;
+    case 'every-4-weeks':
+      return 4;
+    default:
+      return 1;
+  }
+};
+
+const getCurrentWindowStart = (settings: StatusReportSettings, now = new Date()) => {
+  const { hours, minutes } = parseResetTime(settings.templateResetTime);
+  const resetDayIndex = dayToIndex[settings.templateResetDay] ?? 1;
+  const base = new Date(now.getFullYear(), 0, 1, hours, minutes, 0, 0);
+  const baseDay = base.getDay();
+  const offset = (resetDayIndex - baseDay + 7) % 7;
+  base.setDate(base.getDate() + offset);
+
+  const periodMs = getFrequencyWeeks(settings.refreshFrequency) * 7 * 24 * 60 * 60 * 1000;
+  let windowStart = new Date(base);
+
+  while (windowStart.getTime() + periodMs <= now.getTime()) {
+    windowStart = new Date(windowStart.getTime() + periodMs);
+  }
+
+  while (windowStart.getTime() > now.getTime()) {
+    windowStart = new Date(windowStart.getTime() - periodMs);
+  }
+
+  return windowStart;
 };
 
 const formatDateLabel = (value: string | null) => {
@@ -74,9 +119,6 @@ const formatDateTimeLabel = (value: string) => {
     minute: '2-digit'
   });
 };
-
-const formatImpact = (value: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 
 const buildEntryFromTask = (
   task: InitiativePlanModel['tasks'][number],
@@ -149,9 +191,6 @@ const mergeEntriesWithTasks = (
 export const InitiativeStatusReportModule = ({
   plan,
   initiativeId,
-  initiativeName,
-  initiativeOwner,
-  recurringImpact,
   readOnly = false
 }: InitiativeStatusReportModuleProps) => {
   const { session } = useAuth();
@@ -168,6 +207,7 @@ export const InitiativeStatusReportModule = ({
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   const [submitNotice, setSubmitNotice] = useState<string | null>(null);
   const [summary, setSummary] = useState('');
+  const [timeAnchor, setTimeAnchor] = useState(Date.now());
   const [sort, setSort] = useState<{ column: ColumnId; direction: 'asc' | 'desc' }>({
     column: 'end',
     direction: 'asc'
@@ -234,6 +274,32 @@ export const InitiativeStatusReportModule = ({
     [reports]
   );
 
+  const currentWindowStart = useMemo(
+    () => getCurrentWindowStart(statusReportSettings, new Date(timeAnchor)),
+    [statusReportSettings, timeAnchor]
+  );
+
+  const currentPeriodReport = useMemo(() => {
+    const startTimestamp = currentWindowStart.getTime();
+    return (
+      sortedReports.find((report) => {
+        const created = new Date(report.createdAt);
+        if (Number.isNaN(created.getTime())) {
+          return false;
+        }
+        return created.getTime() >= startTimestamp;
+      }) ?? null
+    );
+  }, [currentWindowStart, sortedReports]);
+
+  const hasSubmittedCurrentPeriod = Boolean(currentPeriodReport);
+
+  useEffect(() => {
+    if (hasSubmittedCurrentPeriod && selectedReportId === 'draft' && currentPeriodReport) {
+      setSelectedReportId(currentPeriodReport.id);
+    }
+  }, [currentPeriodReport, hasSubmittedCurrentPeriod, selectedReportId]);
+
   const selectedReport = useMemo(
     () => sortedReports.find((report) => report.id === selectedReportId) ?? null,
     [sortedReports, selectedReportId]
@@ -252,14 +318,6 @@ export const InitiativeStatusReportModule = ({
           return direction * (a.description || '').localeCompare(b.description || '');
         case 'responsible':
           return direction * (a.responsible || '').localeCompare(b.responsible || '');
-        case 'initiative':
-          return direction * initiativeNameLabel.localeCompare(initiativeNameLabel);
-        case 'owner':
-          return direction * initiativeOwnerLabel.localeCompare(initiativeOwnerLabel);
-        case 'impact': {
-          const impactValue = Number.isFinite(recurringImpact) ? recurringImpact : 0;
-          return direction * impactValue;
-        }
         case 'start': {
           const aDate = parseDate(a.startDate);
           const bDate = parseDate(b.startDate);
@@ -432,6 +490,13 @@ export const InitiativeStatusReportModule = ({
   }, [draftStorageKey, upcomingTasks]);
 
   const handleReportSelect = (value: string) => {
+    if (value === 'draft' && hasSubmittedCurrentPeriod && currentPeriodReport) {
+      setSelectedReportId(currentPeriodReport.id);
+      setDraftNotice('Report already submitted for this period.');
+      setSubmitNotice(null);
+      return;
+    }
+    const targetReport = sortedReports.find((report) => report.id === value) ?? null;
     setSelectedReportId(value);
     setMessage(null);
     setError(null);
@@ -441,8 +506,8 @@ export const InitiativeStatusReportModule = ({
         setDraftEntries(mergeEntriesWithTasks([], upcomingTasks));
         setSummary('');
       }
-    } else if (value !== 'draft' && selectedReport) {
-      setSummary(selectedReport.summary || '');
+    } else if (value !== 'draft' && targetReport) {
+      setSummary(targetReport.summary || '');
     }
   };
 
@@ -508,11 +573,15 @@ export const InitiativeStatusReportModule = ({
   );
 
   const handleSaveDraft = () => {
+    if (hasSubmittedCurrentPeriod) {
+      setDraftNotice('This period is already submitted.');
+      return;
+    }
     void persistDraft();
   };
 
   const handleSubmit = async () => {
-    if (!draftEntries.length || readOnly) {
+    if (!draftEntries.length || readOnly || hasSubmittedCurrentPeriod) {
       return;
     }
     setIsSubmitting(true);
@@ -578,7 +647,7 @@ export const InitiativeStatusReportModule = ({
     </div>
   );
 
-  const columnsOrder: ColumnId[] = ['name', 'due', 'description', 'responsible', 'start', 'end', 'initiative', 'owner', 'impact', 'status'];
+  const columnsOrder: ColumnId[] = ['name', 'description', 'responsible', 'start', 'end', 'due', 'status'];
 
   const tableTemplate = columnsOrder
     .map((id) =>
@@ -588,11 +657,8 @@ export const InitiativeStatusReportModule = ({
     )
     .join(' ');
 
-  const initiativeNameLabel = initiativeName || 'Untitled initiative';
-  const initiativeOwnerLabel = initiativeOwner || 'Unassigned';
-  const recurringImpactLabel = formatImpact(Number.isFinite(recurringImpact) ? recurringImpact : 0);
-  const canEditDraft = !isViewingSubmitted && !readOnly;
-  const sortableColumns = new Set<ColumnId>(['name', 'description', 'responsible', 'start', 'end', 'due', 'status', 'initiative', 'owner', 'impact']);
+  const canEditDraft = !isViewingSubmitted && !readOnly && !hasSubmittedCurrentPeriod;
+  const sortableColumns = new Set<ColumnId>(['name', 'description', 'responsible', 'start', 'end', 'due', 'status']);
   const startResize = (column: ColumnId, startX: number) => {
     const config = columnConfig[column];
     if (!config.resizable) {
@@ -632,15 +698,62 @@ export const InitiativeStatusReportModule = ({
     []
   );
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const timer = window.setInterval(() => setTimeAnchor(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <section className={styles.reportSection} aria-label="Status report">
       <header className={styles.reportHeader}>
-        <div className={styles.heading}>
-          <p className={styles.eyebrow}>Milestone plan - actuals</p>
-          <div className={styles.titleRow}>
-            <h4 className={styles.title}>Status report</h4>
-            {isViewingSubmitted && <span className={styles.lockBadge}>Submitted snapshot</span>}
+        <div className={styles.headerLeft}>
+          <button
+            type="button"
+            className={styles.collapseButton}
+            onClick={() => setIsCollapsed((prev) => !prev)}
+            aria-expanded={!isCollapsed}
+            aria-label={isCollapsed ? 'Expand status report' : 'Collapse status report'}
+          >
+            <ChevronIcon direction={isCollapsed ? 'right' : 'down'} size={14} />
+          </button>
+          <div className={styles.heading}>
+            <p className={styles.eyebrow}>Milestone plan - actuals</p>
+            <div className={styles.titleRow}>
+              <h4 className={styles.title}>Status report</h4>
+              {isViewingSubmitted && <span className={styles.lockBadge}>Submitted snapshot</span>}
+            </div>
           </div>
+        </div>
+        <div className={styles.headerActions}>
+          <label className={styles.selectLabel}>
+            <span>View</span>
+            <select
+              value={selectedReportId}
+              onChange={(event) => handleReportSelect(event.target.value)}
+              className={styles.select}
+            >
+              <option value="draft" disabled={hasSubmittedCurrentPeriod}>Current draft</option>
+              {sortedReports.map((report) => (
+                <option key={report.id} value={report.id}>
+                  {formatDateTimeLabel(report.createdAt)} - {report.entries.length} tasks
+                  {report.createdByName ? ` - ${report.createdByName}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          {hasSubmittedCurrentPeriod ? (
+            <span className={styles.lockBadge}>This period submitted</span>
+          ) : (
+            !isViewingSubmitted && !readOnly && <span className={styles.draftBadge}>Live draft</span>
+          )}
+        </div>
+      </header>
+
+      {!isCollapsed && (
+        <div className={styles.headerDetails}>
           <p className={styles.subtitle}>
             Upcoming and overdue tasks from the plan. Add a quick update and submit a snapshot.
           </p>
@@ -672,28 +785,7 @@ export const InitiativeStatusReportModule = ({
             </div>
           </div>
         </div>
-        <div className={styles.headerActions}>
-          <label className={styles.selectLabel}>
-            <span>View</span>
-            <select
-              value={selectedReportId}
-              onChange={(event) => handleReportSelect(event.target.value)}
-              className={styles.select}
-            >
-              <option value="draft">Current draft</option>
-              {sortedReports.map((report) => (
-                <option key={report.id} value={report.id}>
-                  {formatDateTimeLabel(report.createdAt)} - {report.entries.length} tasks
-                  {report.createdByName ? ` - ${report.createdByName}` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          {!isViewingSubmitted && !readOnly && (
-            <span className={styles.draftBadge}>Live draft</span>
-          )}
-        </div>
-      </header>
+      )}
 
       {isViewingSubmitted && selectedReport && (
         <div className={styles.lockNotice}>
@@ -708,17 +800,6 @@ export const InitiativeStatusReportModule = ({
           <strong>Loading submitted reports...</strong>
         </div>
       )}
-
-      <div className={styles.collapseRow}>
-        <button
-          type="button"
-          className={`${styles.collapseButton} ${isCollapsed ? styles.collapseClosed : ''}`}
-          onClick={() => setIsCollapsed((prev) => !prev)}
-          aria-label={isCollapsed ? 'Expand status report' : 'Collapse status report'}
-        >
-          <span className={styles.collapseIcon}>{isCollapsed ? '▼' : '▲'}</span>
-        </button>
-      </div>
       {!isCollapsed && (
         <>
           <div className={styles.overallRow}>
@@ -837,37 +918,36 @@ export const InitiativeStatusReportModule = ({
                   <div className={styles.cell}>
                     <span className={styles.metaText}>{dueState.label}</span>
                   </div>
-                      <div className={styles.cell}>
-                        <span className={styles.metaText}>{initiativeNameLabel}</span>
-                      </div>
-                      <div className={styles.cell}>
-                        <span className={styles.metaText}>{initiativeOwnerLabel}</span>
-                      </div>
-                      <div className={styles.cell}>
-                        <span className={styles.metaText}>{recurringImpactLabel}</span>
-                      </div>
-                      <div className={styles.statusCell}>
-                        <div className={styles.updateHeader}>
-                          <span className={styles.controlLabel}>Status update</span>
-                          {canEditDraft && (
-                            <span className={styles.charCountSmall}>
-                              {(entry.statusUpdate || '').length}/{STATUS_UPDATE_LIMIT}
-                            </span>
-                          )}
-                        </div>
-                        {isViewingSubmitted || readOnly ? (
-                          <p className={styles.readonlyUpdate}>{entry.statusUpdate || 'No update provided.'}</p>
-                        ) : (
-                          <textarea
-                            value={entry.statusUpdate}
-                            maxLength={STATUS_UPDATE_LIMIT}
-                            onChange={(event) => handleStatusChange(entry.taskId, event.target.value)}
-                            placeholder="Share a quick headline or blocker"
-                            disabled={isSubmitting}
-                            className={styles.updateInput}
-                          />
-                        )}
-                      </div>
+                  <div className={styles.statusCell}>
+                    <div className={styles.updateHeader}>
+                      <span className={styles.controlLabel}>Status update</span>
+                      {canEditDraft && (
+                        <span className={styles.charCountSmall}>
+                          {(entry.statusUpdate || '').length}/{STATUS_UPDATE_LIMIT}
+                        </span>
+                      )}
+                    </div>
+                    {isViewingSubmitted || readOnly ? (
+                      <p className={styles.readonlyUpdate}>
+                        {(() => {
+                          const cleaned = (entry.statusUpdate || '').trim();
+                          if (!cleaned || /^status update[:.]?$/i.test(cleaned)) {
+                            return 'No update provided.';
+                          }
+                          return cleaned;
+                        })()}
+                      </p>
+                    ) : (
+                      <textarea
+                        value={entry.statusUpdate}
+                        maxLength={STATUS_UPDATE_LIMIT}
+                        onChange={(event) => handleStatusChange(entry.taskId, event.target.value)}
+                        placeholder="Share a quick headline or blocker"
+                        disabled={isSubmitting}
+                        className={styles.updateInput}
+                      />
+                    )}
+                  </div>
                     </div>
                   );
                 })
@@ -912,7 +992,7 @@ export const InitiativeStatusReportModule = ({
               onClick={handleSaveDraft}
               disabled={!draftEntries.length || isSubmitting || isSavingDraft}
             >
-              {isSavingDraft ? 'Saving…' : 'Save draft'}
+                  {isSavingDraft ? 'Saving...' : 'Save draft'}
             </button>
             {draftNotice && <span className={styles.inlineNotice}>{draftNotice}</span>}
             <button
@@ -932,3 +1012,4 @@ export const InitiativeStatusReportModule = ({
     </section>
   );
 };
+
