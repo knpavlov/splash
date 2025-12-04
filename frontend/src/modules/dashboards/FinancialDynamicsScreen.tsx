@@ -335,6 +335,53 @@ const buildInitiativeBreakdownMap = (
   return map;
 };
 
+const buildInitiativeCumulativeLookup = (
+  lines: FinancialLineItem[] | undefined,
+  monthKeys: string[],
+  source: InitiativeContributionMap
+): InitiativeContributionMap => {
+  const empty: InitiativeContributionMap = new Map();
+  if (!lines || !lines.length || !monthKeys.length) {
+    return empty;
+  }
+  const running: Record<string, Record<string, number>> = {};
+  monthKeys.forEach((key) => {
+    running[key] = {};
+  });
+  const snapshots: InitiativeContributionMap = new Map();
+  const addContribution = (lineId: string) => {
+    const lineMap = source.get(lineId);
+    if (!lineMap) {
+      return;
+    }
+    Object.entries(lineMap).forEach(([monthKey, initiatives]) => {
+      const monthTotals = running[monthKey];
+      Object.entries(initiatives).forEach(([initiativeId, raw]) => {
+        const numeric = Number(raw);
+        if (!Number.isFinite(numeric)) {
+          return;
+        }
+        monthTotals[initiativeId] = (monthTotals[initiativeId] ?? 0) + numeric;
+      });
+    });
+  };
+  const cloneRunning = () =>
+    monthKeys.reduce<Record<string, Record<string, number>>>((acc, key) => {
+      acc[key] = { ...running[key] };
+      return acc;
+    }, {});
+
+  lines.forEach((line) => {
+    if (line.computation === 'manual') {
+      addContribution(line.id);
+    }
+    if (line.computation === 'cumulative') {
+      snapshots.set(line.id, cloneRunning());
+    }
+  });
+  return snapshots;
+};
+
 interface KpiAggregate {
   key: string;
   name: string;
@@ -655,6 +702,14 @@ export const FinancialDynamicsScreen = () => {
         : new Map(),
     [blueprint, monthKeys, filteredInitiatives, lineByCode]
   );
+  const planInitiativeCumulative = useMemo(
+    () => buildInitiativeCumulativeLookup(blueprint?.lines, monthKeys, planInitiativeBreakdown),
+    [blueprint?.lines, monthKeys, planInitiativeBreakdown]
+  );
+  const actualInitiativeCumulative = useMemo(
+    () => buildInitiativeCumulativeLookup(blueprint?.lines, monthKeys, actualInitiativeBreakdown),
+    [blueprint?.lines, monthKeys, actualInitiativeBreakdown]
+  );
 
   const initiativeNameLookup = useMemo(() => {
     const map = new Map<string, string>();
@@ -876,7 +931,8 @@ export const FinancialDynamicsScreen = () => {
   const buildBucketBreakdown = useCallback(
     (lineId: string, bucket: ChartBucket, mode: 'plan' | 'actual') => {
       const source = mode === 'plan' ? planInitiativeBreakdown : actualInitiativeBreakdown;
-      const aggregate: Record<string, Record<string, number>> = {};
+      const cumulativeSource = mode === 'plan' ? planInitiativeCumulative : actualInitiativeCumulative;
+      let aggregate: Record<string, Record<string, number>> = {};
       const collectLineTotals = (id: string) => {
         const lineMap = source.get(id);
         if (lineMap) {
@@ -896,6 +952,12 @@ export const FinancialDynamicsScreen = () => {
         (childMap.get(id) ?? []).forEach(collectLineTotals);
       };
       collectLineTotals(lineId);
+      if (!Object.keys(aggregate).length) {
+        const cumulative = cumulativeSource.get(lineId);
+        if (cumulative) {
+          aggregate = cumulative;
+        }
+      }
       if (!Object.keys(aggregate).length) {
         return { total: 0, rows: [] as InitiativeBreakdownRow[] };
       }
@@ -939,7 +1001,14 @@ export const FinancialDynamicsScreen = () => {
       }
       return { total, rows };
     },
-    [planInitiativeBreakdown, actualInitiativeBreakdown, initiativeNameLookup, childMap]
+    [
+      planInitiativeBreakdown,
+      actualInitiativeBreakdown,
+      planInitiativeCumulative,
+      actualInitiativeCumulative,
+      initiativeNameLookup,
+      childMap
+    ]
   );
 
   const handleSegmentClick = useCallback(
