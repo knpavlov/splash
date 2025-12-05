@@ -96,6 +96,17 @@ const getCurrentWindowStart = (settings: StatusReportSettings, now = new Date())
   return windowStart;
 };
 
+const cleanStatusUpdate = (value: string) => {
+  const trimmed = (value || '').trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (/^status update[:.]?$/i.test(trimmed)) {
+    return '';
+  }
+  return trimmed;
+};
+
 const formatDateLabel = (value: string | null) => {
   if (!value) {
     return 'Not set';
@@ -169,6 +180,7 @@ const mergeEntriesWithTasks = (
       next.push({
         ...buildEntryFromTask(task, existing.source),
         ...existing,
+        statusUpdate: cleanStatusUpdate(existing.statusUpdate),
         name: task.name || existing.name,
         description: task.description,
         responsible: task.responsible,
@@ -182,11 +194,16 @@ const mergeEntriesWithTasks = (
   });
   entries.forEach((entry) => {
     if (entry.source === 'manual' && !next.find((item) => item.taskId === entry.taskId)) {
-      next.push(entry);
+      next.push({ ...entry, statusUpdate: cleanStatusUpdate(entry.statusUpdate) });
     }
   });
   return next;
 };
+
+const normalizeReport = (report: InitiativeStatusReport): InitiativeStatusReport => ({
+  ...report,
+  entries: report.entries.map((entry) => ({ ...entry, statusUpdate: cleanStatusUpdate(entry.statusUpdate) }))
+});
 
 export const InitiativeStatusReportModule = ({
   plan,
@@ -407,7 +424,7 @@ export const InitiativeStatusReportModule = ({
         if (cancelled) {
           return;
         }
-        setReports(result ?? []);
+        setReports((result ?? []).map(normalizeReport));
       })
       .catch(() => {
         if (!cancelled) {
@@ -536,35 +553,37 @@ export const InitiativeStatusReportModule = ({
       if (isViewingSubmitted || readOnly) {
         return;
       }
+      const normalizedEntries = draftEntries.map((entry) => ({
+        ...entry,
+        statusUpdate: cleanStatusUpdate(entry.statusUpdate)
+      }));
       const payload = {
         summary,
-        entries: draftEntries,
+        entries: normalizedEntries,
         savedAt: new Date().toISOString()
       };
+      setIsSavingDraft(true);
+      const actor = session
+        ? {
+            accountId: session.accountId,
+            name: session.email
+          }
+        : undefined;
       try {
-        setIsSavingDraft(true);
-        const actor = session
-          ? {
-              accountId: session.accountId,
-              name: session.email
-            }
-          : undefined;
-        await initiativesApi.saveStatusReportDraft(initiativeId, { entries: draftEntries, summary }, actor);
+        await initiativesApi.saveStatusReportDraft(initiativeId, { entries: normalizedEntries, summary }, actor);
+      } catch {
+        // backend draft endpoint may be unavailable; rely on local storage without surfacing an error
+      }
+      try {
         localStorage.setItem(draftStorageKey, JSON.stringify(payload));
         if (!silent) {
           setError(null);
-          setDraftNotice('Draft saved.');
+          setDraftNotice('Draft saved locally.');
           setMessage(null);
         }
       } catch {
         if (!silent) {
           setError('Failed to save draft locally.');
-        }
-        // fallback to local storage for resilience
-        try {
-          localStorage.setItem(draftStorageKey, JSON.stringify(payload));
-        } catch {
-          // ignore secondary failure
         }
       }
       setIsSavingDraft(false);
@@ -595,7 +614,7 @@ export const InitiativeStatusReportModule = ({
       : undefined;
     const entriesPayload: InitiativeStatusReportEntryInput[] = draftEntries.map((entry) => ({
       taskId: entry.taskId,
-      statusUpdate: entry.statusUpdate,
+      statusUpdate: cleanStatusUpdate(entry.statusUpdate),
       source: entry.source
     }));
     const payload: InitiativeStatusReportPayload = {
@@ -604,7 +623,7 @@ export const InitiativeStatusReportModule = ({
     };
     try {
       const report = await initiativesApi.submitStatusReport(initiativeId, payload, actor);
-      setReports((current) => [report, ...current]);
+      setReports((current) => [normalizeReport(report), ...current]);
       setSelectedReportId(report.id);
       setSummary(report.summary || '');
       setSubmitNotice('Report submitted and locked.');
