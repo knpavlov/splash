@@ -200,7 +200,7 @@ const buildChartStacks = (
     };
   });
 
-const CombinedChart = ({
+export const CombinedChart = ({
   months,
   gridTemplateColumns,
   data,

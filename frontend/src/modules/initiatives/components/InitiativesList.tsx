@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import styles from '../../../styles/InitiativesList.module.css';
 import { Initiative, initiativeStageLabels } from '../../../shared/types/initiative';
 import { Workstream } from '../../../shared/types/workstream';
+import { InitiativesDashboard } from './InitiativesDashboard';
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const formatCurrency = (value: number) => currency.format(value || 0);
@@ -145,6 +146,12 @@ export const InitiativesList = ({
           </button>
         ))}
       </div>
+
+      <InitiativesDashboard
+        initiatives={initiatives}
+        workstreams={workstreams}
+        selectedWorkstreamId={selectedWorkstreamId}
+      />
 
       <div className={styles.tableWrapper}>
         {sorted.length === 0 ? (

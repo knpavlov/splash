@@ -13,11 +13,11 @@ import { ProgramSnapshotDetail, ProgramSnapshotSummary } from '../../shared/type
 import { snapshotsApi } from '../snapshots/services/snapshotsApi';
 
 type GateStageKey = Exclude<InitiativeStageKey, 'l0'>;
-type StageColumnKey = 'l0' | GateStageKey | `${GateStageKey}-gate`;
+export type StageColumnKey = 'l0' | GateStageKey | `${GateStageKey}-gate`;
 
 const gateStageKeys = initiativeStageKeys.filter((key): key is GateStageKey => key !== 'l0');
 
-const stageColumns: { key: StageColumnKey; label: string }[] = [
+export const stageColumns: { key: StageColumnKey; label: string }[] = [
   { key: 'l0', label: 'L0' },
   ...gateStageKeys.flatMap((key) => [
     { key: `${key}-gate` as `${GateStageKey}-gate`, label: `${key.toUpperCase()} Gate` },
@@ -25,7 +25,7 @@ const stageColumns: { key: StageColumnKey; label: string }[] = [
   ])
 ];
 
-const stageColumnLabelMap = new Map<StageColumnKey, string>(stageColumns.map((column) => [column.key, column.label]));
+export const stageColumnLabelMap = new Map<StageColumnKey, string>(stageColumns.map((column) => [column.key, column.label]));
 
 const measurementKeys = [
   'initiatives',
@@ -35,10 +35,10 @@ const measurementKeys = [
   'oneoffBenefits',
   'oneoffCosts'
 ] as const;
-type MeasurementKey = (typeof measurementKeys)[number];
-const measurementKeyList: MeasurementKey[] = [...measurementKeys];
+export type MeasurementKey = (typeof measurementKeys)[number];
+export const measurementKeyList: MeasurementKey[] = [...measurementKeys];
 
-type StageGateEntity = Pick<Initiative, 'id' | 'workstreamId' | 'name' | 'activeStage' | 'stageState' | 'totals'>;
+export type StageGateEntity = Pick<Initiative, 'id' | 'workstreamId' | 'name' | 'activeStage' | 'stageState' | 'totals'>;
 
 interface MeasurementDefinition {
   key: MeasurementKey;
@@ -53,10 +53,10 @@ interface MeasurementDefinition {
   valueExtractor: (entity: StageGateEntity) => number;
 }
 
-type StageMetric = Record<MeasurementKey, number>;
+export type StageMetric = Record<MeasurementKey, number>;
 type StageMetricMap = Record<StageColumnKey, StageMetric>;
 
-interface WorkstreamRow {
+export interface WorkstreamRow {
   id: string;
   name: string;
   metrics: StageMetricMap;
@@ -66,7 +66,7 @@ interface WorkstreamRow {
   initiatives: StageGateEntity[];
 }
 
-interface StageGateDataset {
+export interface StageGateDataset {
   rows: WorkstreamRow[];
   totalRow: WorkstreamRow;
   lookup: Map<string, WorkstreamRow>;
@@ -76,7 +76,7 @@ type ComparisonMode = 'none' | '7d' | '30d' | 'custom';
 type DashboardLayout = 'workstream-first' | 'metric-first';
 
 const SNAPSHOT_FETCH_LIMIT = 90;
-const DEFAULT_MEASUREMENTS: MeasurementKey[] = ['initiatives', 'recurringImpact'];
+export const DEFAULT_MEASUREMENTS: MeasurementKey[] = ['initiatives', 'recurringImpact'];
 const SETTINGS_STORAGE_KEY = 'stage-gate-dashboard-settings';
 
 type SnapshotDetailCacheEntry =
@@ -129,7 +129,7 @@ const formatCountDelta = (value: number) => {
   return '--';
 };
 
-const measurementDefinitions: Record<MeasurementKey, MeasurementDefinition> = {
+export const measurementDefinitions: Record<MeasurementKey, MeasurementDefinition> = {
   initiatives: {
     key: 'initiatives',
     label: 'Initiatives',
@@ -225,7 +225,7 @@ const createEmptyMetricMap = (): StageMetricMap =>
     return acc;
   }, {} as StageMetricMap);
 
-const bucketForInitiative = (initiative: StageGateEntity): StageColumnKey => {
+export const bucketForInitiative = (initiative: StageGateEntity): StageColumnKey => {
   const stage = initiative.activeStage;
   if (stage === 'l0') {
     return 'l0';
@@ -239,7 +239,7 @@ const bucketForInitiative = (initiative: StageGateEntity): StageColumnKey => {
   return stageColumnLabelMap.has(gateKey) ? gateKey : (stage as StageColumnKey);
 };
 
-const buildDataset = (initiatives: StageGateEntity[], workstreams: Workstream[]): StageGateDataset => {
+export const buildStageGateDataset = (initiatives: StageGateEntity[], workstreams: Workstream[]): StageGateDataset => {
   const buildRow = (id: string, name: string, tone?: WorkstreamRow['tone']): WorkstreamRow => ({
     id,
     name,
@@ -418,7 +418,7 @@ export const StageGateDashboardScreen = () => {
   }, [selectedMeasurements, layoutMode]);
 
   const dataset = useMemo(
-    () => buildDataset(initiatives as StageGateEntity[], workstreams),
+    () => buildStageGateDataset(initiatives as StageGateEntity[], workstreams),
     [initiatives, workstreams]
   );
   const { rows, totalRow } = dataset;
@@ -513,7 +513,7 @@ export const StageGateDashboardScreen = () => {
     if (!comparisonSnapshot || !activeComparisonDetail || activeComparisonDetail.status !== 'ready') {
       return null;
     }
-    return buildDataset(activeComparisonDetail.detail.payload.initiatives as StageGateEntity[], workstreams);
+    return buildStageGateDataset(activeComparisonDetail.detail.payload.initiatives as StageGateEntity[], workstreams);
   }, [comparisonSnapshot?.id, activeComparisonDetail, workstreams]);
 
   const comparisonLookup = comparisonDataset?.lookup ?? null;
