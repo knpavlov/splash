@@ -1556,97 +1556,46 @@ export const InitiativePlanModule = ({
     [isActuals, resolveBaselineForTask]
   );
 
-  useEffect(() => {
-    if (!isActuals) {
+  const handleSeedFromPlan = useCallback(() => {
+    if (!isActuals || readOnly) {
       return;
     }
     if (!baselinePlanNormalized?.tasks.length) {
+      setInfoMessage('Add tasks to the implementation plan before copying to actuals.');
       return;
     }
-    if (!normalizedPlan.tasks.length) {
-      const seeded = baselinePlanNormalized.tasks.map((task) => ({
-        ...task,
-        baseline: {
-          name: task.name,
-          description: task.description,
-          startDate: task.startDate,
-          endDate: task.endDate,
-          responsible: task.responsible,
-          milestoneType: task.milestoneType,
-          requiredCapacity: task.requiredCapacity ?? null
-        },
-        sourceTaskId: task.id,
-        archived: false
-      }));
-      setTasks(seeded);
-      return;
-    }
-    const baselineMap = new Map<string, InitiativePlanTask>();
-    baselinePlanNormalized.tasks.forEach((task) => baselineMap.set(task.id, task));
-    let changed = false;
-    const updated = normalizedPlan.tasks.map((task) => {
-      const sourceId = task.sourceTaskId ?? task.id;
-      const baseline = baselineMap.get(sourceId);
-      if (!baseline) {
-        return task;
+    if (normalizedPlan.tasks.length) {
+      const confirmed = window.confirm('Replace existing actuals with a snapshot of the current plan?');
+      if (!confirmed) {
+        return;
       }
-      const nextBaseline: InitiativePlanBaseline = {
-        name: baseline.name,
-        description: baseline.description,
-        startDate: baseline.startDate,
-        endDate: baseline.endDate,
-        responsible: baseline.responsible,
-        milestoneType: baseline.milestoneType,
-        requiredCapacity: baseline.requiredCapacity ?? null
-      };
-      const shouldUpdateBaseline =
-        !task.baseline ||
-        task.baseline.name !== nextBaseline.name ||
-        task.baseline.description !== nextBaseline.description ||
-        task.baseline.startDate !== nextBaseline.startDate ||
-        task.baseline.endDate !== nextBaseline.endDate ||
-        task.baseline.responsible !== nextBaseline.responsible ||
-        task.baseline.milestoneType !== nextBaseline.milestoneType ||
-        task.baseline.requiredCapacity !== nextBaseline.requiredCapacity;
-      const shouldUpdateSource = task.sourceTaskId !== baseline.id;
-      if (!shouldUpdateBaseline && !shouldUpdateSource) {
-        return task;
-      }
-      changed = true;
-      return {
-        ...task,
-        baseline: shouldUpdateBaseline ? nextBaseline : task.baseline ?? nextBaseline,
-        sourceTaskId: baseline.id
-      };
-    });
-    const existingSource = new Set(updated.map((task) => task.sourceTaskId ?? task.id));
-    const additions = baselinePlanNormalized.tasks
-      .filter((task) => !existingSource.has(task.id))
-      .map((task) => ({
-        ...task,
-        baseline: {
-          name: task.name,
-          description: task.description,
-          startDate: task.startDate,
-          endDate: task.endDate,
-          responsible: task.responsible,
-          milestoneType: task.milestoneType,
-          requiredCapacity: task.requiredCapacity ?? null
-        },
-        sourceTaskId: task.id,
-        archived: false
-      }));
-    const filteredUpdated = updated.filter((task) => {
-      const sourceId = task.sourceTaskId ?? task.id;
-      return baselineMap.has(sourceId) || !task.sourceTaskId;
-    });
-    if (additions.length) {
-      changed = true;
     }
-    if (changed || additions.length) {
-      setTasks([...filteredUpdated, ...additions]);
-    }
-  }, [baselinePlanNormalized, isActuals, normalizedPlan.tasks.length, readOnly, setTasks]);
+    const seeded = baselinePlanNormalized.tasks.map((task) => ({
+      ...task,
+      baseline: {
+        name: task.name,
+        description: task.description,
+        startDate: task.startDate,
+        endDate: task.endDate,
+        responsible: task.responsible,
+        milestoneType: task.milestoneType,
+        requiredCapacity: task.requiredCapacity ?? null
+      },
+      sourceTaskId: task.id,
+      archived: false
+    }));
+    setTasks(seeded);
+    setSelectedTaskIds(seeded[0]?.id ? [seeded[0].id] : []);
+    setInfoMessage('Actuals snapshot created from the plan.');
+  }, [
+    baselinePlanNormalized,
+    isActuals,
+    normalizedPlan.tasks.length,
+    readOnly,
+    setInfoMessage,
+    setSelectedTaskIds,
+    setTasks
+  ]);
 
   const showTimelineTooltip = useCallback(
     (event: React.PointerEvent<HTMLDivElement>, task: InitiativePlanTask) => {
@@ -2908,6 +2857,16 @@ export const InitiativePlanModule = ({
             </button>
             {isActuals && (
               <>
+                <button
+                  type="button"
+                  onClick={handleSeedFromPlan}
+                  disabled={readOnly || !baselinePlanNormalized?.tasks.length}
+                  title={
+                    !baselinePlanNormalized?.tasks.length ? 'Add tasks to the implementation plan first' : undefined
+                  }
+                >
+                  {normalizedPlan.tasks.length ? 'Refresh actuals from plan' : 'Copy plan to actuals'}
+                </button>
                 <button
                   type="button"
                   className={showBaselines ? styles.toggleActive : undefined}

@@ -8,6 +8,7 @@ import {
   InitiativeStatusReportSource
 } from '../../../../shared/types/initiative';
 import { diffInDays, parseDate } from '../../plan/planTimeline';
+import { ApiError } from '../../../../shared/api/httpClient';
 import { useAuth } from '../../../auth/AuthContext';
 import { StatusReportSettings, usePlanSettingsState } from '../../../../app/state/AppStateContext';
 import { ChevronIcon } from '../../../../components/icons/ChevronIcon';
@@ -426,10 +427,15 @@ export const InitiativeStatusReportModule = ({
         }
         setReports((result ?? []).map(normalizeReport));
       })
-      .catch(() => {
-        if (!cancelled) {
-          setError('Failed to load submitted reports.');
+      .catch((error) => {
+        if (cancelled) {
+          return;
         }
+        if (error instanceof ApiError && error.status === 404) {
+          setReports([]);
+          return;
+        }
+        setError('Failed to load submitted reports.');
       })
       .finally(() => {
         if (!cancelled) {
