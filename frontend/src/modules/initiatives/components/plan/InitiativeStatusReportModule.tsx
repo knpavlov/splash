@@ -938,14 +938,13 @@ export const InitiativeStatusReportModule = ({
                     <span className={styles.metaText}>{dueState.label}</span>
                   </div>
                   <div className={styles.statusCell}>
-                    <div className={styles.updateHeader}>
-                      <span className={styles.controlLabel}>Status update</span>
-                      {canEditDraft && (
+                    {canEditDraft && (
+                      <div className={styles.updateHeader}>
                         <span className={styles.charCountSmall}>
                           {(entry.statusUpdate || '').length}/{STATUS_UPDATE_LIMIT}
                         </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     {isViewingSubmitted || readOnly ? (
                       <p className={styles.readonlyUpdate}>
                         {(() => {
