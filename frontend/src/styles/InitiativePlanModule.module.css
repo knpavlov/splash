@@ -677,7 +677,7 @@
   align-items: center;
   padding: 0 12px;
   cursor: pointer;
-  overflow: hidden;
+  overflow: visible;
   box-sizing: border-box;
   border: 2px solid transparent;
   z-index: 2;

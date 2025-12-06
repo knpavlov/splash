@@ -3650,11 +3650,11 @@ export const InitiativePlanModule = ({
                 style={{ width: `${timelineRange.width}px`, height: `${visibleRows.length * ROW_HEIGHT}px` }}
               >
                 <defs>
-                  <marker id="dependencyArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-                    <path d="M0,1 L10,5 L0,9 Z" fill="#9ca3af" />
+                  <marker id="dependencyArrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                    <path d="M0,1 L8,4 L0,7 Z" fill="#9ca3af" />
                   </marker>
-                  <marker id="dependencyArrowDraft" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
-                    <path d="M0,1 L10,5 L0,9 Z" fill="#cbd5e1" />
+                  <marker id="dependencyArrowDraft" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                    <path d="M0,1 L8,4 L0,7 Z" fill="#cbd5e1" />
                   </marker>
                 </defs>
                 {dependencyLines.map((line) => {
