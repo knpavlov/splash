@@ -8,12 +8,12 @@ import { AccountRecord } from '../../shared/types/account';
 import { initiativesApi } from './services/initiativesApi';
 
 export type InitiativesViewRoute =
-  | { mode: 'list'; workstreamId?: string }
-  | { mode: 'create'; workstreamId?: string }
+  | { mode: 'list'; workstreamId?: string | null }
+  | { mode: 'create'; workstreamId?: string | null }
   | {
       mode: 'view';
       initiativeId: string;
-      workstreamId?: string;
+      workstreamId?: string | null;
       planTaskId?: string | null;
       openPlanFullscreen?: boolean;
       commentThreadId?: string | null;
@@ -35,13 +35,16 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
 
   const selectedWorkstreamId = useMemo(() => {
     if (view.mode === 'list' || view.mode === 'create') {
+      if (view.workstreamId === null) {
+        return null;
+      }
       return view.workstreamId ?? workstreams[0]?.id ?? null;
     }
     return workstreams[0]?.id ?? null;
   }, [view, workstreams]);
 
   useEffect(() => {
-    if (view.mode === 'list' && !view.workstreamId && selectedWorkstreamId) {
+    if (view.mode === 'list' && view.workstreamId === undefined && selectedWorkstreamId) {
       onViewChange({ mode: 'list', workstreamId: selectedWorkstreamId });
     }
   }, [selectedWorkstreamId, view, onViewChange]);
@@ -202,7 +205,7 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
       initiatives={list}
       workstreams={workstreams}
       selectedWorkstreamId={selectedWorkstreamId}
-      onSelectWorkstream={(next) => onViewChange({ mode: 'list', workstreamId: next ?? undefined })}
+      onSelectWorkstream={(next) => onViewChange({ mode: 'list', workstreamId: next })}
       onCreate={handleCreate}
       onOpen={handleOpen}
     />

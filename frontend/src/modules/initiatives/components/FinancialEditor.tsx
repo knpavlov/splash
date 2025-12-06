@@ -204,12 +204,16 @@ export const CombinedChart = ({
   months,
   gridTemplateColumns,
   data,
-  anchorScope
+  anchorScope,
+  showPeriodLabels,
+  periodLabelFormatter
 }: {
   months: MonthDescriptor[];
   gridTemplateColumns: string;
   data: ChartMonthStack[];
   anchorScope?: string;
+  showPeriodLabels?: boolean;
+  periodLabelFormatter?: (month: MonthDescriptor) => string;
 }) => {
   const maxPositive = Math.max(0, ...data.map((stat) => stat.positiveTotal));
   const maxNegative = Math.max(0, ...data.map((stat) => stat.negativeTotal));
@@ -253,7 +257,13 @@ export const CombinedChart = ({
     <div className={styles.chartRow} style={{ gridTemplateColumns }} ref={chartRef}>
       <div className={styles.chartLegend}>Trend</div>
       {months.map((month, index) => {
-        const stat = data[index];
+        const stat = data[index] ?? {
+          key: month.key,
+          positiveSegments: [],
+          negativeSegments: [],
+          positiveTotal: 0,
+          negativeTotal: 0
+        };
         const positiveRatio = positiveScale ? Math.min(1, stat.positiveTotal / positiveScale) : 0;
         const negativeRatio = negativeScale ? Math.min(1, stat.negativeTotal / negativeScale) : 0;
         const positiveLabelTop = stackTopOffset(positiveShare, positiveRatio) * 100;
@@ -263,6 +273,7 @@ export const CombinedChart = ({
           `${anchorScope ?? 'financial-chart'}.${month.key}`,
           `${month.label} ${month.year} totals`
         );
+        const periodLabel = periodLabelFormatter ? periodLabelFormatter(month) : `${month.label} ${month.year}`;
         return (
           <div key={month.key} className={styles.chartCell} {...chartAnchor}>
             <div className={styles.chartBarGroup}>
@@ -320,6 +331,7 @@ export const CombinedChart = ({
               </div>
               <div className={styles.chartZeroLine} style={{ top: `${positiveShare * 100}%` }} />
             </div>
+            {showPeriodLabels && <div className={styles.chartPeriodLabel}>{periodLabel}</div>}
           </div>
         );
       })}

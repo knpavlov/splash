@@ -695,7 +695,13 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
         </div>
         <div className={financialStyles.sheetWrapper}>
           <div className={financialStyles.sheetScroller}>
-            <CombinedChart months={outlookMonths} gridTemplateColumns={gridTemplateColumns} data={outlookChartData} />
+            <CombinedChart
+              months={outlookMonths}
+              gridTemplateColumns={gridTemplateColumns}
+              data={outlookChartData}
+              showPeriodLabels
+              periodLabelFormatter={(month) => `${month.label} ${String(month.year).slice(-2)}`}
+            />
             {!hasData && <p className={financialStyles.placeholder}>No timeline data for the selected stages yet.</p>}
           </div>
         </div>
@@ -782,6 +788,8 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
               showPlanAsLine={showPlanAsLine}
               planLineMode={planLineMode}
               anchorScope="initiatives.dashboard.actuals.chart"
+              showPeriodLabels
+              periodLabelFormatter={(month) => `${month.label} ${String(month.year).slice(-2)}`}
             />
             {!hasPlanData && !hasActualData && (
               <p className={financialStyles.placeholder}>No plan or actual rows yet for the chosen stages.</p>
@@ -794,25 +802,17 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
 
   return (
     <section className={dashboardStyles.wrapper}>
-      <header className={dashboardStyles.header}>
-        <div>
-          <p className={dashboardStyles.kicker}>Workstream dashboard</p>
-          <h2>Key metrics per workstream</h2>
-          <p className={dashboardStyles.subtleText}>
-            Collapse to save space or switch tabs to see pipeline, outlook, and actuals without leaving the initiatives list.
-          </p>
-        </div>
-        <div className={dashboardStyles.headerActions}>
-          <button
-            type="button"
-            className={dashboardStyles.pillButton}
-            onClick={() => setCollapsed((prev) => !prev)}
-            aria-expanded={!collapsed}
-          >
-            {collapsed ? 'Show dashboard' : 'Hide dashboard'}
-          </button>
-        </div>
-      </header>
+      <div className={dashboardStyles.toolbar}>
+        <button
+          type="button"
+          className={dashboardStyles.collapseButton}
+          onClick={() => setCollapsed((prev) => !prev)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? 'Expand dashboard' : 'Collapse dashboard'}
+        >
+          {collapsed ? '▸' : '▾'}
+        </button>
+      </div>
       {!collapsed && (
         <>
           <div className={dashboardStyles.tabs}>

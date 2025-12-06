@@ -1,31 +1,27 @@
 .wrapper {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
-.header {
+.toolbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
+}
+
+.collapseButton {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: #0f172a;
+  color: #fff;
+  cursor: pointer;
+  font-size: 16px;
+  display: inline-flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(99, 102, 241, 0.08));
-  border: 1px solid rgba(148, 163, 184, 0.35);
-}
-
-.header h2 {
-  margin: 4px 0;
-}
-
-.kicker {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 11px;
-  color: #6366f1;
-  font-weight: 700;
+  justify-content: center;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
 }
 
 .subtleText {
@@ -33,33 +29,18 @@
   color: #475569;
 }
 
-.headerActions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.pillButton {
-  border: none;
-  border-radius: 999px;
-  padding: 10px 16px;
-  background: #0f172a;
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
-}
-
 .tabs {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  padding: 0 4px;
 }
 
 .tab,
 .activeTab {
   border: 1px solid rgba(148, 163, 184, 0.5);
   border-radius: 12px;
-  padding: 10px 14px;
+  padding: 12px 18px;
   background: rgba(255, 255, 255, 0.85);
   color: #0f172a;
   cursor: pointer;

@@ -123,10 +123,12 @@
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.95);
+  overflow: visible;
 }
 
 .sheetScroller {
   overflow-x: auto;
+  overflow-y: visible;
   padding: 16px;
   display: flex;
   flex-direction: column;
