@@ -680,6 +680,7 @@
   overflow: hidden;
   box-sizing: border-box;
   border: 2px solid transparent;
+  z-index: 2;
 }
 
 .timelineBar::after {
@@ -690,6 +691,7 @@
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s ease;
+  z-index: 1;
 }
 
 .barRoot {
@@ -752,8 +754,8 @@
 
 .linkHandle {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   background: #fff;
   border: 2px solid var(--bar-color, #22c55e);
@@ -761,24 +763,24 @@
   transform: translate(var(--handle-translate-x, -50%), -50%);
   cursor: crosshair;
   z-index: 6;
-  box-shadow: 0 0 0 2px #f8fafc, 0 2px 6px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .linkHandleLeft {
-  left: 0;
-  --handle-translate-x: -80%;
+  left: -14px;
+  --handle-translate-x: -30%;
 }
 
 .linkHandleRight {
-  right: 0;
-  --handle-translate-x: 80%;
+  right: -14px;
+  --handle-translate-x: 30%;
 }
 
 .linkHandle:hover {
-  background: #ecfeff;
-  box-shadow: 0 0 0 2px #e0f2fe, 0 4px 10px rgba(15, 23, 42, 0.26);
-  transform: translate(var(--handle-translate-x, -50%), -50%) scale(1.05);
+  background: #f8fffb;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2), 0 6px 14px rgba(15, 23, 42, 0.22);
+  transform: translate(var(--handle-translate-x, -50%), -50%) scale(1.08);
 }
 
 .barLabel {
