@@ -1,4 +1,4 @@
-import { InitiativePlanTask } from '../../../shared/types/initiative';
+import { InitiativePlanAssignee, InitiativePlanTask } from '../../../shared/types/initiative';
 import { parseDate } from './planTimeline';
 
 export interface CapacitySlice {
@@ -7,14 +7,18 @@ export interface CapacitySlice {
   capacity: number;
 }
 
-export const collectCapacitySlices = (task: InitiativePlanTask): CapacitySlice[] => {
+export const collectCapacitySlices = (task: InitiativePlanTask, assignee?: InitiativePlanAssignee): CapacitySlice[] => {
   const start = task.startDate ? parseDate(task.startDate) : null;
   const end = task.endDate ? parseDate(task.endDate) : null;
   if (!start || !end) {
     return [];
   }
-  if (task.capacityMode === 'variable' && task.capacitySegments.length) {
-    return task.capacitySegments
+  const capacityMode = assignee ? assignee.capacityMode : task.capacityMode;
+  const segments = assignee ? assignee.capacitySegments : task.capacitySegments;
+  const requiredCapacity = assignee ? assignee.requiredCapacity : task.requiredCapacity;
+  const resolvedSegments = capacityMode === 'variable' ? segments : [];
+  if (capacityMode === 'variable' && resolvedSegments.length) {
+    return resolvedSegments
       .map((segment) => {
         const segmentStart = parseDate(segment.startDate);
         const segmentEnd = parseDate(segment.endDate);
@@ -36,7 +40,7 @@ export const collectCapacitySlices = (task: InitiativePlanTask): CapacitySlice[]
     {
       start,
       end,
-      capacity: task.requiredCapacity ?? 0
+      capacity: requiredCapacity ?? 0
     }
   ];
 };

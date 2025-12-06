@@ -1,6 +1,11 @@
 import { RefObject, useMemo } from 'react';
 import styles from '../../../../styles/InitiativeResourceLoadModule.module.css';
-import { Initiative, InitiativePlanModel, InitiativePlanTask } from '../../../../shared/types/initiative';
+import {
+  Initiative,
+  InitiativePlanAssignee,
+  InitiativePlanModel,
+  InitiativePlanTask
+} from '../../../../shared/types/initiative';
 import { PLAN_SPLIT_MAX, PLAN_SPLIT_MIN, sanitizePlanModel } from '../../plan/planModel';
 import { addDays, diffInDays, PlanTimelineRange, parseDate } from '../../plan/planTimeline';
 import { collectCapacitySlices } from '../../plan/capacityUtils';
@@ -38,7 +43,7 @@ const MAX_DISPLAY_LOAD = 150;
 const hundredPercentOffset = (100 / MAX_DISPLAY_LOAD) * 100;
 const shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 
-const formatRange = (start: Date, end: Date) => `${shortDate.format(start)} – ${shortDate.format(end)}`;
+const formatRange = (start: Date, end: Date) => `${shortDate.format(start)} - ${shortDate.format(end)}`;
 
 const loadToPercent = (value: number) => (Math.min(Math.max(value, 0), MAX_DISPLAY_LOAD) / MAX_DISPLAY_LOAD) * 100;
 
@@ -57,6 +62,23 @@ export const InitiativeResourceLoadModule = ({
 }: InitiativeResourceLoadModuleProps) => {
   const normalizedPlan = useMemo(() => sanitizePlanModel(plan), [plan]);
   const clampedSplit = Math.min(Math.max(splitRatio, PLAN_SPLIT_MIN), PLAN_SPLIT_MAX);
+  const resolveAssignees = useMemo(
+    () => (task: InitiativePlanTask): InitiativePlanAssignee[] => {
+      if (task.assignees && task.assignees.length) {
+        return task.assignees;
+      }
+      return [
+        {
+          id: `${task.id}-primary`,
+          name: task.responsible,
+          capacityMode: task.capacityMode,
+          requiredCapacity: task.requiredCapacity,
+          capacitySegments: task.capacitySegments
+        }
+      ];
+    },
+    []
+  );
   const weekBuckets = useMemo<WeekBucket[]>(() => {
     if (isCollapsed) {
       return [];
@@ -84,14 +106,16 @@ export const InitiativeResourceLoadModule = ({
     const seen = new Set<string>();
     const result: string[] = [];
     normalizedPlan.tasks.forEach((task) => {
-      const name = task.responsible.trim();
-      if (name && !seen.has(name)) {
-        seen.add(name);
-        result.push(name);
-      }
+      resolveAssignees(task).forEach((assignee) => {
+        const name = assignee.name.trim();
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          result.push(name);
+        }
+      });
     });
     return result;
-  }, [isCollapsed, normalizedPlan.tasks]);
+  }, [isCollapsed, normalizedPlan.tasks, resolveAssignees]);
 
   const otherInitiativePlans = useMemo(() => {
     if (isCollapsed) {
@@ -118,32 +142,34 @@ export const InitiativeResourceLoadModule = ({
     const windowEnd = timelineRange.end;
     const distribute = (tasks: InitiativePlanTask[], key: keyof LoadEntry) => {
       tasks.forEach((task) => {
-        const person = task.responsible.trim();
-        if (!person || !map.has(person)) {
-          return;
-        }
-        const entry = map.get(person)!;
-        const slices = collectCapacitySlices(task);
-        slices.forEach((slice) => {
-          const sliceStart = slice.start < windowStart ? windowStart : slice.start;
-          const sliceEnd = slice.end > windowEnd ? windowEnd : slice.end;
-          if (sliceEnd < sliceStart) {
+        resolveAssignees(task).forEach((assignee) => {
+          const person = assignee.name.trim();
+          if (!person || !map.has(person)) {
             return;
           }
-          weekBuckets.forEach((bucket, bucketIndex) => {
-            if (sliceEnd < bucket.start || sliceStart > bucket.end) {
+          const entry = map.get(person)!;
+          const slices = collectCapacitySlices(task, assignee);
+          slices.forEach((slice) => {
+            const sliceStart = slice.start < windowStart ? windowStart : slice.start;
+            const sliceEnd = slice.end > windowEnd ? windowEnd : slice.end;
+            if (sliceEnd < sliceStart) {
               return;
             }
-            const overlapStart = sliceStart > bucket.start ? sliceStart : bucket.start;
-            const overlapEnd = sliceEnd < bucket.end ? sliceEnd : bucket.end;
-            if (overlapEnd < overlapStart) {
-              return;
-            }
-            const overlapDays = diffInDays(overlapStart, overlapEnd) + 1;
-            if (overlapDays <= 0) {
-              return;
-            }
-            entry[key][bucketIndex] += (slice.capacity * overlapDays) / WEEK_DAYS;
+            weekBuckets.forEach((bucket, bucketIndex) => {
+              if (sliceEnd < bucket.start || sliceStart > bucket.end) {
+                return;
+              }
+              const overlapStart = sliceStart > bucket.start ? sliceStart : bucket.start;
+              const overlapEnd = sliceEnd < bucket.end ? sliceEnd : bucket.end;
+              if (overlapEnd < overlapStart) {
+                return;
+              }
+              const overlapDays = diffInDays(overlapStart, overlapEnd) + 1;
+              if (overlapDays <= 0) {
+                return;
+              }
+              entry[key][bucketIndex] += (slice.capacity * overlapDays) / WEEK_DAYS;
+            });
           });
         });
       });
@@ -151,7 +177,15 @@ export const InitiativeResourceLoadModule = ({
     distribute(normalizedPlan.tasks, 'initiative');
     otherInitiativePlans.forEach((otherPlan) => distribute(otherPlan.tasks, 'baseline'));
     return map;
-  }, [normalizedPlan.tasks, otherInitiativePlans, responsiblePeople, timelineRange.end, timelineRange.start, weekBuckets]);
+  }, [
+    normalizedPlan.tasks,
+    otherInitiativePlans,
+    resolveAssignees,
+    responsiblePeople,
+    timelineRange.end,
+    timelineRange.start,
+    weekBuckets
+  ]);
 
   const renderRow = (person: string) => {
     const entry = loads.get(person);
@@ -168,9 +202,7 @@ export const InitiativeResourceLoadModule = ({
             const totalHeight = loadToPercent(total);
             const initiativeHeight = Math.max(totalHeight - baselineHeight, 0);
             const overloadHeight = Math.max(totalHeight - hundredPercentOffset, 0);
-            const tooltip = `${formatRange(bucket.start, bucket.end)} · Baseline ${Math.round(
-              baseline
-            )}% · Initiative ${Math.round(initiativeLoad)}%`;
+            const tooltip = `${formatRange(bucket.start, bucket.end)} | Baseline ${Math.round(baseline)}% | Initiative ${Math.round(initiativeLoad)}%`;
             return (
               <div
                 key={`${person}-${bucket.index}`}
@@ -282,3 +314,5 @@ export const InitiativeResourceLoadModule = ({
     </section>
   );
 };
+
+

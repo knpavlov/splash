@@ -1,4 +1,4 @@
-﻿import { CSSProperties, DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { CSSProperties, DragEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../../auth/AuthContext';
 import { useParticipantsState, usePlanSettingsState } from '../../../../app/state/AppStateContext';
@@ -7,6 +7,7 @@ import {
   Initiative,
   InitiativePlanActualsModel,
   InitiativePlanCapacitySegment,
+  InitiativePlanAssignee,
   InitiativePlanBaseline,
   InitiativePlanModel,
   InitiativePlanTask
@@ -140,6 +141,7 @@ type DragMode = 'move' | 'resize-start' | 'resize-end';
 
 interface CapacityEditorState {
   taskId: string;
+  assigneeId: string | null;
 }
 
 const isBaselineEmpty = (baseline: InitiativePlanBaseline | null | undefined) => {
@@ -158,6 +160,47 @@ const isBaselineEmpty = (baseline: InitiativePlanBaseline | null | undefined) =>
     (baseline.requiredCapacity === null || baseline.requiredCapacity === undefined)
   );
 };
+
+const resolveAssignees = (task: InitiativePlanTask): InitiativePlanAssignee[] => {
+  if (task.assignees && task.assignees.length) {
+    return task.assignees.map((assignee) => ({
+      ...assignee,
+      capacitySegments: assignee.capacitySegments ?? []
+    }));
+  }
+  return [
+    {
+      id: `${task.id}-primary`,
+      name: task.responsible,
+      capacityMode: task.capacityMode,
+      requiredCapacity: task.capacityMode === 'fixed' ? task.requiredCapacity : null,
+      capacitySegments: task.capacityMode === 'variable' ? task.capacitySegments : []
+    }
+  ];
+};
+
+const syncPrimaryAssignee = (task: InitiativePlanTask, assignees: InitiativePlanAssignee[]) => {
+  const resolved = assignees.length ? assignees : resolveAssignees(task);
+  const [primary] = resolved;
+  const primarySegments = primary?.capacityMode === 'variable' ? [...(primary.capacitySegments ?? [])] : [];
+  return {
+    ...task,
+    assignees: resolved,
+    responsible: primary?.name ?? task.responsible,
+    capacityMode: primary?.capacityMode ?? task.capacityMode,
+    requiredCapacity: primary?.capacityMode === 'fixed' ? primary?.requiredCapacity ?? null : null,
+    capacitySegments: primary?.capacityMode === 'variable' ? primarySegments : []
+  };
+};
+
+type RowKind = 'task' | 'assignee';
+
+interface VisibleRow {
+  kind: RowKind;
+  key: string;
+  task: InitiativePlanTask;
+  assignee: InitiativePlanAssignee;
+}
 
 export const InitiativePlanModule = ({
   plan,
@@ -304,6 +347,13 @@ export const InitiativePlanModule = ({
     scrollLeft: number;
     scrollTop: number;
   } | null>(null);
+  const barRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [dependencyDraft, setDependencyDraft] = useState<{
+    fromId: string;
+    start: { x: number; y: number };
+    current: { x: number; y: number };
+  } | null>(null);
+  const [dependencyLines, setDependencyLines] = useState<{ from: string; to: string; start: { x: number; y: number }; end: { x: number; y: number } }[]>([]);
   const resizeStateRef = useRef<{
     columnId: TableColumnId;
     startX: number;
@@ -577,6 +627,32 @@ export const InitiativePlanModule = ({
     return result;
   }, [collapsedTaskIds, workingTasks]);
 
+  const visibleRows = useMemo<VisibleRow[]>(() => {
+    const rows: VisibleRow[] = [];
+    visibleTasks.forEach((task) => {
+      const assignees = resolveAssignees(task);
+      assignees.forEach((assignee, index) => {
+        rows.push({
+          kind: index === 0 ? 'task' : 'assignee',
+          key: index === 0 ? task.id : `${task.id}:${assignee.id}`,
+          task,
+          assignee
+        });
+      });
+    });
+    return rows;
+  }, [visibleTasks]);
+
+  const rowIndexByTaskId = useMemo(() => {
+    const map = new Map<string, number>();
+    visibleRows.forEach((row, index) => {
+      if (row.kind === 'task') {
+        map.set(row.task.id, index);
+      }
+    });
+    return map;
+  }, [visibleRows]);
+
   const ensureTaskAncestorsExpanded = useCallback(
     (taskId: string) => {
       const targetIndex = normalizedPlan.tasks.findIndex((task) => task.id === taskId);
@@ -688,6 +764,101 @@ export const InitiativePlanModule = ({
       setTasks(tasks);
     },
     [normalizedPlan.tasks, setTasks]
+  );
+
+  const updateTaskAssignees = useCallback(
+    (taskId: string, updater: (assignees: InitiativePlanAssignee[]) => InitiativePlanAssignee[]) => {
+      updateTask(taskId, (current) => {
+        const currentAssignees = resolveAssignees(current);
+        let nextAssignees = updater(currentAssignees);
+        if (!nextAssignees.length) {
+          nextAssignees = currentAssignees;
+        }
+        const normalized = nextAssignees.map((assignee, index) => ({
+          id: assignee.id || `${current.id}-${index}`,
+          name: assignee.name ?? '',
+          capacityMode: assignee.capacityMode ?? 'fixed',
+          requiredCapacity: assignee.capacityMode === 'variable' ? null : assignee.requiredCapacity ?? null,
+          capacitySegments: assignee.capacityMode === 'variable' ? assignee.capacitySegments ?? [] : []
+        }));
+        return syncPrimaryAssignee(current, normalized);
+      });
+    },
+    [updateTask]
+  );
+
+  const handleAddAssignee = useCallback(
+    (taskId: string) => {
+      if (readOnly) {
+        return;
+      }
+      updateTaskAssignees(taskId, (assignees) => [
+        ...assignees,
+        {
+          id: generateId(),
+          name: '',
+          capacityMode: 'fixed',
+          requiredCapacity: 0,
+          capacitySegments: []
+        }
+      ]);
+    },
+    [readOnly, updateTaskAssignees]
+  );
+
+  const handleRemoveAssignee = useCallback(
+    (taskId: string, assigneeId: string) => {
+      if (readOnly) {
+        return;
+      }
+      updateTaskAssignees(taskId, (assignees) => {
+        if (assignees[0]?.id === assigneeId) {
+          return assignees;
+        }
+        return assignees.filter((assignee) => assignee.id !== assigneeId);
+      });
+    },
+    [readOnly, updateTaskAssignees]
+  );
+
+  const handleAssigneeNameChange = useCallback(
+    (taskId: string, assigneeId: string, name: string) => {
+      if (readOnly) {
+        return;
+      }
+      updateTaskAssignees(taskId, (assignees) =>
+        assignees.map((assignee, index) => {
+          if (assignee.id === assigneeId || (index === 0 && assigneeId === taskId)) {
+            return { ...assignee, name };
+          }
+          return assignee;
+        })
+      );
+    },
+    [readOnly, updateTaskAssignees]
+  );
+
+  const handleAssigneeCapacityChange = useCallback(
+    (taskId: string, assigneeId: string, value: string) => {
+      if (readOnly) {
+        return;
+      }
+      updateTaskAssignees(taskId, (assignees) =>
+        assignees.map((assignee, index) => {
+          if (assignee.id === assigneeId || (index === 0 && assigneeId === taskId)) {
+            const numeric = value.trim() ? Math.max(0, Number(value)) : null;
+            return {
+              ...assignee,
+              capacityMode: 'fixed',
+              requiredCapacity: numeric,
+              capacitySegments: []
+            };
+          }
+          return assignee;
+        })
+      );
+    },
+    [readOnly, updateTaskAssignees]
   );
 
   const handleAddTask = useCallback(() => {
@@ -1140,8 +1311,9 @@ export const InitiativePlanModule = ({
     if (!pendingId) {
       return;
     }
-    const targetIndex = visibleTasks.findIndex((task) => task.id === pendingId);
-    if (targetIndex === -1) {
+    const targetIndex = rowIndexByTaskId.get(pendingId);
+    const targetTask = visibleTasks.find((task) => task.id === pendingId) ?? null;
+    if (targetIndex === undefined || targetIndex === -1 || !targetTask) {
       return;
     }
     const tableRows = tableRowsRef.current;
@@ -1151,8 +1323,7 @@ export const InitiativePlanModule = ({
       tableRows.scrollTo({ top: offset, behavior: 'smooth' });
     }
     const timelineScroll = timelineScrollRef.current;
-    const targetTask = visibleTasks[targetIndex];
-    if (timelineScroll && targetTask?.startDate && targetTask.endDate) {
+    if (timelineScroll && targetTask.startDate && targetTask.endDate) {
       const startDate = parseDate(targetTask.startDate);
       const endDate = parseDate(targetTask.endDate);
       if (startDate && endDate) {
@@ -1171,7 +1342,7 @@ export const InitiativePlanModule = ({
     }
     focusRequestRef.current = null;
     onFocusHandled?.();
-  }, [onFocusHandled, pxPerDay, timelineRange, visibleTasks]);
+  }, [onFocusHandled, pxPerDay, rowIndexByTaskId, timelineRange, visibleTasks]);
 
   const showDescriptionTooltip = useCallback(
     (text: string, target: HTMLElement) => {
@@ -1767,6 +1938,16 @@ export const InitiativePlanModule = ({
       if (readOnly) {
         return;
       }
+      if (field === 'responsible') {
+        const primaryId = resolveAssignees(task)[0]?.id ?? task.id;
+        handleAssigneeNameChange(task.id, primaryId, value);
+        return;
+      }
+      if (field === 'requiredCapacity') {
+        const primaryId = resolveAssignees(task)[0]?.id ?? task.id;
+        handleAssigneeCapacityChange(task.id, primaryId, value);
+        return;
+      }
       if (field === 'milestoneType') {
         const options = milestoneTypes.length ? milestoneTypes : DEFAULT_MILESTONE_OPTIONS;
         const trimmed = value.trim();
@@ -1824,26 +2005,24 @@ export const InitiativePlanModule = ({
         if (field === 'description') {
           return { ...current, description: value };
         }
-        if (field === 'requiredCapacity') {
-          if (!value.trim()) {
-            return { ...current, requiredCapacity: null, capacityMode: 'fixed', capacitySegments: [] };
-          }
-          const numeric = Math.max(0, Number(value));
-          return {
-            ...current,
-            requiredCapacity: numeric,
-            capacityMode: 'fixed',
-            capacitySegments: []
-          };
-        }
         return { ...current, [field]: value };
       });
     },
-    [autoProgressTaskIds, milestoneTypes, normalizedPlan.tasks, readOnly, setInfoMessage, setTasks, updateTask]
+    [
+      autoProgressTaskIds,
+      handleAssigneeCapacityChange,
+      handleAssigneeNameChange,
+      milestoneTypes,
+      normalizedPlan.tasks,
+      readOnly,
+      setInfoMessage,
+      setTasks,
+      updateTask
+    ]
   );
 
   const handleCapacityMenu = useCallback(
-    (event: React.MouseEvent, task: InitiativePlanTask) => {
+    (event: React.MouseEvent, task: InitiativePlanTask, assigneeId: string | null = null) => {
       if (readOnly) {
         return;
       }
@@ -1853,22 +2032,31 @@ export const InitiativePlanModule = ({
         setInfoMessage('Set start and end dates before configuring capacity periods.');
         return;
       }
-      setCapacityEditor({ taskId: task.id });
+      setCapacityEditor({ taskId: task.id, assigneeId });
     },
     [readOnly]
   );
 
   const applyCapacitySegments = useCallback(
-    (taskId: string, segments: InitiativePlanCapacitySegment[]) => {
-      updateTask(taskId, (task) => ({
-        ...task,
-        capacityMode: segments.length ? 'variable' : 'fixed',
-        capacitySegments: segments,
-        requiredCapacity: segments.length ? null : task.requiredCapacity
-      }));
+    (taskId: string, assigneeId: string | null, segments: InitiativePlanCapacitySegment[]) => {
+      const targetId = assigneeId ?? taskId;
+      const capacityMode: InitiativePlanTask['capacityMode'] = segments.length ? 'variable' : 'fixed';
+      updateTaskAssignees(taskId, (assignees) =>
+        assignees.map((assignee, index) => {
+          if (assignee.id === targetId || (index === 0 && targetId === taskId)) {
+            return {
+              ...assignee,
+              capacityMode,
+              capacitySegments: capacityMode === 'variable' ? segments : [],
+              requiredCapacity: capacityMode === 'variable' ? null : assignee.requiredCapacity ?? 0
+            };
+          }
+          return assignee;
+        })
+      );
       setCapacityEditor(null);
     },
-    [updateTask]
+    [updateTaskAssignees]
   );
 
   const handleColorChange = useCallback(
@@ -1957,7 +2145,7 @@ export const InitiativePlanModule = ({
   );
 
   const renderCapacityOverlay = useCallback(
-    (task: InitiativePlanTask) => {
+    (task: InitiativePlanTask, assignee?: InitiativePlanAssignee) => {
       if (!showCapacityOverlay || !task.startDate || !task.endDate) {
         return null;
       }
@@ -1966,11 +2154,12 @@ export const InitiativePlanModule = ({
       if (!taskStart || !taskEnd) {
         return null;
       }
+      const source = assignee ?? task;
       const totalDays = Math.max(diffInDays(taskStart, taskEnd) + 1, 1);
-      if (task.capacityMode === 'variable' && task.capacitySegments.length) {
+      if (source.capacityMode === 'variable' && source.capacitySegments.length) {
         return (
           <div className={styles.capacityOverlayTrack} aria-hidden="true">
-            {task.capacitySegments.map((segment) => {
+            {source.capacitySegments.map((segment) => {
               const segmentStart = parseDate(segment.startDate);
               const segmentEnd = parseDate(segment.endDate);
               if (!segmentStart || !segmentEnd) {
@@ -1993,11 +2182,11 @@ export const InitiativePlanModule = ({
           </div>
         );
       }
-      if (task.requiredCapacity !== null) {
+      if (source.requiredCapacity !== null) {
         return (
           <div className={`${styles.capacityOverlayTrack} ${styles.capacityOverlaySingle}`} aria-hidden="true">
             <div className={styles.capacityOverlaySegment} style={{ left: 0, width: '100%' }}>
-              <span>{task.requiredCapacity}</span>
+              <span>{source.requiredCapacity}</span>
             </div>
           </div>
         );
@@ -2005,6 +2194,134 @@ export const InitiativePlanModule = ({
       return null;
     },
     [showCapacityOverlay]
+  );
+
+  const updateDependencyLines = useCallback(() => {
+    const timelineEl = timelineScrollRef.current;
+    if (!timelineEl) {
+      return;
+    }
+    const containerRect = timelineEl.getBoundingClientRect();
+    const nextLines: { from: string; to: string; start: { x: number; y: number }; end: { x: number; y: number } }[] =
+      [];
+    normalizedPlan.tasks.forEach((task) => {
+      const targetBar = barRefs.current.get(task.id);
+      if (!targetBar) {
+        return;
+      }
+      const dependencies = task.dependencies ?? [];
+      const targetRect = targetBar.getBoundingClientRect();
+      dependencies.forEach((fromId) => {
+        const sourceBar = barRefs.current.get(fromId);
+        if (!sourceBar) {
+          return;
+        }
+        const sourceRect = sourceBar.getBoundingClientRect();
+        nextLines.push({
+          from: fromId,
+          to: task.id,
+          start: {
+            x: sourceRect.right - containerRect.left + 4,
+            y: sourceRect.top + sourceRect.height / 2 - containerRect.top
+          },
+          end: {
+            x: targetRect.left - containerRect.left - 4,
+            y: targetRect.top + targetRect.height / 2 - containerRect.top
+          }
+        });
+      });
+    });
+    setDependencyLines(nextLines);
+  }, [normalizedPlan.tasks, pxPerDay, visibleRows.length]);
+
+  useLayoutEffect(() => {
+    updateDependencyLines();
+  }, [updateDependencyLines]);
+
+  useEffect(() => {
+    const handle = () => updateDependencyLines();
+    const scrollEl = timelineScrollRef.current;
+    if (scrollEl) {
+      scrollEl.addEventListener('scroll', handle);
+    }
+    window.addEventListener('resize', handle);
+    return () => {
+      if (scrollEl) {
+        scrollEl.removeEventListener('scroll', handle);
+      }
+      window.removeEventListener('resize', handle);
+    };
+  }, [updateDependencyLines]);
+
+  const finishDependencyDraft = useCallback(
+    (targetTaskId: string | null) => {
+      setDependencyDraft((prev) => {
+        if (!prev) {
+          return null;
+        }
+        if (targetTaskId && targetTaskId !== prev.fromId) {
+          updateTask(targetTaskId, (task) => {
+            const next = new Set(task.dependencies ?? []);
+            next.add(prev.fromId);
+            return { ...task, dependencies: Array.from(next) };
+          });
+        }
+        return null;
+      });
+    },
+    [updateTask]
+  );
+
+  const startDependencyDraft = useCallback(
+    (event: React.PointerEvent, taskId: string, anchor: 'left' | 'right' = 'right') => {
+      const timelineEl = timelineScrollRef.current;
+      const barEl = barRefs.current.get(taskId);
+      if (!timelineEl || !barEl) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const containerRect = timelineEl.getBoundingClientRect();
+      const barRect = barEl.getBoundingClientRect();
+      const start = {
+        x: (anchor === 'left' ? barRect.left : barRect.right) - containerRect.left,
+        y: barRect.top + barRect.height / 2 - containerRect.top
+      };
+      setDependencyDraft({ fromId: taskId, start, current: start });
+      const handleMove = (moveEvent: PointerEvent) => {
+        setDependencyDraft((prev) =>
+          prev
+            ? {
+                ...prev,
+                current: { x: moveEvent.clientX - containerRect.left, y: moveEvent.clientY - containerRect.top }
+              }
+            : prev
+        );
+      };
+      const handleUp = (upEvent: PointerEvent) => {
+        const target = (upEvent.target as HTMLElement | null)?.closest('[data-dependency-target="true"]') as
+          | HTMLElement
+          | null;
+        const targetTask = target?.getAttribute('data-task-id') ?? null;
+        finishDependencyDraft(targetTask);
+        window.removeEventListener('pointermove', handleMove);
+        window.removeEventListener('pointerup', handleUp);
+        updateDependencyLines();
+      };
+      window.addEventListener('pointermove', handleMove);
+      window.addEventListener('pointerup', handleUp);
+    },
+    [finishDependencyDraft, updateDependencyLines]
+  );
+
+  const handleRemoveDependency = useCallback(
+    (fromId: string, toId: string) => {
+      updateTask(toId, (task) => ({
+        ...task,
+        dependencies: (task.dependencies ?? []).filter((id) => id !== fromId)
+      }));
+    },
+    [updateTask]
   );
 
   const infoBanner =
@@ -2034,7 +2351,7 @@ export const InitiativePlanModule = ({
       </div>
       <div className={styles.metricCard}>
         <span className={styles.metricLabel}>Months to value</span>
-        <strong>{valueStepMetrics?.monthsToValue ?? '—'}</strong>
+        <strong>{valueStepMetrics?.monthsToValue ?? '�'}</strong>
       </div>
       <div className={styles.metricCard}>
         <span className={styles.metricLabel}>Schedule variance</span>
@@ -2049,7 +2366,7 @@ export const InitiativePlanModule = ({
         >
           {valueStepMetrics?.deviation !== null && valueStepMetrics?.deviation !== undefined
             ? `${Math.abs(valueStepMetrics.deviation)}d ${valueStepMetrics.deviation <= 0 ? 'ahead' : 'behind'}`
-            : '—'}
+            : '�'}
         </strong>
       </div>
     </div>
@@ -2121,13 +2438,17 @@ export const InitiativePlanModule = ({
               ))}
             </div>
             <div className={styles.tableRows} ref={tableRowsRef}>
-              {visibleTasks.map((task) => {
+              {visibleRows.map((row) => {
+                const task = row.task;
+                const assignee = row.assignee;
+                const isPrimaryRow = row.kind === 'task';
+                const assigneesForTask = resolveAssignees(task);
                 const rowDepthClass =
                   task.indent === 0 ? '' : task.indent === 1 ? styles.rowDepth1 : styles.rowDepth2;
                 const baseline = resolveBaselineForTask(task);
                 const hasCustomResponsible =
-                  !!task.responsible &&
-                  !participantNameSet.has(task.responsible.trim().toLowerCase());
+                  !!assignee.name &&
+                  !participantNameSet.has(assignee.name.trim().toLowerCase());
                 const isArchived = Boolean(task.archived);
                 const hasChildren = taskHasChildren.get(task.id);
                 const isCollapsed = collapsedTaskIds.has(task.id);
@@ -2144,31 +2465,31 @@ export const InitiativePlanModule = ({
                 };
                 const inputDisplayValue =
                   draftValue !== undefined ? draftValue : String(Number.isFinite(baseProgressValue) ? baseProgressValue : 0);
-                const hasNameChange = isActuals && isFieldChanged(task, 'name');
-                const hasDescChange = isActuals && isFieldChanged(task, 'description');
-                const hasResponsibleChange = isActuals && isFieldChanged(task, 'responsible');
-                const hasStartChange = isActuals && isFieldChanged(task, 'startDate');
-                const hasEndChange = isActuals && isFieldChanged(task, 'endDate');
-                const hasMilestoneChange = isActuals && isFieldChanged(task, 'milestoneType');
-                const hasCapacityChange = isActuals && isFieldChanged(task, 'requiredCapacity');
-                const isNewTask = isTaskNew(task);
+                const hasNameChange = isPrimaryRow && isActuals && isFieldChanged(task, 'name');
+                const hasDescChange = isPrimaryRow && isActuals && isFieldChanged(task, 'description');
+                const hasResponsibleChange = isPrimaryRow && isActuals && isFieldChanged(task, 'responsible');
+                const hasStartChange = isPrimaryRow && isActuals && isFieldChanged(task, 'startDate');
+                const hasEndChange = isPrimaryRow && isActuals && isFieldChanged(task, 'endDate');
+                const hasMilestoneChange = isPrimaryRow && isActuals && isFieldChanged(task, 'milestoneType');
+                const hasCapacityChange = isPrimaryRow && isActuals && isFieldChanged(task, 'requiredCapacity');
+                const isNewTask = isPrimaryRow && isTaskNew(task);
                 return (
                   <div
-                    key={task.id}
-                    className={`${styles.tableRow} ${rowDepthClass} ${isArchived ? styles.rowArchived : ''} ${
+                    key={row.key}
+                    className={`${styles.tableRow} ${rowDepthClass} ${!isPrimaryRow ? styles.assigneeRow : ''} ${isArchived ? styles.rowArchived : ''} ${
                       selectedTaskIdsSet.has(task.id) ? styles.rowSelected : ''
                     }`}
                     style={{ gridTemplateColumns: tableGridTemplate, height: `${ROW_HEIGHT}px` }}
                     onClick={(event) => handleTaskSelect(task.id, event)}
                     onDragOver={(event) => {
-                      if (readOnly || !dragTaskId || dragTaskId === task.id) {
+                      if (!isPrimaryRow || readOnly || !dragTaskId || dragTaskId === task.id) {
                         return;
                       }
                       event.preventDefault();
                       event.dataTransfer.dropEffect = 'move';
                     }}
                     onDrop={(event) => {
-                      if (readOnly) {
+                      if (readOnly || !isPrimaryRow) {
                         return;
                       }
                       event.preventDefault();
@@ -2181,9 +2502,12 @@ export const InitiativePlanModule = ({
                     {visibleColumns.map((column) => {
                       switch (column.id) {
                         case 'drag':
+                          if (!isPrimaryRow) {
+                            return <div key={`${row.key}-drag`} className={styles.cell} />;
+                          }
                           return (
                             <button
-                              key={`${task.id}-drag`}
+                              key={`${row.key}-drag`}
                               type="button"
                               className={styles.dragHandle}
                               draggable={!readOnly}
@@ -2199,8 +2523,11 @@ export const InitiativePlanModule = ({
                             </button>
                           );
                         case 'archive':
+                          if (!isPrimaryRow) {
+                            return <div key={`${row.key}-archive`} className={styles.cell} />;
+                          }
                           return (
-                            <div key={`${task.id}-archive`} className={styles.cell}>
+                            <div key={`${row.key}-archive`} className={styles.cell}>
                               <button
                                 type="button"
                                 className={`${styles.archiveButton} ${isArchived ? styles.archiveButtonActive : ''}`}
@@ -2211,24 +2538,39 @@ export const InitiativePlanModule = ({
                                 }}
                                 title={isArchived ? 'Unarchive task' : 'Archive task'}
                               >
-                                <span aria-hidden="true">{isArchived ? '↺' : '⏸'}</span>
+                                <span aria-hidden="true">{isArchived ? '?' : '?'}</span>
                               </button>
                             </div>
                           );
                         case 'context': {
                           const value = contextColumn ? contextColumn.value(task) : '';
                           return (
-                            <div key={`${task.id}-context`} className={styles.cell}>
+                            <div
+                              key={`${row.key}-context`}
+                              className={`${styles.cell} ${!isPrimaryRow ? styles.inheritedCell : ''}`}
+                            >
                               <span className={styles.groupBadge} title={value || undefined}>
-                                {value || '—'}
+                                {value || '-'}
                               </span>
                             </div>
                           );
                         }
                         case 'name':
+                          if (!isPrimaryRow) {
+                            return (
+                              <div key={`${row.key}-name`} className={`${styles.cell} ${styles.assigneeNameCell}`}>
+                                <span className={styles.assigneeBullet} aria-hidden="true" />
+                                <div className={styles.assigneeNameText}>
+                                  <span className={styles.assigneeHint}>Additional responsible</span>
+                                  <strong>{assignee.name || 'Unassigned'}</strong>
+                                  <span className={styles.assigneeParent}>Inherits "{task.name || 'Untitled task'}"</span>
+                                </div>
+                              </div>
+                            );
+                          }
                           return (
                             <div
-                              key={`${task.id}-name`}
+                              key={`${row.key}-name`}
                               className={`${styles.taskNameCell} ${hasNameChange ? styles.cellChanged : ''}`}
                               title={baseline ? `Baseline: ${baseline.name || 'Untitled task'}` : undefined}
                             >
@@ -2272,6 +2614,13 @@ export const InitiativePlanModule = ({
             </div>
           );
                         case 'milestoneType': {
+                          if (!isPrimaryRow) {
+                            return (
+                              <div key={`${row.key}-milestone`} className={`${styles.cell} ${styles.inheritedCell}`}>
+                                <span className={styles.inheritedText}>From task</span>
+                              </div>
+                            );
+                          }
                           const options = milestoneTypes.length ? milestoneTypes : DEFAULT_MILESTONE_OPTIONS;
                           const currentValue =
                             options.find(
@@ -2282,7 +2631,7 @@ export const InitiativePlanModule = ({
                             'Standard';
                           return (
                             <div
-                              key={`${task.id}-milestone`}
+                              key={`${row.key}-milestone`}
                               className={`${styles.cell} ${hasMilestoneChange ? styles.cellChanged : ''}`}
                               title={baseline?.milestoneType ? `Baseline: ${baseline.milestoneType}` : undefined}
                             >
@@ -2317,20 +2666,24 @@ export const InitiativePlanModule = ({
                         case 'description':
                           return (
                             <div
-                              key={`${task.id}-description`}
+                              key={`${row.key}-description`}
                               className={`${styles.cell} ${hasDescChange ? styles.cellChanged : ''}`}
                               onMouseEnter={(event) => showDescriptionTooltip(task.description, event.currentTarget)}
                               onMouseLeave={hideDescriptionTooltip}
                               title={baseline?.description ? `Baseline: ${baseline.description}` : undefined}
                             >
-                              <input
-                                type="text"
-                                value={task.description}
-                                disabled={readOnly}
-                                placeholder="Short summary"
-                                onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
-                                onKeyDown={(event) => event.stopPropagation()}
-                              />
+                              {isPrimaryRow ? (
+                                <input
+                                  type="text"
+                                  value={task.description}
+                                  disabled={readOnly}
+                                  placeholder="Short summary"
+                                  onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
+                                  onKeyDown={(event) => event.stopPropagation()}
+                                />
+                              ) : (
+                                <span className={styles.inheritedText}>From parent task</span>
+                              )}
                               {hasDescChange && (
                                 <span
                                   className={styles.changeDot}
@@ -2351,7 +2704,7 @@ export const InitiativePlanModule = ({
                           const baselineStart = baseline?.startDate ?? null;
                           const label = formatShortDateLabel(baselineStart);
                           return (
-                            <div key={`${task.id}-planStart`} className={styles.cell}>
+                            <div key={`${row.key}-planStart`} className={styles.cell}>
                               <span className={styles.baselineValue}>{label}</span>
                             </div>
                           );
@@ -2359,16 +2712,20 @@ export const InitiativePlanModule = ({
                         case 'start':
                           return (
                             <div
-                              key={`${task.id}-start`}
+                              key={`${row.key}-start`}
                               className={`${styles.cell} ${hasStartChange ? styles.cellChanged : ''}`}
                               title={baseline?.startDate ? `Baseline: ${formatShortDateLabel(baseline.startDate)}` : undefined}
                             >
-                              <input
-                                type="date"
-                                value={task.startDate ?? ''}
-                                disabled={readOnly}
-                                onChange={(event) => handleTaskFieldChange(task, 'startDate', event.target.value)}
-                              />
+                              {isPrimaryRow ? (
+                                <input
+                                  type="date"
+                                  value={task.startDate ?? ''}
+                                  disabled={readOnly}
+                                  onChange={(event) => handleTaskFieldChange(task, 'startDate', event.target.value)}
+                                />
+                              ) : (
+                                <span className={styles.inheritedText}>Aligned to parent</span>
+                              )}
                               {hasStartChange && (
                                 <span
                                   className={styles.changeDot}
@@ -2391,7 +2748,7 @@ export const InitiativePlanModule = ({
                           const baselineEnd = baseline?.endDate ?? null;
                           const label = formatShortDateLabel(baselineEnd);
                           return (
-                            <div key={`${task.id}-planEnd`} className={styles.cell}>
+                            <div key={`${row.key}-planEnd`} className={styles.cell}>
                               <span className={styles.baselineValue}>{label}</span>
                             </div>
                           );
@@ -2399,16 +2756,20 @@ export const InitiativePlanModule = ({
                         case 'end':
                           return (
                             <div
-                              key={`${task.id}-end`}
+                              key={`${row.key}-end`}
                               className={`${styles.cell} ${hasEndChange ? styles.cellChanged : ''}`}
                               title={baseline?.endDate ? `Baseline: ${formatShortDateLabel(baseline.endDate)}` : undefined}
                             >
-                              <input
-                                type="date"
-                                value={task.endDate ?? ''}
-                                disabled={readOnly}
-                                onChange={(event) => handleTaskFieldChange(task, 'endDate', event.target.value)}
-                              />
+                              {isPrimaryRow ? (
+                                <input
+                                  type="date"
+                                  value={task.endDate ?? ''}
+                                  disabled={readOnly}
+                                  onChange={(event) => handleTaskFieldChange(task, 'endDate', event.target.value)}
+                                />
+                              ) : (
+                                <span className={styles.inheritedText}>Aligned to parent</span>
+                              )}
                               {hasEndChange && (
                                 <span
                                   className={styles.changeDot}
@@ -2429,11 +2790,48 @@ export const InitiativePlanModule = ({
                           );
                         case 'responsible': {
                           const hasCustomResponsible =
-                            !!task.responsible &&
-                            !participantNameSet.has(task.responsible.trim().toLowerCase());
+                            !!assignee.name &&
+                            !participantNameSet.has(assignee.name.trim().toLowerCase());
+                          if (!isPrimaryRow) {
+                            return (
+                              <div
+                                key={`${row.key}-responsible`}
+                                className={`${styles.cell} ${styles.assigneeResponsible}`}
+                              >
+                                <select
+                                  value={assignee.name}
+                                  disabled={readOnly}
+                                  onChange={(event) =>
+                                    handleAssigneeNameChange(task.id, assignee.id, event.target.value)
+                                  }
+                                >
+                                  <option value="">Unassigned</option>
+                                  {participantOptions.map((name) => (
+                                    <option key={name} value={name}>
+                                      {name}
+                                    </option>
+                                  ))}
+                                  {hasCustomResponsible && <option value={assignee.name}>{assignee.name}</option>}
+                                </select>
+                                <div className={styles.assigneeActions}>
+                                  <button
+                                    type="button"
+                                    className={styles.linkButton}
+                                    disabled={readOnly}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      handleRemoveAssignee(task.id, assignee.id);
+                                    }}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
                           return (
                             <div
-                              key={`${task.id}-responsible`}
+                              key={`${row.key}-responsible`}
                               className={`${styles.cell} ${hasResponsibleChange ? styles.cellChanged : ''}`}
                             >
                               <select
@@ -2451,6 +2849,24 @@ export const InitiativePlanModule = ({
                                   <option value={task.responsible}>{task.responsible}</option>
                                 )}
                               </select>
+                              <div className={styles.assigneeActions}>
+                                <button
+                                  type="button"
+                                  className={styles.linkButton}
+                                  disabled={readOnly}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleAddAssignee(task.id);
+                                  }}
+                                >
+                                  + Add co-owner
+                                </button>
+                                {assigneesForTask.length > 1 && (
+                                  <span className={styles.assigneePill}>
+                                    {assigneesForTask.length - 1} additional
+                                  </span>
+                                )}
+                              </div>
                               {hasResponsibleChange && (
                                 <span
                                   className={styles.changeDot}
@@ -2471,8 +2887,15 @@ export const InitiativePlanModule = ({
                           );
                         }
                         case 'progress':
+                          if (!isPrimaryRow) {
+                            return (
+                              <div key={`${row.key}-progress`} className={`${styles.cell} ${styles.inheritedCell}`}>
+                                <span className={styles.inheritedText}>From task</span>
+                              </div>
+                            );
+                          }
                           return (
-                            <div key={`${task.id}-progress`} className={`${styles.cell} ${styles.progressCell}`}>
+                            <div key={`${row.key}-progress`} className={`${styles.cell} ${styles.progressCell}`}>
                               <div
                                 className={`${styles.progressDial} ${isAutoProgress ? styles.progressDialAuto : ''}`}
                                 style={progressDialStyle}
@@ -2539,9 +2962,36 @@ export const InitiativePlanModule = ({
                             </div>
                           );
                         case 'capacity':
+                          if (!isPrimaryRow) {
+                            const isVariable = assignee.capacityMode === 'variable';
+                            return (
+                              <div
+                                key={`${row.key}-capacity`}
+                                className={styles.cell}
+                              >
+                                <input
+                                  type="number"
+                                  value={isVariable ? '' : assignee.requiredCapacity ?? ''}
+                                  placeholder={isVariable ? 'Variable' : '0'}
+                                  disabled={readOnly || isVariable}
+                                  onChange={(event) =>
+                                    handleAssigneeCapacityChange(task.id, assignee.id, event.target.value)
+                                  }
+                                />
+                                <button
+                                  type="button"
+                                  className={styles.linkButton}
+                                  disabled={readOnly}
+                                  onClick={(event) => handleCapacityMenu(event, task, assignee.id)}
+                                >
+                                  {isVariable ? 'Edit periods' : 'Split load'}
+                                </button>
+                              </div>
+                            );
+                          }
                           return (
                             <div
-                              key={`${task.id}-capacity`}
+                              key={`${row.key}-capacity`}
                               className={`${styles.cell} ${hasCapacityChange ? styles.cellChanged : ''}`}
                               title={
                                 baseline?.requiredCapacity !== undefined && baseline?.requiredCapacity !== null
@@ -2560,6 +3010,14 @@ export const InitiativePlanModule = ({
                                 disabled={readOnly}
                                 onChange={(event) => handleTaskFieldChange(task, 'requiredCapacity', event.target.value)}
                               />
+                              <button
+                                type="button"
+                                className={styles.linkButton}
+                                disabled={readOnly}
+                                onClick={(event) => handleCapacityMenu(event, task, assignee.id)}
+                              >
+                                {task.capacityMode === 'variable' ? 'Edit periods' : 'Split load'}
+                              </button>
                               {hasCapacityChange && (
                                 <span
                                   className={styles.changeDot}
@@ -2643,13 +3101,21 @@ export const InitiativePlanModule = ({
               </div>
             </div>
             <div
-              className={styles.timelineGrid}
-              style={{
-                width: timelineRange.width,
-                backgroundSize: `${pxPerDay}px ${ROW_HEIGHT}px`
-              }}
+              className={styles.timelineCanvas}
+              style={{ width: timelineRange.width, height: `${visibleRows.length * ROW_HEIGHT}px` }}
             >
-            {visibleTasks.map((task) => {
+              <div
+                className={styles.timelineGrid}
+                style={{
+                  width: timelineRange.width,
+                  height: '100%',
+                  backgroundSize: `${pxPerDay}px ${ROW_HEIGHT}px`
+                }}
+              >
+            {visibleRows.map((row) => {
+              const task = row.task;
+              const assignee = row.assignee;
+              const isPrimaryRow = row.kind === 'task';
               const hasDates = task.startDate && task.endDate;
               const startDate = hasDates ? parseDate(task.startDate!) : null;
               const rowOffset = startDate ? diffInDays(timelineRange.start, startDate) : 0;
@@ -2658,9 +3124,9 @@ export const InitiativePlanModule = ({
               const width = Math.max(duration * pxPerDay, 6);
               const left = rowOffset * pxPerDay;
               const color = task.color ?? DEFAULT_BAR_COLOR;
-              const capacityOverlay = hasDates ? renderCapacityOverlay(task) : null;
+              const capacityOverlay = hasDates ? renderCapacityOverlay(task, assignee) : null;
               const shouldShowBarLabel = !showCapacityOverlay;
-              const baseline = showBaselines ? resolveBaselineForTask(task) : null;
+              const baseline = showBaselines && isPrimaryRow ? resolveBaselineForTask(task) : null;
               const baselineStart = baseline?.startDate ? parseDate(baseline.startDate) : null;
               const baselineEnd = baseline?.endDate ? parseDate(baseline.endDate) : null;
               const baselineHasDates = baselineStart && baselineEnd;
@@ -2681,7 +3147,7 @@ export const InitiativePlanModule = ({
                     : styles.barGrandchild;
               return (
                 <div
-                  key={`timeline-${task.id}`}
+                  key={`timeline-${row.key}`}
                   className={styles.timelineRow}
                   style={{ height: `${ROW_HEIGHT}px` }}
                   onClick={(event) => handleTaskSelect(task.id, event)}
@@ -2700,12 +3166,26 @@ export const InitiativePlanModule = ({
                         </div>
                       )}
                     <div
-                      className={`${styles.timelineBar} ${barDepthClass} ${
+                      className={`${styles.timelineBar} ${barDepthClass} ${!isPrimaryRow ? styles.assigneeBar : ''} ${
                         selectedTaskIdsSet.has(task.id) ? styles.barSelected : ''
                       } ${isArchived ? styles.barArchived : ''}`}
                       style={{ left, width, backgroundColor: color }}
-                      onDoubleClick={(event) => handleCapacityMenu(event, task)}
+                      ref={(element) => {
+                        if (!isPrimaryRow) {
+                          return;
+                        }
+                        if (element) {
+                          barRefs.current.set(task.id, element);
+                        } else {
+                          barRefs.current.delete(task.id);
+                        }
+                        updateDependencyLines();
+                      }}
+                      onDoubleClick={(event) => handleCapacityMenu(event, task, assignee.id)}
                       onPointerDown={(event) => {
+                        if (!isPrimaryRow) {
+                          return;
+                        }
                         if (event.ctrlKey || event.metaKey) {
                           event.preventDefault();
                           event.stopPropagation();
@@ -2713,13 +3193,16 @@ export const InitiativePlanModule = ({
                         }
                         startBarDrag(event, task, 'move');
                       }}
+                      onPointerUp={() => finishDependencyDraft(task.id)}
                       onPointerEnter={(event) => showTimelineTooltip(event, task)}
                       onPointerMove={(event) => showTimelineTooltip(event, task)}
                       onPointerLeave={hideTimelineTooltip}
                       data-timeline-interactive="true"
+                      data-dependency-target={isPrimaryRow ? 'true' : undefined}
+                      data-task-id={task.id}
                     >
                       {capacityOverlay}
-                      {!readOnly && (
+                      {isPrimaryRow && !readOnly && (
                         <>
                           <span
                             className={`${styles.barHandle} ${styles.handleLeft}`}
@@ -2733,7 +3216,23 @@ export const InitiativePlanModule = ({
                           />
                         </>
                       )}
-                      {shouldShowBarLabel && <span className={styles.barLabel}>{task.name}</span>}
+                      {isPrimaryRow && (
+                        <>
+                          <span
+                            className={`${styles.linkHandle} ${styles.linkHandleLeft}`}
+                            onPointerDown={(event) => startDependencyDraft(event, task.id, 'left')}
+                            data-timeline-interactive="true"
+                          />
+                          <span
+                            className={`${styles.linkHandle} ${styles.linkHandleRight}`}
+                            onPointerDown={(event) => startDependencyDraft(event, task.id)}
+                            data-timeline-interactive="true"
+                          />
+                        </>
+                      )}
+                      {shouldShowBarLabel && (
+                        <span className={styles.barLabel}>{isPrimaryRow ? task.name : assignee.name || 'Unassigned'}</span>
+                      )}
                     </div>
                     </>
                   ) : (
@@ -2742,15 +3241,62 @@ export const InitiativePlanModule = ({
                 </div>
               );
             })}
-          </div>
+              </div>
+              <svg
+                className={styles.dependencyLayer}
+                style={{ width: `${timelineRange.width}px`, height: `${visibleRows.length * ROW_HEIGHT}px` }}
+              >
+                {dependencyLines.map((line) => {
+                  const midX = (line.start.x + line.end.x) / 2;
+                  return (
+                    <g key={`${line.from}-${line.to}`} className={styles.dependencyPath}>
+                      <path
+                        d={`M${line.start.x},${line.start.y} C ${midX},${line.start.y} ${midX},${line.end.y} ${line.end.x},${line.end.y}`}
+                      />
+                      <circle
+                        cx={line.end.x}
+                        cy={line.end.y}
+                        r={6}
+                        onClick={() => handleRemoveDependency(line.from, line.to)}
+                      />
+                    </g>
+                  );
+                })}
+                {dependencyDraft && (
+                  <line
+                    x1={dependencyDraft.start.x}
+                    y1={dependencyDraft.start.y}
+                    x2={dependencyDraft.current.x}
+                    y2={dependencyDraft.current.y}
+                    className={styles.dependencyDraft}
+                  />
+                )}
+              </svg>
+            </div>
           {capacityEditor &&
             createPortal(
-              <CapacityEditorPopover
-                task={normalizedPlan.tasks.find((task) => task.id === capacityEditor.taskId) ?? null}
-                onClose={() => setCapacityEditor(null)}
-                onSubmit={applyCapacitySegments}
-                onColorChange={handleColorChange}
-              />,
+              (() => {
+                const editorTask = normalizedPlan.tasks.find((task) => task.id === capacityEditor.taskId) ?? null;
+                const assignees = editorTask ? resolveAssignees(editorTask) : [];
+                const primaryAssignee = assignees[0] ?? null;
+                const editorAssignee =
+                  capacityEditor.assigneeId && editorTask
+                    ? assignees.find((item) => item.id === capacityEditor.assigneeId) ?? primaryAssignee
+                    : primaryAssignee;
+                const canEditColor = Boolean(
+                  editorAssignee && primaryAssignee && editorAssignee.id === primaryAssignee.id
+                );
+                return (
+                  <CapacityEditorPopover
+                    task={editorTask}
+                    assignee={editorAssignee ?? null}
+                    canEditColor={canEditColor}
+                    onClose={() => setCapacityEditor(null)}
+                    onSubmit={applyCapacitySegments}
+                    onColorChange={handleColorChange}
+                  />
+                );
+              })(),
               document.body
             )}
         </div>
@@ -2976,22 +3522,24 @@ export const InitiativePlanModule = ({
 
 interface CapacityEditorProps {
   task: InitiativePlanTask | null;
+  assignee: InitiativePlanAssignee | null;
+  canEditColor: boolean;
   onClose: () => void;
-  onSubmit: (taskId: string, segments: InitiativePlanCapacitySegment[]) => void;
+  onSubmit: (taskId: string, assigneeId: string | null, segments: InitiativePlanCapacitySegment[]) => void;
   onColorChange: (taskId: string, color: string | null) => void;
 }
 
-const CapacityEditorPopover = ({ task, onClose, onSubmit, onColorChange }: CapacityEditorProps) => {
-  const [segments, setSegments] = useState<InitiativePlanCapacitySegment[]>(task?.capacitySegments ?? []);
+const CapacityEditorPopover = ({ task, assignee, canEditColor, onClose, onSubmit, onColorChange }: CapacityEditorProps) => {
+  const [segments, setSegments] = useState<InitiativePlanCapacitySegment[]>(assignee?.capacitySegments ?? []);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!task) {
       return;
     }
-    setSegments(task.capacitySegments);
+    setSegments(assignee?.capacitySegments ?? []);
     setError(null);
-  }, [task]);
+  }, [assignee, task]);
 
   if (!task || !task.startDate || !task.endDate) {
     return null;
@@ -3067,7 +3615,7 @@ const CapacityEditorPopover = ({ task, onClose, onSubmit, onColorChange }: Capac
     if (!validated) {
       return;
     }
-    onSubmit(task.id, validated);
+    onSubmit(task.id, assignee?.id ?? null, validated);
   };
 
   const selectedColor = task.color ?? DEFAULT_BAR_COLOR;
@@ -3087,47 +3635,49 @@ const CapacityEditorPopover = ({ task, onClose, onSubmit, onColorChange }: Capac
         <header className={styles.capacityHeader}>
           <div>
             <strong>Timeline settings</strong>
-            <p>Pick a bar color and fine-tune capacity periods.</p>
+            <p>{assignee ? `Capacity for ${assignee.name || 'unassigned owner'}` : 'Pick a bar color and fine-tune capacity periods.'}</p>
           </div>
           <button type="button" onClick={onClose} className={styles.closeButton}>
             Close
           </button>
         </header>
 
-        <section className={styles.colorSection}>
-          <div className={styles.sectionHeader}>
-            <span>Bar color</span>
-            <button
-              type="button"
-              className={styles.resetButton}
-              onClick={() => onColorChange(task.id, null)}
-              disabled={!task.color}
-            >
-              Reset to default
-            </button>
-          </div>
-          <div className={styles.colorPalette}>
-            {TASK_COLOR_PALETTE.map((paletteColor) => (
+        {canEditColor && (
+          <section className={styles.colorSection}>
+            <div className={styles.sectionHeader}>
+              <span>Bar color</span>
               <button
-                key={paletteColor}
                 type="button"
-                className={`${styles.colorSwatch} ${selectedColor === paletteColor ? styles.swatchSelected : ''}`}
-                style={{ backgroundColor: paletteColor }}
-                onClick={() => onColorChange(task.id, paletteColor)}
+                className={styles.resetButton}
+                onClick={() => onColorChange(task.id, null)}
+                disabled={!task.color}
               >
-                {selectedColor === paletteColor && <span className={styles.swatchIndicator} />}
+                Reset to default
               </button>
-            ))}
-            <label className={styles.customColor}>
-              <input
-                type="color"
-                value={selectedColor}
-                onChange={(event) => onColorChange(task.id, event.target.value)}
-              />
-              <span>Custom</span>
-            </label>
-          </div>
-        </section>
+            </div>
+            <div className={styles.colorPalette}>
+              {TASK_COLOR_PALETTE.map((paletteColor) => (
+                <button
+                  key={paletteColor}
+                  type="button"
+                  className={`${styles.colorSwatch} ${selectedColor === paletteColor ? styles.swatchSelected : ''}`}
+                  style={{ backgroundColor: paletteColor }}
+                  onClick={() => onColorChange(task.id, paletteColor)}
+                >
+                  {selectedColor === paletteColor && <span className={styles.swatchIndicator} />}
+                </button>
+              ))}
+              <label className={styles.customColor}>
+                <input
+                  type="color"
+                  value={selectedColor}
+                  onChange={(event) => onColorChange(task.id, event.target.value)}
+                />
+                <span>Custom</span>
+              </label>
+            </div>
+          </section>
+        )}
 
         <section className={styles.capacitySection}>
           <div className={styles.sectionHeader}>
@@ -3185,6 +3735,10 @@ const CapacityEditorPopover = ({ task, onClose, onSubmit, onColorChange }: Capac
     </div>
   );
 };
+
+
+
+
 
 
 

@@ -18,6 +18,15 @@ const responsibleLabel = (value: string | null | undefined) => {
   return trimmed || 'Unassigned';
 };
 
+const taskResponsibleNames = (task: InitiativePlanTask) => {
+  const sources = task.assignees && task.assignees.length ? task.assignees : [{ name: task.responsible }];
+  return sources
+    .map((assignee) => assignee.name)
+    .filter((name): name is string => Boolean(name && name.trim()));
+};
+
+const primaryResponsibleName = (task: InitiativePlanTask) => task.assignees?.[0]?.name ?? task.responsible;
+
 const defaultSettings: InitiativePlanModel['settings'] = { zoomLevel: 2, splitRatio: 0.45 };
 
 export const PortfolioPlanScreen = () => {
@@ -67,10 +76,12 @@ export const PortfolioPlanScreen = () => {
     const map = new Map<string, string>();
     filteredInitiatives.forEach((initiative) => {
       initiative.plan.tasks.forEach((task) => {
-        const key = normalizeResponsible(task.responsible);
-        if (!map.has(key)) {
-          map.set(key, responsibleLabel(task.responsible));
-        }
+        taskResponsibleNames(task).forEach((name) => {
+          const key = normalizeResponsible(name);
+          if (!map.has(key)) {
+            map.set(key, responsibleLabel(name));
+          }
+        });
       });
     });
     return Array.from(map.entries())
@@ -83,7 +94,10 @@ export const PortfolioPlanScreen = () => {
     const tasks: InitiativePlanTask[] = [];
     filteredInitiatives.forEach((initiative) => {
       initiative.plan.tasks.forEach((task) => {
-        if (selectedResponsibleKey && normalizeResponsible(task.responsible) !== selectedResponsibleKey) {
+        if (
+          selectedResponsibleKey &&
+          !taskResponsibleNames(task).some((name) => normalizeResponsible(name) === selectedResponsibleKey)
+        ) {
           return;
         }
         tasks.push(task);
@@ -110,7 +124,12 @@ export const PortfolioPlanScreen = () => {
       if (groupBy === 'workstream') {
         return workstream?.name ?? 'Unassigned workstream';
       }
-      return responsibleLabel(task.responsible);
+      const owner = primaryResponsibleName(task);
+      const extraCount = Math.max(taskResponsibleNames(task).length - 1, 0);
+      if (extraCount > 0) {
+        return `${responsibleLabel(owner)} (+${extraCount})`;
+      }
+      return responsibleLabel(owner);
     },
     [groupBy, initiativeMap, taskOwnerMap, workstreamMap]
   );
