@@ -33,7 +33,7 @@ import { createCommentAnchor } from '../comments/commentAnchors';
 import { useInitiativeComments } from '../hooks/useInitiativeComments';
 import { useAuth } from '../../auth/AuthContext';
 import { PeriodSettings, usePlanSettingsState, useWorkstreamsState } from '../../../app/state/AppStateContext';
-import { createEmptyPlanActualsModel, createEmptyPlanModel } from '../plan/planModel';
+import { createEmptyPlanActualsModel, createEmptyPlanModel, sanitizePlanModel } from '../plan/planModel';
 import { InitiativePlanModule } from './plan/InitiativePlanModule';
 import { StageKpiEditor } from './StageKpiEditor';
 import { StageKpiActuals } from './StageKpiActuals';
@@ -1012,7 +1012,11 @@ export const InitiativeProfile = ({
     }
     setIsSaving(true);
     setBanner(null);
-    const result = await onSave(draft, { closeAfterSave });
+    const normalizedDraft: Initiative = {
+      ...draft,
+      plan: sanitizePlanModel(draft.plan)
+    };
+    const result = await onSave(normalizedDraft, { closeAfterSave });
     setIsSaving(false);
     if (!result.ok) {
       const message =
