@@ -87,7 +87,7 @@
 .stageFilters {
   border: 1px dashed rgba(148, 163, 184, 0.6);
   border-radius: 14px;
-  padding: 12px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -107,7 +107,7 @@
 .stageOptions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .stageChip,
@@ -115,7 +115,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.6);
   cursor: pointer;

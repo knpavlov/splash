@@ -237,17 +237,8 @@ export const CombinedChart = ({
     segment: ChartSegment,
     position: 'positive' | 'negative'
   ) => {
-    const container = chartRef.current;
-    if (!container) {
-      return;
-    }
-    const containerRect = container.getBoundingClientRect();
-    const segmentRect = event.currentTarget.getBoundingClientRect();
-    const left = segmentRect.left + segmentRect.width / 2 - containerRect.left;
-    const top =
-      position === 'positive'
-        ? segmentRect.top - containerRect.top - 8
-        : segmentRect.bottom - containerRect.top + 8;
+    const left = event.clientX;
+    const top = event.clientY + (position === 'positive' ? -12 : 12);
     setTooltip({ label: segment.label, value: segment.rawValue, left, top });
   };
 
@@ -338,7 +329,7 @@ export const CombinedChart = ({
       {tooltip && (
         <div
           className={styles.chartTooltip}
-          style={{ left: tooltip.left, top: tooltip.top }}
+          style={{ left: tooltip.left, top: tooltip.top, position: 'fixed' }}
         >
           <strong>{tooltip.label || 'Line item'}</strong>
           <span>{formatCurrency(Math.abs(tooltip.value))}</span>
@@ -807,17 +798,8 @@ export const PlanVsActualChart = ({
     position: 'positive' | 'negative',
     tag: string
   ) => {
-    const container = chartRef.current;
-    if (!container) {
-      return;
-    }
-    const containerRect = container.getBoundingClientRect();
-    const segmentRect = event.currentTarget.getBoundingClientRect();
-    const left = segmentRect.left + segmentRect.width / 2 - containerRect.left;
-    const top =
-      position === 'positive'
-        ? segmentRect.top - containerRect.top - 8
-        : segmentRect.bottom - containerRect.top + 8;
+    const left = event.clientX;
+    const top = event.clientY + (position === 'positive' ? -12 : 12);
     setTooltip({ label: segment.label, value: segment.rawValue, left, top, tag, signed: false });
   };
 
@@ -825,14 +807,8 @@ export const PlanVsActualChart = ({
     event: React.MouseEvent<SVGCircleElement>,
     point: { value: number; label: string; tag: string }
   ) => {
-    const container = chartRef.current;
-    if (!container) {
-      return;
-    }
-    const containerRect = container.getBoundingClientRect();
-    const targetRect = event.currentTarget.getBoundingClientRect();
-    const left = targetRect.left + targetRect.width / 2 - containerRect.left;
-    const top = targetRect.top - containerRect.top - 10;
+    const left = event.clientX;
+    const top = event.clientY - 12;
     setTooltip({ label: point.label, value: point.value, left, top, tag: point.tag, signed: true });
   };
 
@@ -1237,7 +1213,10 @@ export const PlanVsActualChart = ({
           </div>
         )}
       {tooltip && (
-        <div className={styles.chartTooltip} style={{ left: tooltip.left, top: tooltip.top }}>
+        <div
+          className={styles.chartTooltip}
+          style={{ left: tooltip.left, top: tooltip.top, position: 'fixed', zIndex: 9999 }}
+        >
           <strong>{tooltip.label || 'Line item'}</strong>
           <span>{tooltip.signed ? renderValue(tooltip.value) : renderValue(Math.abs(tooltip.value))}</span>
           <span className={styles.tooltipTag}>{tooltip.tag}</span>

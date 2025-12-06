@@ -60,8 +60,10 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0
 });
 const countFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+const percentFormatter = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
 
 const formatCurrency = (value: number) => currencyFormatter.format(Math.round(value || 0));
+const formatPercent = (value: number | null) => (Number.isFinite(value) && value !== null ? percentFormatter.format(value) : '—');
 
 const shadeColor = (hex: string, amount: number) => {
   const clamped = Math.max(-1, Math.min(1, amount));
@@ -229,6 +231,36 @@ const buildImpactTotals = (
     return acc;
   }, {} as Record<string, number>);
 
+const aggregateTotals = (
+  source: Record<InitiativeFinancialKind, Record<string, number>>,
+  benefitKinds: InitiativeFinancialKind[],
+  costKinds: InitiativeFinancialKind[]
+): Initiative['totals'] => {
+  const sumKind = (kind: InitiativeFinancialKind) =>
+    Object.values(source[kind] ?? {}).reduce((sum, value) => sum + value, 0);
+  const recurringBenefits = benefitKinds.includes('recurring-benefits') ? sumKind('recurring-benefits') : 0;
+  const oneoffBenefits = benefitKinds.includes('oneoff-benefits') ? sumKind('oneoff-benefits') : 0;
+  const recurringCosts = costKinds.includes('recurring-costs') ? sumKind('recurring-costs') : 0;
+  const oneoffCosts = costKinds.includes('oneoff-costs') ? sumKind('oneoff-costs') : 0;
+  return {
+    recurringBenefits,
+    recurringCosts,
+    oneoffBenefits,
+    oneoffCosts,
+    recurringImpact: recurringBenefits - recurringCosts
+  };
+};
+
+const calculateRoi = (totals: Initiative['totals']): number | null => {
+  const denominator = totals.oneoffCosts;
+  if (!Number.isFinite(denominator) || denominator === 0) {
+    return null;
+  }
+  const roi =
+    (totals.recurringBenefits + totals.oneoffBenefits - totals.recurringCosts - totals.oneoffCosts) / denominator;
+  return Number.isFinite(roi) ? roi : null;
+};
+
 export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstreamId }: InitiativesDashboardProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<'pipeline' | 'outlook' | 'actuals'>('pipeline');
@@ -298,6 +330,12 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
     [outlookImpactTotals, fiscalStartMonth]
   );
 
+  const outlookPlanAggregate = useMemo(
+    () => aggregateTotals(outlookPlanTotals.totals, benefitKindsOutlook, costKindsOutlook),
+    [outlookPlanTotals.totals, benefitKindsOutlook, costKindsOutlook]
+  );
+  const outlookPlanRoi = useMemo(() => calculateRoi(outlookPlanAggregate), [outlookPlanAggregate]);
+
   const actualPlanTotals = useMemo(
     () =>
       aggregateKindTotals(stageFilteredInitiatives, stageFilter, [...benefitKindsActuals, ...costKindsActuals], (entry) => entry.distribution),
@@ -348,6 +386,20 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
     }),
     [actualPlanImpactTotals, actualImpactTotals, fiscalStartMonth]
   );
+
+  const actualPlanAggregate = useMemo(
+    () => aggregateTotals(actualPlanTotals.totals, benefitKindsActuals, costKindsActuals),
+    [actualPlanTotals.totals, benefitKindsActuals, costKindsActuals]
+  );
+  const actualAggregate = useMemo(
+    () => aggregateTotals(actualTotals.totals, benefitKindsActuals, costKindsActuals),
+    [actualTotals.totals, benefitKindsActuals, costKindsActuals]
+  );
+  const actualPlanRoi = useMemo(() => calculateRoi(actualPlanAggregate), [actualPlanAggregate]);
+  const actualRoi = useMemo(() => calculateRoi(actualAggregate), [actualAggregate]);
+  const roiDelta = Number.isFinite(actualRoi ?? NaN) && Number.isFinite(actualPlanRoi ?? NaN)
+    ? (actualRoi ?? 0) - (actualPlanRoi ?? 0)
+    : null;
 
   const activeMeasurements = selectedMeasurements.length ? selectedMeasurements : DEFAULT_MEASUREMENTS;
 
@@ -688,9 +740,9 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
             <strong>{formatCurrency(outlookRunRate)}</strong>
           </div>
           <div className={financialStyles.metricCard}>
-            <span>Stages included</span>
-            <strong>{stageFilter.size}</strong>
-            <p className={financialStyles.metricNote}>Applies to outlook and actuals below.</p>
+            <span>ROI (plan)</span>
+            <strong>{formatPercent(outlookPlanRoi)}</strong>
+            <p className={financialStyles.metricNote}>Same calculation as initiative ROI.</p>
           </div>
         </div>
         <div className={financialStyles.sheetWrapper}>
@@ -769,13 +821,18 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
             </ul>
           </div>
           <div className={financialStyles.metricCard}>
-            <span>Plan run rate (last 12 months)</span>
+            <span>Run rate (last 12 months)</span>
             <strong>{formatCurrency(actualPlanRunRate)}</strong>
+            <p className={financialStyles.metricNote}>
+              Actual: {formatCurrency(actualRunRate)} · Delta: {formatCurrency(actualRunRate - actualPlanRunRate)}
+            </p>
           </div>
           <div className={financialStyles.metricCard}>
-            <span>Actual run rate (last 12 months)</span>
-            <strong>{formatCurrency(actualRunRate)}</strong>
-            <p className={financialStyles.metricNote}>Delta vs plan: {formatCurrency(actualRunRate - actualPlanRunRate)}</p>
+            <span>ROI (actual vs plan)</span>
+            <strong>{formatPercent(actualRoi)}</strong>
+            <p className={financialStyles.metricNote}>
+              Plan: {formatPercent(actualPlanRoi)} · Delta: {formatPercent(roiDelta)}
+            </p>
           </div>
         </div>
         <div className={financialStyles.sheetWrapper}>
@@ -789,6 +846,7 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
               planLineMode={planLineMode}
               anchorScope="initiatives.dashboard.actuals.chart"
               showPeriodLabels
+              showValueLabels
               periodLabelFormatter={(month) => `${month.label} ${String(month.year).slice(-2)}`}
             />
             {!hasPlanData && !hasActualData && (
@@ -808,9 +866,9 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
           className={dashboardStyles.collapseButton}
           onClick={() => setCollapsed((prev) => !prev)}
           aria-expanded={!collapsed}
-          aria-label={collapsed ? 'Expand dashboard' : 'Collapse dashboard'}
+          aria-label={collapsed ? '>' : 'v'}
         >
-          {collapsed ? '▸' : '▾'}
+          {collapsed ? '>' : 'v'}
         </button>
       </div>
       {!collapsed && (
@@ -846,3 +904,6 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
     </section>
   );
 };
+
+
+

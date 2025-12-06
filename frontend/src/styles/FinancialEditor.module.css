@@ -286,7 +286,7 @@
 }
 
 .chartTooltip {
-  position: absolute;
+  position: fixed;
   transform: translate(-50%, -100%);
   background: #0f172a;
   color: #fff;
@@ -298,6 +298,7 @@
   gap: 2px;
   pointer-events: none;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+  z-index: 9999;
   z-index: 5;
 }
 
