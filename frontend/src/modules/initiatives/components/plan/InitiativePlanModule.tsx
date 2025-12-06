@@ -144,6 +144,25 @@ interface CapacityEditorState {
   assigneeId: string | null;
 }
 
+interface DependencyDraftState {
+  fromId: string;
+  start: { x: number; y: number };
+  current: { x: number; y: number };
+}
+
+interface DependencyLine {
+  from: string;
+  to: string;
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+}
+
+interface ContextMenuState {
+  taskId: string;
+  x: number;
+  y: number;
+}
+
 const isBaselineEmpty = (baseline: InitiativePlanBaseline | null | undefined) => {
   if (!baseline) {
     return true;
@@ -348,15 +367,11 @@ export const InitiativePlanModule = ({
     scrollTop: number;
   } | null>(null);
   const barRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const [dependencyDraft, setDependencyDraft] = useState<{
-    fromId: string;
-    start: { x: number; y: number };
-    current: { x: number; y: number };
-  } | null>(null);
-  const dependencyLinesRef = useRef<
-    { from: string; to: string; start: { x: number; y: number }; end: { x: number; y: number } }[]
-  >([]);
-  const [dependencyLines, setDependencyLines] = useState<typeof dependencyLinesRef.current>([]);
+  const [dependencyDraft, setDependencyDraft] = useState<DependencyDraftState | null>(null);
+  const dependencyLinesRef = useRef<DependencyLine[]>([]);
+  const [dependencyLines, setDependencyLines] = useState<DependencyLine[]>([]);
+  const dependencyMeasureFrame = useRef<number | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const resizeStateRef = useRef<{
     columnId: TableColumnId;
     startX: number;
@@ -2199,10 +2214,7 @@ export const InitiativePlanModule = ({
     [showCapacityOverlay]
   );
 
-  const dependencyLinesEqual = (
-    a: typeof dependencyLinesRef.current,
-    b: typeof dependencyLinesRef.current
-  ) => {
+  const dependencyLinesEqual = (a: DependencyLine[], b: DependencyLine[]) => {
     if (a.length !== b.length) {
       return false;
     }
@@ -2223,7 +2235,7 @@ export const InitiativePlanModule = ({
     return true;
   };
 
-  const updateDependencyLines = useCallback(() => {
+  const measureDependencies = useCallback(() => {
     const timelineEl = timelineScrollRef.current;
     if (!timelineEl) {
       return;
@@ -2264,12 +2276,22 @@ export const InitiativePlanModule = ({
     }
   }, [dependencyLinesEqual, normalizedPlan.tasks, pxPerDay, visibleRows.length]);
 
+  const scheduleDependencyMeasure = useCallback(() => {
+    if (dependencyMeasureFrame.current !== null) {
+      cancelAnimationFrame(dependencyMeasureFrame.current);
+    }
+    dependencyMeasureFrame.current = requestAnimationFrame(() => {
+      measureDependencies();
+      dependencyMeasureFrame.current = null;
+    });
+  }, [measureDependencies]);
+
   useLayoutEffect(() => {
-    updateDependencyLines();
-  }, [updateDependencyLines]);
+    scheduleDependencyMeasure();
+  }, [scheduleDependencyMeasure]);
 
   useEffect(() => {
-    const handle = () => updateDependencyLines();
+    const handle = () => scheduleDependencyMeasure();
     const scrollEl = timelineScrollRef.current;
     if (scrollEl) {
       scrollEl.addEventListener('scroll', handle);
@@ -2280,8 +2302,12 @@ export const InitiativePlanModule = ({
         scrollEl.removeEventListener('scroll', handle);
       }
       window.removeEventListener('resize', handle);
+      if (dependencyMeasureFrame.current !== null) {
+        cancelAnimationFrame(dependencyMeasureFrame.current);
+        dependencyMeasureFrame.current = null;
+      }
     };
-  }, [updateDependencyLines]);
+  }, [scheduleDependencyMeasure]);
 
   const finishDependencyDraft = useCallback(
     (targetTaskId: string | null) => {
@@ -2298,22 +2324,21 @@ export const InitiativePlanModule = ({
         }
         return null;
       });
+      scheduleDependencyMeasure();
     },
-    [updateTask]
+    [scheduleDependencyMeasure, updateTask]
   );
 
-  const startDependencyDraft = useCallback(
-    (event: React.PointerEvent, taskId: string, anchor: 'left' | 'right' = 'right') => {
+  const beginDependencyDraft = useCallback(
+    (taskId: string, anchor: 'left' | 'right', startPoint?: { x: number; y: number }) => {
       const timelineEl = timelineScrollRef.current;
       const barEl = barRefs.current.get(taskId);
       if (!timelineEl || !barEl) {
         return;
       }
-      event.preventDefault();
-      event.stopPropagation();
       const containerRect = timelineEl.getBoundingClientRect();
       const barRect = barEl.getBoundingClientRect();
-      const start = {
+      const start = startPoint ?? {
         x: (anchor === 'left' ? barRect.left : barRect.right) - containerRect.left,
         y: barRect.top + barRect.height / 2 - containerRect.top
       };
@@ -2336,13 +2361,67 @@ export const InitiativePlanModule = ({
         finishDependencyDraft(targetTask);
         window.removeEventListener('pointermove', handleMove);
         window.removeEventListener('pointerup', handleUp);
-        updateDependencyLines();
       };
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [finishDependencyDraft, updateDependencyLines]
+    [finishDependencyDraft]
   );
+
+  const startDependencyDraft = useCallback(
+    (event: React.PointerEvent, taskId: string, anchor: 'left' | 'right' = 'right') => {
+      event.preventDefault();
+      event.stopPropagation();
+      beginDependencyDraft(taskId, anchor);
+    },
+    [beginDependencyDraft]
+  );
+
+  const handleRemoveAllDependencies = useCallback(
+    (taskId: string) => {
+      const nextTasks = normalizedPlan.tasks.map((task) => {
+        if (task.id === taskId) {
+          if (!task.dependencies?.length) {
+            return task;
+          }
+          return { ...task, dependencies: [] };
+        }
+        const filtered = (task.dependencies ?? []).filter((id) => id !== taskId);
+        if (filtered.length === (task.dependencies ?? []).length) {
+          return task;
+        }
+        return { ...task, dependencies: filtered };
+      });
+      setTasks(nextTasks);
+      scheduleDependencyMeasure();
+    },
+    [normalizedPlan.tasks, scheduleDependencyMeasure, setTasks]
+  );
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  const handleContextAction = useCallback(
+    (taskId: string, action: 'add-link' | 'remove-links') => {
+      if (action === 'add-link') {
+        beginDependencyDraft(taskId, 'right');
+      } else if (action === 'remove-links') {
+        handleRemoveAllDependencies(taskId);
+      }
+      closeContextMenu();
+    },
+    [beginDependencyDraft, closeContextMenu, handleRemoveAllDependencies]
+  );
+
+  useEffect(() => {
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDependencyDraft(null);
+        closeContextMenu();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [closeContextMenu]);
 
   const handleRemoveDependency = useCallback(
     (fromId: string, toId: string) => {
@@ -3169,19 +3248,19 @@ export const InitiativePlanModule = ({
                 task.startDate === baseline?.startDate &&
                 task.endDate === baseline?.endDate;
               const isArchived = Boolean(task.archived);
-              const barDepthClass =
-                task.indent === 0
-                  ? styles.barRoot
-                  : task.indent === 1
-                    ? styles.barChild
-                    : styles.barGrandchild;
-              return (
-                <div
-                  key={`timeline-${row.key}`}
-                  className={styles.timelineRow}
-                  style={{ height: `${ROW_HEIGHT}px` }}
-                  onClick={(event) => handleTaskSelect(task.id, event)}
-                >
+    const barDepthClass =
+      task.indent === 0
+        ? styles.barRoot
+        : task.indent === 1
+          ? styles.barChild
+          : styles.barGrandchild;
+    return (
+      <div
+        key={`timeline-${row.key}`}
+        className={styles.timelineRow}
+        style={{ height: `${ROW_HEIGHT}px` }}
+        onClick={(event) => handleTaskSelect(task.id, event)}
+      >
                   {hasDates ? (
                     <>
                       {baselineHasDates && !baselineMatchesActual && (
@@ -3209,14 +3288,14 @@ export const InitiativePlanModule = ({
                         } else {
                           barRefs.current.delete(task.id);
                         }
-                        updateDependencyLines();
+                        scheduleDependencyMeasure();
                       }}
                       onDoubleClick={(event) => handleCapacityMenu(event, task, assignee.id)}
                       onPointerDown={(event) => {
                         if (!isPrimaryRow) {
                           return;
                         }
-                        if (event.ctrlKey || event.metaKey) {
+                        if (event.ctrlKey || event.metaKey || event.button === 2) {
                           event.preventDefault();
                           event.stopPropagation();
                           return;
@@ -3227,6 +3306,15 @@ export const InitiativePlanModule = ({
                       onPointerEnter={(event) => showTimelineTooltip(event, task)}
                       onPointerMove={(event) => showTimelineTooltip(event, task)}
                       onPointerLeave={hideTimelineTooltip}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setContextMenu({
+                          taskId: task.id,
+                          x: event.clientX,
+                          y: event.clientY
+                        });
+                      }}
                       data-timeline-interactive="true"
                       data-dependency-target={isPrimaryRow ? 'true' : undefined}
                       data-task-id={task.id}
@@ -3327,6 +3415,34 @@ export const InitiativePlanModule = ({
                   />
                 );
               })(),
+              document.body
+            )}
+          {contextMenu &&
+            createPortal(
+              <div
+                className={styles.contextMenuOverlay}
+                onClick={closeContextMenu}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  closeContextMenu();
+                }}
+              >
+                <div
+                  className={styles.contextMenu}
+                  style={{ left: contextMenu.x, top: contextMenu.y }}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <button type="button" onClick={() => handleContextAction(contextMenu.taskId, 'add-link')}>
+                    ➕ Add dependency
+                  </button>
+                  <button type="button" onClick={() => handleContextAction(contextMenu.taskId, 'remove-links')}>
+                    ✖ Remove links
+                  </button>
+                  <button type="button" onClick={closeContextMenu}>
+                    Cancel
+                  </button>
+                </div>
+              </div>,
               document.body
             )}
         </div>
