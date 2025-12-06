@@ -3222,15 +3222,15 @@ export const InitiativePlanModule = ({
                               </div>
                             );
                           }
-                          return (
-                            <div
-                              key={`${row.key}-responsible`}
-                              className={`${styles.cell} ${hasResponsibleChange ? styles.cellChanged : ''}`}
-                            >
-                              <select
-                                value={task.responsible}
-                                disabled={readOnly}
-                                onChange={(event) => handleTaskFieldChange(task, 'responsible', event.target.value)}
+                            return (
+                              <div
+                                key={`${row.key}-responsible`}
+                                className={`${styles.cell} ${styles.assigneeResponsible} ${hasResponsibleChange ? styles.cellChanged : ''}`}
+                              >
+                                <select
+                                  value={task.responsible}
+                                  disabled={readOnly}
+                                  onChange={(event) => handleTaskFieldChange(task, 'responsible', event.target.value)}
                               >
                                 <option value="">Unassigned</option>
                                 {participantOptions.map((name) => (
@@ -3245,7 +3245,7 @@ export const InitiativePlanModule = ({
                               <div className={styles.assigneeActions}>
                                 <button
                                   type="button"
-                                  className={styles.linkButton}
+                                  className={`${styles.linkButton} ${styles.actionButtonPrimary}`}
                                   disabled={readOnly}
                                   onClick={(event) => {
                                     event.stopPropagation();
@@ -3360,7 +3360,7 @@ export const InitiativePlanModule = ({
                             return (
                               <div
                                 key={`${row.key}-capacity`}
-                                className={styles.cell}
+                                className={`${styles.cell} ${styles.capacityCell}`}
                               >
                                 <input
                                   type="number"
@@ -3373,7 +3373,7 @@ export const InitiativePlanModule = ({
                                 />
                                 <button
                                   type="button"
-                                  className={styles.linkButton}
+                                  className={`${styles.linkButton} ${styles.actionButtonPrimary}`}
                                   disabled={readOnly}
                                   onClick={(event) => handleCapacityMenu(event, task, assignee.id)}
                                 >
@@ -3383,14 +3383,14 @@ export const InitiativePlanModule = ({
                             );
                           }
                           return (
-                            <div
-                              key={`${row.key}-capacity`}
-                              className={`${styles.cell} ${hasCapacityChange ? styles.cellChanged : ''}`}
-                              title={
-                                baseline?.requiredCapacity !== undefined && baseline?.requiredCapacity !== null
-                                  ? `Baseline: ${baseline.requiredCapacity}`
-                                  : undefined
-                              }
+                              <div
+                                key={`${row.key}-capacity`}
+                                className={`${styles.cell} ${styles.capacityCell} ${hasCapacityChange ? styles.cellChanged : ''}`}
+                                title={
+                                  baseline?.requiredCapacity !== undefined && baseline?.requiredCapacity !== null
+                                    ? `Baseline: ${baseline.requiredCapacity}`
+                                    : undefined
+                                }
                             >
                               <input
                                 type="number"
@@ -3405,7 +3405,7 @@ export const InitiativePlanModule = ({
                               />
                               <button
                                 type="button"
-                                className={styles.linkButton}
+                                className={`${styles.linkButton} ${styles.actionButtonPrimary}`}
                                 disabled={readOnly}
                                 onClick={(event) => handleCapacityMenu(event, task, assignee.id)}
                               >
