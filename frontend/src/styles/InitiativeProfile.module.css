@@ -710,8 +710,38 @@
 
 .footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.footerLeft {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.footerRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.footerActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.footerBanner {
+  min-width: 220px;
+  text-align: left;
 }
 
 .secondaryButton,
@@ -790,6 +820,19 @@
 
 .changeLogLine:last-child {
   border-bottom: none;
+}
+
+.changeLogActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.changeLogMeta {
+  font-size: 12px;
+  color: #64748b;
 }
 
 .logTime {

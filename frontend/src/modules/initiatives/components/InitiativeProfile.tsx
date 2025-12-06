@@ -656,6 +656,31 @@ export const InitiativeProfile = ({
   const changeLogLoadedKeyRef = useRef<string | null>(null);
   const initiativeId = initiative?.id ?? null;
   const initiativeUpdatedAt = initiative?.updatedAt ?? null;
+  const planCacheKey = useMemo(() => (initiativeId ? `initiative-plan-cache:${initiativeId}` : null), [initiativeId]);
+  const [logVisibleCount, setLogVisibleCount] = useState(20);
+
+  const mergePlanDependencies = useCallback(
+    (primary: Initiative['plan'], fallback?: Initiative['plan'] | null) => {
+      if (!fallback || !fallback.tasks?.length) {
+        return primary;
+      }
+      const fallbackMap = new Map<string, string[]>();
+      fallback.tasks.forEach((task) => {
+        if (task.id) {
+          fallbackMap.set(task.id, (task.dependencies ?? []).filter(Boolean));
+        }
+      });
+      const tasks = primary.tasks.map((task) => {
+        const backupDeps = fallbackMap.get(task.id);
+        if (backupDeps && backupDeps.length && (!task.dependencies || !task.dependencies.length)) {
+          return { ...task, dependencies: Array.from(new Set(backupDeps)) };
+        }
+        return task;
+      });
+      return sanitizePlanModel({ ...primary, tasks });
+    },
+    []
+  );
   const handleSectionToggle = useCallback((key: string) => {
     setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
   }, []);
@@ -673,7 +698,19 @@ export const InitiativeProfile = ({
   }, []);
   useEffect(() => {
     if (initiative) {
-      setDraft(initiative);
+      let mergedPlan = initiative.plan;
+      if (planCacheKey) {
+        try {
+          const cached = sessionStorage.getItem(planCacheKey);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            mergedPlan = mergePlanDependencies(initiative.plan, parsed);
+          }
+        } catch (error) {
+          console.warn('Failed to read cached plan', error);
+        }
+      }
+      setDraft({ ...initiative, plan: mergedPlan });
       setSelectedStage(initiative.activeStage);
     } else {
       setDraft(createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id, periodSettings));
@@ -681,11 +718,37 @@ export const InitiativeProfile = ({
     }
     // periodSettings intentionally omitted to avoid wiping local edits when defaults change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initiative, initialWorkstreamId, workstreams]);
+  }, [initiative, initialWorkstreamId, workstreams, planCacheKey, mergePlanDependencies]);
 
   useEffect(() => {
     setDraft((prev) => applyPeriodToInitiative(prev));
   }, [applyPeriodToInitiative]);
+
+  useEffect(() => {
+    setLogVisibleCount((count) => Math.min(20, changeLog.length || count));
+  }, [changeLog]);
+
+  useEffect(() => {
+    if (!planCacheKey) {
+      return;
+    }
+    try {
+      sessionStorage.setItem(planCacheKey, JSON.stringify(draft.plan));
+    } catch (error) {
+      console.warn('Failed to persist plan cache', error);
+    }
+  }, [draft.plan, planCacheKey]);
+
+  useEffect(() => {
+    if (!planCacheKey) {
+      return;
+    }
+    try {
+      sessionStorage.setItem(planCacheKey, JSON.stringify(draft.plan));
+    } catch (error) {
+      console.warn('Failed to persist plan cache', error);
+    }
+  }, [draft.plan, planCacheKey]);
 
   useEffect(() => {
     if (!initiative?.id) {
@@ -959,7 +1022,7 @@ export const InitiativeProfile = ({
   };
 
   const handlePlanChange = (nextPlan: Initiative['plan']) => {
-    setDraft((prev) => ({ ...prev, plan: nextPlan }));
+    setDraft((prev) => ({ ...prev, plan: sanitizePlanModel(nextPlan) }));
   };
 
   const handlePlanActualsChange = (nextActuals: InitiativePlanActualsModel | InitiativePlanModel) => {
@@ -1012,9 +1075,10 @@ export const InitiativeProfile = ({
     }
     setIsSaving(true);
     setBanner(null);
+    const normalizedPlan = sanitizePlanModel(mergePlanDependencies(draft.plan, draft.plan));
     const normalizedDraft: Initiative = {
       ...draft,
-      plan: sanitizePlanModel(draft.plan)
+      plan: normalizedPlan
     };
     const result = await onSave(normalizedDraft, { closeAfterSave });
     setIsSaving(false);
@@ -1029,7 +1093,8 @@ export const InitiativeProfile = ({
               : 'Failed to save initiative.';
       setBanner({ type: 'error', text: message });
     } else {
-      setDraft(result.data);
+      const mergedPlan = mergePlanDependencies(result.data.plan, draft.plan);
+      setDraft({ ...result.data, plan: mergedPlan });
       setSelectedStage(result.data.activeStage);
       setBanner({ type: 'info', text: 'Initiative saved.' });
       void loadChangeLog(true);
@@ -1447,10 +1512,6 @@ export const InitiativeProfile = ({
         )}
       </section>
 
-      {banner && (
-        <div className={banner.type === 'info' ? styles.bannerInfo : styles.bannerError}>{banner.text}</div>
-      )}
-
       <div className={styles.stagePanel}>
         <header className={styles.stageHeader}>
           <div className={styles.stageHeaderLeft}>
@@ -1785,13 +1846,14 @@ export const InitiativeProfile = ({
           ) : changeLog.length === 0 ? (
             <p className={styles.placeholder}>No changes recorded yet.</p>
           ) : (
-            <ul className={styles.changeLogList}>
-              {changeLog.map((entry) => {
-                const summaryParts = entry.changes
-                  .map((change) => {
-                    if (change.field === 'created') {
-                      return 'Initiative created';
-                    }
+            <>
+              <ul className={styles.changeLogList}>
+                {changeLog.slice(0, logVisibleCount).map((entry) => {
+                  const summaryParts = entry.changes
+                    .map((change) => {
+                      if (change.field === 'created') {
+                        return 'Initiative created';
+                      }
                     if (change.field === 'stage-content') {
                       return 'Stage content updated';
                     }
@@ -1814,42 +1876,71 @@ export const InitiativeProfile = ({
                   })
                   .filter((value): value is string => Boolean(value));
                 const summary = summaryParts.length ? summaryParts.join('; ') : 'Updated';
-                return (
-                  <li key={entry.id} className={styles.changeLogLine}>
-                    <span className={styles.logTime}>{new Date(entry.createdAt).toLocaleString()}</span>
-                    <span className={styles.logActor}>{entry.actorName ?? 'System'}</span>
-                    <span className={styles.logSummary}>{summary}</span>
-                  </li>
-                );
-              })}
-            </ul>
+                  return (
+                    <li key={entry.id} className={styles.changeLogLine}>
+                      <span className={styles.logTime}>{new Date(entry.createdAt).toLocaleString()}</span>
+                      <span className={styles.logActor}>{entry.actorName ?? 'System'}</span>
+                      <span className={styles.logSummary}>{summary}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+              {logVisibleCount < changeLog.length && (
+                <div className={styles.changeLogActions}>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={() => setLogVisibleCount((count) => Math.min(changeLog.length, count + 20))}
+                  >
+                    Show more
+                  </button>
+                  <span className={styles.changeLogMeta}>
+                    Showing {Math.min(logVisibleCount, changeLog.length)} of {changeLog.length}
+                  </span>
+                </div>
+              )}
+            </>
           ))}
       </section>
 
       <footer className={styles.footer}>
-        <button className={styles.secondaryButton} onClick={() => onBack(draft.workstreamId)} type="button">
-          {isReadOnlyMode ? 'Close' : 'Cancel'}
-        </button>
-        {!isReadOnlyMode && mode === 'view' && (
-          <button className={styles.dangerButton} onClick={handleDeleteClick} disabled={isDeleting} type="button">
-            {isDeleting ? 'Deleting...' : 'Delete'}
+        <div className={styles.footerLeft}>
+          <button className={styles.secondaryButton} onClick={() => onBack(draft.workstreamId)} type="button">
+            {isReadOnlyMode ? 'Close' : 'Cancel'}
           </button>
-        )}
-        {!isReadOnlyMode && (
-          <>
-            <button
-              className={styles.secondaryButton}
-              onClick={() => handleSaveClick(false)}
-              disabled={isSaving}
-              type="button"
-            >
-              {isSaving ? 'Saving...' : 'Save'}
+          {!isReadOnlyMode && mode === 'view' && (
+            <button className={styles.dangerButton} onClick={handleDeleteClick} disabled={isDeleting} type="button">
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </button>
-            <button className={styles.primaryButton} onClick={() => handleSaveClick(true)} disabled={isSaving} type="button">
-              {isSaving ? 'Saving...' : 'Save and close'}
-            </button>
-          </>
-        )}
+          )}
+        </div>
+        <div className={styles.footerRight}>
+          {banner && (
+            <div className={`${styles.footerBanner} ${banner.type === 'info' ? styles.bannerInfo : styles.bannerError}`}>
+              {banner.text}
+            </div>
+          )}
+          {!isReadOnlyMode && (
+            <div className={styles.footerActions}>
+              <button
+                className={styles.secondaryButton}
+                onClick={() => handleSaveClick(false)}
+                disabled={isSaving}
+                type="button"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                className={styles.primaryButton}
+                onClick={() => handleSaveClick(true)}
+                disabled={isSaving}
+                type="button"
+              >
+                {isSaving ? 'Saving...' : 'Save and close'}
+              </button>
+            </div>
+          )}
+        </div>
       </footer>
       {isSubmitConfirmOpen && (
         <div

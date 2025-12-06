@@ -459,6 +459,7 @@
   display: grid;
   align-items: stretch;
   gap: 0;
+  position: relative;
 }
 
 .sheetHeader {
@@ -567,21 +568,25 @@
 }
 
 .rowMenuButton {
-  border: none;
-  border-radius: 50%;
-  width: 26px;
-  height: 26px;
-  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 12px;
+  width: 32px;
+  height: 32px;
+  background: rgba(148, 163, 184, 0.14);
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
 }
 
 .rowMenu {
   position: absolute;
-  top: 38px;
-  left: 12px;
-  z-index: 6000;
+  top: 40px;
+  left: 0;
+  z-index: 8000;
   width: 260px;
   background: #fff;
   border: 1px solid rgba(148, 163, 184, 0.35);
