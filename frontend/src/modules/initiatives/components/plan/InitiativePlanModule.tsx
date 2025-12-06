@@ -165,6 +165,22 @@ interface ContextMenuState {
   y: number;
 }
 
+type ContextMenuAction =
+  | 'edit'
+  | 'add-above'
+  | 'add-below'
+  | 'add-milestone'
+  | 'add-subtask'
+  | 'add-successor'
+  | 'add-predecessor'
+  | 'convert-milestone'
+  | 'split'
+  | 'indent'
+  | 'outdent'
+  | 'delete'
+  | 'add-link'
+  | 'remove-links';
+
 const isBaselineEmpty = (baseline: InitiativePlanBaseline | null | undefined) => {
   if (!baseline) {
     return true;
@@ -355,6 +371,7 @@ export const InitiativePlanModule = ({
   const timelineRef = useRef<HTMLDivElement>(null);
   const tableRowsRef = useRef<HTMLDivElement>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const timelineCanvasRef = useRef<HTMLDivElement>(null);
   const resourceScrollRef = useRef<HTMLDivElement>(null);
   const resourceNamesRef = useRef<HTMLDivElement>(null);
   const fullscreenStackRef = useRef<HTMLDivElement>(null);
@@ -374,6 +391,7 @@ export const InitiativePlanModule = ({
   const [dependencyLines, setDependencyLines] = useState<DependencyLine[]>([]);
   const dependencyMeasureFrame = useRef<number | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [openSubmenu, setOpenSubmenu] = useState<'add' | 'color' | null>(null);
   const resizeStateRef = useRef<{
     columnId: TableColumnId;
     startX: number;
@@ -881,20 +899,28 @@ export const InitiativePlanModule = ({
     [readOnly, updateTaskAssignees]
   );
 
+  const buildNewTask = useCallback(
+    (anchorTask: InitiativePlanTask | null, overrides: Partial<InitiativePlanTask> = {}) => {
+      const baseDate = anchorTask?.startDate ? parseDate(anchorTask.startDate) ?? new Date() : new Date();
+      const startDate = formatDateInput(baseDate);
+      const endDate = formatDateInput(addDays(baseDate, 7));
+      return {
+        ...createEmptyPlanTask(),
+        name: overrides.name ?? `Activity ${normalizedPlan.tasks.length + 1}`,
+        startDate,
+        endDate,
+        indent: overrides.indent ?? anchorTask?.indent ?? 0,
+        ...overrides
+      };
+    },
+    [normalizedPlan.tasks.length]
+  );
+
   const handleAddTask = useCallback(() => {
     if (readOnly) {
       return;
     }
-    const baseDate = selectedTask?.startDate ? parseDate(selectedTask.startDate) ?? new Date() : new Date();
-    const startDate = formatDateInput(baseDate);
-    const endDate = formatDateInput(addDays(baseDate, 7));
-    const newTask: InitiativePlanTask = {
-      ...createEmptyPlanTask(),
-      name: `Activity ${normalizedPlan.tasks.length + 1}`,
-      startDate,
-      endDate,
-      indent: selectedTask?.indent ?? 0
-    };
+    const newTask = buildNewTask(selectedTask ?? null);
     const tasks = [...normalizedPlan.tasks];
     if (selectedTask) {
       const index = tasks.findIndex((task) => task.id === selectedTask.id);
@@ -904,67 +930,109 @@ export const InitiativePlanModule = ({
     }
     setTasks(tasks);
     setSelectedTaskId(newTask.id);
-  }, [normalizedPlan.tasks, readOnly, selectedTask, setTasks]);
+  }, [buildNewTask, normalizedPlan.tasks, readOnly, selectedTask, setTasks, setSelectedTaskId]);
 
-  const handleDeleteTask = useCallback(() => {
-    if (readOnly || !selectedTaskId) {
-      return;
-    }
-    const index = normalizedPlan.tasks.findIndex((task) => task.id === selectedTaskId);
-    if (index === -1) {
-      return;
-    }
-    const tasks = normalizedPlan.tasks.filter((task) => task.id !== selectedTaskId);
-    setTasks(tasks);
-    setSelectedTaskId(tasks[Math.max(0, index - 1)]?.id ?? null);
-  }, [normalizedPlan.tasks, readOnly, selectedTaskId, setTasks]);
-
-  const handleIndent = useCallback(() => {
-    if (readOnly || !selectedTaskId) {
-      return;
-    }
-    const index = normalizedPlan.tasks.findIndex((task) => task.id === selectedTaskId);
-    if (index <= 0) {
-      setInfoMessage('Indent requires a preceding task.');
-      return;
-    }
-    const currentIndent = normalizedPlan.tasks[index].indent;
-    if (currentIndent >= PLAN_MAX_INDENT_LEVEL) {
-      setInfoMessage('Task is already at the deepest level.');
-      return;
-    }
-    let parentIndent: number | null = null;
-    for (let i = index - 1; i >= 0; i -= 1) {
-      const candidate = normalizedPlan.tasks[i];
-      if (candidate.indent <= currentIndent) {
-        parentIndent = candidate.indent;
-        break;
+  const focusTaskNameInput = useCallback(
+    (taskId: string) => {
+      const tableRows = tableRowsRef.current;
+      if (!tableRows) {
+        return;
       }
-    }
-    if (parentIndent === null) {
-      setInfoMessage('Indent requires a shallower parent above.');
-      return;
-    }
-    const nextIndent = Math.min(parentIndent + 1, PLAN_MAX_INDENT_LEVEL);
-    if (nextIndent <= currentIndent) {
-      setInfoMessage('No valid parent to indent under.');
-      return;
-    }
-    updateTask(selectedTaskId, (task) => ({
-      ...task,
-      indent: nextIndent
-    }));
-  }, [normalizedPlan.tasks, readOnly, selectedTaskId, updateTask]);
+      const targetIndex = rowIndexByTaskId.get(taskId);
+      if (targetIndex === undefined) {
+        return;
+      }
+      const rowTop = targetIndex * ROW_HEIGHT;
+      const visibleStart = tableRows.scrollTop;
+      const visibleEnd = visibleStart + tableRows.clientHeight;
+      if (rowTop < visibleStart || rowTop + ROW_HEIGHT > visibleEnd) {
+        tableRows.scrollTo({ top: Math.max(0, rowTop - ROW_HEIGHT), behavior: 'smooth' });
+      }
+      requestAnimationFrame(() => {
+        const input = tableRows.querySelector<HTMLInputElement>(`input[data-task-name-input="${taskId}"]`);
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      });
+    },
+    [rowIndexByTaskId]
+  );
 
-  const handleOutdent = useCallback(() => {
-    if (readOnly || !selectedTaskId) {
-      return;
-    }
-    updateTask(selectedTaskId, (task) => ({
-      ...task,
-      indent: Math.max(0, task.indent - 1)
-    }));
-  }, [readOnly, selectedTaskId, updateTask]);
+  const openCapacityEditorForTask = useCallback(
+    (taskId: string) => {
+      if (readOnly) {
+        return;
+      }
+      const task = normalizedPlan.tasks.find((item) => item.id === taskId);
+      if (!task) {
+        return;
+      }
+      if (!task.startDate || !task.endDate) {
+        setInfoMessage('Set start and end dates before configuring capacity periods.');
+        return;
+      }
+      const assignees = resolveAssignees(task);
+      const primaryAssignee = assignees[0]?.id ?? null;
+      setCapacityEditor({ taskId: task.id, assigneeId: primaryAssignee });
+    },
+    [normalizedPlan.tasks, readOnly, setCapacityEditor, setInfoMessage]
+  );
+
+  const handleIndent = useCallback(
+    (taskId?: string | null) => {
+      const targetId = taskId ?? selectedTaskId;
+      if (readOnly || !targetId) {
+        return;
+      }
+      const index = normalizedPlan.tasks.findIndex((task) => task.id === targetId);
+      if (index <= 0) {
+        setInfoMessage('Indent requires a preceding task.');
+        return;
+      }
+      const currentIndent = normalizedPlan.tasks[index].indent;
+      if (currentIndent >= PLAN_MAX_INDENT_LEVEL) {
+        setInfoMessage('Task is already at the deepest level.');
+        return;
+      }
+      let parentIndent: number | null = null;
+      for (let i = index - 1; i >= 0; i -= 1) {
+        const candidate = normalizedPlan.tasks[i];
+        if (candidate.indent <= currentIndent) {
+          parentIndent = candidate.indent;
+          break;
+        }
+      }
+      if (parentIndent === null) {
+        setInfoMessage('Indent requires a shallower parent above.');
+        return;
+      }
+      const nextIndent = Math.min(parentIndent + 1, PLAN_MAX_INDENT_LEVEL);
+      if (nextIndent <= currentIndent) {
+        setInfoMessage('No valid parent to indent under.');
+        return;
+      }
+      updateTask(targetId, (task) => ({
+        ...task,
+        indent: nextIndent
+      }));
+    },
+    [normalizedPlan.tasks, readOnly, selectedTaskId, updateTask]
+  );
+
+  const handleOutdent = useCallback(
+    (taskId?: string | null) => {
+      const targetId = taskId ?? selectedTaskId;
+      if (readOnly || !targetId) {
+        return;
+      }
+      updateTask(targetId, (task) => ({
+        ...task,
+        indent: Math.max(0, task.indent - 1)
+      }));
+    },
+    [readOnly, selectedTaskId, updateTask]
+  );
 
   const moveTaskBlock = useCallback(
     (sourceId: string, targetId: string | null) => {
@@ -2238,22 +2306,34 @@ export const InitiativePlanModule = ({
   };
 
   const measureDependencies = useCallback(() => {
-    const timelineEl = timelineScrollRef.current;
-    if (!timelineEl) {
+    const canvasEl = timelineCanvasRef.current;
+    if (!canvasEl || !timelineScrollRef.current) {
       return;
     }
-    const containerRect = timelineEl.getBoundingClientRect();
-    const scrollLeft = timelineEl.scrollLeft;
-    const scrollTop = timelineEl.scrollTop;
+    const canvasRect = canvasEl.getBoundingClientRect();
     const resolveAnchor = (taskId: string, anchor: 'left' | 'right') => {
       const bar = barRefs.current.get(taskId);
       if (!bar) {
         return null;
       }
-      const rect = bar.getBoundingClientRect();
+      const barRect = bar.getBoundingClientRect();
+      const handle = bar.querySelector(
+        `.${styles.linkHandle}.${anchor === 'left' ? styles.linkHandleLeft : styles.linkHandleRight}`
+      ) as HTMLElement | null;
+      const handleRect = handle?.getBoundingClientRect();
+      const centerX =
+        handleRect && typeof handleRect.left === 'number'
+          ? handleRect.left + handleRect.width / 2
+          : anchor === 'left'
+            ? barRect.left
+            : barRect.right;
+      const centerY =
+        handleRect && typeof handleRect.top === 'number'
+          ? handleRect.top + handleRect.height / 2
+          : barRect.top + barRect.height / 2;
       return {
-        x: (anchor === 'left' ? rect.left : rect.right) - containerRect.left + scrollLeft,
-        y: rect.top + rect.height / 2 - containerRect.top + scrollTop
+        x: centerX - canvasRect.left,
+        y: centerY - canvasRect.top
       };
     };
     const nextLines: { from: string; to: string; start: { x: number; y: number }; end: { x: number; y: number } }[] =
@@ -2270,13 +2350,14 @@ export const InitiativePlanModule = ({
         if (!sourceAnchor) {
           return;
         }
+        const targetAnchor = resolveAnchor(task.id, 'left');
         nextLines.push({
           from: fromId,
           to: task.id,
           start: sourceAnchor,
-          end: {
-            x: targetRect.left - containerRect.left + scrollLeft - 4,
-            y: targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop
+          end: targetAnchor ?? {
+            x: targetRect.left - canvasRect.left,
+            y: targetRect.top + targetRect.height / 2 - canvasRect.top
           }
         });
       });
@@ -2284,8 +2365,8 @@ export const InitiativePlanModule = ({
     if (dependencyDraft) {
       const anchor = resolveAnchor(dependencyDraft.fromId, dependencyDraft.anchor);
       const current = {
-        x: dependencyDraft.pointerClient.x - containerRect.left + scrollLeft,
-        y: dependencyDraft.pointerClient.y - containerRect.top + scrollTop
+        x: dependencyDraft.pointerClient.x - canvasRect.left,
+        y: dependencyDraft.pointerClient.y - canvasRect.top
       };
       setDependencyDraft((prev) =>
         prev
@@ -2336,6 +2417,86 @@ export const InitiativePlanModule = ({
     };
   }, [scheduleDependencyMeasure]);
 
+  const insertTaskRelative = useCallback(
+    (
+      taskId: string,
+      position: 'above' | 'below',
+      options: {
+        indentOffset?: number;
+        forceIndent?: number;
+        milestone?: boolean;
+        name?: string;
+        linkDirection?: 'successor' | 'predecessor' | null;
+      } = {}
+    ) => {
+      if (readOnly) {
+        return null;
+      }
+      const anchorIndex = normalizedPlan.tasks.findIndex((task) => task.id === taskId);
+      if (anchorIndex === -1) {
+        return null;
+      }
+      const anchorTask = normalizedPlan.tasks[anchorIndex];
+      const indent = options.forceIndent ?? clamp(anchorTask.indent + (options.indentOffset ?? 0), 0, PLAN_MAX_INDENT_LEVEL);
+      const anchorStart = anchorTask.startDate ? parseDate(anchorTask.startDate) : null;
+      const baseDate = anchorStart ?? new Date();
+      const milestoneDate = formatDateInput(baseDate);
+      const newTask = buildNewTask(anchorTask, {
+        indent,
+        name: options.name,
+        milestoneType: options.milestone ? anchorTask.milestoneType ?? 'Standard' : undefined,
+        startDate: options.milestone ? milestoneDate : undefined,
+        endDate: options.milestone ? milestoneDate : undefined
+      });
+      const tasks = [...normalizedPlan.tasks];
+      const insertIndex = position === 'above' ? anchorIndex : anchorIndex + 1;
+      tasks.splice(insertIndex, 0, newTask);
+      if (options.linkDirection === 'successor') {
+        tasks[insertIndex] = {
+          ...tasks[insertIndex],
+          dependencies: Array.from(new Set([...(tasks[insertIndex].dependencies ?? []), anchorTask.id]))
+        };
+      } else if (options.linkDirection === 'predecessor') {
+        const targetIndex = tasks.findIndex((item) => item.id === anchorTask.id);
+        if (targetIndex !== -1) {
+          tasks[targetIndex] = {
+            ...tasks[targetIndex],
+            dependencies: Array.from(new Set([...(tasks[targetIndex].dependencies ?? []), newTask.id]))
+          };
+        }
+      }
+      setTasks(tasks);
+      setSelectedTaskId(newTask.id);
+      scheduleDependencyMeasure();
+      return newTask.id;
+    },
+    [buildNewTask, normalizedPlan.tasks, readOnly, scheduleDependencyMeasure, setSelectedTaskId, setTasks]
+  );
+
+  const handleDeleteTaskById = useCallback(
+    (taskId: string | null) => {
+      if (readOnly || !taskId) {
+        return;
+      }
+      const index = normalizedPlan.tasks.findIndex((task) => task.id === taskId);
+      if (index === -1) {
+        return;
+      }
+      const tasks = normalizedPlan.tasks
+        .filter((task) => task.id !== taskId)
+        .map((task) => ({
+          ...task,
+          dependencies: (task.dependencies ?? []).filter((id) => id !== taskId)
+        }));
+      setTasks(tasks);
+      setSelectedTaskId(tasks[Math.max(0, index - 1)]?.id ?? null);
+      scheduleDependencyMeasure();
+    },
+    [normalizedPlan.tasks, readOnly, scheduleDependencyMeasure, setSelectedTaskId, setTasks]
+  );
+
+  const handleDeleteTask = useCallback(() => handleDeleteTaskById(selectedTaskId), [handleDeleteTaskById, selectedTaskId]);
+
   const finishDependencyDraft = useCallback(
     (targetTaskId: string | null) => {
       setDependencyDraft((prev) => {
@@ -2358,30 +2519,37 @@ export const InitiativePlanModule = ({
 
   const beginDependencyDraft = useCallback(
     (taskId: string, anchor: 'left' | 'right', startPoint?: { x: number; y: number }) => {
-      const timelineEl = timelineScrollRef.current;
+      const canvasEl = timelineCanvasRef.current;
       const barEl = barRefs.current.get(taskId);
-      if (!timelineEl || !barEl) {
+      if (!canvasEl || !barEl) {
         return;
       }
-      const containerRect = timelineEl.getBoundingClientRect();
+      const canvasRect = canvasEl.getBoundingClientRect();
       const barRect = barEl.getBoundingClientRect();
-      const scrollLeft = timelineEl.scrollLeft;
-      const scrollTop = timelineEl.scrollTop;
-      const start = startPoint ?? {
-        x: (anchor === 'left' ? barRect.left : barRect.right) - containerRect.left + scrollLeft,
-        y: barRect.top + barRect.height / 2 - containerRect.top + scrollTop
+      const handle = barEl.querySelector(
+        `.${styles.linkHandle}.${anchor === 'left' ? styles.linkHandleLeft : styles.linkHandleRight}`
+      ) as HTMLElement | null;
+      const handleRect = handle?.getBoundingClientRect();
+      const defaultCenter = {
+        x:
+          (handleRect ? handleRect.left + handleRect.width / 2 : anchor === 'left' ? barRect.left : barRect.right) -
+          canvasRect.left,
+        y:
+          (handleRect ? handleRect.top + handleRect.height / 2 : barRect.top + barRect.height / 2) - canvasRect.top
       };
+      const start = startPoint ?? defaultCenter;
       const pointerClient = startPoint
-        ? { x: startPoint.x + containerRect.left, y: startPoint.y + containerRect.top }
+        ? { x: startPoint.x + canvasRect.left, y: startPoint.y + canvasRect.top }
         : {
-            x: anchor === 'left' ? barRect.left : barRect.right,
-            y: barRect.top + barRect.height / 2
+            x: handleRect ? handleRect.left + handleRect.width / 2 : anchor === 'left' ? barRect.left : barRect.right,
+            y: handleRect ? handleRect.top + handleRect.height / 2 : barRect.top + barRect.height / 2
           };
       setDependencyDraft({ fromId: taskId, anchor, start, current: start, pointerClient });
       const handleMove = (moveEvent: PointerEvent) => {
+        const activeRect = timelineCanvasRef.current?.getBoundingClientRect() ?? canvasRect;
         const nextPoint = {
-          x: moveEvent.clientX - containerRect.left + timelineEl.scrollLeft,
-          y: moveEvent.clientY - containerRect.top + timelineEl.scrollTop
+          x: moveEvent.clientX - activeRect.left,
+          y: moveEvent.clientY - activeRect.top
         };
         setDependencyDraft((prev) =>
           prev
@@ -2408,7 +2576,16 @@ export const InitiativePlanModule = ({
     (event: React.PointerEvent, taskId: string, anchor: 'left' | 'right' = 'right') => {
       event.preventDefault();
       event.stopPropagation();
-      beginDependencyDraft(taskId, anchor);
+      const canvasRect = timelineCanvasRef.current?.getBoundingClientRect();
+      const targetRect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect();
+      const startPoint =
+        canvasRect && targetRect
+          ? {
+              x: targetRect.left + targetRect.width / 2 - canvasRect.left,
+              y: targetRect.top + targetRect.height / 2 - canvasRect.top
+            }
+          : undefined;
+      beginDependencyDraft(taskId, anchor, startPoint);
     },
     [beginDependencyDraft]
   );
@@ -2434,18 +2611,88 @@ export const InitiativePlanModule = ({
     [normalizedPlan.tasks, scheduleDependencyMeasure, setTasks]
   );
 
-  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+    setOpenSubmenu(null);
+  }, []);
 
   const handleContextAction = useCallback(
-    (taskId: string, action: 'add-link' | 'remove-links') => {
-      if (action === 'add-link') {
-        beginDependencyDraft(taskId, 'right');
-      } else if (action === 'remove-links') {
-        handleRemoveAllDependencies(taskId);
+    (taskId: string, action: ContextMenuAction) => {
+      switch (action) {
+        case 'edit':
+          setSelectedTaskId(taskId);
+          focusTaskNameInput(taskId);
+          break;
+        case 'add-above':
+          insertTaskRelative(taskId, 'above');
+          break;
+        case 'add-below':
+          insertTaskRelative(taskId, 'below');
+          break;
+        case 'add-milestone':
+          insertTaskRelative(taskId, 'below', { milestone: true, name: 'Milestone' });
+          break;
+        case 'add-subtask':
+          insertTaskRelative(taskId, 'below', { indentOffset: 1 });
+          break;
+        case 'add-successor':
+          insertTaskRelative(taskId, 'below', { linkDirection: 'successor' });
+          break;
+        case 'add-predecessor':
+          insertTaskRelative(taskId, 'above', { linkDirection: 'predecessor' });
+          break;
+        case 'convert-milestone':
+          updateTask(taskId, (task) => {
+            const start = task.startDate ? parseDate(task.startDate) : null;
+            const end = task.endDate ? parseDate(task.endDate) : null;
+            const pivot = start ?? end ?? new Date();
+            const pivotString = formatDateInput(pivot);
+            return {
+              ...task,
+              startDate: task.startDate ?? pivotString,
+              endDate: pivotString,
+              milestoneType: task.milestoneType ?? 'Standard'
+            };
+          });
+          break;
+        case 'split':
+          openCapacityEditorForTask(taskId);
+          break;
+        case 'indent':
+          handleIndent(taskId);
+          break;
+        case 'outdent':
+          handleOutdent(taskId);
+          break;
+        case 'delete':
+          handleDeleteTaskById(taskId);
+          break;
+        case 'add-link':
+          beginDependencyDraft(taskId, 'right');
+          break;
+        case 'remove-links':
+          handleRemoveAllDependencies(taskId);
+          break;
+        default:
+          break;
       }
       closeContextMenu();
     },
-    [beginDependencyDraft, closeContextMenu, handleRemoveAllDependencies]
+    [
+      beginDependencyDraft,
+      closeContextMenu,
+      focusTaskNameInput,
+      handleDeleteTaskById,
+      handleIndent,
+      handleOutdent,
+      handleRemoveAllDependencies,
+      insertTaskRelative,
+      openCapacityEditorForTask,
+      parseDate,
+      formatDateInput,
+      setSelectedTaskId,
+      updateTask
+    ]
   );
 
   useEffect(() => {
@@ -2738,14 +2985,15 @@ export const InitiativePlanModule = ({
                                 <span className={styles.collapseSpacer} />
                               )}
                               <span style={{ marginLeft: task.indent * 16 }} className={styles.indentGuide} />
-                              <input
-                                type="text"
-                                value={task.name}
-                                disabled={readOnly}
-                                onChange={(event) => handleTaskFieldChange(task, 'name', event.target.value)}
-                                onFocus={hideDescriptionTooltip}
-                                onKeyDown={(event) => event.stopPropagation()}
-                              />
+                                <input
+                                  type="text"
+                                  value={task.name}
+                                  disabled={readOnly}
+                                  data-task-name-input={task.id}
+                                  onChange={(event) => handleTaskFieldChange(task, 'name', event.target.value)}
+                                  onFocus={hideDescriptionTooltip}
+                                  onKeyDown={(event) => event.stopPropagation()}
+                                />
               {hasNameChange && (
                 <span
                   className={styles.changeDot}
@@ -3247,6 +3495,7 @@ export const InitiativePlanModule = ({
             </div>
             <div
               className={styles.timelineCanvas}
+              ref={timelineCanvasRef}
               style={{ width: timelineRange.width, height: `${visibleRows.length * ROW_HEIGHT}px` }}
             >
               <div
@@ -3314,7 +3563,7 @@ export const InitiativePlanModule = ({
                       className={`${styles.timelineBar} ${barDepthClass} ${!isPrimaryRow ? styles.assigneeBar : ''} ${
                         selectedTaskIdsSet.has(task.id) ? styles.barSelected : ''
                       } ${isArchived ? styles.barArchived : ''}`}
-                      style={{ left, width, backgroundColor: color }}
+                      style={{ left, width, backgroundColor: color, '--bar-color': color } as CSSProperties}
                       ref={(element) => {
                         if (!isPrimaryRow) {
                           return;
@@ -3400,12 +3649,21 @@ export const InitiativePlanModule = ({
                 className={styles.dependencyLayer}
                 style={{ width: `${timelineRange.width}px`, height: `${visibleRows.length * ROW_HEIGHT}px` }}
               >
+                <defs>
+                  <marker id="dependencyArrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                    <path d="M0,1 L10,5 L0,9 Z" fill="#9ca3af" />
+                  </marker>
+                  <marker id="dependencyArrowDraft" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                    <path d="M0,1 L10,5 L0,9 Z" fill="#cbd5e1" />
+                  </marker>
+                </defs>
                 {dependencyLines.map((line) => {
                   const midX = (line.start.x + line.end.x) / 2;
                   return (
                     <g key={`${line.from}-${line.to}`} className={styles.dependencyPath}>
                       <path
                         d={`M${line.start.x},${line.start.y} C ${midX},${line.start.y} ${midX},${line.end.y} ${line.end.x},${line.end.y}`}
+                        markerEnd="url(#dependencyArrow)"
                       />
                       <circle
                         cx={line.end.x}
@@ -3423,6 +3681,7 @@ export const InitiativePlanModule = ({
                     x2={dependencyDraft.current.x}
                     y2={dependencyDraft.current.y}
                     className={styles.dependencyDraft}
+                    markerEnd="url(#dependencyArrowDraft)"
                   />
                 )}
               </svg>
@@ -3455,30 +3714,224 @@ export const InitiativePlanModule = ({
             )}
           {contextMenu &&
             createPortal(
-              <div
-                className={styles.contextMenuOverlay}
-                onClick={closeContextMenu}
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  closeContextMenu();
-                }}
-              >
-                <div
-                  className={styles.contextMenu}
-                  style={{ left: contextMenu.x, top: contextMenu.y }}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <button type="button" onClick={() => handleContextAction(contextMenu.taskId, 'add-link')}>
-                    ➕ Add dependency
-                  </button>
-                  <button type="button" onClick={() => handleContextAction(contextMenu.taskId, 'remove-links')}>
-                    ✖ Remove links
-                  </button>
-                  <button type="button" onClick={closeContextMenu}>
-                    Cancel
-                  </button>
-                </div>
-              </div>,
+              (() => {
+                const contextTask =
+                  normalizedPlan.tasks.find((task) => task.id === contextMenu.taskId) ?? null;
+                const hasLinks =
+                  !!contextTask &&
+                  ((contextTask.dependencies?.length ?? 0) > 0 ||
+                    normalizedPlan.tasks.some((task) => (task.dependencies ?? []).includes(contextTask.id)));
+                const preferredX =
+                  typeof window !== 'undefined' ? Math.min(contextMenu.x, window.innerWidth - 280) : contextMenu.x;
+                const preferredY =
+                  typeof window !== 'undefined' ? Math.min(contextMenu.y, window.innerHeight - 320) : contextMenu.y;
+                const effectiveColor = contextTask?.color ?? DEFAULT_BAR_COLOR;
+                return (
+                  <div
+                    className={styles.contextMenuOverlay}
+                    onClick={closeContextMenu}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      closeContextMenu();
+                    }}
+                  >
+                    <div
+                      className={styles.contextMenu}
+                      style={{ left: preferredX, top: preferredY }}
+                      onClick={(event) => event.stopPropagation()}
+                      onMouseLeave={() => setOpenSubmenu(null)}
+                    >
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => handleContextAction(contextMenu.taskId, 'edit')}
+                        disabled={readOnly}
+                      >
+                        <span className={styles.menuIcon}>✏️</span>
+                        <span className={styles.menuLabel}>Edit</span>
+                      </button>
+                      <div
+                        className={`${styles.menuItem} ${styles.hasSubmenu} ${
+                          openSubmenu === 'add' ? styles.menuItemActive : ''
+                        }`}
+                        onMouseEnter={() => setOpenSubmenu('add')}
+                      >
+                        <div className={styles.menuItemInner}>
+                          <span className={styles.menuIcon}>＋</span>
+                          <span className={styles.menuLabel}>Add...</span>
+                          <span className={styles.menuCaret}>›</span>
+                        </div>
+                        <div className={`${styles.submenu} ${openSubmenu === 'add' ? styles.submenuOpen : ''}`}>
+                          <button
+                            type="button"
+                            className={styles.submenuItem}
+                            onClick={() => handleContextAction(contextMenu.taskId, 'add-above')}
+                            disabled={readOnly}
+                          >
+                            <span>Task above</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.submenuItem}
+                            onClick={() => handleContextAction(contextMenu.taskId, 'add-below')}
+                            disabled={readOnly}
+                          >
+                            <span>Task below</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.submenuItem}
+                            onClick={() => handleContextAction(contextMenu.taskId, 'add-milestone')}
+                            disabled={readOnly}
+                          >
+                            <span>Milestone</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.submenuItem}
+                            onClick={() => handleContextAction(contextMenu.taskId, 'add-subtask')}
+                            disabled={readOnly}
+                          >
+                            <span>Subtask</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.submenuItem}
+                            onClick={() => handleContextAction(contextMenu.taskId, 'add-successor')}
+                            disabled={readOnly}
+                          >
+                            <span>Successor</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.submenuItem}
+                            onClick={() => handleContextAction(contextMenu.taskId, 'add-predecessor')}
+                            disabled={readOnly}
+                          >
+                            <span>Predecessor</span>
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => handleContextAction(contextMenu.taskId, 'convert-milestone')}
+                        disabled={readOnly}
+                      >
+                        <span className={styles.menuIcon}>◆</span>
+                        <span className={styles.menuLabel}>Convert to milestone</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => handleContextAction(contextMenu.taskId, 'split')}
+                        disabled={readOnly}
+                      >
+                        <span className={styles.menuIcon}>⇤</span>
+                        <span className={styles.menuLabel}>Split</span>
+                      </button>
+                      <div className={styles.menuSeparator} />
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => handleContextAction(contextMenu.taskId, 'indent')}
+                        disabled={readOnly}
+                      >
+                        <span className={styles.menuIcon}>↳</span>
+                        <span className={styles.menuLabel}>Indent</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => handleContextAction(contextMenu.taskId, 'outdent')}
+                        disabled={readOnly}
+                      >
+                        <span className={styles.menuIcon}>↰</span>
+                        <span className={styles.menuLabel}>Outdent</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.menuItem} ${styles.menuDanger}`}
+                        onClick={() => handleContextAction(contextMenu.taskId, 'delete')}
+                        disabled={readOnly}
+                      >
+                        <span className={styles.menuIcon}>🗑</span>
+                        <span className={styles.menuLabel}>Delete</span>
+                      </button>
+                      <div className={styles.menuSeparator} />
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => handleContextAction(contextMenu.taskId, 'add-link')}
+                        disabled={readOnly}
+                      >
+                        <span className={styles.menuIcon}>⛓</span>
+                        <span className={styles.menuLabel}>Add dependency</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => handleContextAction(contextMenu.taskId, 'remove-links')}
+                        disabled={readOnly || !hasLinks}
+                      >
+                        <span className={styles.menuIcon}>✕</span>
+                        <span className={styles.menuLabel}>Remove dependencies</span>
+                      </button>
+                      <div
+                        className={`${styles.menuItem} ${styles.hasSubmenu} ${
+                          openSubmenu === 'color' ? styles.menuItemActive : ''
+                        }`}
+                        onMouseEnter={() => setOpenSubmenu('color')}
+                      >
+                        <div className={styles.menuItemInner}>
+                          <span className={styles.menuIcon}>🎨</span>
+                          <span className={styles.menuLabel}>Color</span>
+                          <span
+                            className={styles.colorPreview}
+                            style={{ backgroundColor: effectiveColor }}
+                            aria-hidden="true"
+                          />
+                        </div>
+                        <div
+                          className={`${styles.submenu} ${styles.colorSubmenu} ${
+                            openSubmenu === 'color' ? styles.submenuOpen : ''
+                          }`}
+                        >
+                          <div className={styles.colorGrid}>
+                            {TASK_COLOR_PALETTE.map((swatch) => (
+                              <button
+                                key={swatch}
+                                type="button"
+                                className={`${styles.colorSwatch} ${
+                                  effectiveColor === swatch ? styles.colorSwatchActive : ''
+                                }`}
+                                style={{ backgroundColor: swatch }}
+                                disabled={readOnly}
+                                onClick={() => {
+                                  handleColorChange(contextMenu.taskId, swatch);
+                                  closeContextMenu();
+                                }}
+                                aria-label={`Set color ${swatch}`}
+                              />
+                            ))}
+                            <button
+                              type="button"
+                              className={`${styles.colorSwatch} ${styles.colorSwatchClear}`}
+                              disabled={readOnly}
+                              onClick={() => {
+                                handleColorChange(contextMenu.taskId, null);
+                                closeContextMenu();
+                              }}
+                            >
+                              None
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })(),
               document.body
             )}
         </div>
@@ -3554,10 +4007,10 @@ export const InitiativePlanModule = ({
             <button type="button" onClick={handleDeleteTask} disabled={readOnly || !selectedTaskId}>
               Delete
             </button>
-            <button type="button" onClick={handleIndent} disabled={readOnly || !selectedTaskId}>
+            <button type="button" onClick={() => handleIndent()} disabled={readOnly || !selectedTaskId}>
               Indent
             </button>
-            <button type="button" onClick={handleOutdent} disabled={readOnly || !selectedTaskId}>
+            <button type="button" onClick={() => handleOutdent()} disabled={readOnly || !selectedTaskId}>
               Outdent
             </button>
             <div className={styles.divider} />

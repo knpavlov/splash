@@ -750,27 +750,33 @@
 
 .linkHandle {
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 999px;
-  background: #e2e8f0;
-  border: 2px solid #cbd5e1;
-  top: -10px;
+  background: #fff;
+  border: 2px solid var(--bar-color, #22c55e);
+  top: 50%;
+  transform: translate(var(--handle-translate-x, -50%), -50%);
   cursor: crosshair;
   z-index: 6;
+  box-shadow: 0 0 0 2px #f8fafc, 0 2px 6px rgba(15, 23, 42, 0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .linkHandleLeft {
-  left: 6px;
+  left: 0;
+  --handle-translate-x: -80%;
 }
 
 .linkHandleRight {
-  right: 6px;
+  right: 0;
+  --handle-translate-x: 80%;
 }
 
 .linkHandle:hover {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: #ecfeff;
+  box-shadow: 0 0 0 2px #e0f2fe, 0 4px 10px rgba(15, 23, 42, 0.26);
+  transform: translate(var(--handle-translate-x, -50%), -50%) scale(1.05);
 }
 
 .barLabel {
@@ -826,32 +832,40 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: visible;
 }
 
 .dependencyPath path {
   fill: none;
-  stroke: rgba(15, 23, 42, 0.6);
-  stroke-width: 2px;
+  stroke: #9ca3af;
+  stroke-width: 2.2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 4px rgba(15, 23, 42, 0.08));
+  pointer-events: none;
 }
 
 .dependencyPath circle {
-  fill: #fff;
-  stroke: #0f172a;
+  fill: #f8fafc;
+  stroke: #94a3b8;
   stroke-width: 2px;
   pointer-events: auto;
   cursor: pointer;
-  transition: transform 0.12s ease, stroke 0.12s ease;
+  transition: transform 0.12s ease, stroke 0.12s ease, fill 0.12s ease;
+  filter: drop-shadow(0 1px 4px rgba(15, 23, 42, 0.18));
 }
 
 .dependencyPath circle:hover {
-  transform: scale(1.05);
+  transform: scale(1.08);
   stroke: #dc2626;
+  fill: #fff;
 }
 
 .dependencyDraft {
-  stroke: #94a3b8;
-  stroke-width: 2px;
+  stroke: #cbd5e1;
+  stroke-width: 2.2px;
   stroke-dasharray: 6 4;
+  stroke-linecap: round;
 }
 
 .contextMenuOverlay {
@@ -862,29 +876,174 @@
 
 .contextMenu {
   position: absolute;
-  background: #0f172a;
-  color: #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.35);
+  background: #fff;
+  color: #0f172a;
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.28);
   padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 180px;
+  min-width: 220px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  font-size: 13px;
 }
 
-.contextMenu button {
-  background: none;
+.menuItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
   border: none;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
   color: inherit;
+}
+
+.menuItem:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.menuItem:hover:not(:disabled),
+.menuItemActive {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.menuItemInner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.menuIcon {
+  width: 18px;
+  text-align: center;
+  opacity: 0.65;
+  font-size: 14px;
+}
+
+.menuLabel {
+  flex: 1;
+  text-align: left;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.menuCaret {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.menuDanger {
+  color: #dc2626;
+}
+
+.menuSeparator {
+  height: 1px;
+  background: rgba(15, 23, 42, 0.08);
+  margin: 2px 0;
+}
+
+.hasSubmenu {
+  position: relative;
+}
+
+.submenu {
+  position: absolute;
+  top: 4px;
+  left: 100%;
+  margin-left: 8px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.25);
+  padding: 6px;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 190px;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  z-index: 5;
+}
+
+.submenuOpen {
+  display: flex;
+}
+
+.submenuItem {
+  background: transparent;
+  border: none;
   text-align: left;
   padding: 8px 10px;
   border-radius: 8px;
   cursor: pointer;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
 }
 
-.contextMenu button:hover {
-  background: rgba(255, 255, 255, 0.08);
+.submenuItem:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.submenuItem:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.colorSubmenu {
+  min-width: 200px;
+}
+
+.colorGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  padding: 2px;
+}
+
+.colorSwatch {
+  width: 30px;
+  height: 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, outline 0.12s ease;
+}
+
+.colorSwatch:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.18);
+}
+
+.colorSwatch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.colorSwatchActive {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.colorSwatchClear {
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 12px;
+  grid-column: span 2;
+  text-align: center;
+}
+
+.colorPreview {
+  width: 18px;
+  height: 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
 
 .fullscreenOverlay {
