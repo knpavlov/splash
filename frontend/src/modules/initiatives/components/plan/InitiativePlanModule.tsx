@@ -353,7 +353,10 @@ export const InitiativePlanModule = ({
     start: { x: number; y: number };
     current: { x: number; y: number };
   } | null>(null);
-  const [dependencyLines, setDependencyLines] = useState<{ from: string; to: string; start: { x: number; y: number }; end: { x: number; y: number } }[]>([]);
+  const dependencyLinesRef = useRef<
+    { from: string; to: string; start: { x: number; y: number }; end: { x: number; y: number } }[]
+  >([]);
+  const [dependencyLines, setDependencyLines] = useState<typeof dependencyLinesRef.current>([]);
   const resizeStateRef = useRef<{
     columnId: TableColumnId;
     startX: number;
@@ -2196,6 +2199,30 @@ export const InitiativePlanModule = ({
     [showCapacityOverlay]
   );
 
+  const dependencyLinesEqual = (
+    a: typeof dependencyLinesRef.current,
+    b: typeof dependencyLinesRef.current
+  ) => {
+    if (a.length !== b.length) {
+      return false;
+    }
+    for (let i = 0; i < a.length; i += 1) {
+      const left = a[i];
+      const right = b[i];
+      if (
+        left.from !== right.from ||
+        left.to !== right.to ||
+        left.start.x !== right.start.x ||
+        left.start.y !== right.start.y ||
+        left.end.x !== right.end.x ||
+        left.end.y !== right.end.y
+      ) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const updateDependencyLines = useCallback(() => {
     const timelineEl = timelineScrollRef.current;
     if (!timelineEl) {
@@ -2231,8 +2258,11 @@ export const InitiativePlanModule = ({
         });
       });
     });
-    setDependencyLines(nextLines);
-  }, [normalizedPlan.tasks, pxPerDay, visibleRows.length]);
+    if (!dependencyLinesEqual(nextLines, dependencyLinesRef.current)) {
+      dependencyLinesRef.current = nextLines;
+      setDependencyLines(nextLines);
+    }
+  }, [dependencyLinesEqual, normalizedPlan.tasks, pxPerDay, visibleRows.length]);
 
   useLayoutEffect(() => {
     updateDependencyLines();
