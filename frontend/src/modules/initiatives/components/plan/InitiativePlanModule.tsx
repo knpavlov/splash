@@ -146,8 +146,10 @@ interface CapacityEditorState {
 
 interface DependencyDraftState {
   fromId: string;
+  anchor: 'left' | 'right';
   start: { x: number; y: number };
   current: { x: number; y: number };
+  pointerClient: { x: number; y: number };
 }
 
 interface DependencyLine {
@@ -2241,6 +2243,19 @@ export const InitiativePlanModule = ({
       return;
     }
     const containerRect = timelineEl.getBoundingClientRect();
+    const scrollLeft = timelineEl.scrollLeft;
+    const scrollTop = timelineEl.scrollTop;
+    const resolveAnchor = (taskId: string, anchor: 'left' | 'right') => {
+      const bar = barRefs.current.get(taskId);
+      if (!bar) {
+        return null;
+      }
+      const rect = bar.getBoundingClientRect();
+      return {
+        x: (anchor === 'left' ? rect.left : rect.right) - containerRect.left + scrollLeft,
+        y: rect.top + rect.height / 2 - containerRect.top + scrollTop
+      };
+    };
     const nextLines: { from: string; to: string; start: { x: number; y: number }; end: { x: number; y: number } }[] =
       [];
     normalizedPlan.tasks.forEach((task) => {
@@ -2251,30 +2266,42 @@ export const InitiativePlanModule = ({
       const dependencies = task.dependencies ?? [];
       const targetRect = targetBar.getBoundingClientRect();
       dependencies.forEach((fromId) => {
-        const sourceBar = barRefs.current.get(fromId);
-        if (!sourceBar) {
+        const sourceAnchor = resolveAnchor(fromId, 'right');
+        if (!sourceAnchor) {
           return;
         }
-        const sourceRect = sourceBar.getBoundingClientRect();
         nextLines.push({
           from: fromId,
           to: task.id,
-          start: {
-            x: sourceRect.right - containerRect.left + 4,
-            y: sourceRect.top + sourceRect.height / 2 - containerRect.top
-          },
+          start: sourceAnchor,
           end: {
-            x: targetRect.left - containerRect.left - 4,
-            y: targetRect.top + targetRect.height / 2 - containerRect.top
+            x: targetRect.left - containerRect.left + scrollLeft - 4,
+            y: targetRect.top + targetRect.height / 2 - containerRect.top + scrollTop
           }
         });
       });
     });
+    if (dependencyDraft) {
+      const anchor = resolveAnchor(dependencyDraft.fromId, dependencyDraft.anchor);
+      const current = {
+        x: dependencyDraft.pointerClient.x - containerRect.left + scrollLeft,
+        y: dependencyDraft.pointerClient.y - containerRect.top + scrollTop
+      };
+      setDependencyDraft((prev) =>
+        prev
+          ? {
+              ...prev,
+              start: anchor ?? prev.start,
+              current
+            }
+          : prev
+      );
+    }
     if (!dependencyLinesEqual(nextLines, dependencyLinesRef.current)) {
       dependencyLinesRef.current = nextLines;
       setDependencyLines(nextLines);
     }
-  }, [dependencyLinesEqual, normalizedPlan.tasks, pxPerDay, visibleRows.length]);
+  }, [dependencyDraft, dependencyLinesEqual, normalizedPlan.tasks, pxPerDay, visibleRows.length]);
 
   const scheduleDependencyMeasure = useCallback(() => {
     if (dependencyMeasureFrame.current !== null) {
@@ -2338,18 +2365,27 @@ export const InitiativePlanModule = ({
       }
       const containerRect = timelineEl.getBoundingClientRect();
       const barRect = barEl.getBoundingClientRect();
+      const scrollLeft = timelineEl.scrollLeft;
+      const scrollTop = timelineEl.scrollTop;
       const start = startPoint ?? {
-        x: (anchor === 'left' ? barRect.left : barRect.right) - containerRect.left,
-        y: barRect.top + barRect.height / 2 - containerRect.top
+        x: (anchor === 'left' ? barRect.left : barRect.right) - containerRect.left + scrollLeft,
+        y: barRect.top + barRect.height / 2 - containerRect.top + scrollTop
       };
-      setDependencyDraft({ fromId: taskId, start, current: start });
+      const pointerClient = startPoint
+        ? { x: startPoint.x + containerRect.left, y: startPoint.y + containerRect.top }
+        : {
+            x: anchor === 'left' ? barRect.left : barRect.right,
+            y: barRect.top + barRect.height / 2
+          };
+      setDependencyDraft({ fromId: taskId, anchor, start, current: start, pointerClient });
       const handleMove = (moveEvent: PointerEvent) => {
+        const nextPoint = {
+          x: moveEvent.clientX - containerRect.left + timelineEl.scrollLeft,
+          y: moveEvent.clientY - containerRect.top + timelineEl.scrollTop
+        };
         setDependencyDraft((prev) =>
           prev
-            ? {
-                ...prev,
-                current: { x: moveEvent.clientX - containerRect.left, y: moveEvent.clientY - containerRect.top }
-              }
+            ? { ...prev, current: nextPoint, pointerClient: { x: moveEvent.clientX, y: moveEvent.clientY } }
             : prev
         );
       };
