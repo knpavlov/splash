@@ -63,6 +63,7 @@ const DEFAULT_MILESTONE_OPTIONS = ['Standard', 'Value Step', 'Change Management'
 const VALUE_STEP_LABEL = 'Value Step';
 type TableColumnId =
   | 'drag'
+  | 'number'
   | 'archive'
   | 'name'
   | 'milestoneType'
@@ -74,6 +75,8 @@ type TableColumnId =
   | 'responsible'
   | 'progress'
   | 'capacity'
+  | 'predecessors'
+  | 'successors'
   | 'context';
 
 interface TableColumnConfig {
@@ -92,6 +95,7 @@ interface ContextColumnConfig {
 
 const PLAN_COLUMNS: TableColumnConfig[] = [
   { id: 'drag', label: '', defaultWidth: 36, minWidth: 36, maxWidth: 36, resizable: false },
+  { id: 'number', label: '#', defaultWidth: 70, minWidth: 50, maxWidth: 120, resizable: true },
   { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 60, maxWidth: 480, resizable: true },
   { id: 'milestoneType', label: 'Milestone type', defaultWidth: 170, minWidth: 120, maxWidth: 260, resizable: true },
   { id: 'description', label: 'Description', defaultWidth: 240, minWidth: 70, maxWidth: 520, resizable: true },
@@ -99,11 +103,14 @@ const PLAN_COLUMNS: TableColumnConfig[] = [
   { id: 'end', label: 'End', defaultWidth: 150, minWidth: 50, maxWidth: 260, resizable: true },
   { id: 'responsible', label: 'Responsible', defaultWidth: 200, minWidth: 70, maxWidth: 320, resizable: true },
   { id: 'progress', label: 'Status %', defaultWidth: 140, minWidth: 45, maxWidth: 220, resizable: true },
-  { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 60, maxWidth: 280, resizable: true }
+  { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 60, maxWidth: 280, resizable: true },
+  { id: 'predecessors', label: 'Predecessors', defaultWidth: 160, minWidth: 120, maxWidth: 240, resizable: true },
+  { id: 'successors', label: 'Successors', defaultWidth: 160, minWidth: 120, maxWidth: 240, resizable: true }
 ] as const;
 
 const ACTUALS_COLUMNS: TableColumnConfig[] = [
   { id: 'drag', label: '', defaultWidth: 32, minWidth: 32, maxWidth: 32, resizable: false },
+  { id: 'number', label: '#', defaultWidth: 60, minWidth: 50, maxWidth: 120, resizable: true },
   { id: 'archive', label: '', defaultWidth: 46, minWidth: 40, maxWidth: 60, resizable: false },
   { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 60, maxWidth: 480, resizable: true },
   { id: 'milestoneType', label: 'Milestone type', defaultWidth: 160, minWidth: 120, maxWidth: 260, resizable: true },
@@ -114,7 +121,9 @@ const ACTUALS_COLUMNS: TableColumnConfig[] = [
   { id: 'end', label: 'Actual end', defaultWidth: 150, minWidth: 70, maxWidth: 260, resizable: true },
   { id: 'responsible', label: 'Responsible', defaultWidth: 200, minWidth: 70, maxWidth: 320, resizable: true },
   { id: 'progress', label: 'Status %', defaultWidth: 140, minWidth: 45, maxWidth: 220, resizable: true },
-  { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 60, maxWidth: 280, resizable: true }
+  { id: 'capacity', label: 'Required capacity', defaultWidth: 180, minWidth: 60, maxWidth: 280, resizable: true },
+  { id: 'predecessors', label: 'Predecessors', defaultWidth: 150, minWidth: 120, maxWidth: 240, resizable: true },
+  { id: 'successors', label: 'Successors', defaultWidth: 150, minWidth: 120, maxWidth: 240, resizable: true }
 ] as const;
 
 const buildDefaultColumnWidths = (columns: TableColumnConfig[]) =>
@@ -157,6 +166,13 @@ interface DependencyLine {
   to: string;
   start: { x: number; y: number };
   end: { x: number; y: number };
+  bend: { midX: number; spineX: number; spineY: number; startY: number };
+}
+
+interface DependencyPickerState {
+  taskId: string;
+  mode: 'predecessors' | 'successors';
+  anchorRect: DOMRect;
 }
 
 interface ContextMenuState {
@@ -267,7 +283,7 @@ export const InitiativePlanModule = ({
   const baseColumns = useMemo(() => {
     const columns = isActuals ? [...ACTUALS_COLUMNS] : [...PLAN_COLUMNS];
     if (contextColumn) {
-      columns.splice(1, 0, {
+      columns.splice(2, 0, {
         id: 'context',
         label: contextColumn.label,
         defaultWidth: 200,
@@ -391,6 +407,8 @@ export const InitiativePlanModule = ({
   const [dependencyLines, setDependencyLines] = useState<DependencyLine[]>([]);
   const dependencyMeasureFrame = useRef<number | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [dependencyPicker, setDependencyPicker] = useState<DependencyPickerState | null>(null);
+  const [dependencyFilter, setDependencyFilter] = useState('');
   const [openSubmenu, setOpenSubmenu] = useState<'add' | 'color' | null>(null);
   const resizeStateRef = useRef<{
     columnId: TableColumnId;
@@ -664,6 +682,48 @@ export const InitiativePlanModule = ({
     });
     return result;
   }, [collapsedTaskIds, workingTasks]);
+
+  const wbsMap = useMemo(() => {
+    const counters: number[] = [];
+    const map = new Map<string, string>();
+    visibleTasks.forEach((task) => {
+      const depth = task.indent ?? 0;
+      counters[depth] = (counters[depth] ?? 0) + 1;
+      counters.length = depth + 1;
+      map.set(task.id, counters.slice(0, depth + 1).join('.'));
+    });
+    return map;
+  }, [visibleTasks]);
+
+  const wbsAllMap = useMemo(() => {
+    const counters: number[] = [];
+    const map = new Map<string, string>();
+    workingTasks.forEach((task) => {
+      const depth = task.indent ?? 0;
+      counters[depth] = (counters[depth] ?? 0) + 1;
+      counters.length = depth + 1;
+      map.set(task.id, counters.slice(0, depth + 1).join('.'));
+    });
+    return map;
+  }, [workingTasks]);
+
+  const taskLookup = useMemo(() => {
+    const map = new Map<string, InitiativePlanTask>();
+    normalizedPlan.tasks.forEach((task) => map.set(task.id, task));
+    return map;
+  }, [normalizedPlan.tasks]);
+
+  const successorMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    normalizedPlan.tasks.forEach((task) => {
+      (task.dependencies ?? []).forEach((dep) => {
+        const list = map.get(dep) ?? [];
+        list.push(task.id);
+        map.set(dep, list);
+      });
+    });
+    return map;
+  }, [normalizedPlan.tasks]);
 
   const visibleRows = useMemo<VisibleRow[]>(() => {
     const rows: VisibleRow[] = [];
@@ -2297,13 +2357,41 @@ export const InitiativePlanModule = ({
         left.start.x !== right.start.x ||
         left.start.y !== right.start.y ||
         left.end.x !== right.end.x ||
-        left.end.y !== right.end.y
+        left.end.y !== right.end.y ||
+        left.bend.midX !== right.bend.midX ||
+        left.bend.spineX !== right.bend.spineX ||
+        left.bend.spineY !== right.bend.spineY ||
+        left.bend.startY !== right.bend.startY
       ) {
         return false;
       }
     }
     return true;
   };
+
+  const buildDependencyPath = useCallback((line: DependencyLine) => {
+    const radius = 10;
+    const { start, end, bend } = line;
+    const firstCornerX = Math.min(bend.midX, bend.spineX - 12);
+    const startDirection = bend.spineY >= start.y ? 1 : -1;
+    const startCurve = Math.min(radius, Math.abs(bend.spineY - start.y) / 2);
+    const endDirection = end.y >= bend.spineY ? 1 : -1;
+    const endCurve = Math.min(radius, Math.abs(end.y - bend.spineY) / 2);
+    const spineJoinX = Math.max(firstCornerX + radius, Math.min(bend.spineX, end.x - 4));
+
+    return [
+      `M ${start.x},${start.y}`,
+      `L ${firstCornerX - radius},${start.y}`,
+      `Q ${firstCornerX},${start.y} ${firstCornerX},${start.y + startDirection * startCurve}`,
+      `L ${firstCornerX},${bend.spineY - startDirection * startCurve}`,
+      `Q ${firstCornerX},${bend.spineY} ${firstCornerX + radius},${bend.spineY}`,
+      `L ${spineJoinX - radius},${bend.spineY}`,
+      `Q ${spineJoinX},${bend.spineY} ${spineJoinX},${bend.spineY + endDirection * endCurve}`,
+      `L ${spineJoinX},${end.y}`,
+      `Q ${spineJoinX},${end.y} ${spineJoinX + radius},${end.y}`,
+      `L ${end.x},${end.y}`
+    ].join(' ');
+  }, []);
 
   const measureDependencies = useCallback(() => {
     const canvasEl = timelineCanvasRef.current;
@@ -2336,8 +2424,10 @@ export const InitiativePlanModule = ({
         y: centerY - canvasRect.top
       };
     };
-    const nextLines: { from: string; to: string; start: { x: number; y: number }; end: { x: number; y: number } }[] =
-      [];
+    const incomingMap = new Map<
+      string,
+      { from: string; start: { x: number; y: number }; end: { x: number; y: number } }[]
+    >();
     normalizedPlan.tasks.forEach((task) => {
       const targetBar = barRefs.current.get(task.id);
       if (!targetBar) {
@@ -2345,20 +2435,41 @@ export const InitiativePlanModule = ({
       }
       const dependencies = task.dependencies ?? [];
       const targetRect = targetBar.getBoundingClientRect();
+      const targetAnchor =
+        resolveAnchor(task.id, 'left') ??
+        ({
+          x: targetRect.left - canvasRect.left,
+          y: targetRect.top + targetRect.height / 2 - canvasRect.top
+        } as { x: number; y: number });
       dependencies.forEach((fromId) => {
         const sourceAnchor = resolveAnchor(fromId, 'right');
         if (!sourceAnchor) {
           return;
         }
-        const targetAnchor = resolveAnchor(task.id, 'left');
+        const list = incomingMap.get(task.id) ?? [];
+        list.push({ from: fromId, start: sourceAnchor, end: targetAnchor });
+        incomingMap.set(task.id, list);
+      });
+    });
+    const nextLines: DependencyLine[] = [];
+    incomingMap.forEach((items, targetId) => {
+      const targetAnchor = items[0]?.end;
+      if (!targetAnchor) {
+        return;
+      }
+      const sorted = [...items].sort((a, b) => a.start.y - b.start.y);
+      const farthestStart = Math.max(...sorted.map((item) => item.start.x));
+      const spineX = Math.min(targetAnchor.x - 12, Math.max(targetAnchor.x - 24, farthestStart + 12));
+      sorted.forEach((item, index) => {
+        const fanoutOffset = 24 + index * 6;
+        const midBase = item.start.x + fanoutOffset;
+        const midX = Math.min(spineX - 10, Math.max(item.start.x + 12, midBase));
         nextLines.push({
-          from: fromId,
-          to: task.id,
-          start: sourceAnchor,
-          end: targetAnchor ?? {
-            x: targetRect.left - canvasRect.left,
-            y: targetRect.top + targetRect.height / 2 - canvasRect.top
-          }
+          from: item.from,
+          to: targetId,
+          start: item.start,
+          end: targetAnchor,
+          bend: { midX, spineX, spineY: targetAnchor.y, startY: item.start.y }
         });
       });
     });
@@ -2416,6 +2527,52 @@ export const InitiativePlanModule = ({
       }
     };
   }, [scheduleDependencyMeasure]);
+
+  const openDependencyPickerAt = useCallback(
+    (taskId: string, mode: DependencyPickerState['mode'], target: HTMLElement) => {
+      const rect = target.getBoundingClientRect();
+      setDependencyPicker({ taskId, mode, anchorRect: rect });
+      setDependencyFilter('');
+    },
+    [setDependencyFilter]
+  );
+
+  const closeDependencyPicker = useCallback(() => {
+    setDependencyPicker(null);
+    setDependencyFilter('');
+    setOpenSubmenu(null);
+  }, []);
+
+  const setTaskPredecessors = useCallback(
+    (taskId: string, dependencyIds: string[]) => {
+      updateTask(taskId, (task) => ({
+        ...task,
+        dependencies: Array.from(new Set(dependencyIds.filter((id) => id !== taskId)))
+      }));
+      scheduleDependencyMeasure();
+    },
+    [scheduleDependencyMeasure, updateTask]
+  );
+
+  const setTaskSuccessors = useCallback(
+    (taskId: string, successorIds: string[]) => {
+      const nextTasks = normalizedPlan.tasks.map((task) => {
+        if (successorIds.includes(task.id)) {
+          const deps = new Set(task.dependencies ?? []);
+          deps.add(taskId);
+          return { ...task, dependencies: Array.from(deps) };
+        }
+        if ((task.dependencies ?? []).includes(taskId)) {
+          const deps = (task.dependencies ?? []).filter((id) => id !== taskId);
+          return { ...task, dependencies: deps };
+        }
+        return task;
+      });
+      setTasks(nextTasks);
+      scheduleDependencyMeasure();
+    },
+    [normalizedPlan.tasks, scheduleDependencyMeasure, setTasks]
+  );
 
   const insertTaskRelative = useCallback(
     (
@@ -2700,11 +2857,12 @@ export const InitiativePlanModule = ({
       if (event.key === 'Escape') {
         setDependencyDraft(null);
         closeContextMenu();
+        closeDependencyPicker();
       }
     };
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [closeContextMenu]);
+  }, [closeContextMenu, closeDependencyPicker]);
 
   const handleRemoveDependency = useCallback(
     (fromId: string, toId: string) => {
@@ -2712,8 +2870,9 @@ export const InitiativePlanModule = ({
         ...task,
         dependencies: (task.dependencies ?? []).filter((id) => id !== fromId)
       }));
+      scheduleDependencyMeasure();
     },
-    [updateTask]
+    [scheduleDependencyMeasure, updateTask]
   );
 
   const infoBanner =
@@ -2914,6 +3073,17 @@ export const InitiativePlanModule = ({
                               <span aria-hidden="true">??</span>
                             </button>
                           );
+                        case 'number': {
+                          if (!isPrimaryRow) {
+                            return <div key={`${row.key}-number`} className={styles.cell} />;
+                          }
+                          const number = wbsMap.get(task.id) ?? '';
+                          return (
+                            <div key={`${row.key}-number`} className={`${styles.cell} ${styles.wbsCell}`}>
+                              <span className={styles.wbsBadge}>{number || '-'}</span>
+                            </div>
+                          );
+                        }
                         case 'archive':
                           if (!isPrimaryRow) {
                             return <div key={`${row.key}-archive`} className={styles.cell} />;
@@ -3424,11 +3594,62 @@ export const InitiativePlanModule = ({
                                     )
                                   }
                                   onMouseMove={updateChangeDotTooltip}
-                                  onMouseLeave={hideChangeDotTooltip}
-                                />
-                              )}
+                                onMouseLeave={hideChangeDotTooltip}
+                              />
+                            )}
+                          </div>
+                        );
+                        case 'predecessors': {
+                          if (!isPrimaryRow) {
+                            return <div key={`${row.key}-pred`} className={styles.cell} />;
+                          }
+                          const predNumbers = (task.dependencies ?? [])
+                            .map((id) => wbsAllMap.get(id))
+                            .filter((value): value is string => Boolean(value));
+                          const predTitle = (task.dependencies ?? [])
+                            .map((id) => taskLookup.get(id)?.name || wbsAllMap.get(id) || '')
+                            .filter(Boolean)
+                            .join(', ');
+                          return (
+                            <div key={`${row.key}-pred`} className={`${styles.cell} ${styles.dependencyCell}`}>
+                              <button
+                                type="button"
+                                className={styles.dependencyPill}
+                                disabled={readOnly}
+                                title={predTitle || 'Set predecessors'}
+                                onClick={(event) => openDependencyPickerAt(task.id, 'predecessors', event.currentTarget)}
+                              >
+                                {predNumbers.length ? predNumbers.join(', ') : 'Set'}
+                              </button>
                             </div>
                           );
+                        }
+                        case 'successors': {
+                          if (!isPrimaryRow) {
+                            return <div key={`${row.key}-succ`} className={styles.cell} />;
+                          }
+                          const successors = successorMap.get(task.id) ?? [];
+                          const succNumbers = successors
+                            .map((id) => wbsAllMap.get(id))
+                            .filter((value): value is string => Boolean(value));
+                          const succTitle = successors
+                            .map((id) => taskLookup.get(id)?.name || wbsAllMap.get(id) || '')
+                            .filter(Boolean)
+                            .join(', ');
+                          return (
+                            <div key={`${row.key}-succ`} className={`${styles.cell} ${styles.dependencyCell}`}>
+                              <button
+                                type="button"
+                                className={styles.dependencyPill}
+                                disabled={readOnly}
+                                title={succTitle || 'Set successors'}
+                                onClick={(event) => openDependencyPickerAt(task.id, 'successors', event.currentTarget)}
+                              >
+                                {succNumbers.length ? succNumbers.join(', ') : 'Set'}
+                              </button>
+                            </div>
+                          );
+                        }
                         default:
                           return null;
                       }
@@ -3650,19 +3871,19 @@ export const InitiativePlanModule = ({
                 style={{ width: `${timelineRange.width}px`, height: `${visibleRows.length * ROW_HEIGHT}px` }}
               >
                 <defs>
-                  <marker id="dependencyArrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-                    <path d="M0,1 L8,4 L0,7 Z" fill="#9ca3af" />
+                  <marker id="dependencyArrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                    <path d="M0,0 L6,3 L0,6 Z" fill="#9ca3af" />
                   </marker>
-                  <marker id="dependencyArrowDraft" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-                    <path d="M0,1 L8,4 L0,7 Z" fill="#cbd5e1" />
+                  <marker id="dependencyArrowDraft" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                    <path d="M0,0 L6,3 L0,6 Z" fill="#cbd5e1" />
                   </marker>
                 </defs>
                 {dependencyLines.map((line) => {
-                  const midX = (line.start.x + line.end.x) / 2;
+                  const pathD = buildDependencyPath(line);
                   return (
                     <g key={`${line.from}-${line.to}`} className={styles.dependencyPath}>
                       <path
-                        d={`M${line.start.x},${line.start.y} C ${midX},${line.start.y} ${midX},${line.end.y} ${line.end.x},${line.end.y}`}
+                        d={pathD}
                         markerEnd="url(#dependencyArrow)"
                       />
                       <circle
@@ -3927,6 +4148,97 @@ export const InitiativePlanModule = ({
                             </button>
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })(),
+              document.body
+            )}
+          {dependencyPicker &&
+            createPortal(
+              (() => {
+                const currentTask = normalizedPlan.tasks.find((task) => task.id === dependencyPicker.taskId) ?? null;
+                if (!currentTask) {
+                  return null;
+                }
+                const pickerWidth = 320;
+                const left =
+                  typeof window !== 'undefined'
+                    ? Math.min(Math.max(12, dependencyPicker.anchorRect.left), window.innerWidth - pickerWidth - 12)
+                    : dependencyPicker.anchorRect.left;
+                const top = dependencyPicker.anchorRect.bottom + 6;
+                const selectedSet =
+                  dependencyPicker.mode === 'predecessors'
+                    ? new Set(currentTask.dependencies ?? [])
+                    : new Set(successorMap.get(currentTask.id) ?? []);
+                const availableTasks = normalizedPlan.tasks.filter((task) => task.id !== currentTask.id);
+                const filtered = availableTasks.filter((task) => {
+                  const number = wbsAllMap.get(task.id) ?? '';
+                  const text = `${task.name} ${number}`.toLowerCase();
+                  return text.includes(dependencyFilter.toLowerCase());
+                });
+                const toggleSelection = (targetId: string) => {
+                  if (dependencyPicker.mode === 'predecessors') {
+                    const next = new Set(currentTask.dependencies ?? []);
+                    if (next.has(targetId)) {
+                      next.delete(targetId);
+                    } else {
+                      next.add(targetId);
+                    }
+                    setTaskPredecessors(currentTask.id, Array.from(next));
+                  } else {
+                    const next = new Set(successorMap.get(currentTask.id) ?? []);
+                    if (next.has(targetId)) {
+                      next.delete(targetId);
+                    } else {
+                      next.add(targetId);
+                    }
+                    setTaskSuccessors(currentTask.id, Array.from(next));
+                  }
+                };
+                return (
+                  <div className={styles.dependencyPickerOverlay} onClick={closeDependencyPicker}>
+                    <div
+                      className={styles.dependencyPicker}
+                      style={{ left, top, width: pickerWidth }}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <header className={styles.dependencyPickerHeader}>
+                        <span>{dependencyPicker.mode === 'predecessors' ? 'Predecessors' : 'Successors'}</span>
+                        <button type="button" onClick={closeDependencyPicker} aria-label="Close picker">
+                          ×
+                        </button>
+                      </header>
+                      <input
+                        className={styles.dependencyFilter}
+                        type="text"
+                        placeholder="Filter tasks"
+                        value={dependencyFilter}
+                        onChange={(event) => setDependencyFilter(event.target.value)}
+                      />
+                      <div className={styles.dependencyList}>
+                        {filtered.map((task) => {
+                          const number = wbsAllMap.get(task.id) ?? '';
+                          const checked = selectedSet.has(task.id);
+                          const label = task.name || 'Untitled task';
+                          return (
+                            <label key={task.id} className={styles.dependencyOption} title={label}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleSelection(task.id)}
+                                disabled={readOnly}
+                              />
+                              <div className={styles.dependencyOptionText}>
+                                <strong>{label}</strong>
+                                <span>{number || 'Unnumbered'}</span>
+                              </div>
+                              <span className={styles.dependencyOptionBadge}>{number || '-'}</span>
+                            </label>
+                          );
+                        })}
+                        {!filtered.length && <div className={styles.dependencyEmpty}>No tasks found</div>}
                       </div>
                     </div>
                   </div>
@@ -4370,6 +4682,7 @@ const CapacityEditorPopover = ({ task, assignee, canEditColor, onClose, onSubmit
     </div>
   );
 };
+
 
 
 

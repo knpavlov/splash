@@ -67,6 +67,7 @@ export interface InitiativePlanTask {
   requiredCapacity: number | null;
   capacityMode: InitiativePlanCapacityMode;
   capacitySegments: InitiativePlanCapacitySegment[];
+  dependencies: string[];
   indent: number;
   color: string | null;
   milestoneType: string | null;

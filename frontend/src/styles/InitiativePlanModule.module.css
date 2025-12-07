@@ -355,14 +355,14 @@
 .assigneeResponsible {
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
 }
 
 .assigneeActions {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 2px;
   flex-wrap: wrap;
 }
 
@@ -695,15 +695,17 @@
 }
 
 .barRoot {
-  border-color: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.35);
+  background: #0b4f9c;
+  border-color: #0b4f9c;
+  box-shadow: 0 8px 18px rgba(6, 38, 73, 0.45);
 }
 
 .barChild {
   height: 22px;
   margin-top: 3px;
   margin-bottom: 3px;
-  border-color: rgba(255, 255, 255, 0.45);
+  background: #1c8a4f;
+  border-color: #1c8a4f;
 }
 
 .barChild::after {
@@ -715,8 +717,9 @@
   height: 18px;
   margin-top: 5px;
   margin-bottom: 5px;
-  border-color: rgba(15, 23, 42, 0.6);
-  border-style: dashed;
+  background: #2eb67d;
+  border-color: rgba(15, 23, 42, 0.35);
+  border-style: solid;
 }
 
 .barGrandchild::after {
@@ -754,8 +757,8 @@
 
 .linkHandle {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 999px;
   background: #fff;
   border: 2px solid var(--bar-color, #22c55e);
@@ -770,13 +773,13 @@
 }
 
 .linkHandleLeft {
-  left: -14px;
-  --handle-translate-x: -30%;
+  left: -22px;
+  --handle-translate-x: -40%;
 }
 
 .linkHandleRight {
-  right: -14px;
-  --handle-translate-x: 30%;
+  right: -22px;
+  --handle-translate-x: 40%;
 }
 
 .linkHandle:hover {
@@ -851,18 +854,18 @@
 
 .dependencyPath path {
   fill: none;
-  stroke: #9ca3af;
-  stroke-width: 2.2px;
+  stroke: #8f95a3;
+  stroke-width: 2.4px;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 1px 4px rgba(15, 23, 42, 0.08));
+  filter: drop-shadow(0 1px 4px rgba(15, 23, 42, 0.14));
   pointer-events: none;
 }
 
 .dependencyPath circle {
   fill: #f8fafc;
-  stroke: #94a3b8;
-  stroke-width: 2px;
+  stroke: #9ca3af;
+  stroke-width: 1.6px;
   pointer-events: auto;
   cursor: pointer;
   transition: transform 0.12s ease, stroke 0.12s ease, fill 0.12s ease;
@@ -877,9 +880,142 @@
 
 .dependencyDraft {
   stroke: #cbd5e1;
-  stroke-width: 2.2px;
+  stroke-width: 2px;
   stroke-dasharray: 6 4;
   stroke-linecap: round;
+}
+
+.wbsCell {
+  justify-content: flex-start;
+}
+
+.wbsBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.06);
+  font-weight: 700;
+  font-size: 12px;
+  color: #0f172a;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.dependencyCell {
+  justify-content: flex-start;
+}
+
+.dependencyPill {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  padding: 6px 12px;
+  background: rgba(248, 250, 252, 0.9);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  color: #0f172a;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+}
+
+.dependencyPill:hover {
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
+}
+
+.dependencyPickerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+}
+
+.dependencyPicker {
+  position: absolute;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 420px;
+  overflow: hidden;
+}
+
+.dependencyPickerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  color: #0f172a;
+  gap: 8px;
+}
+
+.dependencyPickerHeader button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  color: #475569;
+  padding: 4px;
+}
+
+.dependencyFilter {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.dependencyList {
+  max-height: 300px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dependencyOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(248, 250, 252, 0.8);
+  justify-content: space-between;
+}
+
+.dependencyOptionText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dependencyOptionText span {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.dependencyOptionBadge {
+  font-weight: 700;
+  font-size: 12px;
+  color: #0f172a;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  flex-shrink: 0;
+}
+
+.dependencyEmpty {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 8px;
+  text-align: center;
 }
 
 .contextMenuOverlay {
@@ -1255,16 +1391,16 @@
 }
 
 .linkButton {
-  background: rgba(59, 130, 246, 0.08);
+  background: #f8fafc;
   color: #0f172a;
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 10px;
-  padding: 6px 10px;
+  padding: 6px 9px;
   font-weight: 600;
   font-size: 12px;
   line-height: 1.2;
   white-space: nowrap;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
   transition: background 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease, border-color 0.12s ease;
   display: inline-flex;
   align-items: center;
@@ -1272,9 +1408,9 @@
 }
 
 .linkButton:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.14);
-  border-color: rgba(37, 99, 235, 0.35);
-  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.15);
+  background: rgba(226, 232, 240, 0.5);
+  border-color: rgba(59, 130, 246, 0.25);
+  box-shadow: 0 6px 12px rgba(37, 99, 235, 0.12);
   transform: translateY(-1px);
 }
 
@@ -1286,13 +1422,19 @@
 .actionButtonPrimary {
   background: rgba(16, 185, 129, 0.12);
   color: #0f172a;
-  border-color: rgba(16, 185, 129, 0.3);
+  border-color: rgba(16, 185, 129, 0.25);
 }
 
 .capacityCell {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.capacityCell input {
+  max-width: 110px;
 }
 
 .secondaryButton {

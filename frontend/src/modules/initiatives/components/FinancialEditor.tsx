@@ -1,4 +1,5 @@
 import React, { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import styles from '../../../styles/FinancialEditor.module.css';
 import {
   InitiativeBusinessCaseFile,
@@ -375,7 +376,9 @@ const EntryRow = ({
   const [duration, setDuration] = useState(months.length || 1);
   const [startMonth, setStartMonth] = useState(months[0]?.key ?? '');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<DOMRect | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     setStartMonth((current) => (months.find((month) => month.key === current) ? current : months[0]?.key ?? ''));
@@ -474,7 +477,13 @@ const EntryRow = ({
           <button
             type="button"
             className={styles.rowMenuButton}
-            onClick={() => setMenuOpen((prev) => !prev)}
+            ref={menuButtonRef}
+            onClick={() => {
+              if (menuButtonRef.current) {
+                setMenuAnchor(menuButtonRef.current.getBoundingClientRect());
+              }
+              setMenuOpen((prev) => !prev);
+            }}
             disabled={disabled}
             title="Bulk actions"
           >
@@ -489,55 +498,73 @@ const EntryRow = ({
           disabled={disabled}
           placeholder="Custom label"
         />
-        {menuOpen && (
-          <div className={styles.rowMenu} ref={menuRef}>
-            <div className={styles.menuSection}>
-              <span>Fill all months</span>
-              <div className={styles.menuInputs}>
-                <input
-                  type="number"
-                  value={monthlyValue}
-                  onChange={(event) => setMonthlyValue(event.target.value)}
-                  disabled={disabled}
-                />
-                <button type="button" onClick={fillAllMonths} disabled={disabled}>
-                  Apply
+        {menuOpen &&
+          createPortal(
+            <div
+              className={styles.rowMenuOverlay}
+              onClick={() => {
+                setMenuOpen(false);
+                setMenuAnchor(null);
+              }}
+            >
+              <div
+                className={styles.rowMenu}
+                ref={menuRef}
+                style={{
+                  left: (menuAnchor?.left ?? 0) + (typeof window !== 'undefined' ? window.scrollX : 0),
+                  top: (menuAnchor ? menuAnchor.bottom + 6 : 0) + (typeof window !== 'undefined' ? window.scrollY : 0)
+                }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className={styles.menuSection}>
+                  <span>Fill all months</span>
+                  <div className={styles.menuInputs}>
+                    <input
+                      type="number"
+                      value={monthlyValue}
+                      onChange={(event) => setMonthlyValue(event.target.value)}
+                      disabled={disabled}
+                    />
+                    <button type="button" onClick={fillAllMonths} disabled={disabled}>
+                      Apply
+                    </button>
+                  </div>
+                </div>
+                <div className={styles.menuSection}>
+                  <span>Distribute total</span>
+                  <div className={styles.menuInputs}>
+                    <input
+                      type="number"
+                      value={totalValue}
+                      onChange={(event) => setTotalValue(event.target.value)}
+                      disabled={disabled}
+                    />
+                    <select value={startMonth} onChange={(event) => setStartMonth(event.target.value)} disabled={disabled}>
+                      {months.map((month) => (
+                        <option key={month.key} value={month.key}>
+                          {month.label} {month.year}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min={1}
+                      value={duration}
+                      onChange={(event) => setDuration(Math.max(1, Number(event.target.value)))}
+                      disabled={disabled}
+                    />
+                    <button type="button" onClick={distributeTotal} disabled={disabled}>
+                      Spread
+                    </button>
+                  </div>
+                </div>
+                <button type="button" className={styles.menuRemoveButton} onClick={onRemove} disabled={disabled}>
+                  Remove line
                 </button>
               </div>
-            </div>
-            <div className={styles.menuSection}>
-              <span>Distribute total</span>
-              <div className={styles.menuInputs}>
-                <input
-                  type="number"
-                  value={totalValue}
-                  onChange={(event) => setTotalValue(event.target.value)}
-                  disabled={disabled}
-                />
-                <select value={startMonth} onChange={(event) => setStartMonth(event.target.value)} disabled={disabled}>
-                  {months.map((month) => (
-                    <option key={month.key} value={month.key}>
-                      {month.label} {month.year}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  min={1}
-                  value={duration}
-                  onChange={(event) => setDuration(Math.max(1, Number(event.target.value)))}
-                  disabled={disabled}
-                />
-                <button type="button" onClick={distributeTotal} disabled={disabled}>
-                  Spread
-                </button>
-              </div>
-            </div>
-            <button type="button" className={styles.menuRemoveButton} onClick={onRemove} disabled={disabled}>
-              Remove line
-            </button>
-          </div>
-        )}
+            </div>,
+            document.body
+          )}
       </div>
       {months.map((month) => (
         <label key={month.key} className={styles.sheetCell}>

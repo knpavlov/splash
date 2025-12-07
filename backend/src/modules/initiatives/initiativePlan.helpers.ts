@@ -184,15 +184,16 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     description: '',
     endDate: null,
     responsible: '',
-    progress: 0,
-    requiredCapacity: null,
-    capacityMode: 'fixed',
-    capacitySegments: [],
-    indent: 0,
-    color: null,
-    milestoneType: 'Standard',
-    baseline: null,
-    sourceTaskId: null,
+  progress: 0,
+  requiredCapacity: null,
+  capacityMode: 'fixed',
+  capacitySegments: [],
+  dependencies: [],
+  indent: 0,
+  color: null,
+  milestoneType: 'Standard',
+  baseline: null,
+  sourceTaskId: null,
     archived: false
   };
   if (!value || typeof value !== 'object') {
@@ -209,6 +210,7 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     requiredCapacity?: unknown;
     capacityMode?: unknown;
     capacitySegments?: unknown;
+    dependencies?: unknown;
     indent?: unknown;
     color?: unknown;
     milestoneType?: unknown;
@@ -227,6 +229,16 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
       ? 'variable'
       : 'fixed';
   const requiredCapacity = mode === 'fixed' ? sanitizeCapacity(payload.requiredCapacity) : null;
+  const dependencies = Array.isArray(payload.dependencies)
+    ? Array.from(
+        new Set(
+          payload.dependencies
+            .filter((value): value is string => typeof value === 'string')
+            .map((value) => value.trim())
+            .filter(Boolean)
+        )
+      )
+    : [];
 
   return {
     id,
@@ -239,6 +251,7 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     requiredCapacity,
     capacityMode: mode,
     capacitySegments,
+    dependencies,
     indent: sanitizeIndent(payload.indent),
     color: sanitizeColor(payload.color),
     milestoneType: sanitizeMilestoneType(payload.milestoneType),
