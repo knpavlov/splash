@@ -2574,11 +2574,16 @@ export const InitiativePlanModule = ({
       }
       const sorted = [...items].sort((a, b) => a.start.y - b.start.y);
       const farthestStart = Math.max(...sorted.map((item) => item.start.x));
-      const spineX = Math.min(targetAnchor.x - 12, Math.max(targetAnchor.x - 24, farthestStart + 12));
+      const anyBackward = sorted.some((item) => item.end.x < item.start.x);
+      const baseSpineX = Math.min(targetAnchor.x - 12, Math.max(targetAnchor.x - 24, farthestStart + 12));
+      const spineX = anyBackward ? Math.min(baseSpineX, targetAnchor.x - 18) : baseSpineX;
       sorted.forEach((item, index) => {
+        const isBackward = item.end.x < item.start.x;
         const fanoutOffset = 24 + index * 6;
-        const midBase = item.start.x + fanoutOffset;
-        const midX = Math.min(spineX - 10, Math.max(item.start.x + 12, midBase));
+        const midBase = isBackward ? item.start.x - fanoutOffset : item.start.x + fanoutOffset;
+        const midX = isBackward
+          ? Math.min(spineX - 12, midBase - 6, item.end.x - 12)
+          : Math.min(spineX - 10, Math.max(item.start.x + 12, midBase));
         nextLines.push({
           from: item.from,
           to: targetId,
