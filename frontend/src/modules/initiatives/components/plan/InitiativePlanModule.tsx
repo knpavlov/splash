@@ -54,6 +54,7 @@ const RESOURCE_HEIGHT_DEFAULT = 320;
 const FULLSCREEN_RESOURCE_MIN_RATIO = 0.25;
 const FULLSCREEN_RESOURCE_MAX_RATIO = 0.7;
 const formatDateInput = (value: Date) => value.toISOString().slice(0, 10);
+const MAX_HISTORY = 20;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -406,6 +407,12 @@ export const InitiativePlanModule = ({
   const dependencyLinesRef = useRef<DependencyLine[]>([]);
   const [dependencyLines, setDependencyLines] = useState<DependencyLine[]>([]);
   const dependencyMeasureFrame = useRef<number | null>(null);
+  const historyRef = useRef<{ past: InitiativePlanModel[]; future: InitiativePlanModel[] }>({
+    past: [],
+    future: []
+  });
+  const suppressHistoryRef = useRef(false);
+  const [, setHistoryVersion] = useState(0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [dependencyPicker, setDependencyPicker] = useState<DependencyPickerState | null>(null);
   const [dependencyFilter, setDependencyFilter] = useState('');
@@ -725,6 +732,11 @@ export const InitiativePlanModule = ({
     return map;
   }, [normalizedPlan.tasks]);
 
+  const hasAnyDependencies = useMemo(
+    () => normalizedPlan.tasks.some((task) => (task.dependencies?.length ?? 0) > 0),
+    [normalizedPlan.tasks]
+  );
+
   const summaryRange = useMemo(() => {
     const map = new Map<string, { start: Date; end: Date }>();
     workingTasks.forEach((task, index) => {
@@ -863,6 +875,11 @@ export const InitiativePlanModule = ({
     });
   }, [normalizedPlan.tasks, taskHasChildren]);
 
+  useEffect(() => {
+    historyRef.current = { past: [], future: [] };
+    setHistoryVersion((v) => v + 1);
+  }, [initiativeId]);
+
   const emitChange = useCallback(
     (next: InitiativePlanModel | InitiativePlanActualsModel) => {
       onChange(sanitizePlanModel(next as InitiativePlanModel));
@@ -870,15 +887,66 @@ export const InitiativePlanModule = ({
     [onChange]
   );
 
+  const commitPlanChange = useCallback(
+    (mutator: (plan: InitiativePlanModel) => InitiativePlanModel, options?: { skipHistory?: boolean }) => {
+      if (suppressHistoryRef.current) {
+        emitChange(mutator(normalizedPlan));
+        return;
+      }
+      const pushHistory = !options?.skipHistory && !readOnly;
+      if (pushHistory) {
+        const snapshot = sanitizePlanModel(normalizedPlan);
+        const past = [...historyRef.current.past, snapshot];
+        historyRef.current.past = past.slice(-MAX_HISTORY);
+        historyRef.current.future = [];
+        setHistoryVersion((v) => v + 1);
+      }
+      suppressHistoryRef.current = true;
+      emitChange(mutator(normalizedPlan));
+      suppressHistoryRef.current = false;
+    },
+    [emitChange, normalizedPlan, readOnly]
+  );
+
   const setTasks = useCallback(
     (tasks: InitiativePlanTask[]) => {
-      emitChange({
-        ...normalizedPlan,
+      commitPlanChange((plan) => ({
+        ...plan,
         tasks
-      });
+      }));
     },
-    [emitChange, normalizedPlan]
+    [commitPlanChange]
   );
+
+  const handleUndo = useCallback(() => {
+    const past = historyRef.current.past;
+    if (!past.length) {
+      return;
+    }
+    const previous = past[past.length - 1];
+    const current = sanitizePlanModel(normalizedPlan);
+    historyRef.current.past = past.slice(0, -1);
+    historyRef.current.future = [current, ...historyRef.current.future].slice(0, MAX_HISTORY);
+    suppressHistoryRef.current = true;
+    emitChange(previous);
+    suppressHistoryRef.current = false;
+    setHistoryVersion((v) => v + 1);
+  }, [emitChange, normalizedPlan]);
+
+  const handleRedo = useCallback(() => {
+    const future = historyRef.current.future;
+    if (!future.length) {
+      return;
+    }
+    const nextPlan = future[0];
+    const current = sanitizePlanModel(normalizedPlan);
+    historyRef.current.future = future.slice(1);
+    historyRef.current.past = [...historyRef.current.past, current].slice(-MAX_HISTORY);
+    suppressHistoryRef.current = true;
+    emitChange(nextPlan);
+    suppressHistoryRef.current = false;
+    setHistoryVersion((v) => v + 1);
+  }, [emitChange, normalizedPlan]);
 
   const updateTask = useCallback(
     (taskId: string, updater: (task: InitiativePlanTask) => InitiativePlanTask) => {
@@ -1161,15 +1229,15 @@ export const InitiativePlanModule = ({
         return;
       }
       const nextZoom = clamp(normalizedPlan.settings.zoomLevel + delta, PLAN_ZOOM_MIN, PLAN_ZOOM_MAX);
-      emitChange({
-        ...normalizedPlan,
+      commitPlanChange((plan) => ({
+        ...plan,
         settings: {
-          ...normalizedPlan.settings,
+          ...plan.settings,
           zoomLevel: nextZoom
         }
-      });
+      }));
     },
-    [emitChange, normalizedPlan, readOnly]
+    [commitPlanChange, normalizedPlan, readOnly]
   );
 
   const startColumnResize = useCallback(
@@ -1532,11 +1600,11 @@ export const InitiativePlanModule = ({
   );
 
   useEffect(() => {
-    if (readOnly) {
-      return;
-    }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) {
+      if (readOnly) {
+        return;
+      }
+      const handleKeyDown = (event: KeyboardEvent) => {
+        if (!(event.ctrlKey || event.metaKey)) {
         return;
       }
       const target = event.target as HTMLElement | null;
@@ -1545,6 +1613,16 @@ export const InitiativePlanModule = ({
         if (tagName === 'input' || tagName === 'textarea' || target.isContentEditable) {
           return;
         }
+      }
+      if (event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        handleUndo();
+        return;
+      }
+      if (event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        handleRedo();
+        return;
       }
       if (event.key === '=' || event.key === '+') {
         event.preventDefault();
@@ -1558,7 +1636,7 @@ export const InitiativePlanModule = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [handleZoom, readOnly]);
+  }, [handleRedo, handleUndo, handleZoom, readOnly]);
 
   const handleSplitDrag = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -1572,25 +1650,37 @@ export const InitiativePlanModule = ({
       const rect = container.getBoundingClientRect();
       const startX = event.clientX;
       const startRatio = normalizedPlan.settings.splitRatio;
+      let latestRatio = startRatio;
       const handleMove = (moveEvent: PointerEvent) => {
         const delta = moveEvent.clientX - startX;
         const nextRatio = clamp(startRatio + delta / rect.width, PLAN_SPLIT_MIN, PLAN_SPLIT_MAX);
-        emitChange({
-          ...normalizedPlan,
-          settings: {
-            ...normalizedPlan.settings,
-            splitRatio: nextRatio
-          }
-        });
+        latestRatio = nextRatio;
+        commitPlanChange(
+          (plan) => ({
+            ...plan,
+            settings: {
+              ...plan.settings,
+              splitRatio: nextRatio
+            }
+          }),
+          { skipHistory: true }
+        );
       };
       const handleUp = () => {
         window.removeEventListener('pointermove', handleMove);
         window.removeEventListener('pointerup', handleUp);
+        commitPlanChange((plan) => ({
+          ...plan,
+          settings: {
+            ...plan.settings,
+            splitRatio: latestRatio
+          }
+        }));
       };
       window.addEventListener('pointermove', handleMove);
       window.addEventListener('pointerup', handleUp);
     },
-    [emitChange, isCapacityEditorActive, normalizedPlan, readOnly]
+    [commitPlanChange, isCapacityEditorActive, normalizedPlan.settings.splitRatio, readOnly]
   );
 
   const startBarDrag = useCallback(
@@ -2531,6 +2621,9 @@ export const InitiativePlanModule = ({
   }, [dependencyDraft, dependencyLinesEqual, normalizedPlan.tasks, pxPerDay, visibleRows.length]);
 
   const scheduleDependencyMeasure = useCallback(() => {
+    if (!dependencyDraft && !hasAnyDependencies) {
+      return;
+    }
     if (dependencyMeasureFrame.current !== null) {
       cancelAnimationFrame(dependencyMeasureFrame.current);
     }
@@ -2538,11 +2631,18 @@ export const InitiativePlanModule = ({
       measureDependencies();
       dependencyMeasureFrame.current = null;
     });
-  }, [measureDependencies]);
+  }, [dependencyDraft, hasAnyDependencies, measureDependencies]);
 
   useLayoutEffect(() => {
     scheduleDependencyMeasure();
   }, [scheduleDependencyMeasure]);
+
+  useEffect(() => {
+    if (!hasAnyDependencies && !dependencyDraft) {
+      dependencyLinesRef.current = [];
+      setDependencyLines([]);
+    }
+  }, [dependencyDraft, hasAnyDependencies]);
 
   useEffect(() => {
     const handle = () => scheduleDependencyMeasure();
@@ -3917,11 +4017,11 @@ export const InitiativePlanModule = ({
                 style={{ width: `${timelineRange.width}px`, height: `${visibleRows.length * ROW_HEIGHT}px` }}
               >
                 <defs>
-                  <marker id="dependencyArrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                    <path d="M0,0 L6,3 L0,6 Z" fill="#9ca3af" />
+                  <marker id="dependencyArrow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+                    <path d="M0,0 L5,2.5 L0,5 Z" fill="#9ca3af" />
                   </marker>
-                  <marker id="dependencyArrowDraft" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                    <path d="M0,0 L6,3 L0,6 Z" fill="#cbd5e1" />
+                  <marker id="dependencyArrowDraft" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+                    <path d="M0,0 L5,2.5 L0,5 Z" fill="#cbd5e1" />
                   </marker>
                 </defs>
                 {dependencyLines.map((line) => {
@@ -4336,6 +4436,8 @@ export const InitiativePlanModule = ({
   }
 
   const isCapacityEditorOpen = Boolean(capacityEditor);
+  const canUndo = historyRef.current.past.length > 0;
+  const canRedo = historyRef.current.future.length > 0;
   const planSection = (
     <section
       className={`${styles.planContainer} ${isFullscreen ? styles.fullscreenContainer : ''}`}
@@ -4359,45 +4461,103 @@ export const InitiativePlanModule = ({
         </div>
         {!isCollapsed && (
           <div className={styles.toolbar}>
-            <button type="button" onClick={handleAddTask} disabled={readOnly}>
-              + Add
-            </button>
-            <button type="button" onClick={handleDeleteTask} disabled={readOnly || !selectedTaskId}>
-              Delete
-            </button>
-            <button type="button" onClick={() => handleIndent()} disabled={readOnly || !selectedTaskId}>
-              Indent
-            </button>
-            <button type="button" onClick={() => handleOutdent()} disabled={readOnly || !selectedTaskId}>
-              Outdent
-            </button>
+            <div className={styles.toolbarGroup}>
+              <button
+                type="button"
+                className={`${styles.toolbarButton} ${styles.toolbarIconButton}`}
+                onClick={handleUndo}
+                disabled={readOnly || !canUndo}
+                title="Undo last action"
+              >
+                <span className={styles.toolbarIcon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                    <path d="M10 6.5a6.5 6.5 0 1 1-6.27 8.24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M10 3v7H3" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <span className={styles.toolbarLabel}>Undo</span>
+                {canUndo && <span className={styles.toolbarBadge}>{historyRef.current.past.length}</span>}
+              </button>
+              <button
+                type="button"
+                className={`${styles.toolbarButton} ${styles.toolbarIconButton}`}
+                onClick={handleRedo}
+                disabled={readOnly || !canRedo}
+                title="Redo"
+              >
+                <span className={styles.toolbarIcon} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                    <path d="M14 6.5a6.5 6.5 0 1 0 6.27 8.24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M14 3v7h7" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+                <span className={styles.toolbarLabel}>Redo</span>
+                {canRedo && <span className={styles.toolbarBadge}>{historyRef.current.future.length}</span>}
+              </button>
+            </div>
             <div className={styles.divider} />
-            <button
-              type="button"
-              onClick={() => handleZoom(1)}
-              disabled={readOnly || normalizedPlan.settings.zoomLevel >= PLAN_ZOOM_MAX}
-            >
-              Zoom in
-            </button>
-            <button
-              type="button"
-              onClick={() => handleZoom(-1)}
-              disabled={readOnly || normalizedPlan.settings.zoomLevel <= PLAN_ZOOM_MIN}
-            >
-              Zoom out
-            </button>
-            <button
-              type="button"
-              className={showCapacityOverlay ? styles.toggleActive : undefined}
-              onClick={() => setShowCapacityOverlay((value) => !value)}
-              aria-pressed={showCapacityOverlay}
-            >
-              {showCapacityOverlay ? 'Hide capacity' : 'Show capacity'}
-            </button>
+            <div className={styles.toolbarGroup}>
+              <button type="button" className={styles.toolbarButton} onClick={handleAddTask} disabled={readOnly}>
+                + Add
+              </button>
+              <button
+                type="button"
+                className={styles.toolbarButton}
+                onClick={handleDeleteTask}
+                disabled={readOnly || !selectedTaskId}
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                className={styles.toolbarButton}
+                onClick={() => handleIndent()}
+                disabled={readOnly || !selectedTaskId}
+              >
+                Indent
+              </button>
+              <button
+                type="button"
+                className={styles.toolbarButton}
+                onClick={() => handleOutdent()}
+                disabled={readOnly || !selectedTaskId}
+              >
+                Outdent
+              </button>
+            </div>
+            <div className={styles.divider} />
+            <div className={styles.toolbarGroup}>
+              <button
+                type="button"
+                className={styles.toolbarButton}
+                onClick={() => handleZoom(1)}
+                disabled={readOnly || normalizedPlan.settings.zoomLevel >= PLAN_ZOOM_MAX}
+              >
+                Zoom in
+              </button>
+              <button
+                type="button"
+                className={styles.toolbarButton}
+                onClick={() => handleZoom(-1)}
+                disabled={readOnly || normalizedPlan.settings.zoomLevel <= PLAN_ZOOM_MIN}
+              >
+                Zoom out
+              </button>
+              <button
+                type="button"
+                className={`${styles.toolbarButton} ${showCapacityOverlay ? styles.toggleActive : ''}`}
+                onClick={() => setShowCapacityOverlay((value) => !value)}
+                aria-pressed={showCapacityOverlay}
+              >
+                {showCapacityOverlay ? 'Hide capacity' : 'Show capacity'}
+              </button>
+            </div>
+            {isActuals && <div className={styles.divider} />}
             {isActuals && (
-              <>
+              <div className={styles.toolbarGroup}>
                 <button
                   type="button"
+                  className={styles.toolbarButton}
                   onClick={handleSeedFromPlan}
                   disabled={readOnly || !baselinePlanNormalized?.tasks.length}
                   title={
@@ -4408,36 +4568,37 @@ export const InitiativePlanModule = ({
                 </button>
                 <button
                   type="button"
-                  className={showBaselines ? styles.toggleActive : undefined}
+                  className={`${styles.toolbarButton} ${showBaselines ? styles.toggleActive : ''}`}
                   onClick={() => setShowBaselines((prev) => !prev)}
                 >
                   {showBaselines ? 'Hide baseline' : 'Show baseline'}
                 </button>
                 <button
                   type="button"
-                  className={showArchived ? styles.toggleActive : undefined}
+                  className={`${styles.toolbarButton} ${showArchived ? styles.toggleActive : ''}`}
                   onClick={() => setShowArchived((prev) => !prev)}
                 >
                   {showArchived ? 'Hide archived' : 'Show archived'}
                 </button>
                 <button
                   type="button"
-                  className={showDueSoonOnly ? styles.toggleActive : undefined}
+                  className={`${styles.toolbarButton} ${showDueSoonOnly ? styles.toggleActive : ''}`}
                   onClick={() => setShowDueSoonOnly((prev) => !prev)}
                 >
                   {showDueSoonOnly ? 'All tasks' : 'Due soon only'}
                 </button>
                 <button
                   type="button"
-                  className={showCompletedOnly ? styles.toggleActive : undefined}
+                  className={`${styles.toolbarButton} ${showCompletedOnly ? styles.toggleActive : ''}`}
                   onClick={() => setShowCompletedOnly((prev) => !prev)}
                 >
                   {showCompletedOnly ? 'All tasks' : 'Completed only'}
                 </button>
-              </>
+              </div>
             )}
             <button
               type="button"
+              className={styles.toolbarButton}
               onClick={() => {
                 hideDescriptionTooltip();
                 setIsFullscreen((value) => !value);
@@ -4728,6 +4889,10 @@ const CapacityEditorPopover = ({ task, assignee, canEditColor, onClose, onSubmit
     </div>
   );
 };
+
+
+
+
 
 
 
