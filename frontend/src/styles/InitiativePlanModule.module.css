@@ -291,8 +291,16 @@
 .taskNameCell {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+}
+
+.wbsInline {
+  min-width: 42px;
+  text-align: right;
+  font-weight: 700;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
 }
 
 .taskNameCell input {
@@ -362,7 +370,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 2px;
+  margin-top: 0;
   flex-wrap: wrap;
 }
 
@@ -373,6 +381,23 @@
   border-radius: 999px;
   font-weight: 700;
   font-size: 12px;
+}
+
+.responsibleCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.responsibleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.responsibleRow select {
+  flex: 1;
 }
 
 .inheritedText {
@@ -727,6 +752,17 @@
   background: rgba(15, 23, 42, 0.32);
 }
 
+.summaryBar {
+  background: linear-gradient(90deg, #0b4f9c, #155e9d);
+  border-color: #0b4f9c;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25), 0 10px 20px rgba(6, 38, 73, 0.35);
+}
+
+.summaryBar::after {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .barSelected {
   outline: 3px solid rgba(37, 99, 235, 0.8);
   box-shadow: 0 10px 24px rgba(37, 99, 235, 0.45);
@@ -907,22 +943,21 @@
 }
 
 .dependencyPill {
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 12px;
-  padding: 6px 12px;
-  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 10px;
+  padding: 6px 8px;
+  background: #fff;
   cursor: pointer;
   font-weight: 600;
   font-size: 12px;
   color: #0f172a;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  transition: background 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
 }
 
 .dependencyPill:hover {
-  transform: translateY(-1px);
   border-color: rgba(37, 99, 235, 0.35);
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
+  background: rgba(226, 232, 240, 0.45);
+  box-shadow: 0 6px 12px rgba(37, 99, 235, 0.1);
 }
 
 .dependencyPickerOverlay {
@@ -1423,6 +1458,11 @@
   background: rgba(16, 185, 129, 0.12);
   color: #0f172a;
   border-color: rgba(16, 185, 129, 0.25);
+}
+
+.coOwnerButton {
+  padding: 6px 8px;
+  white-space: nowrap;
 }
 
 .capacityCell {
