@@ -199,12 +199,16 @@
 .tableHeader {
   display: grid;
   gap: 4px;
-  padding: 10px 8px;
+  padding: 0 8px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.25);
   min-width: max-content;
   height: 48px;
   box-sizing: border-box;
-  align-items: flex-end;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  background: rgba(248, 250, 252, 0.98);
+  z-index: 2;
 }
 
 .tableRows {
@@ -676,7 +680,7 @@
 
 .timelinePanel {
   flex: 1;
-  padding: 12px;
+  padding: 0 12px 12px 12px;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -762,19 +766,22 @@
 
 .timelineBar {
   position: absolute;
-  height: 28px;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  height: 24px;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
   color: #fff;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 8px;
   cursor: pointer;
   overflow: visible;
   box-sizing: border-box;
-  border: 2px solid transparent;
+  border: none;
   z-index: 2;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .timelineBar::after {
@@ -789,84 +796,77 @@
 }
 
 .barRoot {
-  background: #0b4f9c;
-  border-color: #0b4f9c;
-  box-shadow: 0 8px 18px rgba(6, 38, 73, 0.45);
+  background: #6aa84f;
+  height: 24px;
 }
 
 .barChild {
-  height: 22px;
-  margin-top: 3px;
-  margin-bottom: 3px;
-  background: #1c8a4f;
-  border-color: #1c8a4f;
+  height: 24px;
+  background: #6aa84f;
 }
 
 .barChild::after {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.18);
+  display: none;
 }
 
 .barGrandchild {
-  height: 18px;
-  margin-top: 5px;
-  margin-bottom: 5px;
-  background: #2eb67d;
-  border-color: rgba(15, 23, 42, 0.35);
-  border-style: solid;
+  height: 20px;
+  background: #93c47d;
 }
 
 .barGrandchild::after {
-  opacity: 1;
-  background: rgba(15, 23, 42, 0.32);
+  display: none;
 }
 
 .summaryBar {
-  background: #3b82f6 !important;
+  background: #4a90d9 !important;
   border: none !important;
   box-shadow: none !important;
   position: absolute;
-  overflow: visible;
-  height: 8px !important;
-  top: 8px;
+  overflow: visible !important;
+  height: 6px !important;
+  top: 10px !important;
+  transform: none !important;
   margin: 0 !important;
   padding: 0 !important;
-  border-radius: 4px 4px 0 0 !important;
+  border-radius: 3px !important;
   cursor: default;
   z-index: 1;
 }
 
-.summaryBar::before,
+.summaryBar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 16px;
+  background: #4a90d9;
+  border-radius: 0 0 2px 2px;
+  inset: auto !important;
+}
+
 .summaryBar::after {
   content: '';
   position: absolute;
-  top: 100%;
+  right: 0;
+  top: 0;
   width: 3px;
-  height: 10px;
-  background: #3b82f6;
+  height: 16px;
+  background: #4a90d9;
   border-radius: 0 0 2px 2px;
+  inset: auto !important;
   opacity: 1 !important;
 }
 
-.summaryBar::before {
-  left: 0;
-  clip-path: none;
-}
-
-.summaryBar::after {
-  right: 0;
-  clip-path: none;
-}
-
 .barSelected {
-  outline: 3px solid rgba(37, 99, 235, 0.8);
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.45);
+  outline: 2px solid rgba(37, 99, 235, 0.7);
+  outline-offset: 1px;
 }
 
 .summaryBar.barSelected {
-  outline: 2px solid rgba(37, 99, 235, 0.8);
-  outline-offset: 2px;
-  box-shadow: none !important;
+  outline: 2px solid rgba(37, 99, 235, 0.7);
+  outline-offset: 1px;
 }
 
 .assigneeBar {
@@ -894,43 +894,45 @@
 
 .linkHandle {
   position: absolute;
-  width: 22px;
-  height: 22px;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
   background: #fff;
-  border: 2px solid var(--bar-color, #22c55e);
+  border: 2px solid var(--bar-color, #64748b);
   top: 50%;
-  transform: translate(var(--handle-translate-x, -50%), -50%);
+  transform: translateY(-50%);
   cursor: crosshair;
   z-index: 6;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
   opacity: 0;
   pointer-events: none;
 }
 
 .linkHandleLeft {
-  left: -26px;
-  --handle-translate-x: -55%;
+  left: -6px;
 }
 
 .linkHandleRight {
-  right: -26px;
-  --handle-translate-x: 55%;
+  right: -6px;
 }
 
 .linkHandle:hover {
-  background: #f8fffb;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2), 0 6px 14px rgba(15, 23, 42, 0.22);
-  transform: translate(var(--handle-translate-x, -50%), -50%) scale(1.08);
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3), 0 2px 6px rgba(15, 23, 42, 0.2);
+  transform: translateY(-50%) scale(1.15);
   opacity: 1;
   pointer-events: auto;
 }
 
 .timelineBar:hover .linkHandle,
 .timelineRow:hover .linkHandle {
-  opacity: 1;
+  opacity: 0.7;
   pointer-events: auto;
+}
+
+.timelineBar:hover .linkHandle:hover {
+  opacity: 1;
 }
 
 .barLabel {
@@ -991,28 +993,30 @@
 
 .dependencyPath path {
   fill: none;
-  stroke: #8f95a3;
-  stroke-width: 2px;
+  stroke: #9ca3af;
+  stroke-width: 1.5px;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 1px 4px rgba(15, 23, 42, 0.14));
   pointer-events: none;
 }
 
 .dependencyPath circle {
-  fill: #f8fafc;
-  stroke: #9ca3af;
-  stroke-width: 1.6px;
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 1.5px;
   pointer-events: auto;
   cursor: pointer;
-  transition: transform 0.12s ease, stroke 0.12s ease, fill 0.12s ease;
-  filter: drop-shadow(0 1px 4px rgba(15, 23, 42, 0.18));
+  transition: fill 0.15s ease, stroke 0.15s ease;
+}
+
+.dependencyPath:hover circle {
+  fill: #f8fafc;
+  stroke: #9ca3af;
 }
 
 .dependencyPath circle:hover {
-  transform: scale(1.08);
+  fill: #fef2f2;
   stroke: #dc2626;
-  fill: #fff;
 }
 
 .dependencyDraft {

@@ -2566,20 +2566,9 @@ export const InitiativePlanModule = ({
         return null;
       }
       const barRect = bar.getBoundingClientRect();
-      const handle = bar.querySelector(
-        `.${styles.linkHandle}.${anchor === 'left' ? styles.linkHandleLeft : styles.linkHandleRight}`
-      ) as HTMLElement | null;
-      const handleRect = handle?.getBoundingClientRect();
-      const centerX =
-        handleRect && typeof handleRect.left === 'number'
-          ? handleRect.left + handleRect.width / 2
-          : anchor === 'left'
-            ? barRect.left
-            : barRect.right;
-      const centerY =
-        handleRect && typeof handleRect.top === 'number'
-          ? handleRect.top + handleRect.height / 2
-          : barRect.top + barRect.height / 2;
+      // Use bar edges directly for cleaner arrow connections
+      const centerX = anchor === 'left' ? barRect.left : barRect.right;
+      const centerY = barRect.top + barRect.height / 2;
       return {
         x: centerX - canvasRect.left,
         y: centerY - canvasRect.top
@@ -4096,7 +4085,7 @@ export const InitiativePlanModule = ({
                       <circle
                         cx={line.end.x}
                         cy={line.end.y}
-                        r={6}
+                        r={4}
                         onClick={() => handleRemoveDependency(line.from, line.to)}
                       />
                     </g>
