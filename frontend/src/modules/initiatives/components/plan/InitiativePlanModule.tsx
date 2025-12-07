@@ -2573,16 +2573,25 @@ export const InitiativePlanModule = ({
         return;
       }
       const sorted = [...items].sort((a, b) => a.start.y - b.start.y);
-      const farthestStart = Math.max(...sorted.map((item) => item.start.x));
-      const anyBackward = sorted.some((item) => item.end.x < item.start.x);
-      const baseSpineX = Math.min(targetAnchor.x - 12, Math.max(targetAnchor.x - 24, farthestStart + 12));
-      const spineX = anyBackward ? Math.min(baseSpineX, targetAnchor.x - 18) : baseSpineX;
-      sorted.forEach((item, index) => {
+      const backward = sorted.filter((item) => item.end.x < item.start.x);
+      const forward = sorted.filter((item) => item.end.x >= item.start.x);
+      const minBackwardStart = backward.length ? Math.min(...backward.map((item) => item.start.x)) : Infinity;
+      const backwardSpineX = backward.length
+        ? Math.min(targetAnchor.x - 18, minBackwardStart - 18)
+        : null;
+      const forwardFarthestStart = forward.length ? Math.max(...forward.map((item) => item.start.x)) : -Infinity;
+      const forwardSpineX = forward.length
+        ? Math.min(targetAnchor.x - 12, Math.max(targetAnchor.x - 24, forwardFarthestStart + 12))
+        : null;
+      let backwardIndex = 0;
+      let forwardIndex = 0;
+      sorted.forEach((item) => {
         const isBackward = item.end.x < item.start.x;
-        const fanoutOffset = 24 + index * 6;
+        const fanoutOffset = 24 + (isBackward ? backwardIndex++ : forwardIndex++) * 6;
+        const spineX = isBackward ? backwardSpineX ?? targetAnchor.x - 18 : forwardSpineX ?? targetAnchor.x - 18;
         const midBase = isBackward ? item.start.x - fanoutOffset : item.start.x + fanoutOffset;
         const midX = isBackward
-          ? Math.min(spineX - 12, midBase - 6, item.end.x - 12)
+          ? Math.min(spineX - 8, midBase - 6, targetAnchor.x - 24)
           : Math.min(spineX - 10, Math.max(item.start.x + 12, midBase));
         nextLines.push({
           from: item.from,
