@@ -2484,25 +2484,72 @@ export const InitiativePlanModule = ({
   };
 
   const buildDependencyPath = useCallback((line: DependencyLine) => {
-    const radius = 10;
-    const { start, end, bend } = line;
-    const firstCornerX = Math.min(bend.midX, bend.spineX - 12);
-    const startDirection = bend.spineY >= start.y ? 1 : -1;
-    const startCurve = Math.min(radius, Math.abs(bend.spineY - start.y) / 2);
-    const endDirection = end.y >= bend.spineY ? 1 : -1;
-    const endCurve = Math.min(radius, Math.abs(end.y - bend.spineY) / 2);
-    const spineJoinX = Math.max(firstCornerX + radius, Math.min(bend.spineX, end.x - 4));
+    const radius = 8;
+    const { start, end } = line;
+    const isBackward = end.x < start.x;
+    const verticalGap = Math.abs(end.y - start.y);
+    const goingDown = end.y > start.y;
+
+    if (isBackward) {
+      // Backward dependency: successor starts before predecessor ends
+      // Path: right from start -> down -> left to end
+      const exitOffset = 20; // How far right to go before turning
+      const cornerX = start.x + exitOffset;
+      const midY = goingDown
+        ? start.y + Math.max(verticalGap / 2, 20)
+        : start.y - Math.max(verticalGap / 2, 20);
+      const entryX = end.x - 8;
+
+      if (verticalGap < 20) {
+        // Very close vertically - go down first, then left
+        const dropY = goingDown ? end.y + 25 : end.y - 25;
+        const r = Math.min(radius, Math.abs(dropY - start.y) / 2, Math.abs(end.y - dropY) / 2);
+        return [
+          `M ${start.x},${start.y}`,
+          `L ${cornerX - r},${start.y}`,
+          `Q ${cornerX},${start.y} ${cornerX},${start.y + (goingDown ? r : -r)}`,
+          `L ${cornerX},${dropY - (goingDown ? -r : r)}`,
+          `Q ${cornerX},${dropY} ${cornerX - r},${dropY}`,
+          `L ${entryX + r},${dropY}`,
+          `Q ${entryX},${dropY} ${entryX},${dropY + (goingDown ? -r : r)}`,
+          `L ${entryX},${end.y}`,
+          `L ${end.x},${end.y}`
+        ].join(' ');
+      }
+
+      const r = Math.min(radius, verticalGap / 4);
+      return [
+        `M ${start.x},${start.y}`,
+        `L ${cornerX - r},${start.y}`,
+        `Q ${cornerX},${start.y} ${cornerX},${start.y + (goingDown ? r : -r)}`,
+        `L ${cornerX},${midY - (goingDown ? r : -r)}`,
+        `Q ${cornerX},${midY} ${cornerX - r},${midY}`,
+        `L ${entryX + r},${midY}`,
+        `Q ${entryX},${midY} ${entryX},${midY + (goingDown ? r : -r)}`,
+        `L ${entryX},${end.y}`,
+        `L ${end.x},${end.y}`
+      ].join(' ');
+    }
+
+    // Forward dependency: normal flow from right to left
+    const horizontalGap = end.x - start.x;
+    const midX = start.x + Math.max(horizontalGap / 2, 20);
+    const r = Math.min(radius, horizontalGap / 4, verticalGap / 4 || radius);
+
+    if (verticalGap < 4) {
+      // Same row - simple horizontal line with small jog
+      return [
+        `M ${start.x},${start.y}`,
+        `L ${end.x},${end.y}`
+      ].join(' ');
+    }
 
     return [
       `M ${start.x},${start.y}`,
-      `L ${firstCornerX - radius},${start.y}`,
-      `Q ${firstCornerX},${start.y} ${firstCornerX},${start.y + startDirection * startCurve}`,
-      `L ${firstCornerX},${bend.spineY - startDirection * startCurve}`,
-      `Q ${firstCornerX},${bend.spineY} ${firstCornerX + radius},${bend.spineY}`,
-      `L ${spineJoinX - radius},${bend.spineY}`,
-      `Q ${spineJoinX},${bend.spineY} ${spineJoinX},${bend.spineY + endDirection * endCurve}`,
-      `L ${spineJoinX},${end.y}`,
-      `Q ${spineJoinX},${end.y} ${spineJoinX + radius},${end.y}`,
+      `L ${midX - r},${start.y}`,
+      `Q ${midX},${start.y} ${midX},${start.y + (goingDown ? r : -r)}`,
+      `L ${midX},${end.y - (goingDown ? r : -r)}`,
+      `Q ${midX},${end.y} ${midX + r},${end.y}`,
       `L ${end.x},${end.y}`
     ].join(' ');
   }, []);
@@ -4014,7 +4061,7 @@ export const InitiativePlanModule = ({
                           />
                         </>
                       )}
-                      {shouldShowBarLabel && (
+                      {shouldShowBarLabel && !isSummaryBar && (
                         <span className={styles.barLabel}>{isPrimaryRow ? task.name : assignee.name || 'Unassigned'}</span>
                       )}
                     </div>
