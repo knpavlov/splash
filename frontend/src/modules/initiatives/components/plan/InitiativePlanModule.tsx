@@ -310,6 +310,7 @@ export const InitiativePlanModule = ({
   const [resourceCollapsed, setResourceCollapsed] = useState(false);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [dropTargetTaskId, setDropTargetTaskId] = useState<string | null>(null);
   const [capacityEditor, setCapacityEditor] = useState<CapacityEditorState | null>(null);
   const isCapacityEditorActive = capacityEditor !== null;
   const [showCapacityOverlay, setShowCapacityOverlay] = useState(false);
@@ -412,6 +413,7 @@ export const InitiativePlanModule = ({
     future: []
   });
   const suppressHistoryRef = useRef(false);
+  const isInitializedRef = useRef(false);
   const [, setHistoryVersion] = useState(0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [dependencyPicker, setDependencyPicker] = useState<DependencyPickerState | null>(null);
@@ -877,7 +879,13 @@ export const InitiativePlanModule = ({
 
   useEffect(() => {
     historyRef.current = { past: [], future: [] };
+    isInitializedRef.current = false;
     setHistoryVersion((v) => v + 1);
+    // Mark as initialized after a short delay to skip initial data loading
+    const timer = setTimeout(() => {
+      isInitializedRef.current = true;
+    }, 500);
+    return () => clearTimeout(timer);
   }, [initiativeId]);
 
   const emitChange = useCallback(
@@ -893,7 +901,7 @@ export const InitiativePlanModule = ({
         emitChange(mutator(normalizedPlan));
         return;
       }
-      const pushHistory = !options?.skipHistory && !readOnly;
+      const pushHistory = !options?.skipHistory && !readOnly && isInitializedRef.current;
       if (pushHistory) {
         const snapshot = sanitizePlanModel(normalizedPlan);
         const past = [...historyRef.current.past, snapshot];
@@ -2602,39 +2610,52 @@ export const InitiativePlanModule = ({
         incomingMap.set(task.id, list);
       });
     });
-    const nextLines: DependencyLine[] = [];
+    // Group all dependencies by target X position (within tolerance) for bundling
+    const allItems: { from: string; to: string; start: { x: number; y: number }; end: { x: number; y: number } }[] = [];
     incomingMap.forEach((items, targetId) => {
-      const targetAnchor = items[0]?.end;
-      if (!targetAnchor) {
-        return;
-      }
-      const sorted = [...items].sort((a, b) => a.start.y - b.start.y);
+      items.forEach((item) => {
+        allItems.push({ ...item, to: targetId });
+      });
+    });
+
+    // Group by approximate end.x (tasks starting at same date) with 5px tolerance
+    const xGroups = new Map<number, typeof allItems>();
+    allItems.forEach((item) => {
+      const roundedX = Math.round(item.end.x / 5) * 5;
+      const group = xGroups.get(roundedX) ?? [];
+      group.push(item);
+      xGroups.set(roundedX, group);
+    });
+
+    const nextLines: DependencyLine[] = [];
+
+    xGroups.forEach((groupItems) => {
+      // Sort by start.y for consistent ordering
+      const sorted = [...groupItems].sort((a, b) => a.start.y - b.start.y);
+
+      // Calculate shared spine X for the group
+      const minEndX = Math.min(...sorted.map((item) => item.end.x));
       const backward = sorted.filter((item) => item.end.x < item.start.x);
       const forward = sorted.filter((item) => item.end.x >= item.start.x);
-      const minBackwardStart = backward.length ? Math.min(...backward.map((item) => item.start.x)) : Infinity;
-      const backwardSpineX = backward.length
-        ? Math.min(targetAnchor.x - 18, minBackwardStart - 18)
-        : null;
-      const forwardFarthestStart = forward.length ? Math.max(...forward.map((item) => item.start.x)) : -Infinity;
-      const forwardSpineX = forward.length
-        ? Math.min(targetAnchor.x - 12, Math.max(targetAnchor.x - 24, forwardFarthestStart + 12))
-        : null;
-      let backwardIndex = 0;
-      let forwardIndex = 0;
-      sorted.forEach((item) => {
+
+      // Shared spine for all arrows going to this X position
+      const sharedSpineX = minEndX - 15;
+
+      sorted.forEach((item, index) => {
         const isBackward = item.end.x < item.start.x;
-        const fanoutOffset = 24 + (isBackward ? backwardIndex++ : forwardIndex++) * 6;
-        const spineX = isBackward ? backwardSpineX ?? targetAnchor.x - 18 : forwardSpineX ?? targetAnchor.x - 18;
-        const midBase = isBackward ? item.start.x - fanoutOffset : item.start.x + fanoutOffset;
+        // Small offset for each arrow to prevent overlap
+        const spineOffset = index * 3;
+        const spineX = sharedSpineX - spineOffset;
         const midX = isBackward
-          ? Math.min(spineX - 8, midBase - 6, targetAnchor.x - 24)
-          : Math.min(spineX - 10, Math.max(item.start.x + 12, midBase));
+          ? Math.min(spineX - 8, item.start.x + 15)
+          : Math.max(item.start.x + 15, spineX - 10);
+
         nextLines.push({
           from: item.from,
-          to: targetId,
+          to: item.to,
           start: item.start,
-          end: targetAnchor,
-          bend: { midX, spineX, spineY: targetAnchor.y, startY: item.start.y }
+          end: item.end,
+          bend: { midX, spineX, spineY: item.end.y, startY: item.start.y }
         });
       });
     });
@@ -3213,26 +3234,35 @@ export const InitiativePlanModule = ({
                 const hasMilestoneChange = isPrimaryRow && isActuals && isFieldChanged(task, 'milestoneType');
                 const hasCapacityChange = isPrimaryRow && isActuals && isFieldChanged(task, 'requiredCapacity');
                 const isNewTask = isPrimaryRow && isTaskNew(task);
+                const isDropTarget = isPrimaryRow && dropTargetTaskId === task.id;
                 return (
                   <div
                     key={row.key}
                     className={`${styles.tableRow} ${rowDepthClass} ${!isPrimaryRow ? styles.assigneeRow : ''} ${isArchived ? styles.rowArchived : ''} ${
                       selectedTaskIdsSet.has(task.id) ? styles.rowSelected : ''
-                    }`}
+                    } ${isDropTarget ? styles.rowDropTarget : ''}`}
                     style={{ gridTemplateColumns: tableGridTemplate, height: `${ROW_HEIGHT}px` }}
                     onClick={(event) => handleTaskSelect(task.id, event)}
                     onDragOver={(event) => {
                       if (!isPrimaryRow || readOnly || !dragTaskId || dragTaskId === task.id) {
+                        setDropTargetTaskId(null);
                         return;
                       }
                       event.preventDefault();
                       event.dataTransfer.dropEffect = 'move';
+                      setDropTargetTaskId(task.id);
+                    }}
+                    onDragLeave={() => {
+                      if (dropTargetTaskId === task.id) {
+                        setDropTargetTaskId(null);
+                      }
                     }}
                     onDrop={(event) => {
                       if (readOnly || !isPrimaryRow) {
                         return;
                       }
                       event.preventDefault();
+                      setDropTargetTaskId(null);
                       if (dragTaskId) {
                         moveTaskBlock(dragTaskId, task.id);
                         setDragTaskId(null);
@@ -3256,7 +3286,10 @@ export const InitiativePlanModule = ({
                                 event.dataTransfer.setData('text/plain', task.id);
                                 event.dataTransfer.effectAllowed = 'move';
                               }}
-                              onDragEnd={() => setDragTaskId(null)}
+                              onDragEnd={() => {
+                                setDragTaskId(null);
+                                setDropTargetTaskId(null);
+                              }}
                               aria-label="Drag to reorder"
                             >
                               <span aria-hidden="true">☰</span>
@@ -3606,14 +3639,17 @@ export const InitiativePlanModule = ({
                               <div className={styles.assigneeActions}>
                                 <button
                                   type="button"
-                                  className={`${styles.linkButton} ${styles.actionButtonPrimary} ${styles.coOwnerButton}`}
+                                  className={`${styles.addCoOwnerButton}`}
                                   disabled={readOnly}
+                                  title="Add co-owner"
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     handleAddAssignee(task.id);
                                   }}
                                 >
-                                  + Add co-owner
+                                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                  </svg>
                                 </button>
                                 {assigneesForTask.length > 1 && (
                                   <span className={styles.assigneePill}>

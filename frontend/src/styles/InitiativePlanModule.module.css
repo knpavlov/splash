@@ -251,6 +251,23 @@
   background: rgba(219, 234, 254, 0.9);
 }
 
+.rowDropTarget {
+  position: relative;
+}
+
+.rowDropTarget::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #3b82f6;
+  border-radius: 2px;
+  z-index: 10;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
 .assigneeRow {
   background: rgba(241, 245, 249, 0.65);
 }
@@ -1572,6 +1589,32 @@
 .coOwnerButton {
   padding: 6px 8px;
   white-space: nowrap;
+}
+
+.addCoOwnerButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.addCoOwnerButton:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #3b82f6;
+}
+
+.addCoOwnerButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .capacityCell {
