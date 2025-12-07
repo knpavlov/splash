@@ -233,8 +233,28 @@ const AppContent = () => {
     [route.initiative, updateRoute]
   );
 
+  const handleInitiativeViewChange = useCallback(
+    (next: InitiativesViewRoute) => {
+      updateRoute({ page: 'initiatives', initiative: next });
+    },
+    [updateRoute]
+  );
+
   const renderContent = () => {
     switch (activePage) {
+      case 'activity':
+        return <ActivityScreen />;
+      case 'initiatives':
+        return (
+          <InitiativesScreen
+            view={route.initiative ?? { mode: 'list' }}
+            onViewChange={handleInitiativeViewChange}
+          />
+        );
+      case 'approvals':
+        return <ApprovalsScreen />;
+      case 'participants':
+        return <ParticipantsScreen />;
       case 'workstreams':
         return <WorkstreamsScreen />;
       case 'financials':
