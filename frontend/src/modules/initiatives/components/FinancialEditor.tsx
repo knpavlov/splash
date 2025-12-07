@@ -20,7 +20,7 @@ import {
 import { createCommentAnchor, CommentAnchorAttributes } from '../comments/commentAnchors';
 import { useFinancialsState, usePlanSettingsState } from '../../../app/state/AppStateContext';
 import { DEFAULT_FISCAL_YEAR_START_MONTH } from '../../../shared/config/finance';
-import { convertFilesToRecords } from '../../cases/services/fileAdapter';
+import { convertFilesToRecords } from '../../../shared/utils/fileAdapter';
 
 interface FinancialEditorProps {
   stage: InitiativeStageData;
@@ -1052,45 +1052,45 @@ export const PlanVsActualChart = ({
                             const height = (segment.value / negativePlanScale) * 100;
                             return (
                               <div
-                              key={`${month.key}-plan-neg-${segmentIndex}`}
-                              className={styles.chartSegment}
-                              style={{ height: `${height}%`, background: segment.color }}
-                              onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative', planTagLabel)}
-                              onMouseMove={(event) => handleSegmentHover(event, segment, 'negative', planTagLabel)}
-                              onMouseLeave={clearTooltip}
-                              onClick={() => handleSegmentClick('plan', segment, month)}
-                            />
-                          );
-                        })}
+                                key={`${month.key}-plan-neg-${segmentIndex}`}
+                                className={styles.chartSegment}
+                                style={{ height: `${height}%`, background: segment.color }}
+                                onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative', planTagLabel)}
+                                onMouseMove={(event) => handleSegmentHover(event, segment, 'negative', planTagLabel)}
+                                onMouseLeave={clearTooltip}
+                                onClick={() => handleSegmentClick('plan', segment, month)}
+                              />
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {!hideActualBars && (
-                    <div
-                      className={`${styles.dualBar} ${styles.actualBar}`}
-                      style={{
-                        height: `${negativeRatioActual * 100}%`,
-                        width: showPlanAsLine ? '46%' : undefined
-                      }}
-                    >
-                      <div className={`${styles.stackFill} ${styles.stackFillNegative}`}>
-                        {actual.negativeSegments.map((segment, segmentIndex) => {
-                          const height = (segment.value / negativeActualScale) * 100;
-                          return (
-                            <div
-                              key={`${month.key}-actual-neg-${segmentIndex}`}
-                              className={styles.chartSegment}
-                              style={{ height: `${height}%`, background: segment.color }}
-                              onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative', actualTagLabel)}
-                              onMouseMove={(event) => handleSegmentHover(event, segment, 'negative', actualTagLabel)}
-                              onMouseLeave={clearTooltip}
-                              onClick={() => handleSegmentClick('actual', segment, month)}
-                            />
-                          );
-                        })}
+                    )}
+                    {!hideActualBars && (
+                      <div
+                        className={`${styles.dualBar} ${styles.actualBar}`}
+                        style={{
+                          height: `${negativeRatioActual * 100}%`,
+                          width: showPlanAsLine ? '46%' : undefined
+                        }}
+                      >
+                        <div className={`${styles.stackFill} ${styles.stackFillNegative}`}>
+                          {actual.negativeSegments.map((segment, segmentIndex) => {
+                            const height = (segment.value / negativeActualScale) * 100;
+                            return (
+                              <div
+                                key={`${month.key}-actual-neg-${segmentIndex}`}
+                                className={styles.chartSegment}
+                                style={{ height: `${height}%`, background: segment.color }}
+                                onMouseEnter={(event) => handleSegmentHover(event, segment, 'negative', actualTagLabel)}
+                                onMouseMove={(event) => handleSegmentHover(event, segment, 'negative', actualTagLabel)}
+                                onMouseLeave={clearTooltip}
+                                onClick={() => handleSegmentClick('actual', segment, month)}
+                              />
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                   </div>
                   {lineMarker && lineMarker.area === 'negative' && (
                     <div className={styles.planLineDotNegative} style={{ top: `${lineMarker.offset}%` }} />
@@ -1210,10 +1210,10 @@ export const PlanVsActualChart = ({
                   r={3}
                   vectorEffect="non-scaling-stroke"
                   onMouseEnter={(event) => handlePlanPointHover(event, point)}
-                onMouseMove={(event) => handlePlanPointHover(event, point)}
-                onMouseLeave={clearTooltip}
-              />
-            ))}
+                  onMouseMove={(event) => handlePlanPointHover(event, point)}
+                  onMouseLeave={clearTooltip}
+                />
+              ))}
             </svg>
             {showValueLabels && (
               <>

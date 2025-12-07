@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import styles from '../../../styles/StageSupportingDocs.module.css';
 import { InitiativeStageData, InitiativeSupportingDocument } from '../../../shared/types/initiative';
-import { convertFilesToRecords } from '../../cases/services/fileAdapter';
+import { convertFilesToRecords } from '../../../shared/utils/fileAdapter';
 import { generateId } from '../../../shared/ui/generateId';
 
 interface StageSupportingDocsProps {

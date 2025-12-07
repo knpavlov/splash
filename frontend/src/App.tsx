@@ -1,20 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppLayout } from './app/AppLayout';
 import { NavigationKey, navigationItems } from './app/navigation';
-import { CasesScreen } from './modules/cases/CasesScreen';
-import { CandidatesScreen } from './modules/candidates/CandidatesScreen';
-import { EvaluationScreen, EvaluationViewRoute } from './modules/evaluation/EvaluationScreen';
 import { AccountsScreen } from './modules/accounts/AccountsScreen';
 import { PlaceholderScreen } from './shared/ui/PlaceholderScreen';
 import { AuthProvider, AuthSession, useAuth } from './modules/auth/AuthContext';
 import { AppStateProvider } from './app/state/AppStateContext';
 import { LoginScreen } from './modules/auth/LoginScreen';
-import { FitQuestionsScreen } from './modules/questions/FitQuestionsScreen';
 import { WorkstreamsScreen } from './modules/workstreams/WorkstreamsScreen';
-import { CaseCriteriaScreen } from './modules/caseCriteria/CaseCriteriaScreen';
-import { InterviewerScreen } from './modules/evaluation/InterviewerScreen';
-import { useHasInterviewerAssignments } from './app/hooks/useHasInterviewerAssignments';
-import { AnalyticsScreen } from './modules/analytics/AnalyticsScreen';
 import { InitiativesScreen, InitiativesViewRoute } from './modules/initiatives/InitiativesScreen';
 import { ApprovalsScreen } from './modules/approvals/ApprovalsScreen';
 import { ParticipantsScreen } from './modules/participants/ParticipantsScreen';
@@ -31,21 +23,12 @@ import { ActivityScreen } from './modules/activity/ActivityScreen';
 
 interface AppRoute {
   page: NavigationKey;
-  evaluation?: EvaluationViewRoute;
   initiative?: InitiativesViewRoute;
 }
 
 type NavigationItem = (typeof navigationItems)[number];
 
-const normalizeEvaluationRoute = (value?: EvaluationViewRoute): EvaluationViewRoute => {
-  if (!value) {
-    return { mode: 'list' };
-  }
-  if (value.mode === 'edit' && !value.evaluationId) {
-    return { mode: 'list' };
-  }
-  return value;
-};
+
 
 const parseHash = (hash: string): AppRoute => {
   const normalized = hash.startsWith('#') ? hash.slice(1) : hash;
@@ -59,17 +42,7 @@ const parseHash = (hash: string): AppRoute => {
   const query = new URLSearchParams(queryString ?? '');
   const [rawPage, action, identifier] = segments;
   const normalizedPage = rawPage === 'snapshot-settings' ? 'general-settings' : rawPage;
-  const page = navigationItems.find((item) => item.key === normalizedPage)?.key ?? 'cases';
-
-  if (page === 'evaluation') {
-    if (action === 'new') {
-      return { page: 'evaluation', evaluation: { mode: 'create' } };
-    }
-    if (action === 'edit' && identifier) {
-      return { page: 'evaluation', evaluation: { mode: 'edit', evaluationId: identifier } };
-    }
-    return { page: 'evaluation', evaluation: { mode: 'list' } };
-  }
+  const page = navigationItems.find((item) => item.key === normalizedPage)?.key ?? 'workstreams';
 
   if (page === 'initiatives') {
     if (action === 'new') {
@@ -98,16 +71,7 @@ const parseHash = (hash: string): AppRoute => {
 };
 
 const buildHash = (route: AppRoute): string => {
-  if (route.page === 'evaluation') {
-    const evaluationRoute = normalizeEvaluationRoute(route.evaluation);
-    if (evaluationRoute.mode === 'create') {
-      return '/evaluation/new';
-    }
-    if (evaluationRoute.mode === 'edit') {
-      return `/evaluation/edit/${evaluationRoute.evaluationId}`;
-    }
-    return '/evaluation';
-  }
+
 
   if (route.page === 'initiatives') {
     const initiativeRoute = route.initiative ?? { mode: 'list' };
@@ -125,12 +89,12 @@ const buildHash = (route: AppRoute): string => {
       if (initiativeRoute.openPlanFullscreen) {
         params.set('planFullscreen', '1');
       }
-       if (initiativeRoute.commentThreadId) {
-         params.set('comment', initiativeRoute.commentThreadId);
-       }
-       if (initiativeRoute.openComments) {
-         params.set('comments', '1');
-       }
+      if (initiativeRoute.commentThreadId) {
+        params.set('comment', initiativeRoute.commentThreadId);
+      }
+      if (initiativeRoute.openComments) {
+        params.set('comments', '1');
+      }
       const query = params.toString();
       return `/initiatives/view/${initiativeRoute.initiativeId}${query ? `?${query}` : ''}`;
     }
@@ -147,17 +111,7 @@ const routesEqual = (a: AppRoute, b: AppRoute) => {
   if (a.page !== b.page) {
     return false;
   }
-  if (a.page === 'evaluation') {
-    const left = normalizeEvaluationRoute(a.evaluation);
-    const right = normalizeEvaluationRoute(b.evaluation);
-    if (left.mode !== right.mode) {
-      return false;
-    }
-    if (left.mode === 'edit' && right.mode === 'edit') {
-      return left.evaluationId === right.evaluationId;
-    }
-    return true;
-  }
+
   if (a.page === 'initiatives') {
     const left = a.initiative ?? { mode: 'list' };
     const right = b.initiative ?? { mode: 'list' };
@@ -185,7 +139,6 @@ const routesEqual = (a: AppRoute, b: AppRoute) => {
 const AppContent = () => {
   const { session } = useAuth();
   const [route, setRoute] = useState<AppRoute>(() => parseHash(window.location.hash));
-  const hasInterviewerAssignments = useHasInterviewerAssignments(session?.email);
   const previousSessionRef = useRef<AuthSession | null>(null);
 
   const setRouteFromHash = useCallback(() => {
@@ -222,7 +175,7 @@ const AppContent = () => {
 
   useEffect(() => {
     if (!session && previousSessionRef.current) {
-      updateRoute({ page: 'cases' });
+      updateRoute({ page: 'workstreams' });
     }
     previousSessionRef.current = session;
   }, [session, updateRoute]);
@@ -237,34 +190,23 @@ const AppContent = () => {
         return false;
       }
 
-      if (item.key === 'interviews') {
-        if (session.role === 'user') {
-          return hasInterviewerAssignments;
-        }
 
-        // Для админов не требуем назначений интервью, чтобы все админские разделы оставались доступными
-        return true;
-      }
 
       return true;
     });
-  }, [session, hasInterviewerAssignments]);
+  }, [session]);
 
   useEffect(() => {
     if (!session) {
       return;
     }
     if (!accessibleItems.length) {
-      updateRoute({ page: 'evaluation', evaluation: { mode: 'list' } });
+      updateRoute({ page: 'workstreams' });
       return;
     }
     if (!accessibleItems.find((item) => item.key === route.page)) {
       const fallback = accessibleItems[0].key;
-      if (fallback === 'evaluation') {
-        updateRoute({ page: fallback, evaluation: { mode: 'list' } });
-      } else {
-        updateRoute({ page: fallback });
-      }
+      updateRoute({ page: fallback });
     }
   }, [session, accessibleItems, route.page, updateRoute]);
 
@@ -280,9 +222,7 @@ const AppContent = () => {
       if (target?.disabled) {
         return;
       }
-      if (key === 'evaluation') {
-        updateRoute({ page: 'evaluation', evaluation: { mode: 'list' } });
-      } else if (key === 'initiatives') {
+      if (key === 'initiatives') {
         const currentWorkstream =
           route.initiative && route.initiative.mode !== 'view' ? route.initiative.workstreamId : undefined;
         updateRoute({ page: 'initiatives', initiative: { mode: 'list', workstreamId: currentWorkstream } });
@@ -295,40 +235,8 @@ const AppContent = () => {
 
   const renderContent = () => {
     switch (activePage) {
-      case 'cases':
-        return <CasesScreen />;
-      case 'activity':
-        return <ActivityScreen />;
-      case 'case-criteria':
-        return <CaseCriteriaScreen />;
-      case 'questions':
-        return <FitQuestionsScreen />;
       case 'workstreams':
         return <WorkstreamsScreen />;
-      case 'initiatives':
-        return (
-          <InitiativesScreen
-            view={route.initiative ?? { mode: 'list' }}
-            onViewChange={(next) => updateRoute({ page: 'initiatives', initiative: next })}
-          />
-        );
-      case 'approvals':
-        return <ApprovalsScreen />;
-      case 'candidates':
-        return <CandidatesScreen />;
-      case 'participants':
-        return <ParticipantsScreen />;
-      case 'evaluation':
-        return (
-          <EvaluationScreen
-            view={normalizeEvaluationRoute(route.evaluation)}
-            onViewChange={(next) => updateRoute({ page: 'evaluation', evaluation: next })}
-          />
-        );
-      case 'interviews':
-        return <InterviewerScreen />;
-      case 'stats':
-        return <AnalyticsScreen />;
       case 'financials':
         return <FinancialsScreen />;
       case 'kpis':
