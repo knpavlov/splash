@@ -2507,56 +2507,42 @@ export const InitiativePlanModule = ({
 
   const buildDependencyPath = useCallback((line: DependencyLine) => {
     const radius = 6;
-    const { start, end, bend, isBackward } = line;
+    const { start, end, bend } = line;
     const verticalGap = Math.abs(end.y - start.y);
     const goingDown = end.y > start.y;
-
-    // Use shared spineX from bend for bundled arrows
     const spineX = bend.spineX;
-    const trunkY = bend.trunkY;
 
     if (verticalGap < 4) {
-      // Same row - simple horizontal line
-      return [
-        `M ${start.x},${start.y}`,
-        `L ${end.x},${end.y}`
-      ].join(' ');
+      return [`M ${start.x},${start.y}`, `L ${end.x},${end.y}`].join(' ');
     }
 
-    const r = Math.min(radius, verticalGap / 4, Math.abs(spineX - start.x) / 3);
+    // Direction flags
+    const spineIsRight = spineX > start.x;
+    const endIsRightOfSpine = end.x > spineX;
 
-    // For backward arrows with horizontal trunk: down -> horizontal trunk -> down -> horizontal to target
-    if (isBackward && trunkY !== start.y && Math.abs(trunkY - start.y) > 8) {
-      const trunkR = Math.min(radius, Math.abs(trunkY - start.y) / 2);
-      const goingDownToTrunk = trunkY > start.y;
-      const goingDownFromTrunk = end.y > trunkY;
+    // Calculate safe radius that won't exceed available space
+    const horizontalToSpine = Math.abs(spineX - start.x);
+    const horizontalFromSpine = Math.abs(end.x - spineX);
+    const r = Math.min(radius, verticalGap / 4, horizontalToSpine / 3, horizontalFromSpine / 3);
 
-      return [
-        `M ${start.x},${start.y}`,
-        // Vertical down to trunk Y level
-        `L ${start.x},${trunkY - (goingDownToTrunk ? trunkR : -trunkR)}`,
-        // Turn horizontal at trunk
-        `Q ${start.x},${trunkY} ${start.x - trunkR},${trunkY}`,
-        // Horizontal along trunk to spineX
-        `L ${spineX + trunkR},${trunkY}`,
-        // Turn vertical at spine
-        `Q ${spineX},${trunkY} ${spineX},${trunkY + (goingDownFromTrunk ? trunkR : -trunkR)}`,
-        // Vertical to end.y
-        `L ${spineX},${end.y - (goingDownFromTrunk ? r : -r)}`,
-        // Turn horizontal to target
-        `Q ${spineX},${end.y} ${spineX - r},${end.y}`,
-        // Horizontal to target
-        `L ${end.x},${end.y}`
-      ].join(' ');
-    }
+    // First horizontal segment: from start to spine
+    const h1End = spineIsRight ? spineX - r : spineX + r;
 
-    // Standard path: horizontal from start -> turn down at spineX -> horizontal to end
+    // First corner: turn from horizontal to vertical
+    const corner1EndY = goingDown ? start.y + r : start.y - r;
+
+    // Vertical segment along spine
+    const vEnd = goingDown ? end.y - r : end.y + r;
+
+    // Second corner: turn from vertical to horizontal
+    const corner2EndX = endIsRightOfSpine ? spineX + r : spineX - r;
+
     return [
       `M ${start.x},${start.y}`,
-      `L ${spineX - r},${start.y}`,
-      `Q ${spineX},${start.y} ${spineX},${start.y + (goingDown ? r : -r)}`,
-      `L ${spineX},${end.y - (goingDown ? r : -r)}`,
-      `Q ${spineX},${end.y} ${spineX + (end.x > spineX ? r : -r)},${end.y}`,
+      `L ${h1End},${start.y}`,
+      `Q ${spineX},${start.y} ${spineX},${corner1EndY}`,
+      `L ${spineX},${vEnd}`,
+      `Q ${spineX},${end.y} ${corner2EndX},${end.y}`,
       `L ${end.x},${end.y}`
     ].join(' ');
   }, []);

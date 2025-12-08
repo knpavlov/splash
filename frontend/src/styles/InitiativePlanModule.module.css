@@ -870,28 +870,32 @@
 }
 
 .summaryBar::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 3px;
-  height: 16px;
-  background: #4a90d9;
-  border-radius: 0 0 2px 2px;
-  inset: auto !important;
+  content: '' !important;
+  position: absolute !important;
+  left: 0 !important;
+  right: auto !important;
+  top: 0 !important;
+  bottom: auto !important;
+  width: 3px !important;
+  height: 16px !important;
+  background: #4a90d9 !important;
+  border-radius: 0 0 2px 2px !important;
+  pointer-events: none !important;
 }
 
 .summaryBar::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 0;
-  width: 3px;
-  height: 16px;
-  background: #4a90d9;
-  border-radius: 0 0 2px 2px;
-  inset: auto !important;
+  content: '' !important;
+  position: absolute !important;
+  right: 0 !important;
+  left: auto !important;
+  top: 0 !important;
+  bottom: auto !important;
+  width: 3px !important;
+  height: 16px !important;
+  background: #4a90d9 !important;
+  border-radius: 0 0 2px 2px !important;
   opacity: 1 !important;
+  pointer-events: none !important;
 }
 
 .barSelected {
