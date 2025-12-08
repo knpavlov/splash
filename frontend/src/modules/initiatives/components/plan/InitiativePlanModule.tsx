@@ -53,6 +53,7 @@ const RESOURCE_HEIGHT_MAX = 720;
 const RESOURCE_HEIGHT_DEFAULT = 320;
 const FULLSCREEN_RESOURCE_MIN_RATIO = 0.25;
 const FULLSCREEN_RESOURCE_MAX_RATIO = 0.7;
+const TIMELINE_BAR_HEIGHT = 24;
 const formatDateInput = (value: Date) => value.toISOString().slice(0, 10);
 const MAX_HISTORY = 20;
 
@@ -540,7 +541,9 @@ export const InitiativePlanModule = ({
     scrollTop: number;
   } | null>(null);
   const barRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const anchorPositionsRef = useRef<Map<string, { startX: number; endX: number; centerY: number }>>(new Map());
+  const anchorPositionsRef = useRef<
+    Map<string, { startX: number; endX: number; centerY: number; topY: number; bottomY: number }>
+  >(new Map());
   const [dependencyDraft, setDependencyDraft] = useState<DependencyDraftState | null>(null);
   const dependencyLinesRef = useRef<DependencyLine[]>([]);
   const [dependencyLines, setDependencyLines] = useState<DependencyLine[]>([]);
@@ -2761,7 +2764,13 @@ export const InitiativePlanModule = ({
     };
     const incomingMap = new Map<
       string,
-      { from: string; start: { x: number; y: number }; end: { x: number; y: number } }[]
+      {
+        from: string;
+        start: { x: number; y: number };
+        end: { x: number; y: number };
+        fromCenterY: number | null;
+        toCenterY: number | null;
+      }[]
     >();
     const tasksWithDeps = normalizedPlan.tasks.filter((task) => (task.dependencies?.length ?? 0) > 0);
     tasksWithDeps.forEach((task) => {
@@ -2775,8 +2784,33 @@ export const InitiativePlanModule = ({
         if (!sourceAnchor) {
           return;
         }
+        const sourceMeta = anchorPositionsRef.current.get(fromId);
+        const targetMeta = anchorPositionsRef.current.get(task.id);
+        const verticalEscape = TIMELINE_BAR_HEIGHT / 2 + 6;
+        let startY = sourceAnchor.y;
+        if (sourceMeta && targetMeta) {
+          if (targetMeta.centerY > sourceMeta.centerY) {
+            startY = sourceMeta.centerY + verticalEscape;
+          } else if (targetMeta.centerY < sourceMeta.centerY) {
+            startY = sourceMeta.centerY - verticalEscape;
+          }
+        }
+        let endY = targetAnchor.y;
+        if (targetMeta && sourceMeta) {
+          if (sourceMeta.centerY > targetMeta.centerY) {
+            endY = targetMeta.centerY + TIMELINE_BAR_HEIGHT / 2 + 2;
+          } else if (sourceMeta.centerY < targetMeta.centerY) {
+            endY = targetMeta.centerY - TIMELINE_BAR_HEIGHT / 2 - 2;
+          }
+        }
         const list = incomingMap.get(task.id) ?? [];
-        list.push({ from: fromId, start: sourceAnchor, end: targetAnchor });
+        list.push({
+          from: fromId,
+          start: { ...sourceAnchor, y: startY },
+          end: { ...targetAnchor, y: endY },
+          fromCenterY: sourceMeta?.centerY ?? null,
+          toCenterY: targetMeta?.centerY ?? null
+        });
         incomingMap.set(task.id, list);
       });
     });
@@ -4148,7 +4182,9 @@ export const InitiativePlanModule = ({
                   anchorPositionsRef.current.set(task.id, {
                     startX: left,
                     endX: left + width,
-                    centerY: rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2
+                    centerY: rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2,
+                    topY: rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2 - TIMELINE_BAR_HEIGHT / 2,
+                    bottomY: rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2 + TIMELINE_BAR_HEIGHT / 2
                   });
                 } else {
                   anchorPositionsRef.current.delete(task.id);
