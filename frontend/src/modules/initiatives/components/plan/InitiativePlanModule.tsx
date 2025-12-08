@@ -165,7 +165,8 @@ interface DependencyLine {
   to: string;
   start: { x: number; y: number };
   end: { x: number; y: number };
-  bend: { midX: number; spineX: number; spineY: number; startY: number };
+  bend: { midX: number; spineX: number; trunkY: number; spineY: number; startY: number };
+  isBackward: boolean;
 }
 
 interface DependencyPickerState {
@@ -2506,12 +2507,13 @@ export const InitiativePlanModule = ({
 
   const buildDependencyPath = useCallback((line: DependencyLine) => {
     const radius = 6;
-    const { start, end, bend } = line;
+    const { start, end, bend, isBackward } = line;
     const verticalGap = Math.abs(end.y - start.y);
     const goingDown = end.y > start.y;
 
     // Use shared spineX from bend for bundled arrows
     const spineX = bend.spineX;
+    const trunkY = bend.trunkY;
 
     if (verticalGap < 4) {
       // Same row - simple horizontal line
@@ -2523,7 +2525,32 @@ export const InitiativePlanModule = ({
 
     const r = Math.min(radius, verticalGap / 4, Math.abs(spineX - start.x) / 3);
 
-    // Path: horizontal from start -> turn down at spineX -> horizontal to end
+    // For backward arrows with horizontal trunk: down -> horizontal trunk -> down -> horizontal to target
+    if (isBackward && trunkY !== start.y && Math.abs(trunkY - start.y) > 8) {
+      const trunkR = Math.min(radius, Math.abs(trunkY - start.y) / 2);
+      const goingDownToTrunk = trunkY > start.y;
+      const goingDownFromTrunk = end.y > trunkY;
+
+      return [
+        `M ${start.x},${start.y}`,
+        // Vertical down to trunk Y level
+        `L ${start.x},${trunkY - (goingDownToTrunk ? trunkR : -trunkR)}`,
+        // Turn horizontal at trunk
+        `Q ${start.x},${trunkY} ${start.x - trunkR},${trunkY}`,
+        // Horizontal along trunk to spineX
+        `L ${spineX + trunkR},${trunkY}`,
+        // Turn vertical at spine
+        `Q ${spineX},${trunkY} ${spineX},${trunkY + (goingDownFromTrunk ? trunkR : -trunkR)}`,
+        // Vertical to end.y
+        `L ${spineX},${end.y - (goingDownFromTrunk ? r : -r)}`,
+        // Turn horizontal to target
+        `Q ${spineX},${end.y} ${spineX - r},${end.y}`,
+        // Horizontal to target
+        `L ${end.x},${end.y}`
+      ].join(' ');
+    }
+
+    // Standard path: horizontal from start -> turn down at spineX -> horizontal to end
     return [
       `M ${start.x},${start.y}`,
       `L ${spineX - r},${start.y}`,
@@ -2533,7 +2560,6 @@ export const InitiativePlanModule = ({
       `L ${end.x},${end.y}`
     ].join(' ');
   }, []);
-
   const measureDependencies = useCallback(() => {
     const canvasEl = timelineCanvasRef.current;
     if (!canvasEl || !timelineScrollRef.current) {
@@ -2604,27 +2630,37 @@ export const InitiativePlanModule = ({
       // Sort by end.y (target Y position) for consistent ordering
       const sorted = [...groupItems].sort((a, b) => a.end.y - b.end.y);
 
-      // All arrows from same source share the same exit point
+      // All arrows from same source share the same exit point (use first item's coords)
       const sourceX = sorted[0].start.x;
       const sourceY = sorted[0].start.y;
 
       // Calculate shared vertical spine X - positioned after the source bar
       const minEndX = Math.min(...sorted.map((item) => item.end.x));
       const maxEndX = Math.max(...sorted.map((item) => item.end.x));
-      const isAllBackward = maxEndX < sourceX;
+      const minEndY = Math.min(...sorted.map((item) => item.end.y));
+      const isGroupBackward = maxEndX < sourceX;
+
+      // For backward arrows: calculate shared horizontal trunk Y
+      // Trunk is placed between source Y and the targets
+      const trunkY = isGroupBackward
+        ? sourceY + Math.min(25, (minEndY - sourceY) / 2)
+        : sourceY;
 
       // Spine position: between source end and leftmost target
-      const spineX = isAllBackward
+      const spineX = isGroupBackward
         ? Math.min(sourceX + 20, minEndX - 15)
         : Math.max(sourceX + 20, Math.min(minEndX - 15, sourceX + 40));
 
       sorted.forEach((item) => {
+        // Backward = target bar starts left of source bar end (scheduling conflict)
+        const isBackward = item.end.x < sourceX;
         nextLines.push({
           from: item.from,
           to: item.to,
-          start: item.start,
+          start: { x: sourceX, y: sourceY }, // Use shared start point
           end: item.end,
-          bend: { midX: spineX, spineX, spineY: item.end.y, startY: item.start.y }
+          bend: { midX: spineX, spineX, trunkY, spineY: item.end.y, startY: sourceY },
+          isBackward
         });
       });
     });
@@ -4059,6 +4095,9 @@ export const InitiativePlanModule = ({
                   <marker id="dependencyArrow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
                     <path d="M0,0 L5,2.5 L0,5 Z" fill="#9ca3af" />
                   </marker>
+                  <marker id="dependencyArrowBackward" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+                    <path d="M0,0 L5,2.5 L0,5 Z" fill="#dc2626" />
+                  </marker>
                   <marker id="dependencyArrowDraft" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
                     <path d="M0,0 L5,2.5 L0,5 Z" fill="#cbd5e1" />
                   </marker>
@@ -4066,10 +4105,10 @@ export const InitiativePlanModule = ({
                 {dependencyLines.map((line) => {
                   const pathD = buildDependencyPath(line);
                   return (
-                    <g key={`${line.from}-${line.to}`} className={styles.dependencyPath}>
+                    <g key={`${line.from}-${line.to}`} className={`${styles.dependencyPath} ${line.isBackward ? styles.dependencyBackward : ''}`}>
                       <path
                         d={pathD}
-                        markerEnd="url(#dependencyArrow)"
+                        markerEnd={line.isBackward ? 'url(#dependencyArrowBackward)' : 'url(#dependencyArrow)'}
                       />
                       <circle
                         cx={line.end.x}

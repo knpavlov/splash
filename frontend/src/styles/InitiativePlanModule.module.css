@@ -1054,6 +1054,14 @@
   stroke: #dc2626;
 }
 
+.dependencyBackward path {
+  stroke: #dc2626;
+}
+
+.dependencyBackward:hover circle {
+  stroke: #dc2626;
+}
+
 .dependencyDraft {
   stroke: #cbd5e1;
   stroke-width: 2px;
