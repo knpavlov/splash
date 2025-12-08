@@ -56,6 +56,14 @@ export interface InitiativePlanCapacitySegment {
   capacity: number;
 }
 
+export interface InitiativePlanAssignee {
+  id: string;
+  name: string;
+  capacityMode: InitiativePlanCapacityMode;
+  requiredCapacity: number | null;
+  capacitySegments: InitiativePlanCapacitySegment[];
+}
+
 export interface InitiativePlanTask {
   id: string;
   name: string;
@@ -67,6 +75,7 @@ export interface InitiativePlanTask {
   requiredCapacity: number | null;
   capacityMode: InitiativePlanCapacityMode;
   capacitySegments: InitiativePlanCapacitySegment[];
+  assignees: InitiativePlanAssignee[];
   dependencies: string[];
   indent: number;
   color: string | null;

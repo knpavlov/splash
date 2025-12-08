@@ -224,7 +224,7 @@
   padding: 4px 8px;
   align-items: center;
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(199, 210, 254, 0.32);
   box-sizing: border-box;
 }
 
@@ -237,11 +237,11 @@
 }
 
 .rowDepth1 {
-  background: rgba(226, 232, 255, 0.35);
+  background: rgba(219, 234, 254, 0.26);
 }
 
 .rowDepth2 {
-  background: rgba(199, 210, 254, 0.45);
+  background: rgba(239, 246, 255, 0.2);
 }
 
 .rowSelected {
@@ -739,7 +739,8 @@
   top: 0;
   background: rgba(255, 255, 255, 0.95);
   border-bottom: 1px solid rgba(148, 163, 184, 0.3);
-  z-index: 1;
+  z-index: 5;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -789,6 +790,7 @@
 
 .timelineCanvas {
   position: relative;
+  z-index: 0;
 }
 
 .timelineRow {
@@ -1267,6 +1269,12 @@
   font-size: 14px;
 }
 
+.menuIconSvg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
 .menuLabel {
   flex: 1;
   text-align: left;
@@ -1277,6 +1285,14 @@
 .menuCaret {
   color: #94a3b8;
   font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.menuCaret svg {
+  width: 12px;
+  height: 12px;
 }
 
 .menuDanger {

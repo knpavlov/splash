@@ -3,6 +3,8 @@ import {
   InitiativePlanActualsModel,
   InitiativePlanActualTask,
   InitiativePlanBaseline,
+  InitiativePlanAssignee,
+  InitiativePlanCapacityMode,
   InitiativePlanCapacitySegment,
   InitiativePlanModel,
   InitiativePlanTask
@@ -153,6 +155,53 @@ const sanitizeSegments = (
   return filtered;
 };
 
+const sanitizeAssignee = (
+  value: unknown,
+  taskStart: string | null,
+  taskEnd: string | null,
+  defaults: {
+    id: string;
+    name: string;
+    capacityMode: InitiativePlanCapacityMode;
+    requiredCapacity: number | null;
+    segments: InitiativePlanCapacitySegment[];
+  }
+): InitiativePlanAssignee | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    name?: unknown;
+    capacityMode?: unknown;
+    requiredCapacity?: unknown;
+    capacitySegments?: unknown;
+  };
+  const id =
+    typeof payload.id === 'string' && payload.id.trim()
+      ? payload.id.trim()
+      : defaults.id;
+  const name = typeof payload.name === 'string' ? payload.name.trim() : defaults.name;
+  const segments = sanitizeSegments(payload.capacitySegments, taskStart, taskEnd);
+  let mode: InitiativePlanCapacityMode =
+    payload.capacityMode === 'variable' || segments.length
+      ? 'variable'
+      : 'fixed';
+  let requiredCapacity = mode === 'fixed' ? sanitizeCapacity(payload.requiredCapacity) : null;
+  if (mode === 'variable' && !segments.length) {
+    mode = 'fixed';
+    requiredCapacity = sanitizeCapacity(payload.requiredCapacity);
+  }
+  const resolvedSegments = mode === 'variable' ? (segments.length ? segments : defaults.segments) : [];
+  return {
+    id,
+    name,
+    capacityMode: mode,
+    requiredCapacity: mode === 'fixed' ? requiredCapacity ?? defaults.requiredCapacity ?? null : null,
+    capacitySegments: resolvedSegments
+  };
+};
+
 const sanitizeBaselineSnapshot = (value: unknown): InitiativePlanBaseline | null => {
   if (!value || typeof value !== 'object') {
     return null;
@@ -184,16 +233,17 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     description: '',
     endDate: null,
     responsible: '',
-  progress: 0,
-  requiredCapacity: null,
-  capacityMode: 'fixed',
-  capacitySegments: [],
-  dependencies: [],
-  indent: 0,
-  color: null,
-  milestoneType: 'Standard',
-  baseline: null,
-  sourceTaskId: null,
+    progress: 0,
+    requiredCapacity: null,
+    capacityMode: 'fixed',
+    capacitySegments: [],
+    assignees: [],
+    dependencies: [],
+    indent: 0,
+    color: null,
+    milestoneType: 'Standard',
+    baseline: null,
+    sourceTaskId: null,
     archived: false
   };
   if (!value || typeof value !== 'object') {
@@ -210,6 +260,7 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     requiredCapacity?: unknown;
     capacityMode?: unknown;
     capacitySegments?: unknown;
+    assignees?: unknown;
     dependencies?: unknown;
     indent?: unknown;
     color?: unknown;
@@ -223,12 +274,54 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
   let endDate = sanitizeDate(payload.endDate);
   [startDate, endDate] = ensureDateOrder(startDate, endDate);
 
+  const responsible = typeof payload.responsible === 'string' ? payload.responsible.trim() : '';
   const capacitySegments = sanitizeSegments(payload.capacitySegments, startDate, endDate);
   const mode =
     payload.capacityMode === 'variable' || capacitySegments.length
       ? 'variable'
       : 'fixed';
   const requiredCapacity = mode === 'fixed' ? sanitizeCapacity(payload.requiredCapacity) : null;
+  const rawAssignees = Array.isArray(payload.assignees) ? payload.assignees : [];
+  const defaultAssignee: InitiativePlanAssignee = {
+    id: `${id}-primary`,
+    name: responsible,
+    capacityMode: mode,
+    requiredCapacity: mode === 'fixed' ? requiredCapacity : null,
+    capacitySegments: mode === 'variable' ? capacitySegments : []
+  };
+  const sanitizedAssignees = rawAssignees
+    .map((entry, index) =>
+      sanitizeAssignee(entry, startDate, endDate, {
+        id: `${id}-${index}`,
+        name: defaultAssignee.name,
+        capacityMode: defaultAssignee.capacityMode,
+        requiredCapacity: defaultAssignee.requiredCapacity,
+        segments: defaultAssignee.capacitySegments
+      })
+    )
+    .filter((entry): entry is InitiativePlanAssignee => Boolean(entry));
+  const assignees = sanitizedAssignees.length
+    ? sanitizedAssignees
+    : [
+        {
+          ...defaultAssignee,
+          capacitySegments:
+            defaultAssignee.capacityMode === 'variable'
+              ? [...defaultAssignee.capacitySegments]
+              : []
+        }
+      ];
+  const primaryAssignee = assignees[0];
+  const resolvedMode = primaryAssignee.capacityMode;
+  const resolvedRequiredCapacity =
+    resolvedMode === 'fixed'
+      ? sanitizeCapacity(primaryAssignee.requiredCapacity) ?? null
+      : null;
+  const resolvedSegments =
+    resolvedMode === 'variable'
+      ? [...primaryAssignee.capacitySegments]
+      : [];
+  const resolvedResponsible = primaryAssignee.name ?? responsible;
   const dependencies = Array.isArray(payload.dependencies)
     ? Array.from(
         new Set(
@@ -246,11 +339,12 @@ const sanitizeTask = (value: unknown): InitiativePlanTask => {
     description: typeof payload.description === 'string' ? payload.description.trim() : '',
     startDate,
     endDate,
-    responsible: typeof payload.responsible === 'string' ? payload.responsible.trim() : '',
+    responsible: resolvedResponsible,
     progress: sanitizeProgress(payload.progress),
-    requiredCapacity,
-    capacityMode: mode,
-    capacitySegments,
+    requiredCapacity: resolvedRequiredCapacity,
+    capacityMode: resolvedMode,
+    capacitySegments: resolvedMode === 'variable' ? resolvedSegments : [],
+    assignees,
     dependencies,
     indent: sanitizeIndent(payload.indent),
     color: sanitizeColor(payload.color),

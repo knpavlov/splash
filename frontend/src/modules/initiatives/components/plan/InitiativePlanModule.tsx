@@ -62,6 +62,143 @@ const TASK_COLOR_PALETTE = ['#5b21b6', '#2563eb', '#0ea5e9', '#10b981', '#f97316
 const DEFAULT_BAR_COLOR = TASK_COLOR_PALETTE[0];
 const DEFAULT_MILESTONE_OPTIONS = ['Standard', 'Value Step', 'Change Management'];
 const VALUE_STEP_LABEL = 'Value Step';
+type MenuIconKey =
+  | 'edit'
+  | 'add'
+  | 'milestone'
+  | 'split'
+  | 'indent'
+  | 'outdent'
+  | 'delete'
+  | 'dependency-add'
+  | 'dependency-remove'
+  | 'color';
+
+const MenuIcon = ({ type }: { type: MenuIconKey }) => {
+  switch (type) {
+    case 'edit':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path
+            d="M4 13.5V16h2.5l7.4-7.4a1 1 0 0 0 0-1.4L12.8 5a1 1 0 0 0-1.4 0L4 12.5Z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path d="m11.5 6.5 2 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'add':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'milestone':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path
+            d="M5 3v14M5 4h9l-2 3 2 3H5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case 'split':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path d="m6 6 8 8m0-8-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="6" cy="6" r="1.4" fill="none" stroke="currentColor" strokeWidth="1.4" />
+          <circle cx="14" cy="14" r="1.4" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        </svg>
+      );
+    case 'indent':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path d="M5 5h3M5 15h3M5 10h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="m9.5 8.5 3 2.5-3 2.5v-5Z" fill="currentColor" />
+        </svg>
+      );
+    case 'outdent':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path d="M12 5h3M12 15h3M4 10h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M9.5 8.5v5L6.5 11l3-2.5Z" fill="currentColor" />
+        </svg>
+      );
+    case 'delete':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path
+            d="M6.5 6v10h7V6m-8 0h9M8.5 6V4h3v2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case 'dependency-add':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path
+            d="M11 6h2a3 3 0 0 1 0 6h-2"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M9 8H7a3 3 0 1 0 0 6h2m2-4H9"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case 'dependency-remove':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path
+            d="M7 8.5h2A2.5 2.5 0 0 1 11.5 11v.5M13 11.5h-2a2.5 2.5 0 0 1-2.5-2.5V8.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path d="m7 7 6 6m0-6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      );
+    case 'color':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path
+            d="M10 4a6 6 0 0 0 0 12h1.5a2 2 0 0 0 2-2c0-.6-.4-1.1-.9-1.3l-1.1-.4a1.8 1.8 0 0 1-.5-3.1l.3-.2A2.8 2.8 0 0 0 12.5 6 2.5 2.5 0 0 0 10 4Z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="12.5" cy="6.5" r="1" fill="currentColor" />
+          <circle cx="8" cy="7" r="1" fill="currentColor" />
+          <circle cx="7.5" cy="11.5" r="1" fill="currentColor" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+};
 type TableColumnId =
   | 'drag'
   | 'number'
@@ -403,6 +540,7 @@ export const InitiativePlanModule = ({
     scrollTop: number;
   } | null>(null);
   const barRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const anchorPositionsRef = useRef<Map<string, { startX: number; endX: number; centerY: number }>>(new Map());
   const [dependencyDraft, setDependencyDraft] = useState<DependencyDraftState | null>(null);
   const dependencyLinesRef = useRef<DependencyLine[]>([]);
   const [dependencyLines, setDependencyLines] = useState<DependencyLine[]>([]);
@@ -673,6 +811,37 @@ export const InitiativePlanModule = ({
     });
     return map;
   }, [workingTasks]);
+
+  const collapsibleTaskIds = useMemo(() => {
+    const ids = new Set<string>();
+    taskHasChildren.forEach((hasChildren, taskId) => {
+      if (hasChildren) {
+        ids.add(taskId);
+      }
+    });
+    return ids;
+  }, [taskHasChildren]);
+
+  const allCollapsibleCollapsed = useMemo(() => {
+    if (!collapsibleTaskIds.size) {
+      return false;
+    }
+    for (const id of collapsibleTaskIds) {
+      if (!collapsedTaskIds.has(id)) {
+        return false;
+      }
+    }
+    return true;
+  }, [collapsibleTaskIds, collapsedTaskIds]);
+
+  const anyCollapsibleCollapsed = useMemo(() => {
+    for (const id of collapsibleTaskIds) {
+      if (collapsedTaskIds.has(id)) {
+        return true;
+      }
+    }
+    return false;
+  }, [collapsibleTaskIds, collapsedTaskIds]);
 
   const visibleTasks = useMemo(() => {
     const hiddenStack: number[] = [];
@@ -2117,6 +2286,22 @@ export const InitiativePlanModule = ({
     [taskHasChildren]
   );
 
+  const collapseAllTasks = useCallback(() => {
+    if (!collapsibleTaskIds.size) {
+      return;
+    }
+    setCollapsedTaskIds((prev) => {
+      const next = new Set<string>();
+      collapsibleTaskIds.forEach((id) => next.add(id));
+      const unchanged = next.size === prev.size && Array.from(next).every((id) => prev.has(id));
+      return unchanged ? prev : next;
+    });
+  }, [collapsibleTaskIds]);
+
+  const expandAllTasks = useCallback(() => {
+    setCollapsedTaskIds((prev) => (prev.size ? new Set<string>() : prev));
+  }, []);
+
   const handleColumnDragStart = useCallback(
     (event: DragEvent<HTMLDivElement>, columnId: TableColumnId) => {
       if (readOnly || isCapacityEditorActive) {
@@ -2553,13 +2738,21 @@ export const InitiativePlanModule = ({
     }
     const canvasRect = canvasEl.getBoundingClientRect();
     const resolveAnchor = (taskId: string, anchor: 'left' | 'right') => {
+      const anchorOffset = 4;
+      const cached = anchorPositionsRef.current.get(taskId);
+      if (cached) {
+        return {
+          x: anchor === 'left' ? cached.startX - anchorOffset : cached.endX + anchorOffset,
+          y: cached.centerY
+        };
+      }
       const bar = barRefs.current.get(taskId);
       if (!bar) {
         return null;
       }
       const barRect = bar.getBoundingClientRect();
       // Use bar edges directly for cleaner arrow connections
-      const centerX = anchor === 'left' ? barRect.left : barRect.right;
+      const centerX = anchor === 'left' ? barRect.left - anchorOffset : barRect.right + anchorOffset;
       const centerY = barRect.top + barRect.height / 2;
       return {
         x: centerX - canvasRect.left,
@@ -2572,18 +2765,11 @@ export const InitiativePlanModule = ({
     >();
     const tasksWithDeps = normalizedPlan.tasks.filter((task) => (task.dependencies?.length ?? 0) > 0);
     tasksWithDeps.forEach((task) => {
-      const targetBar = barRefs.current.get(task.id);
-      if (!targetBar) {
+      const targetAnchor = resolveAnchor(task.id, 'left');
+      if (!targetAnchor) {
         return;
       }
       const dependencies = task.dependencies ?? [];
-      const targetRect = targetBar.getBoundingClientRect();
-      const targetAnchor =
-        resolveAnchor(task.id, 'left') ??
-        ({
-          x: targetRect.left - canvasRect.left,
-          y: targetRect.top + targetRect.height / 2 - canvasRect.top
-        } as { x: number; y: number });
       dependencies.forEach((fromId) => {
         const sourceAnchor = resolveAnchor(fromId, 'right');
         if (!sourceAnchor) {
@@ -3928,7 +4114,7 @@ export const InitiativePlanModule = ({
                   backgroundSize: `${pxPerDay}px ${ROW_HEIGHT}px`
                 }}
               >
-            {visibleRows.map((row) => {
+            {visibleRows.map((row, rowIndex) => {
               const task = row.task;
               const assignee = row.assignee;
               const isPrimaryRow = row.kind === 'task';
@@ -3957,21 +4143,32 @@ export const InitiativePlanModule = ({
                 baselineHasDates &&
                 task.startDate === baseline?.startDate &&
                 task.endDate === baseline?.endDate;
+              if (isPrimaryRow) {
+                if (hasDates) {
+                  anchorPositionsRef.current.set(task.id, {
+                    startX: left,
+                    endX: left + width,
+                    centerY: rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2
+                  });
+                } else {
+                  anchorPositionsRef.current.delete(task.id);
+                }
+              }
               const isArchived = Boolean(task.archived);
               const isSummaryBar = isPrimaryRow && summary !== null;
-    const barDepthClass =
-      task.indent === 0
-        ? styles.barRoot
-        : task.indent === 1
-          ? styles.barChild
-          : styles.barGrandchild;
-    return (
-      <div
-        key={`timeline-${row.key}`}
-        className={styles.timelineRow}
-        style={{ height: `${ROW_HEIGHT}px` }}
-        onClick={(event) => handleTaskSelect(task.id, event)}
-      >
+              const barDepthClass =
+                task.indent === 0
+                  ? styles.barRoot
+                  : task.indent === 1
+                    ? styles.barChild
+                    : styles.barGrandchild;
+              return (
+                <div
+                  key={`timeline-${row.key}`}
+                  className={styles.timelineRow}
+                  style={{ height: `${ROW_HEIGHT}px` }}
+                  onClick={(event) => handleTaskSelect(task.id, event)}
+                >
                   {hasDates ? (
                     <>
                       {baselineHasDates && !baselineMatchesActual && (
@@ -4178,7 +4375,9 @@ export const InitiativePlanModule = ({
                         onClick={() => handleContextAction(contextMenu.taskId, 'edit')}
                         disabled={readOnly}
                       >
-                        <span className={styles.menuIcon}>??</span>
+                        <span className={styles.menuIcon} aria-hidden="true">
+                          <MenuIcon type="edit" />
+                        </span>
                         <span className={styles.menuLabel}>Edit</span>
                       </button>
                       <div
@@ -4188,9 +4387,13 @@ export const InitiativePlanModule = ({
                         onMouseEnter={() => setOpenSubmenu('add')}
                       >
                         <div className={styles.menuItemInner}>
-                          <span className={styles.menuIcon}>+</span>
+                          <span className={styles.menuIcon} aria-hidden="true">
+                            <MenuIcon type="add" />
+                          </span>
                           <span className={styles.menuLabel}>Add...</span>
-                          <span className={styles.menuCaret}>�</span>
+                          <span className={styles.menuCaret} aria-hidden="true">
+                            <ChevronIcon direction="right" size={12} />
+                          </span>
                         </div>
                         <div className={`${styles.submenu} ${openSubmenu === 'add' ? styles.submenuOpen : ''}`}>
                           <button
@@ -4249,7 +4452,9 @@ export const InitiativePlanModule = ({
                         onClick={() => handleContextAction(contextMenu.taskId, 'convert-milestone')}
                         disabled={readOnly}
                       >
-                        <span className={styles.menuIcon}>?</span>
+                        <span className={styles.menuIcon} aria-hidden="true">
+                          <MenuIcon type="milestone" />
+                        </span>
                         <span className={styles.menuLabel}>Convert to milestone</span>
                       </button>
                       <button
@@ -4258,7 +4463,9 @@ export const InitiativePlanModule = ({
                         onClick={() => handleContextAction(contextMenu.taskId, 'split')}
                         disabled={readOnly}
                       >
-                        <span className={styles.menuIcon}>?</span>
+                        <span className={styles.menuIcon} aria-hidden="true">
+                          <MenuIcon type="split" />
+                        </span>
                         <span className={styles.menuLabel}>Split</span>
                       </button>
                       <div className={styles.menuSeparator} />
@@ -4268,7 +4475,9 @@ export const InitiativePlanModule = ({
                         onClick={() => handleContextAction(contextMenu.taskId, 'indent')}
                         disabled={readOnly}
                       >
-                        <span className={styles.menuIcon}>?</span>
+                        <span className={styles.menuIcon} aria-hidden="true">
+                          <MenuIcon type="indent" />
+                        </span>
                         <span className={styles.menuLabel}>Indent</span>
                       </button>
                       <button
@@ -4277,7 +4486,9 @@ export const InitiativePlanModule = ({
                         onClick={() => handleContextAction(contextMenu.taskId, 'outdent')}
                         disabled={readOnly}
                       >
-                        <span className={styles.menuIcon}>?</span>
+                        <span className={styles.menuIcon} aria-hidden="true">
+                          <MenuIcon type="outdent" />
+                        </span>
                         <span className={styles.menuLabel}>Outdent</span>
                       </button>
                       <button
@@ -4286,7 +4497,9 @@ export const InitiativePlanModule = ({
                         onClick={() => handleContextAction(contextMenu.taskId, 'delete')}
                         disabled={readOnly}
                       >
-                        <span className={styles.menuIcon}>??</span>
+                        <span className={styles.menuIcon} aria-hidden="true">
+                          <MenuIcon type="delete" />
+                        </span>
                         <span className={styles.menuLabel}>Delete</span>
                       </button>
                       <div className={styles.menuSeparator} />
@@ -4296,7 +4509,9 @@ export const InitiativePlanModule = ({
                         onClick={() => handleContextAction(contextMenu.taskId, 'add-link')}
                         disabled={readOnly}
                       >
-                        <span className={styles.menuIcon}>?</span>
+                        <span className={styles.menuIcon} aria-hidden="true">
+                          <MenuIcon type="dependency-add" />
+                        </span>
                         <span className={styles.menuLabel}>Add dependency</span>
                       </button>
                       <button
@@ -4305,7 +4520,9 @@ export const InitiativePlanModule = ({
                         onClick={() => handleContextAction(contextMenu.taskId, 'remove-links')}
                         disabled={readOnly || !hasLinks}
                       >
-                        <span className={styles.menuIcon}>?</span>
+                        <span className={styles.menuIcon} aria-hidden="true">
+                          <MenuIcon type="dependency-remove" />
+                        </span>
                         <span className={styles.menuLabel}>Remove dependencies</span>
                       </button>
                       <div
@@ -4315,7 +4532,9 @@ export const InitiativePlanModule = ({
                         onMouseEnter={() => setOpenSubmenu('color')}
                       >
                         <div className={styles.menuItemInner}>
-                          <span className={styles.menuIcon}>??</span>
+                          <span className={styles.menuIcon} aria-hidden="true">
+                            <MenuIcon type="color" />
+                          </span>
                           <span className={styles.menuLabel}>Color</span>
                           <span
                             className={styles.colorPreview}
@@ -4500,8 +4719,10 @@ export const InitiativePlanModule = ({
   }
 
   const isCapacityEditorOpen = Boolean(capacityEditor);
+  const hasCollapsibleTasks = collapsibleTaskIds.size > 0;
   const canUndo = historyRef.current.past.length > 0;
   const canRedo = historyRef.current.future.length > 0;
+  anchorPositionsRef.current.clear();
   const planSection = (
     <section
       className={`${styles.planContainer} ${isFullscreen ? styles.fullscreenContainer : ''}`}
@@ -4587,6 +4808,25 @@ export const InitiativePlanModule = ({
                 disabled={readOnly || !selectedTaskId}
               >
                 Outdent
+              </button>
+            </div>
+            <div className={styles.divider} />
+            <div className={styles.toolbarGroup}>
+              <button
+                type="button"
+                className={styles.toolbarButton}
+                onClick={expandAllTasks}
+                disabled={readOnly || !hasCollapsibleTasks || !anyCollapsibleCollapsed}
+              >
+                Expand all
+              </button>
+              <button
+                type="button"
+                className={styles.toolbarButton}
+                onClick={collapseAllTasks}
+                disabled={readOnly || !hasCollapsibleTasks || allCollapsibleCollapsed}
+              >
+                Collapse all
               </button>
             </div>
             <div className={styles.divider} />
@@ -4953,11 +5193,6 @@ const CapacityEditorPopover = ({ task, assignee, canEditColor, onClose, onSubmit
     </div>
   );
 };
-
-
-
-
-
 
 
 
