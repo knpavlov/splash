@@ -44,7 +44,7 @@ interface InitiativePlanModuleProps {
   contextColumn?: ContextColumnConfig;
 }
 
-const ROW_HEIGHT = 60;
+const ROW_HEIGHT = 44;
 const PLAN_HEIGHT_MIN = 320;
 const PLAN_HEIGHT_MAX = 900;
 const PLAN_HEIGHT_DEFAULT = 440;
@@ -96,8 +96,7 @@ interface ContextColumnConfig {
 
 const PLAN_COLUMNS: TableColumnConfig[] = [
   { id: 'drag', label: '', defaultWidth: 36, minWidth: 36, maxWidth: 36, resizable: false },
-  { id: 'number', label: '#', defaultWidth: 70, minWidth: 50, maxWidth: 120, resizable: true },
-  { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 60, maxWidth: 480, resizable: true },
+  { id: 'name', label: 'Task name', defaultWidth: 260, minWidth: 60, maxWidth: 480, resizable: true },
   { id: 'milestoneType', label: 'Milestone type', defaultWidth: 170, minWidth: 120, maxWidth: 260, resizable: true },
   { id: 'description', label: 'Description', defaultWidth: 240, minWidth: 70, maxWidth: 520, resizable: true },
   { id: 'start', label: 'Start', defaultWidth: 150, minWidth: 50, maxWidth: 260, resizable: true },
@@ -111,9 +110,8 @@ const PLAN_COLUMNS: TableColumnConfig[] = [
 
 const ACTUALS_COLUMNS: TableColumnConfig[] = [
   { id: 'drag', label: '', defaultWidth: 32, minWidth: 32, maxWidth: 32, resizable: false },
-  { id: 'number', label: '#', defaultWidth: 60, minWidth: 50, maxWidth: 120, resizable: true },
   { id: 'archive', label: '', defaultWidth: 46, minWidth: 40, maxWidth: 60, resizable: false },
-  { id: 'name', label: 'Task name', defaultWidth: 220, minWidth: 60, maxWidth: 480, resizable: true },
+  { id: 'name', label: 'Task name', defaultWidth: 260, minWidth: 60, maxWidth: 480, resizable: true },
   { id: 'milestoneType', label: 'Milestone type', defaultWidth: 160, minWidth: 120, maxWidth: 260, resizable: true },
   { id: 'description', label: 'Description', defaultWidth: 240, minWidth: 70, maxWidth: 520, resizable: true },
   { id: 'planStart', label: 'Plan start', defaultWidth: 130, minWidth: 70, maxWidth: 200, resizable: true },
@@ -414,6 +412,8 @@ export const InitiativePlanModule = ({
   });
   const suppressHistoryRef = useRef(false);
   const isInitializedRef = useRef(false);
+  const historyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingHistorySnapshotRef = useRef<InitiativePlanModel | null>(null);
   const [, setHistoryVersion] = useState(0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [dependencyPicker, setDependencyPicker] = useState<DependencyPickerState | null>(null);
@@ -903,11 +903,24 @@ export const InitiativePlanModule = ({
       }
       const pushHistory = !options?.skipHistory && !readOnly && isInitializedRef.current;
       if (pushHistory) {
-        const snapshot = sanitizePlanModel(normalizedPlan);
-        const past = [...historyRef.current.past, snapshot];
-        historyRef.current.past = past.slice(-MAX_HISTORY);
-        historyRef.current.future = [];
-        setHistoryVersion((v) => v + 1);
+        // Use debounce for history to batch rapid changes (like bar dragging)
+        if (!pendingHistorySnapshotRef.current) {
+          // Capture snapshot before any changes in this batch
+          pendingHistorySnapshotRef.current = sanitizePlanModel(normalizedPlan);
+        }
+        if (historyDebounceRef.current) {
+          clearTimeout(historyDebounceRef.current);
+        }
+        historyDebounceRef.current = setTimeout(() => {
+          if (pendingHistorySnapshotRef.current) {
+            const past = [...historyRef.current.past, pendingHistorySnapshotRef.current];
+            historyRef.current.past = past.slice(-MAX_HISTORY);
+            historyRef.current.future = [];
+            pendingHistorySnapshotRef.current = null;
+            setHistoryVersion((v) => v + 1);
+          }
+          historyDebounceRef.current = null;
+        }, 800);
       }
       suppressHistoryRef.current = true;
       emitChange(mutator(normalizedPlan));
@@ -2492,72 +2505,31 @@ export const InitiativePlanModule = ({
   };
 
   const buildDependencyPath = useCallback((line: DependencyLine) => {
-    const radius = 8;
-    const { start, end } = line;
-    const isBackward = end.x < start.x;
+    const radius = 6;
+    const { start, end, bend } = line;
     const verticalGap = Math.abs(end.y - start.y);
     const goingDown = end.y > start.y;
 
-    if (isBackward) {
-      // Backward dependency: successor starts before predecessor ends
-      // Path: right from start -> down -> left to end
-      const exitOffset = 20; // How far right to go before turning
-      const cornerX = start.x + exitOffset;
-      const midY = goingDown
-        ? start.y + Math.max(verticalGap / 2, 20)
-        : start.y - Math.max(verticalGap / 2, 20);
-      const entryX = end.x - 8;
-
-      if (verticalGap < 20) {
-        // Very close vertically - go down first, then left
-        const dropY = goingDown ? end.y + 25 : end.y - 25;
-        const r = Math.min(radius, Math.abs(dropY - start.y) / 2, Math.abs(end.y - dropY) / 2);
-        return [
-          `M ${start.x},${start.y}`,
-          `L ${cornerX - r},${start.y}`,
-          `Q ${cornerX},${start.y} ${cornerX},${start.y + (goingDown ? r : -r)}`,
-          `L ${cornerX},${dropY - (goingDown ? -r : r)}`,
-          `Q ${cornerX},${dropY} ${cornerX - r},${dropY}`,
-          `L ${entryX + r},${dropY}`,
-          `Q ${entryX},${dropY} ${entryX},${dropY + (goingDown ? -r : r)}`,
-          `L ${entryX},${end.y}`,
-          `L ${end.x},${end.y}`
-        ].join(' ');
-      }
-
-      const r = Math.min(radius, verticalGap / 4);
-      return [
-        `M ${start.x},${start.y}`,
-        `L ${cornerX - r},${start.y}`,
-        `Q ${cornerX},${start.y} ${cornerX},${start.y + (goingDown ? r : -r)}`,
-        `L ${cornerX},${midY - (goingDown ? r : -r)}`,
-        `Q ${cornerX},${midY} ${cornerX - r},${midY}`,
-        `L ${entryX + r},${midY}`,
-        `Q ${entryX},${midY} ${entryX},${midY + (goingDown ? r : -r)}`,
-        `L ${entryX},${end.y}`,
-        `L ${end.x},${end.y}`
-      ].join(' ');
-    }
-
-    // Forward dependency: normal flow from right to left
-    const horizontalGap = end.x - start.x;
-    const midX = start.x + Math.max(horizontalGap / 2, 20);
-    const r = Math.min(radius, horizontalGap / 4, verticalGap / 4 || radius);
+    // Use shared spineX from bend for bundled arrows
+    const spineX = bend.spineX;
 
     if (verticalGap < 4) {
-      // Same row - simple horizontal line with small jog
+      // Same row - simple horizontal line
       return [
         `M ${start.x},${start.y}`,
         `L ${end.x},${end.y}`
       ].join(' ');
     }
 
+    const r = Math.min(radius, verticalGap / 4, Math.abs(spineX - start.x) / 3);
+
+    // Path: horizontal from start -> turn down at spineX -> horizontal to end
     return [
       `M ${start.x},${start.y}`,
-      `L ${midX - r},${start.y}`,
-      `Q ${midX},${start.y} ${midX},${start.y + (goingDown ? r : -r)}`,
-      `L ${midX},${end.y - (goingDown ? r : -r)}`,
-      `Q ${midX},${end.y} ${midX + r},${end.y}`,
+      `L ${spineX - r},${start.y}`,
+      `Q ${spineX},${start.y} ${spineX},${start.y + (goingDown ? r : -r)}`,
+      `L ${spineX},${end.y - (goingDown ? r : -r)}`,
+      `Q ${spineX},${end.y} ${spineX + (end.x > spineX ? r : -r)},${end.y}`,
       `L ${end.x},${end.y}`
     ].join(' ');
   }, []);
@@ -2610,7 +2582,7 @@ export const InitiativePlanModule = ({
         incomingMap.set(task.id, list);
       });
     });
-    // Group all dependencies by target X position (within tolerance) for bundling
+    // Collect all dependencies
     const allItems: { from: string; to: string; start: { x: number; y: number }; end: { x: number; y: number } }[] = [];
     incomingMap.forEach((items, targetId) => {
       items.forEach((item) => {
@@ -2618,44 +2590,41 @@ export const InitiativePlanModule = ({
       });
     });
 
-    // Group by approximate end.x (tasks starting at same date) with 5px tolerance
-    const xGroups = new Map<number, typeof allItems>();
+    // Group by source task (from) - arrows from same task share vertical spine
+    const sourceGroups = new Map<string, typeof allItems>();
     allItems.forEach((item) => {
-      const roundedX = Math.round(item.end.x / 5) * 5;
-      const group = xGroups.get(roundedX) ?? [];
+      const group = sourceGroups.get(item.from) ?? [];
       group.push(item);
-      xGroups.set(roundedX, group);
+      sourceGroups.set(item.from, group);
     });
 
     const nextLines: DependencyLine[] = [];
 
-    xGroups.forEach((groupItems) => {
-      // Sort by start.y for consistent ordering
-      const sorted = [...groupItems].sort((a, b) => a.start.y - b.start.y);
+    sourceGroups.forEach((groupItems) => {
+      // Sort by end.y (target Y position) for consistent ordering
+      const sorted = [...groupItems].sort((a, b) => a.end.y - b.end.y);
 
-      // Calculate shared spine X for the group
+      // All arrows from same source share the same exit point
+      const sourceX = sorted[0].start.x;
+      const sourceY = sorted[0].start.y;
+
+      // Calculate shared vertical spine X - positioned after the source bar
       const minEndX = Math.min(...sorted.map((item) => item.end.x));
-      const backward = sorted.filter((item) => item.end.x < item.start.x);
-      const forward = sorted.filter((item) => item.end.x >= item.start.x);
+      const maxEndX = Math.max(...sorted.map((item) => item.end.x));
+      const isAllBackward = maxEndX < sourceX;
 
-      // Shared spine for all arrows going to this X position
-      const sharedSpineX = minEndX - 15;
+      // Spine position: between source end and leftmost target
+      const spineX = isAllBackward
+        ? Math.min(sourceX + 20, minEndX - 15)
+        : Math.max(sourceX + 20, Math.min(minEndX - 15, sourceX + 40));
 
-      sorted.forEach((item, index) => {
-        const isBackward = item.end.x < item.start.x;
-        // Small offset for each arrow to prevent overlap
-        const spineOffset = index * 3;
-        const spineX = sharedSpineX - spineOffset;
-        const midX = isBackward
-          ? Math.min(spineX - 8, item.start.x + 15)
-          : Math.max(item.start.x + 15, spineX - 10);
-
+      sorted.forEach((item) => {
         nextLines.push({
           from: item.from,
           to: item.to,
           start: item.start,
           end: item.end,
-          bend: { midX, spineX, spineY: item.end.y, startY: item.start.y }
+          bend: { midX: spineX, spineX, spineY: item.end.y, startY: item.start.y }
         });
       });
     });
@@ -3343,12 +3312,8 @@ export const InitiativePlanModule = ({
                           if (!isPrimaryRow) {
                             return (
                               <div key={`${row.key}-name`} className={`${styles.cell} ${styles.assigneeNameCell}`}>
-                                <span className={styles.assigneeBullet} aria-hidden="true" />
-                                <div className={styles.assigneeNameText}>
-                                  <span className={styles.assigneeHint}>Additional responsible</span>
-                                  <strong>{assignee.name || 'Unassigned'}</strong>
-                                  <span className={styles.assigneeParent}>Inherits "{task.name || 'Untitled task'}"</span>
-                                </div>
+                                <span className={styles.inheritArrow} aria-hidden="true">↳</span>
+                                <span className={styles.coOwnerName}>{assignee.name || 'Unassigned'}</span>
                               </div>
                             );
                           }
@@ -3401,11 +3366,7 @@ export const InitiativePlanModule = ({
           );
                         case 'milestoneType': {
                           if (!isPrimaryRow) {
-                            return (
-                              <div key={`${row.key}-milestone`} className={`${styles.cell} ${styles.inheritedCell}`}>
-                                <span className={styles.inheritedText}>From task</span>
-                              </div>
-                            );
+                            return <div key={`${row.key}-milestone`} className={styles.cell} />;
                           }
                           const options = milestoneTypes.length ? milestoneTypes : DEFAULT_MILESTONE_OPTIONS;
                           const currentValue =
@@ -3450,6 +3411,9 @@ export const InitiativePlanModule = ({
                           );
                         }
                         case 'description':
+                          if (!isPrimaryRow) {
+                            return <div key={`${row.key}-description`} className={styles.cell} />;
+                          }
                           return (
                             <div
                               key={`${row.key}-description`}
@@ -3458,18 +3422,14 @@ export const InitiativePlanModule = ({
                               onMouseLeave={hideDescriptionTooltip}
                               title={baseline?.description ? `Baseline: ${baseline.description}` : undefined}
                             >
-                              {isPrimaryRow ? (
-                                <input
-                                  type="text"
-                                  value={task.description}
-                                  disabled={readOnly}
-                                  placeholder="Short summary"
-                                  onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
-                                  onKeyDown={(event) => event.stopPropagation()}
-                                />
-                              ) : (
-                                <span className={styles.inheritedText}>From parent task</span>
-                              )}
+                              <input
+                                type="text"
+                                value={task.description}
+                                disabled={readOnly}
+                                placeholder="Short summary"
+                                onChange={(event) => handleTaskFieldChange(task, 'description', event.target.value)}
+                                onKeyDown={(event) => event.stopPropagation()}
+                              />
                               {hasDescChange && (
                                 <span
                                   className={styles.changeDot}
@@ -3651,11 +3611,6 @@ export const InitiativePlanModule = ({
                                     <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                                   </svg>
                                 </button>
-                                {assigneesForTask.length > 1 && (
-                                  <span className={styles.assigneePill}>
-                                    {assigneesForTask.length - 1} additional
-                                  </span>
-                                )}
                               </div>
                             </div>
                             {hasResponsibleChange && (
@@ -3679,11 +3634,7 @@ export const InitiativePlanModule = ({
                       }
                         case 'progress':
                           if (!isPrimaryRow) {
-                            return (
-                              <div key={`${row.key}-progress`} className={`${styles.cell} ${styles.inheritedCell}`}>
-                                <span className={styles.inheritedText}>From task</span>
-                              </div>
-                            );
+                            return <div key={`${row.key}-progress`} className={styles.cell} />;
                           }
                           return (
                             <div key={`${row.key}-progress`} className={`${styles.cell} ${styles.progressCell}`}>
@@ -4087,7 +4038,9 @@ export const InitiativePlanModule = ({
                         </>
                       )}
                       {shouldShowBarLabel && !isSummaryBar && (
-                        <span className={styles.barLabel}>{isPrimaryRow ? task.name : assignee.name || 'Unassigned'}</span>
+                        <span className={styles.barLabel}>
+                          {isPrimaryRow ? task.name : `${task.name} – ${assignee.name || 'Unassigned'}`}
+                        </span>
                       )}
                     </div>
                     </>

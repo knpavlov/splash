@@ -278,6 +278,19 @@
   gap: 10px;
 }
 
+.inheritArrow {
+  color: #94a3b8;
+  font-size: 14px;
+  font-weight: 400;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.coOwnerName {
+  color: #475569;
+  font-size: 13px;
+}
+
 .assigneeBullet {
   width: 10px;
   height: 10px;
@@ -315,6 +328,11 @@
   font-weight: 600;
   padding-right: 4px;
   cursor: grab;
+  border-right: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.columnHeader:last-child {
+  border-right: none;
 }
 
 .columnHeader[draggable='false'] {
