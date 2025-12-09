@@ -23,6 +23,7 @@ export const LaikaProLandingPage = () => {
   const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>({});
   const [activeNav, setActiveNav] = useState('hero');
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [scrollY, setScrollY] = useState(0);
   const mouseRef = useRef({ x: 0, y: 0 });
   const orbsRef = useRef<GlowOrb[]>([]);
 
@@ -46,15 +47,36 @@ export const LaikaProLandingPage = () => {
     return () => observer.disconnect();
   }, []);
 
-  // Scroll progress indicator
+  // Scroll progress indicator and parallax
   useEffect(() => {
     const handleScroll = () => {
       const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = (window.scrollY / scrollHeight) * 100;
       setScrollProgress(progress);
+      setScrollY(window.scrollY);
     };
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Parallax effect for screenshots
+  useEffect(() => {
+    const handleParallax = () => {
+      const elements = document.querySelectorAll('[data-parallax]');
+      elements.forEach((el) => {
+        const element = el as HTMLElement;
+        const speed = parseFloat(element.dataset.parallax || '0.5');
+        const rect = element.getBoundingClientRect();
+        const centerY = rect.top + rect.height / 2;
+        const windowCenter = window.innerHeight / 2;
+        const offset = (centerY - windowCenter) * speed;
+        element.style.transform = `translateY(${offset}px)`;
+      });
+    };
+
+    window.addEventListener('scroll', handleParallax, { passive: true });
+    handleParallax(); // Initial call
+    return () => window.removeEventListener('scroll', handleParallax);
   }, []);
 
   // Epic Canvas Animation - Flowing Gradient Mesh with Orbs
@@ -271,19 +293,66 @@ export const LaikaProLandingPage = () => {
         </button>
       </header>
 
-      {/* Hero Section */}
+      {/* Hero Section with Parallax */}
       <section id="hero" data-animate ref={heroRef} className={styles.hero}>
         <canvas ref={canvasRef} className={styles.canvasBackground} />
 
-        <div className={styles.heroContent}>
+        {/* Parallax floating elements */}
+        <div className={styles.parallaxLayers}>
+          <div
+            className={`${styles.parallaxLayer} ${styles.parallaxLayer1}`}
+            style={{ transform: `translateY(${scrollY * 0.3}px)` }}
+          />
+          <div
+            className={`${styles.parallaxLayer} ${styles.parallaxLayer2}`}
+            style={{ transform: `translateY(${scrollY * 0.5}px) rotate(${scrollY * 0.02}deg)` }}
+          />
+          <div
+            className={`${styles.parallaxLayer} ${styles.parallaxLayer3}`}
+            style={{ transform: `translateY(${scrollY * 0.2}px) scale(${1 + scrollY * 0.0002})` }}
+          />
+          <div
+            className={`${styles.parallaxLayer} ${styles.parallaxLayer4}`}
+            style={{ transform: `translateY(${scrollY * 0.4}px) translateX(${scrollY * 0.1}px)` }}
+          />
+          {/* Floating geometric shapes */}
+          <div
+            className={styles.floatingShape1}
+            style={{ transform: `translateY(${scrollY * -0.2}px) rotate(${45 + scrollY * 0.05}deg)` }}
+          />
+          <div
+            className={styles.floatingShape2}
+            style={{ transform: `translateY(${scrollY * -0.3}px) rotate(${-30 + scrollY * 0.03}deg)` }}
+          />
+          <div
+            className={styles.floatingShape3}
+            style={{ transform: `translateY(${scrollY * -0.15}px)` }}
+          />
+        </div>
+
+        <div
+          className={styles.heroContent}
+          style={{ transform: `translateY(${scrollY * 0.4}px)`, opacity: Math.max(0, 1 - scrollY / 600) }}
+        >
           <div className={styles.heroBadge}>
             <Zap size={14} />
             Enterprise-Ready Platform
           </div>
 
           <h1 className={styles.heroTitle}>
-            Transformation<br />
-            <span className={styles.heroTitleAccent}>Streamlined.</span>
+            <span
+              className={styles.heroTitleLine}
+              style={{ transform: `translateX(${scrollY * -0.1}px)` }}
+            >
+              Transformation
+            </span>
+            <br />
+            <span
+              className={styles.heroTitleAccent}
+              style={{ transform: `translateX(${scrollY * 0.15}px)` }}
+            >
+              Streamlined.
+            </span>
           </h1>
 
           <p className={styles.heroSubtitle}>
@@ -304,11 +373,6 @@ export const LaikaProLandingPage = () => {
 
           <div className={styles.heroStats}>
             <div className={styles.heroStat}>
-              <span className={styles.heroStatNumber}>50+</span>
-              <span className={styles.heroStatLabel}>Enterprise Clients</span>
-            </div>
-            <div className={styles.heroStatDivider} />
-            <div className={styles.heroStat}>
               <span className={styles.heroStatNumber}>99.9%</span>
               <span className={styles.heroStatLabel}>Uptime SLA</span>
             </div>
@@ -317,10 +381,19 @@ export const LaikaProLandingPage = () => {
               <span className={styles.heroStatNumber}>SOC2</span>
               <span className={styles.heroStatLabel}>Compliant</span>
             </div>
+            <div className={styles.heroStatDivider} />
+            <div className={styles.heroStat}>
+              <span className={styles.heroStatNumber}>SSO</span>
+              <span className={styles.heroStatLabel}>Enterprise Ready</span>
+            </div>
           </div>
         </div>
 
-        <div className={styles.scrollIndicator} onClick={() => scrollToSection('features')}>
+        <div
+          className={styles.scrollIndicator}
+          onClick={() => scrollToSection('features')}
+          style={{ opacity: Math.max(0, 1 - scrollY / 200) }}
+        >
           <ChevronDown size={24} />
         </div>
       </section>
@@ -328,10 +401,44 @@ export const LaikaProLandingPage = () => {
       {/* Features Anchor */}
       <div id="features" style={{ position: 'relative', top: '-80px' }} />
 
-      {/* Feature 1: Stage Gate Management */}
+      {/* Feature 1: Stage Gate Management - Rockstar Style */}
       <section id="feature-1" data-animate className={styles.featureSection}>
-        <div className={styles.featureContainer}>
-          <div className={`${styles.featureContent} ${visibleSections['feature-1'] ? styles.visible : ''}`}>
+        <div className={styles.rockstarFeatureLayout}>
+          {/* Left side - scattered screenshots */}
+          <div className={`${styles.rockstarScreenshots} ${visibleSections['feature-1'] ? styles.visible : ''}`}>
+            <div className={styles.screenshotScattered1} data-parallax="0.15">
+              {screenshot1 ? (
+                <img src={screenshot1} alt="Stage Gate Management" className={styles.screenshot} />
+              ) : (
+                <div className={styles.screenshotPlaceholderRockstar}>
+                  <Image size={32} />
+                  <span>Stage Gate Interface</span>
+                </div>
+              )}
+              <div className={styles.screenshotFrame} />
+            </div>
+
+            <div className={styles.screenshotScattered2} data-parallax="-0.1">
+              <div className={styles.screenshotPlaceholderRockstar}>
+                <span>Approval Flow</span>
+              </div>
+              <div className={styles.screenshotFrame} />
+            </div>
+
+            <div className={styles.screenshotScattered3} data-parallax="0.2">
+              <div className={styles.screenshotPlaceholderRockstar}>
+                <span>Comments View</span>
+              </div>
+              <div className={styles.screenshotFrame} />
+            </div>
+
+            {/* Decorative elements */}
+            <div className={styles.rockstarDeco1} />
+            <div className={styles.rockstarDeco2} />
+          </div>
+
+          {/* Right side - content */}
+          <div className={`${styles.rockstarContent} ${visibleSections['feature-1'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>01</div>
             <div className={styles.featureLabel}>Governance</div>
             <h2 className={styles.featureTitle}>
@@ -348,42 +455,15 @@ export const LaikaProLandingPage = () => {
               <li><Check size={18} /> Context-aware comments & collaboration</li>
               <li><Check size={18} /> Complete audit trail</li>
             </ul>
-
-            <blockquote className={styles.featureQuote}>
-              <p>"The clarity we gained in just two weeks was unprecedented. LaikaPro transformed how we manage our transformation portfolio."</p>
-              <cite>— Sarah Chen, VP Digital Transformation, Fortune 500</cite>
-            </blockquote>
-          </div>
-
-          <div className={`${styles.featureVisuals} ${visibleSections['feature-1'] ? styles.visible : ''}`}>
-            <div className={styles.screenshotMain}>
-              {screenshot1 ? (
-                <img src={screenshot1} alt="Stage Gate Management" className={styles.screenshot} />
-              ) : (
-                <div className={styles.screenshotPlaceholderLarge}>
-                  <Image size={48} />
-                  <span>Stage Gate Interface</span>
-                  <span className={styles.placeholderHint}>Screenshot placeholder</span>
-                </div>
-              )}
-              <div className={styles.screenshotGlow} />
-            </div>
-            <div className={styles.screenshotSecondary}>
-              <div className={styles.screenshotPlaceholder}>
-                <span>Approval Flow</span>
-              </div>
-              <div className={styles.screenshotPlaceholder}>
-                <span>Comments View</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
-      {/* Feature 2: Reporting */}
+      {/* Feature 2: Reporting - Rockstar Style Reversed */}
       <section id="feature-2" data-animate className={`${styles.featureSection} ${styles.featureSectionAlt}`}>
-        <div className={`${styles.featureContainer} ${styles.featureContainerReversed}`}>
-          <div className={`${styles.featureContent} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
+        <div className={`${styles.rockstarFeatureLayout} ${styles.rockstarReversed}`}>
+          {/* Left side - content */}
+          <div className={`${styles.rockstarContent} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>02</div>
             <div className={styles.featureLabel}>Insights</div>
             <h2 className={styles.featureTitle}>
@@ -401,42 +481,80 @@ export const LaikaProLandingPage = () => {
               <li><Check size={18} /> Custom dashboards & reports</li>
               <li><Check size={18} /> Executive summary generation</li>
             </ul>
-
-            <blockquote className={styles.featureQuote}>
-              <p>"Finally, a reporting tool that executives actually want to use. The insights are invaluable for our board meetings."</p>
-              <cite>— Michael Torres, CFO, Global Enterprise</cite>
-            </blockquote>
           </div>
 
-          <div className={`${styles.featureVisuals} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
-            <div className={styles.screenshotMain}>
+          {/* Right side - scattered screenshots */}
+          <div className={`${styles.rockstarScreenshots} ${styles.rockstarScreenshotsAlt} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
+            <div className={styles.screenshotScattered4} data-parallax="-0.12">
               {screenshot2 ? (
                 <img src={screenshot2} alt="Reporting Dashboard" className={styles.screenshot} />
               ) : (
-                <div className={styles.screenshotPlaceholderLarge}>
-                  <Image size={48} />
+                <div className={styles.screenshotPlaceholderRockstar}>
+                  <Image size={32} />
                   <span>Reporting Dashboard</span>
-                  <span className={styles.placeholderHint}>Screenshot placeholder</span>
                 </div>
               )}
-              <div className={styles.screenshotGlow} />
+              <div className={styles.screenshotFrame} />
             </div>
-            <div className={styles.screenshotSecondary}>
-              <div className={styles.screenshotPlaceholder}>
+
+            <div className={styles.screenshotScattered5} data-parallax="0.18">
+              <div className={styles.screenshotPlaceholderRockstar}>
                 <span>P&L Impact</span>
               </div>
-              <div className={styles.screenshotPlaceholder}>
+              <div className={styles.screenshotFrame} />
+            </div>
+
+            <div className={styles.screenshotScattered6} data-parallax="-0.08">
+              <div className={styles.screenshotPlaceholderRockstar}>
                 <span>Milestone Tracking</span>
               </div>
+              <div className={styles.screenshotFrame} />
             </div>
+
+            {/* Decorative elements */}
+            <div className={styles.rockstarDeco3} />
           </div>
         </div>
       </section>
 
-      {/* Feature 3: Capacity Planning */}
+      {/* Feature 3: Capacity Planning - Rockstar Style */}
       <section id="feature-3" data-animate className={styles.featureSection}>
-        <div className={styles.featureContainer}>
-          <div className={`${styles.featureContent} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
+        <div className={styles.rockstarFeatureLayout}>
+          {/* Left side - scattered screenshots */}
+          <div className={`${styles.rockstarScreenshots} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
+            <div className={styles.screenshotScattered7} data-parallax="0.1">
+              {screenshot3 ? (
+                <img src={screenshot3} alt="Capacity Planning" className={styles.screenshot} />
+              ) : (
+                <div className={styles.screenshotPlaceholderRockstar}>
+                  <Image size={32} />
+                  <span>Capacity Heatmap</span>
+                </div>
+              )}
+              <div className={styles.screenshotFrame} />
+            </div>
+
+            <div className={styles.screenshotScattered8} data-parallax="-0.15">
+              <div className={styles.screenshotPlaceholderRockstar}>
+                <span>Timeline View</span>
+              </div>
+              <div className={styles.screenshotFrame} />
+            </div>
+
+            <div className={styles.screenshotScattered9} data-parallax="0.22">
+              <div className={styles.screenshotPlaceholderRockstar}>
+                <span>Resource Allocation</span>
+              </div>
+              <div className={styles.screenshotFrame} />
+            </div>
+
+            {/* Decorative elements */}
+            <div className={styles.rockstarDeco4} />
+            <div className={styles.rockstarDeco5} />
+          </div>
+
+          {/* Right side - content */}
+          <div className={`${styles.rockstarContent} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>03</div>
             <div className={styles.featureLabel}>Planning</div>
             <h2 className={styles.featureTitle}>
@@ -454,34 +572,6 @@ export const LaikaProLandingPage = () => {
               <li><Check size={18} /> Resource conflict detection</li>
               <li><Check size={18} /> What-if scenario planning</li>
             </ul>
-
-            <blockquote className={styles.featureQuote}>
-              <p>"We reduced planning cycle time by 60% and eliminated resource conflicts entirely. Game changer."</p>
-              <cite>— Jennifer Park, Director PMO, Tech Company</cite>
-            </blockquote>
-          </div>
-
-          <div className={`${styles.featureVisuals} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
-            <div className={styles.screenshotMain}>
-              {screenshot3 ? (
-                <img src={screenshot3} alt="Capacity Planning" className={styles.screenshot} />
-              ) : (
-                <div className={styles.screenshotPlaceholderLarge}>
-                  <Image size={48} />
-                  <span>Capacity Heatmap</span>
-                  <span className={styles.placeholderHint}>Screenshot placeholder</span>
-                </div>
-              )}
-              <div className={styles.screenshotGlow} />
-            </div>
-            <div className={styles.screenshotSecondary}>
-              <div className={styles.screenshotPlaceholder}>
-                <span>Timeline View</span>
-              </div>
-              <div className={styles.screenshotPlaceholder}>
-                <span>Resource Allocation</span>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -567,15 +657,6 @@ export const LaikaProLandingPage = () => {
           </button>
         </div>
 
-        <div className={styles.pricingTrust}>
-          <p>Trusted by transformation leaders at</p>
-          <div className={styles.trustLogos}>
-            <div className={styles.trustLogo}>Fortune 500</div>
-            <div className={styles.trustLogo}>Global Bank</div>
-            <div className={styles.trustLogo}>Tech Giant</div>
-            <div className={styles.trustLogo}>Consulting Firm</div>
-          </div>
-        </div>
       </section>
 
       {/* Contact Section */}
