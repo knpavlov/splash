@@ -303,6 +303,7 @@ export const StageGatePanel = ({
 
   return (
     <div className={`${styles.wrapper} ${compact ? styles.wrapperCompact : ''}`}>
+      <div className={styles.legendRow}>{renderChevronLegend()}</div>
       <div className={`${styles.track} ${compact ? styles.trackCompact : ''}`}>
         {initiativeStageKeys.map((key, index) => {
           const status = index < activeIndex ? 'complete' : index === activeIndex ? 'current' : 'upcoming';
@@ -356,7 +357,6 @@ export const StageGatePanel = ({
         })}
       </div>
       {renderGateTooltip()}
-      {renderChevronLegend()}
     </div>
   );
 };

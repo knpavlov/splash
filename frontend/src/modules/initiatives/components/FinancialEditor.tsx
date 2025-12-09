@@ -55,9 +55,9 @@ const logicLabels: Record<InitiativeFinancialKind, string> = {
 
 const SECTION_COLORS: Record<InitiativeFinancialKind, string> = {
   'recurring-benefits': '#1d4ed8',
-  'oneoff-benefits': '#3b82f6',
-  'recurring-costs': '#ef4444',
-  'oneoff-costs': '#f97316'
+  'oneoff-benefits': '#16a34a',
+  'recurring-costs': '#dc2626',
+  'oneoff-costs': '#475569'
 };
 
 const CATEGORY_COLUMN_WIDTH = 200;
@@ -84,12 +84,12 @@ const buildEntryColorMap = (stage: InitiativeStageData) => {
 };
 
 const shadeColor = (hex: string, amount: number) => {
-  const clamped = Math.max(-1, Math.min(1, amount));
+  const clamped = Math.max(-0.6, Math.min(0.6, amount));
   const value = parseInt(hex.replace('#', ''), 16);
   const r = (value >> 16) & 0xff;
   const g = (value >> 8) & 0xff;
   const b = value & 0xff;
-  const mixTarget = clamped >= 0 ? 255 : 0;
+  const mixTarget = clamped >= 0 ? 230 : 26;
   const factor = Math.abs(clamped);
   const mix = (channel: number) => Math.round(channel + (mixTarget - channel) * factor);
   const toHex = (channel: number) => channel.toString(16).padStart(2, '0');
@@ -936,8 +936,6 @@ export const PlanVsActualChart = ({
       {months.map((month, index) => {
         const plan = planData[index] ?? emptyStack;
         const actual = actualData[index] ?? emptyStack;
-        const barLabelSource =
-          !hideActualBars && actual ? actual : !shouldHidePlanBars ? plan : emptyStack;
         const positiveRatioPlan = positiveScale ? Math.min(1, plan.positiveTotal / positiveScale) : 0;
         const negativeRatioPlan = negativeScale ? Math.min(1, plan.negativeTotal / negativeScale) : 0;
         const positiveRatioActual = positiveScale ? Math.min(1, actual.positiveTotal / positiveScale) : 0;
@@ -966,16 +964,27 @@ export const PlanVsActualChart = ({
           `${anchorScope ?? 'financial-chart'}.${month.key}`,
           `${month.label} ${month.year} plan vs actual`
         );
-        const barLabelValue = barLabelSource.positiveTotal - barLabelSource.negativeTotal;
-        const isPlanLabel = barLabelSource === plan;
-        const barPositiveRatio = isPlanLabel ? positiveRatioPlan : positiveRatioActual;
-        const barNegativeRatio = isPlanLabel ? negativeRatioPlan : negativeRatioActual;
-        const barValueOffset = Number.isFinite(barLabelValue)
-          ? barLabelValue >= 0
-            ? zeroLine - barPositiveRatio * positiveArea
-            : zeroLine + barNegativeRatio * negativeArea
-          : zeroLine;
-        const shouldShowBarValue = showValueLabels && (!hideActualBars || !shouldHidePlanBars);
+        const planNet = plan.positiveTotal - plan.negativeTotal;
+        const actualNet = actual.positiveTotal - actual.negativeTotal;
+        const hasPlanData = plan.positiveTotal > 0 || plan.negativeTotal > 0;
+        const hasActualData = actual.positiveTotal > 0 || actual.negativeTotal > 0;
+        const planValueOffset =
+          Number.isFinite(planNet) && hasPlanData
+            ? planNet >= 0
+              ? zeroLine - positiveRatioPlan * positiveArea
+              : zeroLine + negativeRatioPlan * negativeArea
+            : zeroLine;
+        const actualValueOffset =
+          Number.isFinite(actualNet) && hasActualData
+            ? actualNet >= 0
+              ? zeroLine - positiveRatioActual * positiveArea
+              : zeroLine + negativeRatioActual * negativeArea
+            : zeroLine;
+        const hasBothBars = !shouldHidePlanBars && !hideActualBars;
+        const planLabelLeft = hasBothBars ? '28%' : '50%';
+        const actualLabelLeft = hasBothBars ? '72%' : '50%';
+        const shouldShowPlanValue = showValueLabels && !shouldHidePlanBars && hasPlanData;
+        const shouldShowActualValue = showValueLabels && !hideActualBars && hasActualData;
         const periodLabel = periodLabelFormatter ? periodLabelFormatter(month) : `${month.label} ${month.year}`;
         return (
           <div
@@ -1098,12 +1107,26 @@ export const PlanVsActualChart = ({
                 </div>
               </div>
               <div className={styles.chartZeroLine} style={{ top: `${positivePortion * 100}%` }} />
-              {shouldShowBarValue && (
+              {shouldShowPlanValue && (
                 <div
-                  className={styles.barValueLabel}
-                  style={{ top: `${Math.max(2, Math.min(98, barValueOffset))}%` }}
+                  className={`${styles.barValueLabel} ${styles.planValueLabel}`}
+                  style={{
+                    top: `${Math.max(2, Math.min(98, planValueOffset))}%`,
+                    left: planLabelLeft
+                  }}
                 >
-                  {renderValue(barLabelValue)}
+                  {renderValue(planNet)}
+                </div>
+              )}
+              {shouldShowActualValue && (
+                <div
+                  className={`${styles.barValueLabel} ${styles.actualValueLabel}`}
+                  style={{
+                    top: `${Math.max(2, Math.min(98, actualValueOffset))}%`,
+                    left: actualLabelLeft
+                  }}
+                >
+                  {renderValue(actualNet)}
                 </div>
               )}
             </div>
@@ -1530,10 +1553,10 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
       className={styles.financialBoard}
       {...createCommentAnchor(`financial.${scopeKey}.board`, 'Financial outlook')}
     >
-      <header className={styles.financialHeading}>
-        <div>
-          <h3>Financial outlook</h3>
-          <p>All recurring and one-off flows in a single, minimal view.</p>
+      <header className={`${styles.financialHeading} ${styles.financialHeadingCompact}`}>
+        <div className={styles.headingNote}>
+          <span className={styles.headingEyebrow}>Outlook options</span>
+          <p className={styles.headingSubtext}>Choose whether to include one-offs in this stage view.</p>
         </div>
         <label
           className={styles.oneOffToggle}
@@ -1875,10 +1898,10 @@ export const FinancialActuals = ({ stage, disabled, onChange, commentScope }: Fi
       className={styles.financialBoard}
       {...createCommentAnchor(`financial.${scopeKey}.actuals`, 'P&L actuals board')}
     >
-      <header className={styles.financialHeading}>
-        <div>
-          <h3>P&amp;L actuals</h3>
-          <p>Track realised impact against your outlook month by month.</p>
+      <header className={`${styles.financialHeading} ${styles.financialHeadingCompact}`}>
+        <div className={styles.headingNote}>
+          <span className={styles.headingEyebrow}>Actuals view</span>
+          <p className={styles.headingSubtext}>Mirror the plan and toggle one-offs or line overlays.</p>
         </div>
         <div className={styles.actualsToggles}>
           <label
@@ -1958,6 +1981,7 @@ export const FinancialActuals = ({ stage, disabled, onChange, commentScope }: Fi
             actualData={actualChartData}
             showPlanAsLine={showPlanAsLine}
             planLineMode={planLineMode}
+            showValueLabels
             anchorScope={`financial.${scopeKey}.actuals.chart`}
           />
           <div className={`${styles.sheetRow} ${styles.sheetHeader}`} style={{ gridTemplateColumns }}>

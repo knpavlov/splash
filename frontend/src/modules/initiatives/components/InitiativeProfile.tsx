@@ -838,6 +838,7 @@ export const InitiativeProfile = ({
   const submitChecklistItems = submitChecklistByStage[selectedStage] ?? ['Placeholder checklist item for this gate'];
   const selectedStageLabel = initiativeStageLabels[selectedStage] ?? selectedStage.toUpperCase();
   const canSubmitStage = isStageEditable && currentStageState.status !== 'pending';
+  const isReadOnlyMode = readOnly;
   const stageStatusLabel = (() => {
     switch (currentStageState.status) {
       case 'pending':
@@ -867,7 +868,35 @@ export const InitiativeProfile = ({
     }
     return 'Not yet submitted.';
   })();
-  const isReadOnlyMode = readOnly;
+  const submitButtonDisabled =
+    isSubmitting ||
+    mode !== 'view' ||
+    !initiative ||
+    !isStageEditable ||
+    stageLocked ||
+    currentStageState.status === 'pending' ||
+    isReadOnlyMode;
+  const submitButtonTooltip = (() => {
+    if (isSubmitting) {
+      return 'Submitting stage...';
+    }
+    if (!initiative) {
+      return 'Save the initiative before submitting.';
+    }
+    if (mode !== 'view') {
+      return 'Submission is available after creating the initiative.';
+    }
+    if (isReadOnlyMode) {
+      return 'Read-only mode is enabled for this initiative.';
+    }
+    if (currentStageState.status === 'pending') {
+      return 'Waiting for approvals';
+    }
+    if (!isStageEditable) {
+      return selectedIndex > activeIndex ? 'Stage not active yet' : 'Earlier gates are view-only';
+    }
+    return 'Ready to submit for the next gate';
+  })();
   const commentsAvailable = Boolean(initiative?.id);
   useEffect(() => {
     if (!openComments || !commentsAvailable) {
@@ -1119,7 +1148,7 @@ export const InitiativeProfile = ({
   };
 
   const handleSubmitPrompt = () => {
-    if (!initiative || !canSubmitStage) {
+    if (!initiative || submitButtonDisabled) {
       return;
     }
     setIsSubmitConfirmOpen(true);
@@ -1130,10 +1159,11 @@ export const InitiativeProfile = ({
   };
 
   const handleSubmitClick = async () => {
-    if (!initiative) {
+    if (!initiative || submitButtonDisabled) {
       return;
     }
     if (!canSubmitStage) {
+      setIsSubmitConfirmOpen(false);
       return;
     }
     setIsSubmitting(true);
@@ -1478,18 +1508,12 @@ export const InitiativeProfile = ({
             />
             <div className={styles.stageProgressSummary}>
               <div className={styles.stageSummaryRow} {...buildStageAnchor('status', 'Stage status')}>
-                <div className={styles.stageStatusRow}>
-                  <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
-                    {stageStatusLabel}
-                  </span>
-                  <span className={styles.stageStatusMeta}>{stageStatusDetails}</span>
-                </div>
-                {mode === 'view' && initiative && isStageEditable && !stageLocked && (
-                  <div className={styles.stageSummaryActions}>
+                <div className={styles.stageSummaryActions}>
+                  <div className={styles.submitButtonWrapper} data-tooltip={submitButtonTooltip}>
                     <button
                       className={styles.secondaryButton}
                       onClick={handleSubmitPrompt}
-                      disabled={isSubmitting || !canSubmitStage}
+                      disabled={submitButtonDisabled}
                       type="button"
                     >
                       {currentStageState.status === 'pending'
@@ -1499,7 +1523,13 @@ export const InitiativeProfile = ({
                           : 'Submit for next gate'}
                     </button>
                   </div>
-                )}
+                </div>
+                <div className={styles.stageStatusRow}>
+                  <span className={`${styles.stageStatusBadge} ${styles[`status-${currentStageState.status}`]}`}>
+                    {stageStatusLabel}
+                  </span>
+                  <span className={styles.stageStatusMeta}>{stageStatusDetails}</span>
+                </div>
               </div>
               {currentStageState.comment && currentStageState.status !== 'draft' && (
                 <div className={styles.stageAlert}>
