@@ -964,7 +964,6 @@ export const PlanVsActualChart = ({
           `${anchorScope ?? 'financial-chart'}.${month.key}`,
           `${month.label} ${month.year} plan vs actual`
         );
-        const planNet = plan.positiveTotal - plan.negativeTotal;
         const actualNet = actual.positiveTotal - actual.negativeTotal;
         const hasPlanData = plan.positiveTotal > 0 || plan.negativeTotal > 0;
         const hasActualData = actual.positiveTotal > 0 || actual.negativeTotal > 0;
