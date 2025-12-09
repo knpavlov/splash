@@ -20,6 +20,7 @@ import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 import { GeneralSettingsScreen } from './modules/settings/GeneralSettingsScreen';
 import { InitiativeLogsScreen } from './modules/logs/InitiativeLogsScreen';
 import { ActivityScreen } from './modules/activity/ActivityScreen';
+import { TaigaLandingPage } from './modules/landing/TaigaLandingPage';
 
 interface AppRoute {
   page: NavigationKey;
@@ -209,6 +210,10 @@ const AppContent = () => {
       updateRoute({ page: fallback });
     }
   }, [session, accessibleItems, route.page, updateRoute]);
+
+  if (route.page === 'taiga') {
+    return <TaigaLandingPage />;
+  }
 
   if (!session) {
     return <LoginScreen />;

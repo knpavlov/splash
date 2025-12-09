@@ -37,7 +37,8 @@ export type NavigationKey =
   | 'kpis'
   | 'general-settings'
   | 'snapshot-settings'
-  | 'initiative-logs';
+  | 'initiative-logs'
+  | 'taiga';
 
 export type NavigationGroupKey = 'program' | 'dashboards' | 'settings';
 
@@ -99,6 +100,7 @@ export const navigationItems: NavigationItem[] = [
     hidden: true,
     icon: Camera
   },
-  { key: 'initiative-logs', label: 'Initiative log', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: FileText }
+  { key: 'initiative-logs', label: 'Initiative log', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: FileText },
+  { key: 'taiga', label: 'Taiga', roleAccess: ['super-admin', 'admin', 'user'], hidden: true }
 ];
 

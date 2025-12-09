@@ -1,0 +1,315 @@
+.container {
+    /* Premium Dark Theme Palette */
+    --bg-dark: #0a0a0c;
+    --bg-card: rgba(255, 255, 255, 0.03);
+    --bg-card-hover: rgba(255, 255, 255, 0.07);
+    --primary-accent: #00ff9d;
+    /* Neon Mint */
+    --secondary-accent: #00b8ff;
+    /* Neon Blue */
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0a0;
+    --glass-border: rgba(255, 255, 255, 0.1);
+
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    width: 100%;
+    overflow-x: hidden;
+    position: relative;
+}
+
+/* Typography & Utilities */
+.gradientText {
+    background: linear-gradient(135deg, var(--primary-accent), var(--secondary-accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.section {
+    padding: 6rem 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
+}
+
+/* Header */
+.header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 1.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 50;
+    backdrop-filter: blur(10px);
+    background: rgba(10, 10, 12, 0.5);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.05em;
+    color: #fff;
+}
+
+.authButton {
+    background: transparent;
+    border: 1px solid var(--glass-border);
+    color: #fff;
+    padding: 0.5rem 1.2rem;
+    border-radius: 99px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.authButton:hover {
+    border-color: var(--primary-accent);
+    color: var(--primary-accent);
+}
+
+/* Hero Section */
+.hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    position: relative;
+    padding-top: 4rem;
+    /* Offset header */
+}
+
+.canvasBackground {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    opacity: 0.4;
+}
+
+.heroContent {
+    position: relative;
+    z-index: 2;
+    max-width: 900px;
+    animation: fadeUp 1s ease-out;
+}
+
+.eyebrow {
+    color: var(--primary-accent);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+}
+
+.heroTitle {
+    font-size: clamp(3rem, 6vw, 5rem);
+    line-height: 1.1;
+    font-weight: 800;
+    margin-bottom: 2rem;
+    letter-spacing: -0.02em;
+}
+
+.heroSlogan {
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+    margin-bottom: 3rem;
+    font-weight: 300;
+}
+
+.ctaButton {
+    background: var(--primary-accent);
+    color: #000;
+    border: none;
+    padding: 1rem 2.5rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    border-radius: 99px;
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 0 20px rgba(0, 255, 157, 0.3);
+}
+
+.ctaButton:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(0, 255, 157, 0.5);
+}
+
+/* Features Section */
+.featuresGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+    margin-top: 4rem;
+}
+
+.featureCard {
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 2.5rem;
+    transition: all 0.4s ease;
+    overflow: hidden;
+    position: relative;
+}
+
+.featureCard:hover {
+    transform: translateY(-5px);
+    background: var(--bg-card-hover);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.featureIcon {
+    width: 50px;
+    height: 50px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    color: var(--primary-accent);
+}
+
+.featureTitle {
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
+
+.featureDescription {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+.featureVisual {
+    width: 100%;
+    height: 200px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 0.875rem;
+    margin-top: auto;
+}
+
+/* Pricing Section */
+.pricingTable {
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 3rem;
+    margin-top: 4rem;
+    backdrop-filter: blur(20px);
+}
+
+.pricingHeader {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.priceTag {
+    font-size: 3rem;
+    font-weight: 800;
+    margin: 1rem 0;
+}
+
+.priceSub {
+    color: var(--text-secondary);
+    font-size: 1rem;
+}
+
+.featureList {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.checkItem {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.checkIcon {
+    color: var(--primary-accent);
+    background: rgba(0, 255, 157, 0.1);
+    padding: 4px;
+    border-radius: 50%;
+}
+
+/* Contact/Footer Section */
+.footer {
+    text-align: center;
+    padding: 8rem 2rem 4rem;
+    background: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+.footerTitle {
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+}
+
+.contactForm {
+    display: flex;
+    gap: 1rem;
+    max-width: 500px;
+    margin: 0 auto 3rem;
+}
+
+.input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    padding: 1rem 1.5rem;
+    border-radius: 99px;
+    color: #fff;
+    outline: none;
+    font-size: 1rem;
+    transition: border 0.3s;
+}
+
+.input:focus {
+    border-color: var(--primary-accent);
+}
+
+/* Animations */
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .heroTitle {
+        font-size: 2.5rem;
+    }
+
+    .contactForm {
+        flex-direction: column;
+    }
+}
