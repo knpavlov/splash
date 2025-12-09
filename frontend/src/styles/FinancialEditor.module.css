@@ -37,6 +37,10 @@
   font-size: 13px;
 }
 
+.headingSpacer {
+  flex: 1 1 auto;
+}
+
 .financialHeading h3 {
   margin: 0;
 }
@@ -274,14 +278,6 @@
   border-radius: 0;
   box-shadow: none;
   pointer-events: none;
-}
-
-.planValueLabel {
-  color: #1d4ed8;
-}
-
-.actualValueLabel {
-  color: #0f172a;
 }
 
 .chartPeriodLabel {

@@ -807,6 +807,13 @@
   color: #0f172a;
 }
 
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: saturate(0.2);
+  box-shadow: none;
+}
+
 .dangerButton {
   background: rgba(248, 113, 113, 0.2);
   color: #b91c1c;

@@ -70,10 +70,10 @@ const buildEntryColorMap = (stage: InitiativeStageData) => {
       if (!entries.length) {
         return;
       }
-      const range = 0.85;
+      const range = 1.1;
       entries.forEach((entry, index) => {
         const ratio = entries.length === 1 ? 0.5 : index / (entries.length - 1);
-        const offset = lighten ? 0.2 + ratio * range : -(0.2 + ratio * range);
+        const offset = lighten ? 0.25 + ratio * range : -(0.25 + ratio * range);
         map[entry.id] = shadeColor(SECTION_COLORS[kind], offset);
       });
     });
@@ -84,12 +84,12 @@ const buildEntryColorMap = (stage: InitiativeStageData) => {
 };
 
 const shadeColor = (hex: string, amount: number) => {
-  const clamped = Math.max(-0.6, Math.min(0.6, amount));
+  const clamped = Math.max(-0.9, Math.min(0.9, amount));
   const value = parseInt(hex.replace('#', ''), 16);
   const r = (value >> 16) & 0xff;
   const g = (value >> 8) & 0xff;
   const b = value & 0xff;
-  const mixTarget = clamped >= 0 ? 230 : 26;
+  const mixTarget = clamped >= 0 ? 255 : 0;
   const factor = Math.abs(clamped);
   const mix = (channel: number) => Math.round(channel + (mixTarget - channel) * factor);
   const toHex = (channel: number) => channel.toString(16).padStart(2, '0');
@@ -964,26 +964,17 @@ export const PlanVsActualChart = ({
           `${anchorScope ?? 'financial-chart'}.${month.key}`,
           `${month.label} ${month.year} plan vs actual`
         );
-        const actualNet = actual.positiveTotal - actual.negativeTotal;
         const hasPlanData = plan.positiveTotal > 0 || plan.negativeTotal > 0;
         const hasActualData = actual.positiveTotal > 0 || actual.negativeTotal > 0;
-        const planValueOffset =
-          Number.isFinite(planNet) && hasPlanData
-            ? planNet >= 0
-              ? zeroLine - positiveRatioPlan * positiveArea
-              : zeroLine + negativeRatioPlan * negativeArea
-            : zeroLine;
-        const actualValueOffset =
-          Number.isFinite(actualNet) && hasActualData
-            ? actualNet >= 0
-              ? zeroLine - positiveRatioActual * positiveArea
-              : zeroLine + negativeRatioActual * negativeArea
-            : zeroLine;
         const hasBothBars = !shouldHidePlanBars && !hideActualBars;
         const planLabelLeft = hasBothBars ? '28%' : '50%';
         const actualLabelLeft = hasBothBars ? '72%' : '50%';
         const shouldShowPlanValue = showValueLabels && !shouldHidePlanBars && hasPlanData;
         const shouldShowActualValue = showValueLabels && !hideActualBars && hasActualData;
+        const planPositiveLabelTop = positivePortion * (1 - positiveRatioPlan) * 100;
+        const planNegativeLabelTop = positivePortion * 100 + negativeRatioPlan * negativePortion * 100;
+        const actualPositiveLabelTop = positivePortion * (1 - positiveRatioActual) * 100;
+        const actualNegativeLabelTop = positivePortion * 100 + negativeRatioActual * negativePortion * 100;
         const periodLabel = periodLabelFormatter ? periodLabelFormatter(month) : `${month.label} ${month.year}`;
         return (
           <div
@@ -1106,27 +1097,37 @@ export const PlanVsActualChart = ({
                 </div>
               </div>
               <div className={styles.chartZeroLine} style={{ top: `${positivePortion * 100}%` }} />
-              {shouldShowPlanValue && (
-                <div
-                  className={`${styles.barValueLabel} ${styles.planValueLabel}`}
-                  style={{
-                    top: `${Math.max(2, Math.min(98, planValueOffset))}%`,
-                    left: planLabelLeft
-                  }}
+              {shouldShowPlanValue && plan.positiveTotal > 0 && (
+                <span
+                  className={`${styles.chartValue} ${styles.chartValuePositive}`}
+                  style={{ top: `calc(${planPositiveLabelTop}% - 22px)`, left: planLabelLeft }}
                 >
-                  {renderValue(planNet)}
-                </div>
+                  {renderValue(plan.positiveTotal)}
+                </span>
               )}
-              {shouldShowActualValue && (
-                <div
-                  className={`${styles.barValueLabel} ${styles.actualValueLabel}`}
-                  style={{
-                    top: `${Math.max(2, Math.min(98, actualValueOffset))}%`,
-                    left: actualLabelLeft
-                  }}
+              {shouldShowPlanValue && plan.negativeTotal > 0 && (
+                <span
+                  className={`${styles.chartValue} ${styles.chartValueNegative}`}
+                  style={{ top: `calc(${planNegativeLabelTop}% + 18px)`, left: planLabelLeft }}
                 >
-                  {renderValue(actualNet)}
-                </div>
+                  {renderValue(plan.negativeTotal)}
+                </span>
+              )}
+              {shouldShowActualValue && actual.positiveTotal > 0 && (
+                <span
+                  className={`${styles.chartValue} ${styles.chartValuePositive}`}
+                  style={{ top: `calc(${actualPositiveLabelTop}% - 22px)`, left: actualLabelLeft }}
+                >
+                  {renderValue(actual.positiveTotal)}
+                </span>
+              )}
+              {shouldShowActualValue && actual.negativeTotal > 0 && (
+                <span
+                  className={`${styles.chartValue} ${styles.chartValueNegative}`}
+                  style={{ top: `calc(${actualNegativeLabelTop}% + 18px)`, left: actualLabelLeft }}
+                >
+                  {renderValue(actual.negativeTotal)}
+                </span>
               )}
             </div>
             {showPeriodLabels && <div className={styles.chartPeriodLabel}>{periodLabel}</div>}
@@ -1553,10 +1554,7 @@ export const FinancialEditor = ({ stage, disabled, onChange, commentScope }: Fin
       {...createCommentAnchor(`financial.${scopeKey}.board`, 'Financial outlook')}
     >
       <header className={`${styles.financialHeading} ${styles.financialHeadingCompact}`}>
-        <div className={styles.headingNote}>
-          <span className={styles.headingEyebrow}>Outlook options</span>
-          <p className={styles.headingSubtext}>Choose whether to include one-offs in this stage view.</p>
-        </div>
+        <div className={styles.headingSpacer} />
         <label
           className={styles.oneOffToggle}
           {...createCommentAnchor(`financial.${scopeKey}.toggle.oneoff`, 'Include one-off items toggle')}
@@ -1898,10 +1896,7 @@ export const FinancialActuals = ({ stage, disabled, onChange, commentScope }: Fi
       {...createCommentAnchor(`financial.${scopeKey}.actuals`, 'P&L actuals board')}
     >
       <header className={`${styles.financialHeading} ${styles.financialHeadingCompact}`}>
-        <div className={styles.headingNote}>
-          <span className={styles.headingEyebrow}>Actuals view</span>
-          <p className={styles.headingSubtext}>Mirror the plan and toggle one-offs or line overlays.</p>
-        </div>
+        <div className={styles.headingSpacer} />
         <div className={styles.actualsToggles}>
           <label
             className={styles.oneOffToggle}
