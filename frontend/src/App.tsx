@@ -22,6 +22,7 @@ import { InitiativeLogsScreen } from './modules/logs/InitiativeLogsScreen';
 import { ActivityScreen } from './modules/activity/ActivityScreen';
 import { TaigaLandingPage } from './modules/landing/TaigaLandingPage';
 import { LaikaLandingPage } from './modules/landing/LaikaLandingPage';
+import { LaikaProLandingPage } from './modules/landing/LaikaProLandingPage';
 
 interface AppRoute {
   page: NavigationKey;
@@ -218,6 +219,10 @@ const AppContent = () => {
 
   if (route.page === 'laika') {
     return <LaikaLandingPage />;
+  }
+
+  if (route.page === 'laikapro') {
+    return <LaikaProLandingPage />;
   }
 
   if (!session) {

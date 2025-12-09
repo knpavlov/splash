@@ -39,7 +39,8 @@ export type NavigationKey =
   | 'snapshot-settings'
   | 'initiative-logs'
   | 'taiga'
-  | 'laika';
+  | 'laika'
+  | 'laikapro';
 
 export type NavigationGroupKey = 'program' | 'dashboards' | 'settings';
 
@@ -103,6 +104,7 @@ export const navigationItems: NavigationItem[] = [
   },
   { key: 'initiative-logs', label: 'Initiative log', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: FileText },
   { key: 'taiga', label: 'Taiga', roleAccess: ['super-admin', 'admin', 'user'], hidden: true },
-  { key: 'laika', label: 'Laika', roleAccess: ['super-admin', 'admin', 'user'], hidden: true }
+  { key: 'laika', label: 'Laika', roleAccess: ['super-admin', 'admin', 'user'], hidden: true },
+  { key: 'laikapro', label: 'LaikaPro', roleAccess: ['super-admin', 'admin', 'user'], hidden: true }
 ];
 
