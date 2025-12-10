@@ -635,7 +635,8 @@ export const InitiativeProfile = ({
     error: commentError,
     createComment,
     replyToComment,
-    toggleResolved
+    toggleResolved,
+    deleteComment
   } = useInitiativeComments(initiative?.id ?? null, {
     actor: commentActor,
     enabled: Boolean(initiative?.id)
@@ -998,6 +999,30 @@ export const InitiativeProfile = ({
       await replyToComment(threadId, { body });
     },
     [commentsAvailable, replyToComment]
+  );
+
+  const handleDeleteComment = useCallback(
+    async (threadId: string, messageId: string | null) => {
+      if (!commentsAvailable) {
+        return;
+      }
+      await deleteComment(threadId, messageId);
+    },
+    [commentsAvailable, deleteComment]
+  );
+
+  const handleScrollToElement = useCallback(
+    (threadId: string) => {
+      const anchor = commentAnchors.get(threadId);
+      if (!anchor || !contentRef.current) {
+        return;
+      }
+      const container = contentRef.current;
+      const scrollTarget = anchor.top - 100;
+      container.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
+      setActiveThreadId(threadId);
+    },
+    [commentAnchors]
   );
 
   const clearErrors = (next: ValidationErrors) => {
@@ -2042,7 +2067,10 @@ export const InitiativeProfile = ({
         onToggleResolved={async (threadId, next) => {
           await toggleResolved(threadId, next);
         }}
+        onDeleteComment={handleDeleteComment}
+        currentActorId={session?.accountId ?? null}
         anchorMap={commentAnchors}
+        onScrollToElement={handleScrollToElement}
       />
     )}
   </section>

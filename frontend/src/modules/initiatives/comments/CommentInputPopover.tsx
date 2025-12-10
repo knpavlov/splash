@@ -38,15 +38,35 @@ export const CommentInputPopover = ({
     if (!draft || !containerRef.current) {
       return;
     }
-    const hostRect = containerRef.current.getBoundingClientRect();
-    const width = 320;
+    const container = containerRef.current;
+    const hostRect = container.getBoundingClientRect();
+    const popoverWidth = 320;
+    const popoverHeight = 180;
     const margin = 10;
-    const scrollTop = containerRef.current.scrollTop;
-    const scrollLeft = containerRef.current.scrollLeft;
-    const x = (anchorPoint?.x ?? hostRect.width / 2) + scrollLeft;
-    const y = (anchorPoint?.y ?? hostRect.height / 2) + scrollTop;
-    const top = Math.max(y + margin, margin);
-    const left = Math.max(Math.min(x - width / 2, hostRect.width - width - margin + scrollLeft), margin + scrollLeft);
+    const scrollTop = container.scrollTop;
+    const scrollLeft = container.scrollLeft;
+
+    // Calculate anchor position relative to container
+    const anchorX = anchorPoint?.x ?? draft.selection.left + draft.selection.width / 2;
+    const anchorY = anchorPoint?.y ?? draft.selection.top + draft.selection.height;
+
+    // Calculate position that keeps popover in viewport
+    const viewportTop = scrollTop;
+    const viewportBottom = scrollTop + hostRect.height;
+    const viewportLeft = scrollLeft;
+    const viewportRight = scrollLeft + hostRect.width;
+
+    // Try to position below the selection first
+    let top = anchorY + margin;
+    // If it would go below viewport, position above
+    if (top + popoverHeight > viewportBottom - margin) {
+      top = Math.max(anchorY - popoverHeight - margin, viewportTop + margin);
+    }
+
+    // Center horizontally on anchor, but keep within bounds
+    let left = anchorX - popoverWidth / 2;
+    left = Math.max(viewportLeft + margin, Math.min(left, viewportRight - popoverWidth - margin));
+
     setPosition({ top, left });
   }, [anchorPoint, containerRef, draft]);
 
@@ -64,7 +84,8 @@ export const CommentInputPopover = ({
       return;
     }
     updatePosition();
-    inputRef.current?.focus();
+    // Use preventScroll to avoid unwanted page scrolling when focusing
+    inputRef.current?.focus({ preventScroll: true });
   }, [draft, updatePosition]);
 
   useEffect(() => {
@@ -99,10 +120,7 @@ export const CommentInputPopover = ({
       data-comment-popover
     >
       <header className={styles.popoverHeader}>
-        <div>
-          <p className={styles.popoverTitle}>New comment</p>
-          <p className={styles.popoverTarget}>{draft.targetLabel ?? draft.targetPath}</p>
-        </div>
+        <p className={styles.popoverTitle}>New comment</p>
         <button
           className={styles.iconButton}
           type="button"

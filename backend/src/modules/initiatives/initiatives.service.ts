@@ -1038,6 +1038,50 @@ export class InitiativesService {
     return mapCommentThreadRow(updatedThread, messages);
   }
 
+  async deleteComment(
+    initiativeId: string,
+    threadId: string,
+    messageId: string | null,
+    actor?: InitiativeMutationMetadata
+  ): Promise<{ deleted: 'thread' | 'message'; threadId: string; messageId?: string }> {
+    const thread = await this.repository.findCommentThread(threadId);
+    if (!thread || thread.initiative_id !== initiativeId) {
+      throw new Error('NOT_FOUND');
+    }
+
+    // If no messageId, delete the entire thread
+    if (!messageId) {
+      // Only the thread creator can delete the whole thread
+      if (actor?.actorAccountId && thread.created_by_account_id !== actor.actorAccountId) {
+        throw new Error('FORBIDDEN');
+      }
+      await this.repository.deleteCommentThread(threadId);
+      return { deleted: 'thread', threadId };
+    }
+
+    // Delete a specific message
+    const message = await this.repository.findCommentMessage(messageId);
+    if (!message || message.thread_id !== threadId) {
+      throw new Error('NOT_FOUND');
+    }
+
+    // Only the message author can delete it
+    if (actor?.actorAccountId && message.author_account_id !== actor.actorAccountId) {
+      throw new Error('FORBIDDEN');
+    }
+
+    const messageCount = await this.repository.countThreadMessages(threadId);
+
+    // If this is the last message in the thread, delete the entire thread
+    if (messageCount <= 1) {
+      await this.repository.deleteCommentThread(threadId);
+      return { deleted: 'thread', threadId };
+    }
+
+    await this.repository.deleteCommentMessage(messageId);
+    return { deleted: 'message', threadId, messageId };
+  }
+
   private sanitizeStatusReportPayload(
     payload: unknown,
     record: InitiativeRecord

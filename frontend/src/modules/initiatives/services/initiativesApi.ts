@@ -868,5 +868,25 @@ export const initiativesApi = {
         method: 'PATCH',
         body: withActor({ resolved }, actor)
       })
-    )
+    ),
+  deleteComment: async (
+    id: string,
+    threadId: string,
+    messageId: string | null,
+    actor?: InitiativeActorMetadata
+  ): Promise<{ deleted: 'thread' | 'message'; threadId: string; messageId?: string }> => {
+    const result = await apiRequest<unknown>(`/initiatives/${id}/comments/${threadId}`, {
+      method: 'DELETE',
+      body: withActor({ messageId }, actor)
+    });
+    if (
+      result &&
+      typeof result === 'object' &&
+      'deleted' in result &&
+      (result.deleted === 'thread' || result.deleted === 'message')
+    ) {
+      return result as { deleted: 'thread' | 'message'; threadId: string; messageId?: string };
+    }
+    throw new Error('Invalid response');
+  }
 };

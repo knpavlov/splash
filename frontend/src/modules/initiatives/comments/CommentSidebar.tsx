@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckIcon } from '../../../components/icons/CheckIcon';
 import { CloseIcon } from '../../../components/icons/CloseIcon';
 import { SendIcon } from '../../../components/icons/SendIcon';
+import { TrashIcon } from '../../../components/icons/TrashIcon';
 import styles from '../../../styles/InitiativeComments.module.css';
 import { InitiativeCommentThread } from '../../../shared/types/initiative';
 import { CommentSelectionDraft } from './types';
@@ -18,7 +19,10 @@ interface CommentSidebarProps {
   onSelectThread?: (threadId: string | null) => void;
   activeThreadId?: string | null;
   onToggleResolved: (threadId: string, nextState: boolean) => Promise<void>;
+  onDeleteComment?: (threadId: string, messageId: string | null) => Promise<void>;
+  currentActorId?: string | null;
   anchorMap: Map<string, { topRatio: number }>;
+  onScrollToElement?: (threadId: string) => void;
 }
 
 const formatDate = (value: string) => new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(value));
@@ -39,7 +43,10 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
       onSelectThread,
       activeThreadId,
       onToggleResolved,
-      anchorMap
+      onDeleteComment,
+      currentActorId,
+      anchorMap,
+      onScrollToElement
     },
     ref
   ) => {
@@ -99,10 +106,7 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
       return (
         <div className={styles.pendingCard}>
           <div className={styles.pendingHeader}>
-            <div>
-              <p className={styles.pendingLabel}>New comment</p>
-              <p className={styles.pendingTarget}>{pendingSelection.targetLabel ?? pendingSelection.targetPath}</p>
-            </div>
+            <p className={styles.pendingLabel}>New comment</p>
             <button
               className={styles.iconButton}
               type="button"
@@ -115,7 +119,7 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
               <CloseIcon width={16} height={16} />
             </button>
           </div>
-          <p className={styles.pendingHint}>Type in the inline popover that appeared near your selection.</p>
+          <p className={styles.pendingHint}>Type in the popover near your selection.</p>
         </div>
       );
     };
@@ -139,27 +143,28 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
 
     return (
       <aside className={styles.sidebar} ref={ref} data-comment-panel>
-        <header className={styles.sidebarHeader}>
-          <div>
-            <p className={styles.sidebarTitle}>Comments</p>
-            <p className={styles.sidebarSubtitle}>Inline notes stay aligned to the page</p>
-          </div>
-          <button
-            className={styles.iconButton}
-            type="button"
-            aria-label="Close comments"
-            title="Close comments"
-            onClick={onClose}
-          >
-            <CloseIcon width={16} height={16} />
-          </button>
-        </header>
+        <div className={styles.sidebarInner}>
+          <header className={styles.sidebarHeader}>
+            <div>
+              <p className={styles.sidebarTitle}>Comments</p>
+              <p className={styles.sidebarSubtitle}>{orderedThreads.length} thread{orderedThreads.length !== 1 ? 's' : ''}</p>
+            </div>
+            <button
+              className={styles.iconButton}
+              type="button"
+              aria-label="Close comments"
+              title="Close comments"
+              onClick={onClose}
+            >
+              <CloseIcon width={16} height={16} />
+            </button>
+          </header>
 
-        {error && <p className={styles.errorMessage}>{error}</p>}
+          {error && <p className={styles.errorMessage}>{error}</p>}
 
-        {renderPendingBlock()}
+          {renderPendingBlock()}
 
-        <div className={styles.threadList} ref={listRef}>
+          <div className={styles.threadList} ref={listRef}>
           {isLoading && <p className={styles.helperText}>Loading comments…</p>}
           {!isLoading && orderedThreads.length === 0 && (
             <div className={styles.emptyState}>
@@ -169,6 +174,7 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
           )}
           {layoutEntries.map(({ thread, index, marginTop }) => {
             const isResolved = Boolean(thread.resolvedAt);
+            const canDeleteThread = currentActorId && thread.createdByAccountId === currentActorId;
             const threadClass = `${styles.threadCard} ${thread.id === activeThreadId ? styles.threadActive : ''} ${
               isResolved ? styles.threadResolved : ''
             }`;
@@ -184,30 +190,52 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
                 onBlur={() => onSelectThread?.(null)}
               >
                 <div className={styles.threadHeader}>
-                  <span className={styles.threadBadge}>{index}</span>
-                  <div>
-                    <p className={styles.threadTarget}>{thread.targetLabel ?? thread.targetPath ?? 'UI element'}</p>
-                    {!isResolved && (
-                      <p className={styles.threadMeta}>
-                        {thread.createdByName ?? 'Unknown user'} • {formatDate(thread.createdAt)}
-                      </p>
-                    )}
+                  <button
+                    type="button"
+                    className={styles.threadBadgeButton}
+                    onClick={() => onScrollToElement?.(thread.id)}
+                    title="Scroll to element"
+                  >
+                    {index}
+                  </button>
+                  <div className={styles.threadHeaderInfo}>
+                    <p className={styles.threadMeta}>
+                      {thread.createdByName ?? 'Unknown user'} • {formatDate(thread.createdAt)}
+                    </p>
                   </div>
                   <span className={isResolved ? styles.statusResolved : styles.statusOpen}>
                     {isResolved ? 'Resolved' : 'Open'}
                   </span>
                 </div>
                 <div className={styles.messageList}>
-                  {thread.comments.map((message) => (
-                    <article key={message.id} className={styles.message}>
-                      {!isResolved && (
-                        <p className={styles.messageMeta}>
-                          {message.authorName ?? 'Unnamed'} • {formatDate(message.createdAt)}
-                        </p>
-                      )}
-                      <p className={styles.messageBody}>{message.body}</p>
-                    </article>
-                  ))}
+                  {thread.comments.map((message, msgIndex) => {
+                    const canDeleteMessage = currentActorId && message.authorAccountId === currentActorId;
+                    const isFirstMessage = msgIndex === 0;
+                    return (
+                      <article key={message.id} className={styles.message}>
+                        <div className={styles.messageHeader}>
+                          {!isResolved && (
+                            <p className={styles.messageMeta}>
+                              {message.authorName ?? 'Unnamed'} • {formatDate(message.createdAt)}
+                            </p>
+                          )}
+                          {canDeleteMessage && onDeleteComment && (
+                            <button
+                              type="button"
+                              className={styles.deleteButton}
+                              onClick={() => onDeleteComment(thread.id, isFirstMessage ? null : message.id)}
+                              disabled={isSaving}
+                              title={isFirstMessage ? 'Delete thread' : 'Delete message'}
+                              aria-label={isFirstMessage ? 'Delete thread' : 'Delete message'}
+                            >
+                              <TrashIcon width={14} height={14} />
+                            </button>
+                          )}
+                        </div>
+                        <p className={styles.messageBody}>{message.body}</p>
+                      </article>
+                    );
+                  })}
                 </div>
                 <div className={styles.replyBox}>
                   <textarea
@@ -243,6 +271,7 @@ export const CommentSidebar = forwardRef<HTMLDivElement, CommentSidebarProps>(
               </section>
             );
           })}
+          </div>
         </div>
       </aside>
     );

@@ -119,6 +119,42 @@ export const useInitiativeComments = (initiativeId: string | null, options: UseI
     [actor, initiativeId]
   );
 
+  const deleteComment = useCallback(
+    async (threadId: string, messageId: string | null = null) => {
+      if (!initiativeId) {
+        return null;
+      }
+      setIsSaving(true);
+      setError(null);
+      try {
+        const result = await initiativesApi.deleteComment(initiativeId, threadId, messageId, actor);
+        if (result.deleted === 'thread') {
+          setThreads((prev) => prev.filter((thread) => thread.id !== threadId));
+        } else if (result.deleted === 'message' && result.messageId) {
+          setThreads((prev) =>
+            prev.map((thread) => {
+              if (thread.id !== threadId) {
+                return thread;
+              }
+              return {
+                ...thread,
+                comments: thread.comments.filter((msg) => msg.id !== result.messageId)
+              };
+            })
+          );
+        }
+        return result;
+      } catch (err) {
+        console.error('Failed to delete comment:', err);
+        setError('Unable to delete comment.');
+        return null;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [actor, initiativeId]
+  );
+
   return {
     threads,
     isLoading,
@@ -127,6 +163,7 @@ export const useInitiativeComments = (initiativeId: string | null, options: UseI
     refresh,
     createComment,
     replyToComment,
-    toggleResolved
+    toggleResolved,
+    deleteComment
   };
 };

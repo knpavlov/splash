@@ -152,9 +152,42 @@ export const CommentSelectionOverlay = ({
       };
     };
 
-    const findTightElement = (start: HTMLElement | null): HTMLElement | null => {
+    const findTightElement = (start: HTMLElement | null, clickX?: number, clickY?: number): HTMLElement | null => {
       let current: HTMLElement | null = start;
       let best: { node: HTMLElement; area: number } | null = null;
+
+      // First, try to find elements at the click point that have comment anchors
+      if (clickX !== undefined && clickY !== undefined) {
+        const elementsAtPoint = document.elementsFromPoint(clickX, clickY) as HTMLElement[];
+        for (const el of elementsAtPoint) {
+          if (!container.contains(el)) continue;
+          // Prefer elements with explicit comment anchors
+          const anchor = el.closest<HTMLElement>('[data-comment-anchor]');
+          if (anchor && container.contains(anchor)) {
+            const rect = anchor.getBoundingClientRect();
+            const area = rect.width * rect.height;
+            if (rect.width > 4 && rect.height > 4 && (!best || area < best.area)) {
+              best = { node: anchor, area };
+            }
+          }
+        }
+        if (best) return best.node;
+
+        // Then look for smallest element at click point
+        for (const el of elementsAtPoint) {
+          if (!container.contains(el) || el === container) continue;
+          const rect = el.getBoundingClientRect();
+          const area = rect.width * rect.height;
+          // Skip very large elements (likely containers)
+          if (area > container.getBoundingClientRect().width * container.getBoundingClientRect().height * 0.5) continue;
+          if (rect.width > 4 && rect.height > 4 && (!best || area < best.area)) {
+            best = { node: el, area };
+          }
+        }
+        if (best) return best.node;
+      }
+
+      // Fallback to traversing up the DOM tree
       while (current && current !== container && current.tagName.toLowerCase() !== 'body') {
         const rect = current.getBoundingClientRect();
         const area = rect.width * rect.height;
@@ -166,11 +199,16 @@ export const CommentSelectionOverlay = ({
       return best?.node ?? start;
     };
 
-    const buildTargetFromElement = (hostRect: DOMRect, rawTarget: HTMLElement | null): CommentSelectionTarget | null => {
+    const buildTargetFromElement = (
+      hostRect: DOMRect,
+      rawTarget: HTMLElement | null,
+      clickX?: number,
+      clickY?: number
+    ): CommentSelectionTarget | null => {
       if (!rawTarget) {
         return null;
       }
-      const preciseTarget = findTightElement(rawTarget);
+      const preciseTarget = findTightElement(rawTarget, clickX, clickY);
       const anchor = preciseTarget?.closest<HTMLElement>('[data-comment-anchor]');
       const target = anchor ?? preciseTarget;
       const rect = target?.getBoundingClientRect();
@@ -192,8 +230,8 @@ export const CommentSelectionOverlay = ({
         selection: box,
         mode: anchor ? 'element' : 'region',
         cursor: {
-          x: Math.min(Math.max(box.left + box.width / 2, 0), hostRect.width),
-          y: Math.min(box.top + box.height, hostRect.height)
+          x: clickX !== undefined ? clickX - hostRect.left + container.scrollLeft : Math.min(Math.max(box.left + box.width / 2, 0), hostRect.width),
+          y: clickY !== undefined ? clickY - hostRect.top + container.scrollTop : Math.min(box.top + box.height, hostRect.height)
         }
       };
     };
@@ -298,7 +336,9 @@ export const CommentSelectionOverlay = ({
 
       const targetFromClick = buildTargetFromElement(
         hostRect,
-        (event.target as HTMLElement | null) ?? state?.target ?? null
+        (event.target as HTMLElement | null) ?? state?.target ?? null,
+        event.clientX,
+        event.clientY
       );
       if (targetFromClick) {
         event.preventDefault();

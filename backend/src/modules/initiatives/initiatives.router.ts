@@ -238,4 +238,19 @@ router.patch('/:id/comments/:threadId/status', async (req, res) => {
   }
 });
 
+router.delete('/:id/comments/:threadId', async (req, res) => {
+  const { messageId, actor } = req.body as { messageId?: unknown; actor?: unknown };
+  try {
+    const result = await initiativesService.deleteComment(
+      req.params.id,
+      req.params.threadId,
+      typeof messageId === 'string' ? messageId : null,
+      normalizeActor(actor)
+    );
+    res.json(result);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 export { router as initiativesRouter };

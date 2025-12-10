@@ -1074,4 +1074,42 @@ export class InitiativesRepository {
     );
     return result.rows?.[0] ?? null;
   }
+
+  async deleteCommentThread(threadId: string): Promise<boolean> {
+    const client = await connectClient();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `DELETE FROM initiative_comment_messages WHERE thread_id = $1;`,
+        [threadId]
+      );
+      const result = await client.query(
+        `DELETE FROM initiative_comment_threads WHERE id = $1;`,
+        [threadId]
+      );
+      await client.query('COMMIT');
+      return ((result as { rowCount?: number }).rowCount ?? 0) > 0;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async deleteCommentMessage(messageId: string): Promise<boolean> {
+    const result = await postgresPool.query(
+      `DELETE FROM initiative_comment_messages WHERE id = $1;`,
+      [messageId]
+    );
+    return ((result as { rowCount?: number }).rowCount ?? 0) > 0;
+  }
+
+  async countThreadMessages(threadId: string): Promise<number> {
+    const result = await postgresPool.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM initiative_comment_messages WHERE thread_id = $1;`,
+      [threadId]
+    );
+    return parseInt(result.rows?.[0]?.count ?? '0', 10);
+  }
 }
