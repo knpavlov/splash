@@ -199,6 +199,9 @@ export interface InitiativeStatusReportEntry {
   endDate: string | null;
   statusUpdate: string;
   source: InitiativeStatusReportSource;
+  dueDaysSnapshot?: number | null;
+  dueStatusSnapshot?: 'negative' | 'warning' | 'muted';
+  dueLabelSnapshot?: string;
 }
 
 export interface InitiativeStatusReport {

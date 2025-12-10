@@ -623,11 +623,15 @@ export interface InitiativeStatusReportEntryInput {
   taskId: string;
   statusUpdate?: string;
   source?: InitiativeStatusReportSource;
+  dueDaysSnapshot?: number | null;
+  dueStatusSnapshot?: 'negative' | 'warning' | 'muted';
+  dueLabelSnapshot?: string;
 }
 
 export interface InitiativeStatusReportPayload {
   entries: InitiativeStatusReportEntryInput[];
   summary?: string;
+  upcomingWindowDays?: number;
 }
 
 const buildStatusReportPayload = (payload: InitiativeStatusReportPayload) =>
@@ -635,7 +639,16 @@ const buildStatusReportPayload = (payload: InitiativeStatusReportPayload) =>
     .map((entry) => ({
       taskId: typeof entry.taskId === 'string' ? entry.taskId.trim() : '',
       statusUpdate: typeof entry.statusUpdate === 'string' ? entry.statusUpdate : '',
-      source: entry.source === 'manual' ? 'manual' : 'auto'
+      source: entry.source === 'manual' ? 'manual' : 'auto',
+      dueDaysSnapshot:
+        typeof entry.dueDaysSnapshot === 'number' && Number.isFinite(entry.dueDaysSnapshot)
+          ? Math.round(entry.dueDaysSnapshot)
+          : null,
+      dueStatusSnapshot:
+        entry.dueStatusSnapshot === 'negative' || entry.dueStatusSnapshot === 'warning' || entry.dueStatusSnapshot === 'muted'
+          ? entry.dueStatusSnapshot
+          : undefined,
+      dueLabelSnapshot: typeof entry.dueLabelSnapshot === 'string' ? entry.dueLabelSnapshot : undefined
     }))
     .filter((entry) => entry.taskId);
 
@@ -667,12 +680,24 @@ const normalizeStatusReportEntry = (value: unknown): InitiativeStatusReportEntry
     endDate?: unknown;
     statusUpdate?: unknown;
     source?: unknown;
+    dueDaysSnapshot?: unknown;
+    dueStatusSnapshot?: unknown;
+    dueLabelSnapshot?: unknown;
   };
   const taskId = typeof payload.taskId === 'string' ? payload.taskId.trim() : '';
   if (!taskId) {
     return null;
   }
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : generateId();
+  const dueDaysSnapshot =
+    typeof payload.dueDaysSnapshot === 'number' && Number.isFinite(payload.dueDaysSnapshot)
+      ? Math.round(payload.dueDaysSnapshot)
+      : null;
+  const dueStatusSnapshot =
+    payload.dueStatusSnapshot === 'negative' || payload.dueStatusSnapshot === 'warning' || payload.dueStatusSnapshot === 'muted'
+      ? payload.dueStatusSnapshot
+      : undefined;
+  const dueLabelSnapshot = typeof payload.dueLabelSnapshot === 'string' ? payload.dueLabelSnapshot : '';
   return {
     id,
     taskId,
@@ -682,7 +707,10 @@ const normalizeStatusReportEntry = (value: unknown): InitiativeStatusReportEntry
     startDate: typeof payload.startDate === 'string' ? payload.startDate : null,
     endDate: typeof payload.endDate === 'string' ? payload.endDate : null,
     statusUpdate: typeof payload.statusUpdate === 'string' ? payload.statusUpdate : '',
-    source: payload.source === 'manual' ? 'manual' : 'auto'
+    source: payload.source === 'manual' ? 'manual' : 'auto',
+    dueDaysSnapshot,
+    dueStatusSnapshot,
+    dueLabelSnapshot
   };
 };
 
@@ -776,10 +804,17 @@ export const initiativesApi = {
   getStatusReportDraft: async (id: string) => ensureStatusReport(await apiRequest<unknown>(`/initiatives/${id}/status-reports/draft`)),
   saveStatusReportDraft: async (id: string, payload: InitiativeStatusReportPayload, actor?: InitiativeActorMetadata) => {
     const payloadEntries = buildStatusReportPayload(payload);
+    const upcomingWindowDays =
+      typeof payload.upcomingWindowDays === 'number' && Number.isFinite(payload.upcomingWindowDays)
+        ? Math.round(payload.upcomingWindowDays)
+        : undefined;
     const report = ensureStatusReport(
       await apiRequest<unknown>(`/initiatives/${id}/status-reports/draft`, {
         method: 'POST',
-        body: withActor({ report: { entries: payloadEntries, summary: payload.summary ?? '' } }, actor)
+        body: withActor(
+          { report: { entries: payloadEntries, summary: payload.summary ?? '', upcomingWindowDays } },
+          actor
+        )
       })
     );
     if (!report) {
@@ -789,10 +824,17 @@ export const initiativesApi = {
   },
   submitStatusReport: async (id: string, payload: InitiativeStatusReportPayload, actor?: InitiativeActorMetadata) => {
     const payloadEntries = buildStatusReportPayload(payload);
+    const upcomingWindowDays =
+      typeof payload.upcomingWindowDays === 'number' && Number.isFinite(payload.upcomingWindowDays)
+        ? Math.round(payload.upcomingWindowDays)
+        : undefined;
     const report = ensureStatusReport(
       await apiRequest<unknown>(`/initiatives/${id}/status-reports`, {
         method: 'POST',
-        body: withActor({ report: { entries: payloadEntries, summary: payload.summary ?? '' } }, actor)
+        body: withActor(
+          { report: { entries: payloadEntries, summary: payload.summary ?? '', upcomingWindowDays } },
+          actor
+        )
       })
     );
     if (!report) {

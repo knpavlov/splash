@@ -57,6 +57,8 @@ const hashPayload = (value: string) => createHash('sha1').update(value).digest('
 
 const STATUS_UPDATE_MAX_LENGTH = 2000;
 const STATUS_SUMMARY_MAX_LENGTH = 4000;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const diffInDays = (start: Date, end: Date) => Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
 
 const normalizeStageKey = (value: unknown): InitiativeStageKey => {
   if (typeof value === 'string') {
@@ -1043,6 +1045,11 @@ export class InitiativesService {
     if (!payload || typeof payload !== 'object') {
       throw new Error('INVALID_INPUT');
     }
+    const rawWindow = (payload as { upcomingWindowDays?: unknown }).upcomingWindowDays;
+    const upcomingWindowDays =
+      typeof rawWindow === 'number' && Number.isFinite(rawWindow) && rawWindow > 0
+        ? Math.min(365, Math.max(1, Math.round(rawWindow)))
+        : 14;
     const entriesPayload = (payload as { entries?: unknown }).entries;
     if (!Array.isArray(entriesPayload)) {
       throw new Error('INVALID_INPUT');
@@ -1062,6 +1069,8 @@ export class InitiativesService {
     if (!taskMap.size) {
       throw new Error('INVALID_INPUT');
     }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const entries: InitiativeStatusReportEntry[] = [];
     const seenTasks = new Set<string>();
     for (const item of entriesPayload) {
@@ -1082,6 +1091,35 @@ export class InitiativesService {
       const sourceRaw = (item as { source?: unknown }).source;
       const statusUpdate = sanitizeString(statusUpdateRaw).slice(0, STATUS_UPDATE_MAX_LENGTH);
       const source = sourceRaw === 'manual' ? 'manual' : 'auto';
+      const rawDueDays = (item as { dueDaysSnapshot?: unknown }).dueDaysSnapshot;
+      const rawDueStatus = (item as { dueStatusSnapshot?: unknown }).dueStatusSnapshot;
+      const rawDueLabel = (item as { dueLabelSnapshot?: unknown }).dueLabelSnapshot;
+      const endDate = task.endDate ?? task.baseline?.endDate ?? null;
+      const parsedEndDate = endDate ? new Date(endDate) : null;
+      const calculatedDueDays =
+        parsedEndDate && !Number.isNaN(parsedEndDate.getTime()) ? diffInDays(today, parsedEndDate) : null;
+      const dueDaysSnapshot =
+        typeof rawDueDays === 'number' && Number.isFinite(rawDueDays) ? Math.round(rawDueDays) : calculatedDueDays;
+      const dueStatusSnapshot =
+        rawDueStatus === 'negative' || rawDueStatus === 'warning' || rawDueStatus === 'muted'
+          ? rawDueStatus
+          : dueDaysSnapshot === null
+          ? 'muted'
+          : dueDaysSnapshot < 0
+          ? 'negative'
+          : dueDaysSnapshot <= upcomingWindowDays
+          ? 'warning'
+          : 'muted';
+      const dueLabelSnapshot =
+        typeof rawDueLabel === 'string' && rawDueLabel.trim()
+          ? rawDueLabel.trim()
+          : dueDaysSnapshot === null
+          ? 'No end date'
+          : dueDaysSnapshot < 0
+          ? `${Math.abs(dueDaysSnapshot)}d overdue`
+          : dueDaysSnapshot === 0
+          ? 'Due today'
+          : `Due in ${dueDaysSnapshot}d`;
       entries.push({
         id: randomUUID(),
         taskId: task.id,
@@ -1089,9 +1127,12 @@ export class InitiativesService {
         description: task.description,
         responsible: task.responsible,
         startDate: task.startDate,
-        endDate: task.endDate ?? task.baseline?.endDate ?? null,
+        endDate,
         statusUpdate,
-        source
+        source,
+        dueDaysSnapshot,
+        dueStatusSnapshot,
+        dueLabelSnapshot
       });
     }
     if (!entries.length) {

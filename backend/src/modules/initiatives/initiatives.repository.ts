@@ -219,12 +219,24 @@ const ensureStatusReportEntry = (value: unknown): InitiativeStatusReportEntry | 
     endDate?: unknown;
     statusUpdate?: unknown;
     source?: unknown;
+    dueDaysSnapshot?: unknown;
+    dueStatusSnapshot?: unknown;
+    dueLabelSnapshot?: unknown;
   };
   const taskId = typeof payload.taskId === 'string' && payload.taskId.trim() ? payload.taskId.trim() : null;
   if (!taskId) {
     return null;
   }
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
+  const dueDaysSnapshot =
+    typeof payload.dueDaysSnapshot === 'number' && Number.isFinite(payload.dueDaysSnapshot)
+      ? payload.dueDaysSnapshot
+      : null;
+  const dueStatusSnapshot =
+    payload.dueStatusSnapshot === 'negative' || payload.dueStatusSnapshot === 'warning' || payload.dueStatusSnapshot === 'muted'
+      ? payload.dueStatusSnapshot
+      : undefined;
+  const dueLabelSnapshot = typeof payload.dueLabelSnapshot === 'string' ? payload.dueLabelSnapshot : '';
   return {
     id,
     taskId,
@@ -234,7 +246,10 @@ const ensureStatusReportEntry = (value: unknown): InitiativeStatusReportEntry | 
     startDate: typeof payload.startDate === 'string' ? payload.startDate : null,
     endDate: typeof payload.endDate === 'string' ? payload.endDate : null,
     statusUpdate: typeof payload.statusUpdate === 'string' ? payload.statusUpdate : '',
-    source: payload.source === 'manual' ? 'manual' : 'auto'
+    source: payload.source === 'manual' ? 'manual' : 'auto',
+    dueDaysSnapshot,
+    dueStatusSnapshot,
+    dueLabelSnapshot
   };
 };
 

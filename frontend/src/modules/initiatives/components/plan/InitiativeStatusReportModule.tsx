@@ -147,7 +147,56 @@ const buildEntryFromTask = (
   source
 });
 
-const buildDueState = (entry: InitiativeStatusReportEntry, windowDays: number) => {
+type DueTone = 'negative' | 'warning' | 'muted';
+
+const formatDueLabel = (days: number | null) => {
+  if (days === null) {
+    return 'No end date';
+  }
+  if (days < 0) {
+    return `${Math.abs(days)}d overdue`;
+  }
+  if (days === 0) {
+    return 'Due today';
+  }
+  return `Due in ${days}d`;
+};
+
+const resolveDueTone = (days: number | null, windowDays: number, override?: DueTone): DueTone => {
+  if (override === 'negative' || override === 'warning' || override === 'muted') {
+    return override;
+  }
+  if (days === null) {
+    return 'muted';
+  }
+  if (days < 0) {
+    return 'negative';
+  }
+  if (days <= windowDays) {
+    return 'warning';
+  }
+  return 'muted';
+};
+
+const buildDueState = (entry: InitiativeStatusReportEntry, windowDays: number, useSnapshot = false) => {
+  if (useSnapshot) {
+    const snapshotDays =
+      typeof entry.dueDaysSnapshot === 'number' && Number.isFinite(entry.dueDaysSnapshot)
+        ? Math.round(entry.dueDaysSnapshot)
+        : null;
+    const hasSnapshot =
+      snapshotDays !== null ||
+      (entry.dueLabelSnapshot && entry.dueLabelSnapshot.trim()) ||
+      entry.dueStatusSnapshot;
+    if (hasSnapshot) {
+      const tone = resolveDueTone(snapshotDays, windowDays, entry.dueStatusSnapshot as DueTone | undefined);
+      const label =
+        entry.dueLabelSnapshot && entry.dueLabelSnapshot.trim()
+          ? entry.dueLabelSnapshot
+          : formatDueLabel(snapshotDays);
+      return { label, tone, days: snapshotDays };
+    }
+  }
   const parsed = parseDate(entry.endDate);
   if (!parsed) {
     return { label: 'No end date', tone: 'muted' as const, days: null };
@@ -155,16 +204,11 @@ const buildDueState = (entry: InitiativeStatusReportEntry, windowDays: number) =
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diff = diffInDays(today, parsed);
-  if (diff < 0) {
-    return { label: `${Math.abs(diff)}d overdue`, tone: 'negative' as const, days: diff };
-  }
-  if (diff === 0) {
-    return { label: 'Due today', tone: 'warning' as const, days: diff };
-  }
-  if (diff <= windowDays) {
-    return { label: `Due in ${diff}d`, tone: 'warning' as const, days: diff };
-  }
-  return { label: `Due in ${diff}d`, tone: 'muted' as const, days: diff };
+  return {
+    label: formatDueLabel(diff),
+    tone: resolveDueTone(diff, windowDays),
+    days: diff
+  };
 };
 
 const buildDraftStorageKey = (initiativeId: string) => `status-report-draft:${initiativeId}`;
@@ -203,7 +247,11 @@ const mergeEntriesWithTasks = (
 
 const normalizeReport = (report: InitiativeStatusReport): InitiativeStatusReport => ({
   ...report,
-  entries: report.entries.map((entry) => ({ ...entry, statusUpdate: cleanStatusUpdate(entry.statusUpdate) }))
+  entries: report.entries.map((entry) => ({
+    ...entry,
+    statusUpdate: cleanStatusUpdate(entry.statusUpdate),
+    dueLabelSnapshot: typeof entry.dueLabelSnapshot === 'string' ? entry.dueLabelSnapshot.trim() : entry.dueLabelSnapshot
+  }))
 });
 
 export const InitiativeStatusReportModule = ({
@@ -347,8 +395,8 @@ export const InitiativeStatusReportModule = ({
           return direction * ((aDate?.getTime() ?? Number.MAX_SAFE_INTEGER) - (bDate?.getTime() ?? Number.MAX_SAFE_INTEGER));
         }
         case 'due': {
-          const aState = buildDueState(a, upcomingWindow);
-          const bState = buildDueState(b, upcomingWindow);
+          const aState = buildDueState(a, upcomingWindow, isViewingSubmitted);
+          const bState = buildDueState(b, upcomingWindow, isViewingSubmitted);
           const aDays = aState.days ?? Number.MAX_SAFE_INTEGER;
           const bDays = bState.days ?? Number.MAX_SAFE_INTEGER;
           return direction * (aDays - bDays);
@@ -360,12 +408,12 @@ export const InitiativeStatusReportModule = ({
       }
     });
     return copy;
-  }, [entriesToRender, sort]);
+  }, [entriesToRender, sort, upcomingWindow, isViewingSubmitted]);
 
   const dueBreakdown = useMemo(() => {
     const totals = { total: 0, overdue: 0, warning: 0, onTrack: 0 };
     entriesToRender.forEach((entry) => {
-      const state = buildDueState(entry, upcomingWindow);
+      const state = buildDueState(entry, upcomingWindow, isViewingSubmitted);
       totals.total += 1;
       if (state.tone === 'negative') {
         totals.overdue += 1;
@@ -376,7 +424,7 @@ export const InitiativeStatusReportModule = ({
       }
     });
     return totals;
-  }, [entriesToRender, upcomingWindow]);
+  }, [entriesToRender, upcomingWindow, isViewingSubmitted]);
 
   useEffect(() => {
     const loadDraft = async () => {
@@ -559,10 +607,16 @@ export const InitiativeStatusReportModule = ({
       if (isViewingSubmitted || readOnly) {
         return;
       }
-      const normalizedEntries = draftEntries.map((entry) => ({
-        ...entry,
-        statusUpdate: cleanStatusUpdate(entry.statusUpdate)
-      }));
+      const normalizedEntries = draftEntries.map((entry) => {
+        const dueState = buildDueState(entry, upcomingWindow);
+        return {
+          ...entry,
+          statusUpdate: cleanStatusUpdate(entry.statusUpdate),
+          dueDaysSnapshot: dueState.days,
+          dueStatusSnapshot: dueState.tone,
+          dueLabelSnapshot: dueState.label
+        };
+      });
       const payload = {
         summary,
         entries: normalizedEntries,
@@ -576,7 +630,11 @@ export const InitiativeStatusReportModule = ({
           }
         : undefined;
       try {
-        await initiativesApi.saveStatusReportDraft(initiativeId, { entries: normalizedEntries, summary }, actor);
+        await initiativesApi.saveStatusReportDraft(
+          initiativeId,
+          { entries: normalizedEntries, summary, upcomingWindowDays: upcomingWindow },
+          actor
+        );
       } catch {
         // backend draft endpoint may be unavailable; rely on local storage without surfacing an error
       }
@@ -594,7 +652,7 @@ export const InitiativeStatusReportModule = ({
       }
       setIsSavingDraft(false);
     },
-    [draftEntries, draftStorageKey, initiativeId, isViewingSubmitted, readOnly, session, summary]
+    [draftEntries, draftStorageKey, initiativeId, isViewingSubmitted, readOnly, session, summary, upcomingWindow]
   );
 
   const handleSaveDraft = () => {
@@ -618,14 +676,21 @@ export const InitiativeStatusReportModule = ({
           name: session.email
         }
       : undefined;
-    const entriesPayload: InitiativeStatusReportEntryInput[] = draftEntries.map((entry) => ({
-      taskId: entry.taskId,
-      statusUpdate: cleanStatusUpdate(entry.statusUpdate),
-      source: entry.source
-    }));
+    const entriesPayload: InitiativeStatusReportEntryInput[] = draftEntries.map((entry) => {
+      const dueState = buildDueState(entry, upcomingWindow);
+      return {
+        taskId: entry.taskId,
+        statusUpdate: cleanStatusUpdate(entry.statusUpdate),
+        source: entry.source,
+        dueDaysSnapshot: dueState.days,
+        dueStatusSnapshot: dueState.tone,
+        dueLabelSnapshot: dueState.label
+      };
+    });
     const payload: InitiativeStatusReportPayload = {
       entries: entriesPayload,
-      summary
+      summary,
+      upcomingWindowDays: upcomingWindow
     };
     try {
       const report = await initiativesApi.submitStatusReport(initiativeId, payload, actor);
@@ -906,7 +971,7 @@ export const InitiativeStatusReportModule = ({
                 renderEmptyState()
               ) : (
                 sortedEntries.map((entry, index) => {
-                  const dueState = buildDueState(entry, upcomingWindow);
+                  const dueState = buildDueState(entry, upcomingWindow, isViewingSubmitted);
                   return (
                     <div
                       key={entry.id}
