@@ -6,7 +6,8 @@ import {
   InitiativePlanCapacityMode,
   InitiativePlanBaseline,
   InitiativePlanModel,
-  InitiativePlanTask
+  InitiativePlanTask,
+  ExternalDependency
 } from '../../../shared/types/initiative';
 import { generateId } from '../../../shared/ui/generateId';
 
@@ -151,6 +152,7 @@ export const createEmptyPlanTask = (): InitiativePlanTask => ({
   color: null,
   milestoneType: 'Standard',
   dependencies: [],
+  externalDependencies: [],
   baseline: null,
   sourceTaskId: null,
   archived: false
@@ -215,6 +217,7 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
     milestoneType?: unknown;
     assignees?: unknown;
     dependencies?: unknown;
+    externalDependencies?: unknown;
     baseline?: unknown;
     sourceTaskId?: unknown;
     archived?: unknown;
@@ -278,6 +281,23 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
         )
       )
     : [];
+  const externalDependencies: ExternalDependency[] = Array.isArray(payload.externalDependencies)
+    ? payload.externalDependencies
+        .filter(
+          (dep): dep is ExternalDependency =>
+            dep !== null &&
+            typeof dep === 'object' &&
+            typeof (dep as Record<string, unknown>).initiativeId === 'string' &&
+            typeof (dep as Record<string, unknown>).taskId === 'string' &&
+            ((dep as Record<string, unknown>).direction === 'predecessor' ||
+              (dep as Record<string, unknown>).direction === 'successor')
+        )
+        .map((dep) => ({
+          initiativeId: dep.initiativeId.trim(),
+          taskId: dep.taskId.trim(),
+          direction: dep.direction
+        }))
+    : [];
   return {
     id,
     name: typeof payload.name === 'string' ? payload.name : '',
@@ -294,6 +314,7 @@ const normalizePlanTask = (value: unknown): InitiativePlanTask => {
     color: typeof payload.color === 'string' ? payload.color.trim() || null : null,
     milestoneType: normalizeMilestoneType(payload.milestoneType),
     dependencies,
+    externalDependencies,
     baseline: normalizeBaselineSnapshot(payload.baseline) ?? null,
     sourceTaskId: typeof payload.sourceTaskId === 'string' ? payload.sourceTaskId.trim() || null : null,
     archived: Boolean(payload.archived)

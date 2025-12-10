@@ -74,6 +74,14 @@ export interface InitiativePlanAssignee {
   capacitySegments: InitiativePlanCapacitySegment[];
 }
 
+export type ExternalDependencyDirection = 'predecessor' | 'successor';
+
+export interface ExternalDependency {
+  initiativeId: string;
+  taskId: string;
+  direction: ExternalDependencyDirection;
+}
+
 export interface InitiativePlanTask {
   id: string;
   name: string;
@@ -90,6 +98,7 @@ export interface InitiativePlanTask {
   color: string | null;
   milestoneType: string | null;
   dependencies: string[];
+  externalDependencies?: ExternalDependency[];
   baseline?: InitiativePlanBaseline | null;
   sourceTaskId?: string | null;
   archived?: boolean;

@@ -73,6 +73,7 @@ type MenuIconKey =
   | 'delete'
   | 'dependency-add'
   | 'dependency-remove'
+  | 'external-link'
   | 'color';
 
 const MenuIcon = ({ type }: { type: MenuIconKey }) => {
@@ -178,6 +179,27 @@ const MenuIcon = ({ type }: { type: MenuIconKey }) => {
             strokeLinejoin="round"
           />
           <path d="m7 7 6 6m0-6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      );
+    case 'external-link':
+      return (
+        <svg viewBox="0 0 20 20" className={styles.menuIconSvg} aria-hidden="true">
+          <path
+            d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M11 4h5v5M16 4l-7 7"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       );
     case 'color':
@@ -313,6 +335,12 @@ interface DependencyPickerState {
   anchorRect: DOMRect;
 }
 
+interface ExternalLinkPickerState {
+  taskId: string;
+  step: 'select-initiative' | 'select-task';
+  selectedInitiativeId: string | null;
+}
+
 interface ContextMenuState {
   taskId: string;
   x: number;
@@ -333,7 +361,8 @@ type ContextMenuAction =
   | 'outdent'
   | 'delete'
   | 'add-link'
-  | 'remove-links';
+  | 'remove-links'
+  | 'add-external-link';
 
 const isBaselineEmpty = (baseline: InitiativePlanBaseline | null | undefined) => {
   if (!baseline) {
@@ -560,6 +589,8 @@ export const InitiativePlanModule = ({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [dependencyPicker, setDependencyPicker] = useState<DependencyPickerState | null>(null);
   const [dependencyFilter, setDependencyFilter] = useState('');
+  const [externalLinkPicker, setExternalLinkPicker] = useState<ExternalLinkPickerState | null>(null);
+  const [externalLinkFilter, setExternalLinkFilter] = useState('');
   const [openSubmenu, setOpenSubmenu] = useState<'add' | 'color' | null>(null);
   const resizeStateRef = useRef<{
     columnId: TableColumnId;
@@ -911,6 +942,65 @@ export const InitiativePlanModule = ({
     () => normalizedPlan.tasks.some((task) => (task.dependencies?.length ?? 0) > 0),
     [normalizedPlan.tasks]
   );
+
+  // Collect incoming external dependencies from other initiatives
+  const incomingExternalDeps = useMemo(() => {
+    const map = new Map<
+      string,
+      Array<{
+        fromInitiativeId: string;
+        fromInitiativeName: string;
+        fromTaskId: string;
+        fromTaskName: string;
+      }>
+    >();
+    allInitiatives.forEach((init) => {
+      if (init.id === initiativeId) return;
+      init.plan.tasks.forEach((task) => {
+        (task.externalDependencies ?? []).forEach((dep) => {
+          if (dep.initiativeId === initiativeId) {
+            const existing = map.get(dep.taskId) ?? [];
+            existing.push({
+              fromInitiativeId: init.id,
+              fromInitiativeName: init.name,
+              fromTaskId: task.id,
+              fromTaskName: task.name || 'Untitled task'
+            });
+            map.set(dep.taskId, existing);
+          }
+        });
+      });
+    });
+    return map;
+  }, [allInitiatives, initiativeId]);
+
+  // Collect outgoing external dependencies for the current initiative
+  const outgoingExternalDeps = useMemo(() => {
+    const map = new Map<
+      string,
+      Array<{
+        toInitiativeId: string;
+        toInitiativeName: string;
+        toTaskId: string;
+        toTaskName: string;
+      }>
+    >();
+    normalizedPlan.tasks.forEach((task) => {
+      (task.externalDependencies ?? []).forEach((dep) => {
+        const targetInit = allInitiatives.find((init) => init.id === dep.initiativeId);
+        const targetTask = targetInit?.plan.tasks.find((t) => t.id === dep.taskId);
+        const existing = map.get(task.id) ?? [];
+        existing.push({
+          toInitiativeId: dep.initiativeId,
+          toInitiativeName: targetInit?.name ?? 'Unknown initiative',
+          toTaskId: dep.taskId,
+          toTaskName: targetTask?.name ?? 'Unknown task'
+        });
+        map.set(task.id, existing);
+      });
+    });
+    return map;
+  }, [normalizedPlan.tasks, allInitiatives]);
 
   const summaryRange = useMemo(() => {
     const map = new Map<string, { start: Date; end: Date }>();
@@ -3247,6 +3337,14 @@ export const InitiativePlanModule = ({
         case 'remove-links':
           handleRemoveAllDependencies(taskId);
           break;
+        case 'add-external-link':
+          setExternalLinkPicker({
+            taskId,
+            step: 'select-initiative',
+            selectedInitiativeId: null
+          });
+          setExternalLinkFilter('');
+          break;
         default:
           break;
       }
@@ -3265,7 +3363,9 @@ export const InitiativePlanModule = ({
       parseDate,
       formatDateInput,
       setSelectedTaskId,
-      updateTask
+      updateTask,
+      setExternalLinkPicker,
+      setExternalLinkFilter
     ]
   );
 
@@ -3275,6 +3375,7 @@ export const InitiativePlanModule = ({
         setDependencyDraft(null);
         closeContextMenu();
         closeDependencyPicker();
+        setExternalLinkPicker(null);
       }
     };
     window.addEventListener('keydown', handleEsc);
@@ -4297,6 +4398,38 @@ export const InitiativePlanModule = ({
                           {isPrimaryRow ? task.name : `${task.name} – ${assignee.name || 'Unassigned'}`}
                         </span>
                       )}
+                      {isPrimaryRow && (() => {
+                        const outgoing = outgoingExternalDeps.get(task.id) ?? [];
+                        const incoming = incomingExternalDeps.get(task.id) ?? [];
+                        const totalCount = outgoing.length + incoming.length;
+                        if (totalCount === 0) return null;
+                        const tooltipLines: string[] = [];
+                        if (outgoing.length > 0) {
+                          tooltipLines.push('Links to:');
+                          outgoing.forEach((dep) => {
+                            tooltipLines.push(`  • ${dep.toTaskName} (${dep.toInitiativeName})`);
+                          });
+                        }
+                        if (incoming.length > 0) {
+                          if (tooltipLines.length > 0) tooltipLines.push('');
+                          tooltipLines.push('Linked from:');
+                          incoming.forEach((dep) => {
+                            tooltipLines.push(`  • ${dep.fromTaskName} (${dep.fromInitiativeName})`);
+                          });
+                        }
+                        return (
+                          <span
+                            className={styles.externalLinkBadge}
+                            title={tooltipLines.join('\n')}
+                          >
+                            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <path d="M5 2H3a1 1 0 00-1 1v6a1 1 0 001 1h6a1 1 0 001-1V7" />
+                              <path d="M7 2h3v3M10 2L5.5 6.5" />
+                            </svg>
+                            {totalCount > 1 && <span>{totalCount}</span>}
+                          </span>
+                        );
+                      })()}
                     </div>
                     </>
                   ) : (
@@ -4561,6 +4694,17 @@ export const InitiativePlanModule = ({
                         </span>
                         <span className={styles.menuLabel}>Remove dependencies</span>
                       </button>
+                      <button
+                        type="button"
+                        className={styles.menuItem}
+                        onClick={() => handleContextAction(contextMenu.taskId, 'add-external-link')}
+                        disabled={readOnly || allInitiatives.length <= 1}
+                      >
+                        <span className={styles.menuIcon} aria-hidden="true">
+                          <MenuIcon type="external-link" />
+                        </span>
+                        <span className={styles.menuLabel}>Link to external initiative</span>
+                      </button>
                       <div
                         className={`${styles.menuItem} ${styles.hasSubmenu} ${
                           openSubmenu === 'color' ? styles.menuItemActive : ''
@@ -4705,6 +4849,180 @@ export const InitiativePlanModule = ({
                         })}
                         {!filtered.length && <div className={styles.dependencyEmpty}>No tasks found</div>}
                       </div>
+                    </div>
+                  </div>
+                );
+              })(),
+              document.body
+            )}
+          {externalLinkPicker &&
+            createPortal(
+              (() => {
+                const sourceTask = normalizedPlan.tasks.find((t) => t.id === externalLinkPicker.taskId) ?? null;
+                if (!sourceTask) {
+                  return null;
+                }
+                const otherInitiatives = allInitiatives.filter((init) => init.id !== initiativeId);
+                const filteredInitiatives = otherInitiatives.filter((init) =>
+                  init.name.toLowerCase().includes(externalLinkFilter.toLowerCase())
+                );
+                const selectedInitiative = externalLinkPicker.selectedInitiativeId
+                  ? allInitiatives.find((init) => init.id === externalLinkPicker.selectedInitiativeId) ?? null
+                  : null;
+                const filteredTasks = selectedInitiative
+                  ? selectedInitiative.plan.tasks.filter((task) =>
+                      task.name.toLowerCase().includes(externalLinkFilter.toLowerCase())
+                    )
+                  : [];
+
+                const handleAddExternalLink = (targetTaskId: string) => {
+                  if (!externalLinkPicker.selectedInitiativeId) return;
+                  updateTask(externalLinkPicker.taskId, (task) => ({
+                    ...task,
+                    externalDependencies: [
+                      ...(task.externalDependencies ?? []),
+                      {
+                        initiativeId: externalLinkPicker.selectedInitiativeId!,
+                        taskId: targetTaskId,
+                        direction: 'predecessor' as const
+                      }
+                    ]
+                  }));
+                  setExternalLinkPicker(null);
+                };
+
+                return (
+                  <div
+                    className={styles.externalLinkOverlay}
+                    onClick={() => setExternalLinkPicker(null)}
+                  >
+                    <div
+                      className={styles.externalLinkPicker}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {externalLinkPicker.step === 'select-initiative' ? (
+                        <>
+                          <header className={styles.externalLinkHeader}>
+                            <span className={styles.externalLinkTitle}>Select Initiative</span>
+                            <button
+                              type="button"
+                              className={styles.externalLinkClose}
+                              onClick={() => setExternalLinkPicker(null)}
+                              aria-label="Close"
+                            >
+                              ×
+                            </button>
+                          </header>
+                          <div className={styles.externalLinkSubtitle}>
+                            Creating link from: <strong>{sourceTask.name || 'Untitled task'}</strong>
+                          </div>
+                          <input
+                            className={styles.externalLinkFilter}
+                            type="text"
+                            placeholder="Filter initiatives..."
+                            value={externalLinkFilter}
+                            onChange={(event) => setExternalLinkFilter(event.target.value)}
+                            autoFocus
+                          />
+                          <div className={styles.externalInitiativeList}>
+                            {filteredInitiatives.map((init) => (
+                              <button
+                                key={init.id}
+                                type="button"
+                                className={styles.externalInitiativeItem}
+                                onClick={() => {
+                                  setExternalLinkPicker((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          step: 'select-task',
+                                          selectedInitiativeId: init.id
+                                        }
+                                      : null
+                                  );
+                                  setExternalLinkFilter('');
+                                }}
+                              >
+                                <span className={styles.externalInitiativeName}>{init.name}</span>
+                                <span className={styles.externalInitiativeMeta}>
+                                  {init.plan.tasks.length} task{init.plan.tasks.length !== 1 ? 's' : ''}
+                                </span>
+                              </button>
+                            ))}
+                            {!filteredInitiatives.length && (
+                              <div className={styles.externalLinkEmpty}>No initiatives found</div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <header className={styles.externalLinkHeader}>
+                            <button
+                              type="button"
+                              className={styles.externalLinkBack}
+                              onClick={() => {
+                                setExternalLinkPicker((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        step: 'select-initiative',
+                                        selectedInitiativeId: null
+                                      }
+                                    : null
+                                );
+                                setExternalLinkFilter('');
+                              }}
+                            >
+                              ← Back
+                            </button>
+                            <span className={styles.externalLinkTitle}>
+                              {selectedInitiative?.name ?? 'Select Task'}
+                            </span>
+                            <button
+                              type="button"
+                              className={styles.externalLinkClose}
+                              onClick={() => setExternalLinkPicker(null)}
+                              aria-label="Close"
+                            >
+                              ×
+                            </button>
+                          </header>
+                          <div className={styles.externalLinkSubtitle}>
+                            Select a task to link with <strong>{sourceTask.name || 'Untitled task'}</strong>
+                          </div>
+                          <input
+                            className={styles.externalLinkFilter}
+                            type="text"
+                            placeholder="Filter tasks..."
+                            value={externalLinkFilter}
+                            onChange={(event) => setExternalLinkFilter(event.target.value)}
+                            autoFocus
+                          />
+                          <div className={styles.externalTaskList}>
+                            {filteredTasks.map((task) => {
+                              const taskLabel = task.name || 'Untitled task';
+                              const dateRange =
+                                task.startDate && task.endDate
+                                  ? `${task.startDate} — ${task.endDate}`
+                                  : task.startDate || task.endDate || 'No dates';
+                              return (
+                                <button
+                                  key={task.id}
+                                  type="button"
+                                  className={styles.externalTaskItem}
+                                  onClick={() => handleAddExternalLink(task.id)}
+                                >
+                                  <span className={styles.externalTaskName}>{taskLabel}</span>
+                                  <span className={styles.externalTaskDates}>{dateRange}</span>
+                                </button>
+                              );
+                            })}
+                            {!filteredTasks.length && (
+                              <div className={styles.externalLinkEmpty}>No tasks found</div>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
