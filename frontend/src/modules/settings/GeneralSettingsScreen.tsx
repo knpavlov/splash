@@ -135,7 +135,9 @@ export const GeneralSettingsScreen = () => {
     periodSettings,
     savePeriodSettings,
     statusReportSettings,
-    saveStatusReportSettings
+    saveStatusReportSettings,
+    riskCategories,
+    saveRiskCategories
   } = usePlanSettingsState();
   const { roleOptions, saveRoleOptions } = useWorkstreamsState();
   const [draftOptions, setDraftOptions] = useState<string[]>(() => normalizeOptions(milestoneTypes));
@@ -144,11 +146,14 @@ export const GeneralSettingsScreen = () => {
   const [statusSettings, setStatusSettings] = useState<StatusReportSettings>(statusReportSettings);
   const [periodForm, setPeriodForm] = useState<PeriodSettings>(periodSettings);
   const [roleOptionDrafts, setRoleOptionDrafts] = useState<WorkstreamRoleOption[]>(roleOptions);
+  const [riskCategoryDrafts, setRiskCategoryDrafts] = useState<string[]>(riskCategories);
+  const [newRiskCategory, setNewRiskCategory] = useState('');
   const [rolesCollapsed, setRolesCollapsed] = useState(false);
   const [milestoneCollapsed, setMilestoneCollapsed] = useState(false);
   const [periodCollapsed, setPeriodCollapsed] = useState(false);
   const [statusCollapsed, setStatusCollapsed] = useState(false);
   const [kpiCollapsed, setKpiCollapsed] = useState(false);
+  const [riskCollapsed, setRiskCollapsed] = useState(false);
 
   const [snapshotSettings, setSnapshotSettings] = useState<SnapshotSettingsPayload | null>(null);
   const [snapshotForm, setSnapshotForm] = useState<SnapshotFormState>(() => buildFormState(null));
@@ -177,6 +182,10 @@ export const GeneralSettingsScreen = () => {
   useEffect(() => {
     setRoleOptionDrafts(roleOptions);
   }, [roleOptions]);
+
+  useEffect(() => {
+    setRiskCategoryDrafts(riskCategories);
+  }, [riskCategories]);
 
   const normalizedOptions = useMemo(() => normalizeOptions(draftOptions), [draftOptions]);
   const slugifyRole = (label: string) =>
@@ -229,6 +238,31 @@ export const GeneralSettingsScreen = () => {
     }
     setDraftOptions((prev) => [...prev, trimmed]);
     setNewOption('');
+    setToast(null);
+  };
+
+  const handleSaveRiskCategories = () => {
+    saveRiskCategories(riskCategoryDrafts);
+    setToast('Risk categories updated.');
+  };
+
+  const handleRiskCategoryChange = (index: number, value: string) => {
+    setRiskCategoryDrafts((prev) => prev.map((option, i) => (i === index ? value : option)));
+    setToast(null);
+  };
+
+  const handleRemoveRiskCategory = (index: number) => {
+    setRiskCategoryDrafts((prev) => prev.filter((_, i) => i !== index));
+    setToast(null);
+  };
+
+  const handleAddRiskCategory = () => {
+    const trimmed = newRiskCategory.trim();
+    if (!trimmed) {
+      return;
+    }
+    setRiskCategoryDrafts((prev) => [...prev, trimmed]);
+    setNewRiskCategory('');
     setToast(null);
   };
 
@@ -493,10 +527,11 @@ export const GeneralSettingsScreen = () => {
           <p className={styles.eyebrow}>Settings</p>
           <h1>General settings</h1>
           <p className={styles.lede}>
-            One place to manage milestone types, planning period, reporting cadence, KPI catalog, and snapshot automation.
+            One place to manage milestone types, risk categories, planning period, reporting cadence, KPI catalog, and snapshot automation.
           </p>
           <div className={styles.chipRow}>
             <span className={styles.chip}>Milestone types</span>
+            <span className={styles.chip}>Risk categories</span>
             <span className={styles.chip}>Period defaults</span>
             <span className={styles.chip}>Reporting cadence</span>
             <span className={styles.chip}>KPI catalog</span>
@@ -627,6 +662,66 @@ export const GeneralSettingsScreen = () => {
                   Add
                 </button>
               </div>
+            </>
+          )}
+        </section>
+
+        <section className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitleRow}>
+              <button
+                className={`${styles.collapseButton} ${riskCollapsed ? styles.collapsed : ''}`}
+                type="button"
+                aria-label={riskCollapsed ? 'Expand risk categories' : 'Collapse risk categories'}
+                onClick={() => setRiskCollapsed((prev) => !prev)}
+              >
+                ¢-?
+              </button>
+              <div>
+                <p className={styles.cardEyebrow}>Governance</p>
+                <h3 className={styles.cardTitle}>Risk categories</h3>
+                <p className={styles.cardSubtitle}>Keeps the initiative risk register consistent and easy to scan.</p>
+              </div>
+            </div>
+            <button className={styles.primaryButton} type="button" onClick={handleSaveRiskCategories}>
+              Save categories
+            </button>
+          </div>
+
+          {!riskCollapsed && (
+            <>
+              <div className={styles.optionsGrid}>
+                {riskCategoryDrafts.map((option, index) => (
+                  <div key={`risk-${index}`} className={styles.optionRow}>
+                    <input
+                      value={option}
+                      onChange={(event) => handleRiskCategoryChange(index, event.target.value)}
+                      className={styles.optionInput}
+                      placeholder="Add risk category"
+                    />
+                    <button
+                      type="button"
+                      className={styles.removeButton}
+                      onClick={() => handleRemoveRiskCategory(index)}
+                      title="Remove category"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className={styles.addRow}>
+                <input
+                  value={newRiskCategory}
+                  onChange={(event) => setNewRiskCategory(event.target.value)}
+                  placeholder="Add risk category"
+                />
+                <button className={styles.secondaryButton} type="button" onClick={handleAddRiskCategory}>
+                  Add
+                </button>
+              </div>
+              <p className={styles.cardSubtitle}>Categories appear on the initiative editor under the Risks block.</p>
             </>
           )}
         </section>

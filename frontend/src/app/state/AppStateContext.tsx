@@ -8,6 +8,7 @@ import {
   InitiativeStageKey,
   InitiativeSupportingDocument,
   InitiativeStageKPI,
+  InitiativeRisk,
   initiativeStageKeys,
   initiativeFinancialKinds
 } from '../../shared/types/initiative';
@@ -35,6 +36,15 @@ const DEFAULT_MILESTONE_TYPES = ['Standard', 'Value Step', 'Change Management'];
 const VALUE_STEP_LABEL = 'Value Step';
 const STATUS_REPORT_SETTINGS_KEY = 'initiative-plan:status-report-settings';
 const PERIOD_SETTINGS_KEY = 'initiative-plan:period-settings';
+const RISK_CATEGORY_STORAGE_KEY = 'initiative-plan:risk-categories';
+const DEFAULT_RISK_CATEGORIES = [
+  'Delivery & timeline',
+  'Technical & architecture',
+  'People & resourcing',
+  'Financial & budget',
+  'Compliance & regulatory',
+  'External & market'
+];
 const statusFrequencyOptions = ['weekly', 'biweekly', 'every-4-weeks'] as const;
 type StatusReportFrequency = (typeof statusFrequencyOptions)[number];
 
@@ -174,6 +184,28 @@ const sanitizeStatusReportSettings = (value: unknown): StatusReportSettings => {
   };
 };
 
+const sanitizeRiskCategories = (options: string[]): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  const source = Array.isArray(options) ? options : [];
+  source.forEach((option) => {
+    if (typeof option !== 'string') {
+      return;
+    }
+    const trimmed = option.trim();
+    if (!trimmed) {
+      return;
+    }
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push(trimmed);
+  });
+  return result.length ? result : [...DEFAULT_RISK_CATEGORIES];
+};
+
 const loadMilestoneTypes = (): string[] => {
   if (typeof window === 'undefined') {
     return DEFAULT_MILESTONE_TYPES;
@@ -207,6 +239,22 @@ const loadStatusReportSettings = (): StatusReportSettings => {
     return sanitizeStatusReportSettings(parsed);
   } catch {
     return DEFAULT_STATUS_REPORT_SETTINGS;
+  }
+};
+
+const loadRiskCategories = (): string[] => {
+  if (typeof window === 'undefined') {
+    return [...DEFAULT_RISK_CATEGORIES];
+  }
+  const raw = window.localStorage.getItem(RISK_CATEGORY_STORAGE_KEY);
+  if (!raw) {
+    return [...DEFAULT_RISK_CATEGORIES];
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return sanitizeRiskCategories(parsed);
+  } catch {
+    return [...DEFAULT_RISK_CATEGORIES];
   }
 };
 
@@ -301,6 +349,31 @@ const sanitizeKpi = (kpi: InitiativeStageKPI): InitiativeStageKPI | null => {
   };
 };
 
+const clampRiskScore = (value: unknown) => {
+  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 1;
+  }
+  return Math.min(5, Math.max(1, Math.round(numeric)));
+};
+
+const sanitizeRiskEntry = (risk: InitiativeRisk, fallbackCategory: string): InitiativeRisk | null => {
+  const title = typeof risk.title === 'string' ? risk.title.trim() : '';
+  const mitigation = typeof risk.mitigation === 'string' ? risk.mitigation.trim() : '';
+  const category = typeof risk.category === 'string' ? risk.category.trim() : fallbackCategory;
+  if (!title && !mitigation && !category) {
+    return null;
+  }
+  return {
+    id: typeof risk.id === 'string' && risk.id.trim() ? risk.id.trim() : generateId(),
+    title,
+    category: category || fallbackCategory,
+    severity: clampRiskScore(risk.severity),
+    likelihood: clampRiskScore(risk.likelihood),
+    mitigation
+  };
+};
+
 const normalizeParticipantOptional = (value: string | null | undefined): string | null => {
   if (value === null || value === undefined) {
     return null;
@@ -378,6 +451,8 @@ interface AppStateContextValue {
     savePeriodSettings: (settings: PeriodSettings) => void;
     statusReportSettings: StatusReportSettings;
     saveStatusReportSettings: (settings: StatusReportSettings) => void;
+    riskCategories: string[];
+    saveRiskCategories: (options: string[]) => void;
   };
 }
 
@@ -399,6 +474,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [statusReportSettings, setStatusReportSettings] = useState<StatusReportSettings>(() =>
     loadStatusReportSettings()
   );
+  const [riskCategories, setRiskCategories] = useState<string[]>(() => loadRiskCategories());
   const { session } = useAuth();
 
   useEffect(() => {
@@ -422,6 +498,13 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     window.localStorage.setItem(STATUS_REPORT_SETTINGS_KEY, JSON.stringify(statusReportSettings));
   }, [statusReportSettings]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    window.localStorage.setItem(RISK_CATEGORY_STORAGE_KEY, JSON.stringify(riskCategories));
+  }, [riskCategories]);
+
   const saveMilestoneTypes = useCallback((options: string[]) => {
     const sanitized = sanitizeMilestoneTypes(options);
     setMilestoneTypes(sanitized.length ? sanitized : DEFAULT_MILESTONE_TYPES);
@@ -440,6 +523,14 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     setStatusReportSettings(sanitized);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(STATUS_REPORT_SETTINGS_KEY, JSON.stringify(sanitized));
+    }
+  }, []);
+
+  const saveRiskCategories = useCallback((options: string[]) => {
+    const sanitized = sanitizeRiskCategories(options);
+    setRiskCategories(sanitized.length ? sanitized : DEFAULT_RISK_CATEGORIES);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(RISK_CATEGORY_STORAGE_KEY, JSON.stringify(sanitized));
     }
   }, []);
 
@@ -697,6 +788,12 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
       acc[key] = { ...sanitizedStages[key], valueStepTaskId };
       return acc;
     }, {} as Initiative['stages']);
+    const defaultRiskCategory = riskCategories[0] ?? 'Uncategorized';
+    const sanitizedRisks = Array.isArray(initiative.risks)
+      ? initiative.risks
+          .map((risk) => sanitizeRiskEntry(risk as InitiativeRisk, defaultRiskCategory))
+          .filter((risk): risk is InitiativeRisk => Boolean(risk))
+      : [];
 
     return {
       ...initiative,
@@ -709,7 +806,8 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
       ownerAccountId: trimmedOwnerAccountId,
       stages: normalizedStages,
       stageState: sanitizedStageState,
-      plan: sanitizedPlan
+      plan: sanitizedPlan,
+      risks: sanitizedRisks
     };
   };
 
@@ -1205,7 +1303,9 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
       periodSettings,
       savePeriodSettings,
       statusReportSettings,
-      saveStatusReportSettings
+      saveStatusReportSettings,
+      riskCategories,
+      saveRiskCategories
     }
   }), [
     workstreams,
@@ -1223,7 +1323,9 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     periodSettings,
     savePeriodSettings,
     statusReportSettings,
-    saveStatusReportSettings
+    saveStatusReportSettings,
+    riskCategories,
+    saveRiskCategories
   ]);
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;

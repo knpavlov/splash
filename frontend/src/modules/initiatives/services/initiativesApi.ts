@@ -18,7 +18,8 @@ import {
   InitiativeCommentThread,
   InitiativeStatusReport,
   InitiativeStatusReportEntry,
-  InitiativeStatusReportSource
+  InitiativeStatusReportSource,
+  InitiativeRisk
 } from '../../../shared/types/initiative';
 import { normalizePlanModel } from '../plan/planModel';
 import { generateId } from '../../../shared/ui/generateId';
@@ -364,6 +365,50 @@ const normalizeFinancialSummary = (value: unknown): InitiativeFinancialSummary =
   return { roi };
 };
 
+const clampScore = (value: unknown): number => {
+  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 1;
+  }
+  return Math.min(5, Math.max(1, Math.round(numeric)));
+};
+
+const normalizeRisk = (value: unknown): InitiativeRisk | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    title?: unknown;
+    category?: unknown;
+    severity?: unknown;
+    likelihood?: unknown;
+    mitigation?: unknown;
+  };
+  const title = typeof payload.title === 'string' ? payload.title.trim() : '';
+  const mitigation = typeof payload.mitigation === 'string' ? payload.mitigation.trim() : '';
+  const category = typeof payload.category === 'string' ? payload.category.trim() : 'Uncategorized';
+  if (!title && !mitigation && !category) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : generateId();
+  return {
+    id,
+    title,
+    category,
+    severity: clampScore(payload.severity),
+    likelihood: clampScore(payload.likelihood),
+    mitigation
+  };
+};
+
+const normalizeRiskList = (value: unknown): InitiativeRisk[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => normalizeRisk(entry)).filter((entry): entry is InitiativeRisk => Boolean(entry));
+};
+
 
 const normalizeInitiative = (value: unknown): Initiative | null => {
   if (!value || typeof value !== 'object') {
@@ -392,6 +437,7 @@ const normalizeInitiative = (value: unknown): Initiative | null => {
   const totals = normalizeTotals(payload.totals);
   const financialSummary = normalizeFinancialSummary(payload.financialSummary);
   const plan = normalizePlanModel(payload.plan);
+  const risks = normalizeRiskList(payload.risks);
 
   return {
     id,
@@ -410,7 +456,8 @@ const normalizeInitiative = (value: unknown): Initiative | null => {
     stageState,
     totals,
     financialSummary,
-    plan
+    plan,
+    risks
   };
 };
 

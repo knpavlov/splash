@@ -32,7 +32,8 @@ import {
   InitiativeStatusReport,
   InitiativeStatusReportEntry,
   InitiativePlanTask,
-  InitiativePlanModel
+  InitiativePlanModel,
+  InitiativeRisk
 } from './initiatives.types.js';
 import { normalizePlanModel } from './initiativePlan.helpers.js';
 import {
@@ -236,6 +237,50 @@ const sanitizeKpi = (value: unknown): InitiativeStageKPI | null => {
   const distribution = sanitizeDistribution(payload.distribution);
   const actuals = sanitizeDistribution(payload.actuals);
   return { id, name, unit, source, isCustom, baseline, distribution, actuals };
+};
+
+const clampScore = (value: unknown): number => {
+  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 1;
+  }
+  return Math.min(5, Math.max(1, Math.round(numeric)));
+};
+
+const sanitizeRisk = (value: unknown): InitiativeRisk | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    title?: unknown;
+    category?: unknown;
+    severity?: unknown;
+    likelihood?: unknown;
+    mitigation?: unknown;
+  };
+  const title = sanitizeString(payload.title);
+  const mitigation = sanitizeString(payload.mitigation);
+  const category = sanitizeString(payload.category) || 'Uncategorized';
+  if (!title && !mitigation && !category) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
+  return {
+    id,
+    title,
+    category,
+    severity: clampScore(payload.severity),
+    likelihood: clampScore(payload.likelihood),
+    mitigation
+  };
+};
+
+const sanitizeRisks = (value: unknown): InitiativeRisk[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => sanitizeRisk(entry)).filter((entry): entry is InitiativeRisk => Boolean(entry));
 };
 
 const createEmptyStagePayload = (): InitiativeStagePayload => ({
@@ -609,6 +654,7 @@ export class InitiativesService {
       stages?: unknown;
       stageState?: unknown;
       plan?: unknown;
+      risks?: unknown;
     };
 
     const id = idOverride ?? (typeof input.id === 'string' && input.id.trim() ? input.id.trim() : randomUUID());
@@ -638,6 +684,7 @@ export class InitiativesService {
     const activeStage = normalizeStageKey(input.activeStage);
     const l4Date = sanitizeOptionalString(input.l4Date) ?? stages.l4.l4Date ?? null;
     const financialSummary = buildInitiativeFinancialSummary({ stages: normalizedStages });
+    const risks = sanitizeRisks(input.risks);
 
     return {
       id,
@@ -652,7 +699,8 @@ export class InitiativesService {
       stages: normalizedStages,
       stageState,
       financialSummary,
-      plan
+      plan,
+      risks
     };
   }
 
@@ -1298,7 +1346,8 @@ export class InitiativesService {
       stages,
       stageState: stageStateMap,
       financialSummary: buildInitiativeFinancialSummary({ stages }),
-      plan: normalizePlanModel(row.plan_payload)
+      plan: normalizePlanModel(row.plan_payload),
+      risks: sanitizeRisks(row.risk_register)
     };
     return {
       id: row.id,
@@ -1430,6 +1479,24 @@ export class InitiativesService {
         checksum: hashPayload(JSON.stringify(plan ?? {}))
       };
     };
+    const summarizeRisks = (risks: InitiativeRisk[] | undefined | null) => {
+      const safe = Array.isArray(risks) ? risks : [];
+      const normalized = safe.map((risk) => ({
+        id: risk.id,
+        title: risk.title,
+        category: risk.category,
+        severity: clampScore(risk.severity),
+        likelihood: clampScore(risk.likelihood),
+        mitigation: risk.mitigation,
+        score: clampScore(risk.severity) * clampScore(risk.likelihood)
+      }));
+      normalized.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+      return {
+        count: normalized.length,
+        top: normalized.slice(0, 3).map((risk) => ({ title: risk.title, score: risk.score, category: risk.category })),
+        checksum: hashPayload(JSON.stringify(normalized.map((risk) => ({ id: risk.id, score: risk.score, category: risk.category }))))
+      };
+    };
 
     const changes: Array<{ field: string; previousValue: unknown; nextValue: unknown }> = [];
     if (!previous) {
@@ -1493,6 +1560,7 @@ export class InitiativesService {
       addChange(`stage.${key}.kpis`, summarizeKpis(prevStage), summarizeKpis(nextStage));
     }
 
+    addChange('risks', summarizeRisks(previous.risks), summarizeRisks(next.risks));
     addChange('plan.timeline', summarizePlan(previous.plan), summarizePlan(next.plan));
     addChange('plan.actuals', summarizePlan(previous.plan?.actuals ?? null), summarizePlan(next.plan?.actuals ?? null));
 

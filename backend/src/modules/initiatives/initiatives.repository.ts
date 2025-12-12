@@ -15,6 +15,7 @@ import {
   InitiativeStageStateMap,
   InitiativeStageKey,
   InitiativeWriteModel,
+  InitiativeRisk,
   InitiativeApprovalRow,
   InitiativeApprovalRecord,
   InitiativeEventRecord,
@@ -45,6 +46,7 @@ export interface ApprovalTaskRow extends InitiativeApprovalRow {
   stage_payload: unknown;
   stage_state: unknown;
   plan_payload: unknown;
+  risk_register: unknown;
   account_name: string | null;
   account_email: string | null;
   account_role: string | null;
@@ -203,6 +205,52 @@ const ensureKpi = (value: unknown): InitiativeStageKPI | null => {
   const distribution = ensureDistribution(payload.distribution);
   const actuals = ensureDistribution(payload.actuals);
   return { id, name, unit, source, isCustom, baseline, distribution, actuals };
+};
+
+const clampScore = (value: unknown, min = 1, max = 5): number => {
+  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, Math.round(numeric)));
+};
+
+const ensureRisk = (value: unknown): InitiativeRisk | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as {
+    id?: unknown;
+    title?: unknown;
+    category?: unknown;
+    severity?: unknown;
+    likelihood?: unknown;
+    mitigation?: unknown;
+  };
+  const title = typeof payload.title === 'string' ? payload.title.trim() : '';
+  const mitigation = typeof payload.mitigation === 'string' ? payload.mitigation.trim() : '';
+  const category = typeof payload.category === 'string' ? payload.category.trim() : 'Uncategorized';
+  if (!title && !mitigation && !category) {
+    return null;
+  }
+  const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
+  const severity = clampScore(payload.severity);
+  const likelihood = clampScore(payload.likelihood);
+  return {
+    id,
+    title,
+    category,
+    severity,
+    likelihood,
+    mitigation
+  };
+};
+
+const ensureRiskList = (value: unknown): InitiativeRisk[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => ensureRisk(entry)).filter((entry): entry is InitiativeRisk => Boolean(entry));
 };
 
 const ensureStatusReportEntry = (value: unknown): InitiativeStatusReportEntry | null => {
@@ -447,7 +495,8 @@ const mapRowToRecord = (row: InitiativeRow): InitiativeRecord => ({
   stages: ensureStageMap(row.stage_payload),
   stageState: ensureStageState(row.stage_state),
   financialSummary: normalizeFinancialSummary(row.financial_summary),
-  plan: normalizePlanModel(row.plan_payload)
+  plan: normalizePlanModel(row.plan_payload),
+  risks: ensureRiskList(row.risk_register ?? [])
 });
 
 const mapStatusReportRow = (row: InitiativeStatusReportRow): InitiativeStatusReport => ({
@@ -475,8 +524,8 @@ export class InitiativesRepository {
 
   async createInitiative(model: InitiativeWriteModel): Promise<InitiativeRecord> {
     const result = await postgresPool.query<InitiativeRow>(
-      `INSERT INTO workstream_initiatives (id, workstream_id, name, description, owner_account_id, owner_name, current_status, active_stage, l4_date, stage_payload, stage_state, plan_payload, financial_summary, version, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, 1, NOW(), NOW())
+      `INSERT INTO workstream_initiatives (id, workstream_id, name, description, owner_account_id, owner_name, current_status, active_stage, l4_date, stage_payload, stage_state, plan_payload, financial_summary, risk_register, version, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, 1, NOW(), NOW())
        RETURNING *;`,
       [
         model.id,
@@ -491,7 +540,8 @@ export class InitiativesRepository {
         JSON.stringify(model.stages),
         JSON.stringify(model.stageState),
         JSON.stringify(model.plan ?? createEmptyPlanModel()),
-        JSON.stringify(model.financialSummary ?? { roi: null })
+        JSON.stringify(model.financialSummary ?? { roi: null }),
+        JSON.stringify(model.risks ?? [])
       ]
     );
     return mapRowToRecord(result.rows[0]);
@@ -515,9 +565,10 @@ export class InitiativesRepository {
               stage_state = $11::jsonb,
               plan_payload = $12::jsonb,
               financial_summary = $13::jsonb,
+              risk_register = $14::jsonb,
               version = version + 1,
               updated_at = NOW()
-        WHERE id = $1 AND version = $14
+        WHERE id = $1 AND version = $15
         RETURNING *;`,
       [
         model.id,
@@ -533,6 +584,7 @@ export class InitiativesRepository {
         JSON.stringify(model.stageState),
         JSON.stringify(model.plan ?? createEmptyPlanModel()),
         JSON.stringify(model.financialSummary ?? { roi: null }),
+        JSON.stringify(model.risks ?? []),
         expectedVersion
       ]
     );
@@ -772,6 +824,7 @@ export class InitiativesRepository {
           i.stage_payload,
           i.stage_state,
           i.plan_payload,
+          i.risk_register,
           i.owner_name,
           i.owner_account_id,
           w.name AS workstream_name,

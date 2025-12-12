@@ -119,6 +119,7 @@ export interface InitiativeRow extends Record<string, unknown> {
   stage_state: unknown;
   plan_payload: unknown;
   financial_summary: unknown;
+  risk_register?: unknown;
   version: number;
   created_at: Date;
   updated_at: Date;
@@ -141,6 +142,7 @@ export interface InitiativeRecord {
   stageState: InitiativeStageStateMap;
   financialSummary: InitiativeFinancialSummary;
   plan: InitiativePlanModel;
+  risks: InitiativeRisk[];
 }
 
 export interface InitiativeWriteModel {
@@ -157,6 +159,7 @@ export interface InitiativeWriteModel {
   stageState: InitiativeStageStateMap;
   financialSummary: InitiativeFinancialSummary;
   plan: InitiativePlanModel;
+  risks: InitiativeRisk[];
 }
 
 export interface InitiativeTotals {
@@ -303,6 +306,15 @@ export interface InitiativeApprovalTask {
   roundTotal: number;
   roundApproved: number;
   roundPending: number;
+}
+
+export interface InitiativeRisk {
+  id: string;
+  title: string;
+  category: string;
+  severity: number;
+  likelihood: number;
+  mitigation: string;
 }
 
 export interface InitiativeBusinessCaseFile {

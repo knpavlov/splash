@@ -136,6 +136,15 @@ export interface InitiativePlanActualsModel {
   settings: InitiativePlanSettings;
 }
 
+export interface InitiativeRisk {
+  id: string;
+  title: string;
+  category: string;
+  severity: number;
+  likelihood: number;
+  mitigation: string;
+}
+
 export type InitiativeStatusReportSource = 'auto' | 'manual';
 
 export interface InitiativeStatusReportEntry {
@@ -231,6 +240,7 @@ export interface Initiative {
   totals: InitiativeTotals;
   financialSummary: InitiativeFinancialSummary;
   plan: InitiativePlanModel;
+  risks: InitiativeRisk[];
 }
 
 export interface InitiativeDraft extends Initiative {}
@@ -264,4 +274,3 @@ export interface InitiativeStageKPI {
   distribution: Record<string, number>;
   actuals: Record<string, number>;
 }
-

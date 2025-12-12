@@ -12,7 +12,8 @@ import {
   InitiativeFinancialKind,
   InitiativePlanActualsModel,
   InitiativePlanModel,
-  InitiativePlanTask
+  InitiativePlanTask,
+  InitiativeRisk
 } from '../../../shared/types/initiative';
 import { Workstream, WorkstreamGateKey, WorkstreamRoleAssignment } from '../../../shared/types/workstream';
 import { AccountRecord } from '../../../shared/types/account';
@@ -202,6 +203,7 @@ const createEmptyInitiative = (workstreamId?: string, period?: PeriodSettings): 
     stageState: createDefaultStageState(),
     totals: calculateTotals(stages),
     financialSummary: { roi: null },
+    risks: [],
     plan: createEmptyPlanModel()
   };
 };
@@ -211,12 +213,29 @@ const formatImpact = (value: number) =>
 
 const formatRoi = (value: number | null) =>
   value === null || Number.isNaN(value)
-    ? '—'
+    ? '-'
     : new Intl.NumberFormat('en-US', {
         style: 'percent',
         minimumFractionDigits: 1,
         maximumFractionDigits: 1
       }).format(value);
+
+const clampRiskValue = (value: number) =>
+  Math.min(5, Math.max(1, Math.round(Number.isFinite(value) ? value : Number(value) || 1)));
+
+const getRiskTone = (severity: number, likelihood: number) => {
+  const score = clampRiskValue(severity) * clampRiskValue(likelihood);
+  if (score >= 16) {
+    return 'high';
+  }
+  if (score >= 9) {
+    return 'medium';
+  }
+  return 'low';
+};
+
+const severityScaleLabels = ['Minimal impact', 'Manageable', 'Material', 'Major', 'Critical'];
+const likelihoodScaleLabels = ['Rare', 'Unlikely', 'Possible', 'Likely', 'Almost certain'];
 
 const formatDate = (value: string | null) => {
   if (!value) {
@@ -384,6 +403,7 @@ const logFieldLabels: Record<string, string> = {
   recurringImpact: 'Recurring impact',
   created: 'Created',
   updated: 'Update',
+  risks: 'Risk register',
   'stage-content': 'Stage details',
   kpi: 'KPIs',
   'execution-plan': 'Timeline',
@@ -468,6 +488,9 @@ const buildChangeLabel = (field: string): string => {
       return 'Execution plan';
     }
   }
+  if (field === 'risks') {
+    return 'Risk register';
+  }
   return logFieldLabels[field] ?? field;
 };
 
@@ -477,6 +500,28 @@ const formatLogValue = (field: string, value: unknown): string => {
   }
   if (field === 'activeStage' && typeof value === 'string') {
     return resolveStageLabel(value);
+  }
+  if (field === 'risks' && value && typeof value === 'object') {
+    const payload = value as {
+      count?: number;
+      top?: Array<{ title?: string; category?: string; score?: number }>;
+    };
+    const count = Number.isFinite(payload.count) ? Number(payload.count) : Array.isArray(payload.top) ? payload.top.length : 0;
+    const topEntries = Array.isArray(payload.top) ? payload.top : [];
+    const topLabels = topEntries
+      .map((item) => {
+        const title = typeof item.title === 'string' && item.title.trim() ? item.title.trim() : null;
+        const category = typeof item.category === 'string' && item.category.trim() ? item.category.trim() : null;
+        const score = Number.isFinite(item.score) ? Number(item.score) : null;
+        if (!title && !category && score === null) {
+          return null;
+        }
+        const parts = [title ?? 'Untitled risk', category, score !== null ? `score ${score}` : null].filter(Boolean);
+        return parts.join(' · ');
+      })
+      .filter((entry): entry is string => Boolean(entry));
+    const baseCount = count || topLabels.length;
+    return `${baseCount} risk${baseCount === 1 ? '' : 's'}${topLabels.length ? `, top: ${topLabels.slice(0, 3).join('; ')}` : ''}`;
   }
   if (field.startsWith('stageState.') && value && typeof value === 'object') {
     const payload = value as { status?: string; roundIndex?: number; comment?: string | null };
@@ -582,7 +627,7 @@ export const InitiativeProfile = ({
   initialCommentThreadId = null,
   openComments = false
 }: InitiativeProfileProps) => {
-  const { periodSettings } = usePlanSettingsState();
+  const { periodSettings, riskCategories } = usePlanSettingsState();
   const { listAssignmentsByWorkstream } = useWorkstreamsState();
   const [draft, setDraft] = useState<Initiative>(() =>
     initiative ?? createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id, periodSettings)
@@ -707,16 +752,16 @@ export const InitiativeProfile = ({
             const parsed = JSON.parse(cached);
             mergedPlan = mergePlanDependencies(initiative.plan, parsed);
           }
-        } catch (error) {
-          console.warn('Failed to read cached plan', error);
-        }
+      } catch (error) {
+        console.warn('Failed to read cached plan', error);
       }
-      setDraft({ ...initiative, plan: mergedPlan });
-      setSelectedStage(initiative.activeStage);
-    } else {
-      setDraft(createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id, periodSettings));
-      setSelectedStage('l0');
     }
+    setDraft({ ...initiative, plan: mergedPlan, risks: initiative.risks ?? [] });
+    setSelectedStage(initiative.activeStage);
+  } else {
+    setDraft(createEmptyInitiative(initialWorkstreamId ?? workstreams[0]?.id, periodSettings));
+    setSelectedStage('l0');
+  }
     // periodSettings intentionally omitted to avoid wiping local edits when defaults change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initiative, initialWorkstreamId, workstreams, planCacheKey, mergePlanDependencies]);
@@ -790,6 +835,11 @@ export const InitiativeProfile = ({
   useEffect(() => {
     void loadChangeLog();
   }, [loadChangeLog]);
+
+  const riskCategoryOptions = useMemo(
+    () => (riskCategories.length ? riskCategories : ['Uncategorized']),
+    [riskCategories]
+  );
 
   const currentStage = draft.stages[selectedStage];
   const activeStageData = draft.stages[draft.activeStage];
@@ -1081,6 +1131,44 @@ export const InitiativeProfile = ({
 
   const handlePlanActualsChange = (nextActuals: InitiativePlanActualsModel | InitiativePlanModel) => {
     setDraft((prev) => ({ ...prev, plan: { ...prev.plan, actuals: nextActuals as InitiativePlanActualsModel } }));
+  };
+
+  const handleRiskChange = (id: string, field: keyof InitiativeRisk, value: string | number) => {
+    setDraft((prev) => {
+      const risks = Array.isArray(prev.risks) ? prev.risks : [];
+      const nextRisks = risks.map((risk) => {
+        if (risk.id !== id) {
+          return risk;
+        }
+        if (field === 'severity' || field === 'likelihood') {
+          return { ...risk, [field]: clampRiskValue(Number(value)) };
+        }
+        return { ...risk, [field]: typeof value === 'string' ? value : String(value) };
+      });
+      return { ...prev, risks: nextRisks };
+    });
+  };
+
+  const handleAddRisk = () => {
+    const defaultCategory = riskCategories[0] ?? 'Uncategorized';
+    setDraft((prev) => ({
+      ...prev,
+      risks: [
+        {
+          id: generateId(),
+          title: '',
+          category: defaultCategory,
+          severity: 3,
+          likelihood: 3,
+          mitigation: ''
+        },
+        ...(prev.risks ?? [])
+      ]
+    }));
+  };
+
+  const handleRemoveRisk = (id: string) => {
+    setDraft((prev) => ({ ...prev, risks: (prev.risks ?? []).filter((risk) => risk.id !== id) }));
   };
 
   const validateDraft = () => {
@@ -1882,6 +1970,130 @@ export const InitiativeProfile = ({
         subtitle="Track real delivery, compare against the baseline, and highlight variance."
       />
 
+      <section className={`${styles.cardSection} ${styles.riskSection}`} {...buildProfileAnchor('risks', 'Risks')}>
+        <header className={styles.cardHeader}>
+          <div className={styles.cardHeaderTitle}>
+            <h3>Risks</h3>
+            <p>Balance impact and likelihood, surface mitigation, and color-code the riskiest items.</p>
+          </div>
+          <div className={styles.riskHeaderMeta}>
+            <span className={`${styles.riskPill} ${styles.riskLow}`}>Low</span>
+            <span className={`${styles.riskPill} ${styles.riskMedium}`}>Medium</span>
+            <span className={`${styles.riskPill} ${styles.riskHigh}`}>High</span>
+            <button className={styles.primaryButton} type="button" onClick={handleAddRisk} disabled={isReadOnlyMode}>
+              Add risk
+            </button>
+          </div>
+        </header>
+
+        {!draft.risks || draft.risks.length === 0 ? (
+          <p className={styles.placeholder}>No risks logged yet. Add the first one to show up before approvals.</p>
+        ) : (
+          <div className={styles.riskList}>
+            {draft.risks.map((risk) => {
+              const severity = clampRiskValue(risk.severity);
+              const likelihood = clampRiskValue(risk.likelihood);
+              const score = severity * likelihood;
+              const tone = getRiskTone(severity, likelihood);
+              const toneClass =
+                tone === 'high' ? styles.riskToneHigh : tone === 'medium' ? styles.riskToneMedium : styles.riskToneLow;
+              return (
+                <div key={risk.id} className={`${styles.riskRow} ${toneClass}`}>
+                  <div className={styles.riskRowHeader}>
+                    <input
+                      className={styles.riskTitleInput}
+                      value={risk.title}
+                      placeholder="Name the risk"
+                      onChange={(event) => handleRiskChange(risk.id, 'title', event.target.value)}
+                      disabled={isReadOnlyMode}
+                    />
+                    <div className={styles.riskScore}>
+                      <span>Score</span>
+                      <strong>{score}</strong>
+                      <small>
+                        Severity x Likelihood{' '}
+                        <span className={styles.riskScoreTone}>{tone === 'high' ? 'High' : tone === 'medium' ? 'Medium' : 'Low'}</span>
+                      </small>
+                    </div>
+                  </div>
+
+                  <div className={styles.riskMeta}>
+                    <label>
+                      <span>Category</span>
+                      <select
+                        value={risk.category}
+                        onChange={(event) => handleRiskChange(risk.id, 'category', event.target.value)}
+                        disabled={isReadOnlyMode}
+                      >
+                        {riskCategoryOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                        {!riskCategoryOptions.includes(risk.category) && risk.category && (
+                          <option value={risk.category}>{risk.category}</option>
+                        )}
+                        {!riskCategoryOptions.includes('Uncategorized') && <option value="Uncategorized">Uncategorized</option>}
+                      </select>
+                    </label>
+                    <label>
+                      <span title="1 = Minimal impact, 5 = Critical impact">Severity</span>
+                      <select
+                        value={severity}
+                        onChange={(event) => handleRiskChange(risk.id, 'severity', Number(event.target.value))}
+                        disabled={isReadOnlyMode}
+                        title="1 = Minimal impact, 5 = Critical impact"
+                      >
+                        {[1, 2, 3, 4, 5].map((option) => (
+                          <option key={`sev-${option}`} value={option}>
+                            {option} — {severityScaleLabels[option - 1]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span title="1 = Rare, 5 = Almost certain">Likelihood</span>
+                      <select
+                        value={likelihood}
+                        onChange={(event) => handleRiskChange(risk.id, 'likelihood', Number(event.target.value))}
+                        disabled={isReadOnlyMode}
+                        title="1 = Rare, 5 = Almost certain"
+                      >
+                        {[1, 2, 3, 4, 5].map((option) => (
+                          <option key={`like-${option}`} value={option}>
+                            {option} — {likelihoodScaleLabels[option - 1]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className={styles.removeButton}
+                      onClick={() => handleRemoveRisk(risk.id)}
+                      disabled={isReadOnlyMode}
+                      title="Remove risk"
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <label className={styles.riskMitigation}>
+                    <span>Mitigation plan</span>
+                    <textarea
+                      rows={2}
+                      value={risk.mitigation}
+                      onChange={(event) => handleRiskChange(risk.id, 'mitigation', event.target.value)}
+                      placeholder="Who will do what by when to contain this risk?"
+                      disabled={isReadOnlyMode}
+                    />
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
         <header className={styles.changeLogHeader}>
           <button
@@ -2076,8 +2288,3 @@ export const InitiativeProfile = ({
   </section>
 );
 };
-
-
-
-
-
