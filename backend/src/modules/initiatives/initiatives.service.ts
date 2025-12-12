@@ -255,14 +255,16 @@ const sanitizeRisk = (value: unknown): InitiativeRisk | null => {
     id?: unknown;
     title?: unknown;
     category?: unknown;
+    description?: unknown;
     severity?: unknown;
     likelihood?: unknown;
     mitigation?: unknown;
   };
   const title = sanitizeString(payload.title);
+  const description = sanitizeString(payload.description);
   const mitigation = sanitizeString(payload.mitigation);
   const category = sanitizeString(payload.category) || 'Uncategorized';
-  if (!title && !mitigation && !category) {
+  if (!title && !description && !mitigation && !category) {
     return null;
   }
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : randomUUID();
@@ -270,6 +272,7 @@ const sanitizeRisk = (value: unknown): InitiativeRisk | null => {
     id,
     title,
     category,
+    description,
     severity: clampScore(payload.severity),
     likelihood: clampScore(payload.likelihood),
     mitigation
@@ -1488,6 +1491,7 @@ export class InitiativesService {
         severity: clampScore(risk.severity),
         likelihood: clampScore(risk.likelihood),
         mitigation: risk.mitigation,
+        description: risk.description,
         score: clampScore(risk.severity) * clampScore(risk.likelihood)
       }));
       normalized.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));

@@ -312,6 +312,7 @@ export interface InitiativeRisk {
   id: string;
   title: string;
   category: string;
+  description: string;
   severity: number;
   likelihood: number;
   mitigation: string;

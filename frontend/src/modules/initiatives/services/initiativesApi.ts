@@ -381,14 +381,16 @@ const normalizeRisk = (value: unknown): InitiativeRisk | null => {
     id?: unknown;
     title?: unknown;
     category?: unknown;
+    description?: unknown;
     severity?: unknown;
     likelihood?: unknown;
     mitigation?: unknown;
   };
   const title = typeof payload.title === 'string' ? payload.title.trim() : '';
+  const description = typeof payload.description === 'string' ? payload.description.trim() : '';
   const mitigation = typeof payload.mitigation === 'string' ? payload.mitigation.trim() : '';
   const category = typeof payload.category === 'string' ? payload.category.trim() : 'Uncategorized';
-  if (!title && !mitigation && !category) {
+  if (!title && !description && !mitigation && !category) {
     return null;
   }
   const id = typeof payload.id === 'string' && payload.id.trim() ? payload.id.trim() : generateId();
@@ -396,6 +398,7 @@ const normalizeRisk = (value: unknown): InitiativeRisk | null => {
     id,
     title,
     category,
+    description,
     severity: clampScore(payload.severity),
     likelihood: clampScore(payload.likelihood),
     mitigation

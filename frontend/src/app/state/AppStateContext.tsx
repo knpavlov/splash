@@ -360,8 +360,9 @@ const clampRiskScore = (value: unknown) => {
 const sanitizeRiskEntry = (risk: InitiativeRisk, fallbackCategory: string): InitiativeRisk | null => {
   const title = typeof risk.title === 'string' ? risk.title.trim() : '';
   const mitigation = typeof risk.mitigation === 'string' ? risk.mitigation.trim() : '';
+  const description = typeof risk.description === 'string' ? risk.description.trim() : '';
   const category = typeof risk.category === 'string' ? risk.category.trim() : fallbackCategory;
-  if (!title && !mitigation && !category) {
+  if (!title && !description && !mitigation && !category) {
     return null;
   }
   return {
@@ -370,7 +371,8 @@ const sanitizeRiskEntry = (risk: InitiativeRisk, fallbackCategory: string): Init
     category: category || fallbackCategory,
     severity: clampRiskScore(risk.severity),
     likelihood: clampRiskScore(risk.likelihood),
-    mitigation
+    mitigation,
+    description
   };
 };
 

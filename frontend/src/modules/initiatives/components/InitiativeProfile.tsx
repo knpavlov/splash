@@ -1133,6 +1133,12 @@ export const InitiativeProfile = ({
     setDraft((prev) => ({ ...prev, plan: { ...prev.plan, actuals: nextActuals as InitiativePlanActualsModel } }));
   };
 
+  type RiskSortKey = 'score' | 'title' | 'category' | 'severity' | 'likelihood';
+  const [riskSort, setRiskSort] = useState<{ key: RiskSortKey; direction: 'asc' | 'desc' }>({
+    key: 'score',
+    direction: 'desc'
+  });
+
   const handleRiskChange = (id: string, field: keyof InitiativeRisk, value: string | number) => {
     setDraft((prev) => {
       const risks = Array.isArray(prev.risks) ? prev.risks : [];
@@ -1158,6 +1164,7 @@ export const InitiativeProfile = ({
           id: generateId(),
           title: '',
           category: defaultCategory,
+          description: '',
           severity: 3,
           likelihood: 3,
           mitigation: ''
@@ -1169,6 +1176,33 @@ export const InitiativeProfile = ({
 
   const handleRemoveRisk = (id: string) => {
     setDraft((prev) => ({ ...prev, risks: (prev.risks ?? []).filter((risk) => risk.id !== id) }));
+  };
+
+  const sortedRisks = useMemo(() => {
+    const risks = (draft.risks ?? []).map((risk) => {
+      const severity = clampRiskValue(risk.severity);
+      const likelihood = clampRiskValue(risk.likelihood);
+      const score = severity * likelihood;
+      return { ...risk, severity, likelihood, score };
+    });
+    const { key, direction } = riskSort;
+    const sorted = [...risks].sort((a, b) => {
+      const directionFactor = direction === 'asc' ? 1 : -1;
+      if (key === 'title' || key === 'category') {
+        return a[key].localeCompare(b[key]) * directionFactor;
+      }
+      return (a[key] - b[key]) * directionFactor;
+    });
+    return sorted;
+  }, [draft.risks, riskSort]);
+
+  const handleRiskSort = (key: RiskSortKey) => {
+    setRiskSort((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: key === 'title' || key === 'category' ? 'asc' : 'desc' };
+    });
   };
 
   const validateDraft = () => {
@@ -1455,6 +1489,7 @@ export const InitiativeProfile = ({
   const financialCollapsed = collapsedSections['financial'] ?? false;
   const actualsCollapsed = collapsedSections['pnl-actuals'] ?? false;
   const changeLogCollapsed = collapsedSections['change-log'] ?? false;
+  const risksCollapsed = collapsedSections['risks'] ?? false;
   const stageTitle = initiativeStageLabels[selectedStage].replace(/\s+Gate$/i, '');
 
   return (
@@ -1961,45 +1996,89 @@ export const InitiativeProfile = ({
       <InitiativePlanModule
         plan={draft.plan.actuals ?? createEmptyPlanActualsModel()}
         baselinePlan={draft.plan}
-        variant="actuals"
-        initiativeId={draft.id}
-        allInitiatives={allInitiatives}
-        onChange={handlePlanActualsChange}
-        readOnly={isReadOnlyMode}
-        title="Implementation plan - actuals"
-        subtitle="Track real delivery, compare against the baseline, and highlight variance."
-      />
+      variant="actuals"
+      initiativeId={draft.id}
+      allInitiatives={allInitiatives}
+      onChange={handlePlanActualsChange}
+      readOnly={isReadOnlyMode}
+      title="Implementation plan - actuals"
+      subtitle="Track real delivery, compare against the baseline, and highlight variance."
+    />
 
       <section className={`${styles.cardSection} ${styles.riskSection}`} {...buildProfileAnchor('risks', 'Risks')}>
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
-            <h3>Risks</h3>
-            <p>Balance impact and likelihood, surface mitigation, and color-code the riskiest items.</p>
-          </div>
-          <div className={styles.riskHeaderMeta}>
-            <span className={`${styles.riskPill} ${styles.riskLow}`}>Low</span>
-            <span className={`${styles.riskPill} ${styles.riskMedium}`}>Medium</span>
-            <span className={`${styles.riskPill} ${styles.riskHigh}`}>High</span>
-            <button className={styles.primaryButton} type="button" onClick={handleAddRisk} disabled={isReadOnlyMode}>
-              Add risk
+            <button
+              className={styles.sectionToggle}
+              type="button"
+              onClick={() => handleSectionToggle('risks')}
+              aria-expanded={!risksCollapsed}
+              aria-label={risksCollapsed ? 'Expand risks' : 'Collapse risks'}
+            >
+              <ChevronIcon direction={risksCollapsed ? 'right' : 'down'} size={16} />
             </button>
+            <div>
+              <h3>Risks</h3>
+              <p>Compact register with sortable score to highlight what needs mitigation.</p>
+            </div>
           </div>
+          <button className={styles.primaryButton} type="button" onClick={handleAddRisk} disabled={isReadOnlyMode}>
+            Add risk
+          </button>
         </header>
 
-        {!draft.risks || draft.risks.length === 0 ? (
-          <p className={styles.placeholder}>No risks logged yet. Add the first one to show up before approvals.</p>
-        ) : (
-          <div className={styles.riskList}>
-            {draft.risks.map((risk) => {
-              const severity = clampRiskValue(risk.severity);
-              const likelihood = clampRiskValue(risk.likelihood);
-              const score = severity * likelihood;
-              const tone = getRiskTone(severity, likelihood);
-              const toneClass =
-                tone === 'high' ? styles.riskToneHigh : tone === 'medium' ? styles.riskToneMedium : styles.riskToneLow;
-              return (
-                <div key={risk.id} className={`${styles.riskRow} ${toneClass}`}>
-                  <div className={styles.riskRowHeader}>
+        {!risksCollapsed &&
+          (!sortedRisks.length ? (
+            <p className={styles.placeholder}>No risks logged yet. Add the first one to show up before approvals.</p>
+          ) : (
+            <div className={styles.riskTable}>
+              <div className={styles.riskHeaderRow}>
+                {(
+                  [
+                    { key: 'title' as const, label: 'Title' },
+                    { key: 'description' as const, label: 'Description' },
+                    { key: 'category' as const, label: 'Category' },
+                    { key: 'severity' as const, label: 'Severity' },
+                    { key: 'likelihood' as const, label: 'Likelihood' },
+                    { key: 'score' as const, label: 'Score' },
+                    { key: 'mitigation' as const, label: 'Mitigation', sortable: false }
+                  ] as Array<{ key: RiskSortKey | 'mitigation'; label: string; sortable?: boolean }>
+                ).map((column) => {
+                  const sortable = column.sortable !== false && column.key !== 'mitigation';
+                  return (
+                    <button
+                      key={column.key}
+                      type="button"
+                      className={styles.riskSortButton}
+                      onClick={() => sortable && handleRiskSort(column.key as RiskSortKey)}
+                      disabled={!sortable}
+                      aria-label={
+                        !sortable
+                          ? undefined
+                          : `Sort by ${column.label} ${riskSort.key === column.key ? riskSort.direction : ''}`
+                      }
+                    >
+                      <span>{column.label}</span>
+                      {sortable && (
+                        <span className={styles.sortIndicator}>
+                          {riskSort.key === column.key ? (riskSort.direction === 'asc' ? '^' : 'v') : '·'}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                <span className={styles.riskHeaderPlaceholder} />
+              </div>
+
+              {sortedRisks.map((risk) => {
+                const severity = clampRiskValue(risk.severity);
+                const likelihood = clampRiskValue(risk.likelihood);
+                const score = severity * likelihood;
+                const tone = getRiskTone(severity, likelihood);
+                const toneClass =
+                  tone === 'high' ? styles.riskToneHigh : tone === 'medium' ? styles.riskToneMedium : styles.riskToneLow;
+                return (
+                  <div key={risk.id} className={`${styles.riskRow} ${toneClass}`}>
                     <input
                       className={styles.riskTitleInput}
                       value={risk.title}
@@ -2007,91 +2086,83 @@ export const InitiativeProfile = ({
                       onChange={(event) => handleRiskChange(risk.id, 'title', event.target.value)}
                       disabled={isReadOnlyMode}
                     />
-                    <div className={styles.riskScore}>
-                      <span>Score</span>
-                      <strong>{score}</strong>
-                      <small>
-                        Severity x Likelihood{' '}
-                        <span className={styles.riskScoreTone}>{tone === 'high' ? 'High' : tone === 'medium' ? 'Medium' : 'Low'}</span>
-                      </small>
-                    </div>
-                  </div>
-
-                  <div className={styles.riskMeta}>
-                    <label>
-                      <span>Category</span>
-                      <select
-                        value={risk.category}
-                        onChange={(event) => handleRiskChange(risk.id, 'category', event.target.value)}
-                        disabled={isReadOnlyMode}
-                      >
-                        {riskCategoryOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                        {!riskCategoryOptions.includes(risk.category) && risk.category && (
-                          <option value={risk.category}>{risk.category}</option>
-                        )}
-                        {!riskCategoryOptions.includes('Uncategorized') && <option value="Uncategorized">Uncategorized</option>}
-                      </select>
-                    </label>
-                    <label>
-                      <span title="1 = Minimal impact, 5 = Critical impact">Severity</span>
-                      <select
-                        value={severity}
-                        onChange={(event) => handleRiskChange(risk.id, 'severity', Number(event.target.value))}
-                        disabled={isReadOnlyMode}
-                        title="1 = Minimal impact, 5 = Critical impact"
-                      >
-                        {[1, 2, 3, 4, 5].map((option) => (
-                          <option key={`sev-${option}`} value={option}>
-                            {option} — {severityScaleLabels[option - 1]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      <span title="1 = Rare, 5 = Almost certain">Likelihood</span>
-                      <select
-                        value={likelihood}
-                        onChange={(event) => handleRiskChange(risk.id, 'likelihood', Number(event.target.value))}
-                        disabled={isReadOnlyMode}
-                        title="1 = Rare, 5 = Almost certain"
-                      >
-                        {[1, 2, 3, 4, 5].map((option) => (
-                          <option key={`like-${option}`} value={option}>
-                            {option} — {likelihoodScaleLabels[option - 1]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      type="button"
-                      className={styles.removeButton}
-                      onClick={() => handleRemoveRisk(risk.id)}
+                    <input
+                      className={styles.riskDescriptionInput}
+                      value={risk.description}
+                      placeholder="Short description"
+                      onChange={(event) => handleRiskChange(risk.id, 'description', event.target.value)}
                       disabled={isReadOnlyMode}
-                      title="Remove risk"
+                    />
+                    <select
+                      className={styles.riskSelect}
+                      value={risk.category}
+                      onChange={(event) => handleRiskChange(risk.id, 'category', event.target.value)}
+                      disabled={isReadOnlyMode}
                     >
-                      Remove
-                    </button>
-                  </div>
-
-                  <label className={styles.riskMitigation}>
-                    <span>Mitigation plan</span>
+                      {riskCategoryOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                      {!riskCategoryOptions.includes(risk.category) && risk.category && (
+                        <option value={risk.category}>{risk.category}</option>
+                      )}
+                      {!riskCategoryOptions.includes('Uncategorized') && <option value="Uncategorized">Uncategorized</option>}
+                    </select>
+                    <select
+                      className={styles.riskSelect}
+                      value={severity}
+                      onChange={(event) => handleRiskChange(risk.id, 'severity', Number(event.target.value))}
+                      disabled={isReadOnlyMode}
+                      title="1 = Minimal impact, 5 = Critical impact"
+                    >
+                      {[1, 2, 3, 4, 5].map((option) => (
+                        <option key={`sev-${option}`} value={option}>
+                          {option} - {severityScaleLabels[option - 1]}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className={styles.riskSelect}
+                      value={likelihood}
+                      onChange={(event) => handleRiskChange(risk.id, 'likelihood', Number(event.target.value))}
+                      disabled={isReadOnlyMode}
+                      title="1 = Rare, 5 = Almost certain"
+                    >
+                      {[1, 2, 3, 4, 5].map((option) => (
+                        <option key={`like-${option}`} value={option}>
+                          {option} - {likelihoodScaleLabels[option - 1]}
+                        </option>
+                      ))}
+                    </select>
+                    <div className={styles.riskScoreBadge}>
+                      <strong>{score}</strong>
+                      <span>{tone === 'high' ? 'High' : tone === 'medium' ? 'Medium' : 'Low'}</span>
+                    </div>
                     <textarea
+                      className={styles.riskTextArea}
                       rows={2}
                       value={risk.mitigation}
                       onChange={(event) => handleRiskChange(risk.id, 'mitigation', event.target.value)}
-                      placeholder="Who will do what by when to contain this risk?"
+                      placeholder="Mitigation plan"
                       disabled={isReadOnlyMode}
                     />
-                  </label>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                    <div className={styles.riskActions}>
+                      <button
+                        type="button"
+                        className={styles.riskRemoveButton}
+                        onClick={() => handleRemoveRisk(risk.id)}
+                        disabled={isReadOnlyMode}
+                        title="Remove risk"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
       </section>
 
       <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>

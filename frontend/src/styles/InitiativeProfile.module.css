@@ -837,141 +837,144 @@
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 20px;
   padding: 20px;
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(14, 165, 233, 0.04));
-}
-
-.riskHeaderMeta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.riskPill {
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-}
-
-.riskLow {
-  background: rgba(16, 185, 129, 0.14);
-  color: #0f766e;
-}
-
-.riskMedium {
-  background: rgba(245, 158, 11, 0.18);
-  color: #92400e;
-}
-
-.riskHigh {
-  background: rgba(239, 68, 68, 0.2);
-  color: #b91c1c;
-}
-
-.riskList {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.riskRow {
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 18px;
-  padding: 14px;
-  background: #ffffff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.riskToneLow {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.03));
-  border-color: rgba(16, 185, 129, 0.28);
-}
-
-.riskToneMedium {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(245, 158, 11, 0.05));
-  border-color: rgba(245, 158, 11, 0.32);
-}
-
-.riskToneHigh {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.18), rgba(239, 68, 68, 0.08));
-  border-color: rgba(239, 68, 68, 0.45);
-  box-shadow: 0 14px 26px rgba(239, 68, 68, 0.16);
-}
-
-.riskRowHeader {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.riskTitleInput {
-  flex: 1;
-  min-width: 220px;
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  border-radius: 12px;
-  padding: 10px;
-  font-weight: 700;
-  font-size: 15px;
-}
-
-.riskScore {
-  min-width: 140px;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: #0f172a;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  text-align: right;
-}
-
-.riskScore strong {
-  font-size: 22px;
-}
-
-.riskScore small {
-  color: #cbd5f5;
-}
-
-.riskScoreTone {
-  font-weight: 700;
-  color: #e0f2fe;
-}
-
-.riskMeta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-  align-items: end;
-}
-
-.riskMeta select {
-  width: 100%;
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  border-radius: 10px;
-  padding: 9px 10px;
   background: #fff;
 }
 
-.riskMitigation {
+.riskTable {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
-.riskMitigation textarea {
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  border-radius: 12px;
+.riskHeaderRow,
+.riskRow {
+  display: grid;
+  grid-template-columns: 1.1fr 1.1fr 0.9fr 0.8fr 0.8fr 0.6fr 1.2fr 70px;
+  gap: 8px;
+  align-items: center;
+}
+
+.riskHeaderRow {
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  padding-bottom: 6px;
+}
+
+.riskHeaderPlaceholder {
+  width: 70px;
+}
+
+.riskSortButton {
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.riskSortButton:disabled {
+  cursor: default;
+  color: #94a3b8;
+}
+
+.sortIndicator {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.riskRow {
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 14px;
   padding: 10px;
-  min-height: 70px;
+  align-items: flex-start;
+}
+
+.riskToneLow {
+  border-left: 4px solid #10b981;
+}
+
+.riskToneMedium {
+  border-left: 4px solid #f59e0b;
+}
+
+.riskToneHigh {
+  border-left: 4px solid #ef4444;
+}
+
+.riskTitleInput,
+.riskDescriptionInput,
+.riskSelect,
+.riskTextArea {
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.riskTitleInput {
+  font-weight: 700;
+}
+
+.riskDescriptionInput {
+  color: #0f172a;
+}
+
+.riskSelect {
+  padding-right: 26px;
+}
+
+.riskTextArea {
+  min-height: 56px;
   resize: vertical;
+}
+
+.riskScoreBadge {
+  background: #0f172a;
+  color: #fff;
+  border-radius: 10px;
+  padding: 6px 8px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 64px;
+}
+
+.riskScoreBadge strong {
+  font-size: 16px;
+}
+
+.riskScoreBadge span {
+  font-size: 12px;
+  color: #cbd5f5;
+}
+
+.riskActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.riskRemoveButton {
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  color: #b91c1c;
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.riskRemoveButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .changeLogSection {
