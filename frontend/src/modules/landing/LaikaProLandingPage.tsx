@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import styles from './LaikaProLandingPage.module.css';
 import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarChart3, Image } from 'lucide-react';
+import { InteractivePlanDemo } from './components/InteractivePlanDemo';
 
 // Screenshot placeholders - replace with actual paths when available
 const screenshot1 = '';
@@ -517,48 +518,15 @@ export const LaikaProLandingPage = () => {
         </div>
       </section>
 
-      {/* Feature 3: Capacity Planning - Rockstar Style */}
+      {/* Feature 3: Capacity Planning - Interactive Demo Style */}
       <section id="feature-3" data-animate className={styles.featureSection}>
-        <div className={styles.rockstarFeatureLayout}>
-          {/* Left side - scattered screenshots */}
-          <div className={`${styles.rockstarScreenshots} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
-            <div className={styles.screenshotScattered7} data-parallax="0.1">
-              {screenshot3 ? (
-                <img src={screenshot3} alt="Capacity Planning" className={styles.screenshot} />
-              ) : (
-                <div className={styles.screenshotPlaceholderRockstar}>
-                  <Image size={32} />
-                  <span>Capacity Heatmap</span>
-                </div>
-              )}
-              <div className={styles.screenshotFrame} />
-            </div>
-
-            <div className={styles.screenshotScattered8} data-parallax="-0.15">
-              <div className={styles.screenshotPlaceholderRockstar}>
-                <span>Timeline View</span>
-              </div>
-              <div className={styles.screenshotFrame} />
-            </div>
-
-            <div className={styles.screenshotScattered9} data-parallax="0.22">
-              <div className={styles.screenshotPlaceholderRockstar}>
-                <span>Resource Allocation</span>
-              </div>
-              <div className={styles.screenshotFrame} />
-            </div>
-
-            {/* Decorative elements */}
-            <div className={styles.rockstarDeco4} />
-            <div className={styles.rockstarDeco5} />
-          </div>
-
-          {/* Right side - content */}
-          <div className={`${styles.rockstarContent} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
+        <div className={styles.interactiveDemoLayout}>
+          {/* Top - Content */}
+          <div className={`${styles.demoContent} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>03</div>
             <div className={styles.featureLabel}>Planning</div>
             <h2 className={styles.featureTitle}>
-              Smart Capacity<br />Planning & Sequencing
+              Smart Capacity Planning & Sequencing
             </h2>
             <p className={styles.featureDescription}>
               Balance resources and sequence initiatives for maximum impact. Our intelligent
@@ -572,6 +540,11 @@ export const LaikaProLandingPage = () => {
               <li><Check size={18} /> Resource conflict detection</li>
               <li><Check size={18} /> What-if scenario planning</li>
             </ul>
+          </div>
+
+          {/* Bottom - Interactive Demo */}
+          <div className={`${styles.interactiveDemoWrapper} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
+            <InteractivePlanDemo />
           </div>
         </div>
       </section>
