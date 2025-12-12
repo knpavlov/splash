@@ -3,6 +3,7 @@ import styles from './LaikaProLandingPage.module.css';
 import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarChart3, Image } from 'lucide-react';
 import { InteractivePlanDemo, DemoTask, INITIAL_TASKS } from './components/InteractivePlanDemo';
 import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
+import { StageGateDemo } from './components/StageGateDemo';
 
 // Screenshot placeholders - replace with actual paths when available
 const screenshot1 = '';
@@ -405,44 +406,11 @@ export const LaikaProLandingPage = () => {
       {/* Features Anchor */}
       <div id="features" style={{ position: 'relative', top: '-80px' }} />
 
-      {/* Feature 1: Stage Gate Management - Rockstar Style */}
-      <section id="feature-1" data-animate className={styles.featureSection}>
-        <div className={styles.rockstarFeatureLayout}>
-          {/* Left side - scattered screenshots */}
-          <div className={`${styles.rockstarScreenshots} ${visibleSections['feature-1'] ? styles.visible : ''}`}>
-            <div className={styles.screenshotScattered1} data-parallax="0.15">
-              {screenshot1 ? (
-                <img src={screenshot1} alt="Stage Gate Management" className={styles.screenshot} />
-              ) : (
-                <div className={styles.screenshotPlaceholderRockstar}>
-                  <Image size={32} />
-                  <span>Stage Gate Interface</span>
-                </div>
-              )}
-              <div className={styles.screenshotFrame} />
-            </div>
-
-            <div className={styles.screenshotScattered2} data-parallax="-0.1">
-              <div className={styles.screenshotPlaceholderRockstar}>
-                <span>Approval Flow</span>
-              </div>
-              <div className={styles.screenshotFrame} />
-            </div>
-
-            <div className={styles.screenshotScattered3} data-parallax="0.2">
-              <div className={styles.screenshotPlaceholderRockstar}>
-                <span>Comments View</span>
-              </div>
-              <div className={styles.screenshotFrame} />
-            </div>
-
-            {/* Decorative elements */}
-            <div className={styles.rockstarDeco1} />
-            <div className={styles.rockstarDeco2} />
-          </div>
-
-          {/* Right side - content */}
-          <div className={`${styles.rockstarContent} ${visibleSections['feature-1'] ? styles.visible : ''}`}>
+      {/* Feature 1: Stage Gate Management - Interactive Demo Style */}
+      <section id="feature-1" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo}`}>
+        <div className={styles.interactiveDemoLayout}>
+          {/* Left - Content */}
+          <div className={`${styles.demoContent} ${visibleSections['feature-1'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>01</div>
             <div className={styles.featureLabel}>Governance</div>
             <h2 className={styles.featureTitle}>
@@ -459,6 +427,11 @@ export const LaikaProLandingPage = () => {
               <li><Check size={18} /> Context-aware comments & collaboration</li>
               <li><Check size={18} /> Complete audit trail</li>
             </ul>
+          </div>
+
+          {/* Right - Interactive Demo */}
+          <div className={`${styles.interactiveDemoWrapper} ${visibleSections['feature-1'] ? styles.visible : ''}`}>
+            <StageGateDemo />
           </div>
         </div>
       </section>
