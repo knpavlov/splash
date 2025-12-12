@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import styles from './InteractivePlanDemo.module.css';
 
 // Demo data types
@@ -13,15 +13,11 @@ interface DemoTask {
   indent: number;
   isMilestone?: boolean;
   milestoneType?: string;
-}
-
-interface DemoResourceLoad {
-  name: string;
-  weeklyLoads: { baseline: number; initiative: number }[];
+  capacity: number; // % capacity required
 }
 
 // Demo data - realistic enterprise transformation tasks
-const DEMO_TASKS: DemoTask[] = [
+const INITIAL_TASKS: DemoTask[] = [
   {
     id: '1',
     name: 'Discovery & Requirements',
@@ -30,47 +26,52 @@ const DEMO_TASKS: DemoTask[] = [
     endDate: new Date('2025-01-24'),
     progress: 100,
     color: '#5b21b6',
-    indent: 0
+    indent: 0,
+    capacity: 80
   },
   {
     id: '2',
-    name: 'Technical Architecture Design',
+    name: 'Technical Architecture',
     responsible: 'Mike Johnson',
     startDate: new Date('2025-01-20'),
     endDate: new Date('2025-02-07'),
     progress: 85,
     color: '#2563eb',
-    indent: 0
+    indent: 0,
+    capacity: 60
   },
   {
     id: '3',
-    name: 'Core Platform Development',
+    name: 'Core Platform Dev',
     responsible: 'Alex Rivera',
     startDate: new Date('2025-02-03'),
     endDate: new Date('2025-03-14'),
     progress: 45,
     color: '#0ea5e9',
-    indent: 0
+    indent: 0,
+    capacity: 100
   },
   {
     id: '4',
-    name: 'API Integration Layer',
+    name: 'API Integration',
     responsible: 'Emily Watson',
     startDate: new Date('2025-02-10'),
     endDate: new Date('2025-02-28'),
     progress: 60,
     color: '#10b981',
-    indent: 1
+    indent: 1,
+    capacity: 70
   },
   {
     id: '5',
-    name: 'Data Migration Module',
+    name: 'Data Migration',
     responsible: 'James Liu',
     startDate: new Date('2025-02-17'),
     endDate: new Date('2025-03-07'),
     progress: 25,
     color: '#f97316',
-    indent: 1
+    indent: 1,
+    capacity: 50
   },
   {
     id: '6',
@@ -80,7 +81,8 @@ const DEMO_TASKS: DemoTask[] = [
     endDate: new Date('2025-03-21'),
     progress: 0,
     color: '#ea580c',
-    indent: 0
+    indent: 0,
+    capacity: 90
   },
   {
     id: '7',
@@ -92,36 +94,33 @@ const DEMO_TASKS: DemoTask[] = [
     color: '#e11d48',
     indent: 0,
     isMilestone: true,
-    milestoneType: 'Value Step'
+    milestoneType: 'Value Step',
+    capacity: 100
   }
 ];
 
-// Generate weekly loads for resource chart
-const generateResourceLoads = (): DemoResourceLoad[] => {
-  const people = ['Sarah Chen', 'Mike Johnson', 'Alex Rivera', 'Emily Watson', 'James Liu'];
-  return people.map((name) => ({
-    name,
-    weeklyLoads: Array.from({ length: 12 }, (_, i) => {
-      // Create realistic load patterns
-      const baselineBase = 30 + Math.random() * 25;
-      const initiativeBase = 20 + Math.random() * 35;
-      // Add some peaks mid-project
-      const peakFactor = i >= 4 && i <= 8 ? 1.3 : 1;
-      return {
-        baseline: Math.round(baselineBase * peakFactor),
-        initiative: Math.round(initiativeBase * peakFactor)
-      };
-    })
-  }));
-};
-
-// Timeline utilities
+// Timeline constants
 const TIMELINE_START = new Date('2025-01-06');
 const TIMELINE_END = new Date('2025-03-28');
 const TOTAL_DAYS = Math.ceil((TIMELINE_END.getTime() - TIMELINE_START.getTime()) / (1000 * 60 * 60 * 24));
-const PX_PER_DAY = 8;
+const PX_PER_DAY = 7;
 const TIMELINE_WIDTH = TOTAL_DAYS * PX_PER_DAY;
-const ROW_HEIGHT = 36;
+const ROW_HEIGHT = 32;
+const WEEK_DAYS = 7;
+const TABLE_WIDTH = 320;
+const RESOURCE_ROW_HEIGHT = 48;
+
+// Unique team members
+const TEAM_MEMBERS = ['Sarah Chen', 'Mike Johnson', 'Alex Rivera', 'Emily Watson', 'James Liu'];
+
+// Baseline loads (other initiatives)
+const BASELINE_LOADS: Record<string, number[]> = {
+  'Sarah Chen': [25, 30, 35, 30, 25, 20, 25, 30, 35, 30, 25, 20],
+  'Mike Johnson': [40, 35, 30, 35, 40, 45, 40, 35, 30, 35, 40, 45],
+  'Alex Rivera': [20, 25, 20, 15, 20, 25, 30, 25, 20, 15, 20, 25],
+  'Emily Watson': [30, 35, 40, 35, 30, 25, 30, 35, 40, 35, 30, 25],
+  'James Liu': [15, 20, 25, 30, 35, 40, 35, 30, 25, 20, 15, 20]
+};
 
 const daysBetween = (start: Date, end: Date) =>
   Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
@@ -131,6 +130,27 @@ const formatDate = (date: Date) =>
 
 const formatMonth = (date: Date) =>
   date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+
+// Generate week buckets aligned with timeline
+const generateWeekBuckets = () => {
+  const buckets: { start: Date; end: Date; left: number; width: number }[] = [];
+  let offset = 0;
+
+  while (offset < TOTAL_DAYS) {
+    const start = new Date(TIMELINE_START.getTime() + offset * 24 * 60 * 60 * 1000);
+    const days = Math.min(WEEK_DAYS, TOTAL_DAYS - offset);
+    const end = new Date(start.getTime() + (days - 1) * 24 * 60 * 60 * 1000);
+    buckets.push({
+      start,
+      end,
+      left: offset * PX_PER_DAY,
+      width: days * PX_PER_DAY
+    });
+    offset += WEEK_DAYS;
+  }
+
+  return buckets;
+};
 
 // Generate month markers
 const generateMonthMarkers = () => {
@@ -147,12 +167,7 @@ const generateMonthMarkers = () => {
     const left = daysBetween(TIMELINE_START, effectiveStart) * PX_PER_DAY;
     const width = (daysBetween(effectiveStart, effectiveEnd) + 1) * PX_PER_DAY;
 
-    markers.push({
-      label: formatMonth(effectiveStart),
-      left,
-      width
-    });
-
+    markers.push({ label: formatMonth(effectiveStart), left, width });
     current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
   }
 
@@ -161,38 +176,96 @@ const generateMonthMarkers = () => {
 
 interface InteractivePlanDemoProps {
   className?: string;
+  onTasksChange?: (tasks: DemoTask[]) => void;
 }
 
-export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => {
+export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePlanDemoProps) => {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>('3');
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
   const [resourceCollapsed, setResourceCollapsed] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [tasks, setTasks] = useState(DEMO_TASKS);
+  const [tasks, setTasks] = useState(INITIAL_TASKS);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const [showHintPulse, setShowHintPulse] = useState(true);
+
   const timelineRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
+  const resourceTimelineRef = useRef<HTMLDivElement>(null);
 
-  const resourceLoads = useMemo(() => generateResourceLoads(), []);
+  const weekBuckets = useMemo(() => generateWeekBuckets(), []);
   const monthMarkers = useMemo(() => generateMonthMarkers(), []);
 
-  // Sync scroll between table and timeline
+  // Calculate resource loads dynamically from tasks
+  const resourceLoads = useMemo(() => {
+    return TEAM_MEMBERS.map(name => {
+      const weeklyLoads = weekBuckets.map((bucket, weekIndex) => {
+        const baseline = BASELINE_LOADS[name]?.[weekIndex] ?? 25;
+
+        // Calculate initiative load from tasks
+        let initiative = 0;
+        tasks.forEach(task => {
+          if (task.responsible !== name) return;
+
+          // Check if task overlaps with this week
+          const taskStart = task.startDate.getTime();
+          const taskEnd = task.endDate.getTime();
+          const bucketStart = bucket.start.getTime();
+          const bucketEnd = bucket.end.getTime();
+
+          if (taskEnd >= bucketStart && taskStart <= bucketEnd) {
+            // Calculate overlap days
+            const overlapStart = Math.max(taskStart, bucketStart);
+            const overlapEnd = Math.min(taskEnd, bucketEnd);
+            const overlapDays = Math.max(1, Math.ceil((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1);
+
+            // Add proportional capacity
+            initiative += (task.capacity * overlapDays) / WEEK_DAYS;
+          }
+        });
+
+        return { baseline, initiative: Math.round(initiative) };
+      });
+
+      return { name, weeklyLoads };
+    });
+  }, [tasks, weekBuckets]);
+
+  // Notify parent of task changes
+  useEffect(() => {
+    onTasksChange?.(tasks);
+  }, [tasks, onTasksChange]);
+
+  // Sync horizontal scroll between timeline and resource timeline
   const handleTimelineScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (tableRef.current) {
-      tableRef.current.scrollTop = e.currentTarget.scrollTop;
+    if (resourceTimelineRef.current) {
+      resourceTimelineRef.current.scrollLeft = e.currentTarget.scrollLeft;
     }
   };
 
+  const handleResourceTimelineScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (timelineRef.current) {
+      timelineRef.current.scrollLeft = e.currentTarget.scrollLeft;
+    }
+  };
+
+  // Sync vertical scroll between table and timeline
   const handleTableScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (timelineRef.current) {
       timelineRef.current.scrollTop = e.currentTarget.scrollTop;
     }
   };
 
-  // Simulate dragging a task bar
-  const handleBarMouseDown = (taskId: string, e: React.MouseEvent) => {
+  const handleTimelineVerticalScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (tableRef.current) {
+      tableRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+  };
+
+  // Handle task bar drag
+  const handleBarMouseDown = useCallback((taskId: string, e: React.MouseEvent) => {
     e.preventDefault();
-    setIsDragging(true);
     setSelectedTaskId(taskId);
+    setHasInteracted(true);
+    setShowHintPulse(false);
 
     const startX = e.clientX;
     const task = tasks.find(t => t.id === taskId);
@@ -216,27 +289,40 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
     };
 
     const handleMouseUp = () => {
-      setIsDragging(false);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-  };
+  }, [tasks]);
 
-  // Scroll to today indicator on mount
+  // Scroll to current date area on mount
   useEffect(() => {
     if (timelineRef.current) {
       const todayOffset = daysBetween(TIMELINE_START, new Date()) * PX_PER_DAY;
-      timelineRef.current.scrollLeft = Math.max(0, todayOffset - 200);
+      const scrollTo = Math.max(0, todayOffset - 150);
+      timelineRef.current.scrollLeft = scrollTo;
+      if (resourceTimelineRef.current) {
+        resourceTimelineRef.current.scrollLeft = scrollTo;
+      }
     }
   }, []);
+
+  // Hint pulse animation
+  useEffect(() => {
+    if (!hasInteracted) {
+      const interval = setInterval(() => {
+        setShowHintPulse(prev => !prev);
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [hasInteracted]);
 
   const renderTaskBar = (task: DemoTask) => {
     const startOffset = daysBetween(TIMELINE_START, task.startDate) * PX_PER_DAY;
     const duration = daysBetween(task.startDate, task.endDate) + 1;
-    const width = duration * PX_PER_DAY;
+    const width = Math.max(duration * PX_PER_DAY, 20);
 
     const isSelected = selectedTaskId === task.id;
     const isHovered = hoveredTaskId === task.id;
@@ -287,54 +373,36 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
     );
   };
 
-  const renderResourceRow = (resource: DemoResourceLoad, index: number) => {
-    const MAX_LOAD = 150;
-    const hundredPercentOffset = (100 / MAX_LOAD) * 100;
-
-    return (
-      <div key={resource.name} className={styles.resourceRow}>
-        <div className={styles.capacityLine} style={{ bottom: `${hundredPercentOffset}%` }} />
-        <div className={styles.weekBars}>
-          {resource.weeklyLoads.map((load, weekIndex) => {
-            const baselineHeight = (load.baseline / MAX_LOAD) * 100;
-            const initiativeHeight = (load.initiative / MAX_LOAD) * 100;
-            const totalHeight = baselineHeight + initiativeHeight;
-            const overloadHeight = Math.max(0, totalHeight - hundredPercentOffset);
-
-            return (
-              <div key={weekIndex} className={styles.weekCell}>
-                <div className={styles.weekBar}>
-                  <span
-                    className={styles.baselineBar}
-                    style={{ height: `${baselineHeight}%` }}
-                  />
-                  <span
-                    className={styles.initiativeBar}
-                    style={{
-                      height: `${initiativeHeight}%`,
-                      bottom: `${baselineHeight}%`
-                    }}
-                  />
-                  {overloadHeight > 0 && (
-                    <span
-                      className={styles.overloadBar}
-                      style={{
-                        height: `${overloadHeight}%`,
-                        bottom: `${hundredPercentOffset}%`
-                      }}
-                    />
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+  const MAX_LOAD = 150;
+  const hundredPercentOffset = (100 / MAX_LOAD) * 100;
 
   return (
     <div className={`${styles.demoContainer} ${className || ''}`}>
+      {/* Interactive hint overlay */}
+      {!hasInteracted && (
+        <div className={`${styles.hintOverlay} ${showHintPulse ? styles.pulse : ''}`}>
+          <div className={styles.hintContent}>
+            <div className={styles.hintIcon}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M18 11V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h4" />
+                <path d="m15 19 3 3 4-4" />
+                <path d="M9 9h6" />
+                <path d="M9 13h3" />
+              </svg>
+            </div>
+            <div className={styles.hintText}>
+              <span className={styles.hintTitle}>Interactive Demo</span>
+              <span className={styles.hintDesc}>Drag the task bars to see resource load update in real-time</span>
+            </div>
+            <div className={styles.hintArrow}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Window chrome */}
       <div className={styles.windowChrome}>
         <div className={styles.windowControls}>
@@ -354,7 +422,7 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
         <div className={styles.planSection}>
           <div className={styles.sectionHeader}>
             <div className={styles.sectionTitle}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
                 <line x1="16" y1="2" x2="16" y2="6"/>
                 <line x1="8" y1="2" x2="8" y2="6"/>
@@ -365,14 +433,13 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
             <span className={styles.badge}>{tasks.length} tasks</span>
           </div>
 
-          <div className={styles.planGrid}>
+          <div className={styles.planGrid} style={{ gridTemplateColumns: `${TABLE_WIDTH}px 1fr` }}>
             {/* Task table */}
             <div className={styles.taskTable}>
               <div className={styles.tableHeader}>
-                <div className={styles.colName}>Task name</div>
+                <div className={styles.colName}>Task</div>
                 <div className={styles.colOwner}>Owner</div>
-                <div className={styles.colDates}>Dates</div>
-                <div className={styles.colProgress}>Progress</div>
+                <div className={styles.colProgress}>%</div>
               </div>
               <div className={styles.tableBody} ref={tableRef} onScroll={handleTableScroll}>
                 {tasks.map((task) => (
@@ -380,28 +447,18 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
                     key={task.id}
                     className={`${styles.tableRow} ${selectedTaskId === task.id ? styles.selected : ''}`}
                     onClick={() => setSelectedTaskId(task.id)}
-                    style={{ paddingLeft: `${12 + task.indent * 20}px` }}
+                    style={{ paddingLeft: `${8 + task.indent * 16}px` }}
                   >
                     <div className={styles.colName}>
-                      <span
-                        className={styles.taskColorDot}
-                        style={{ background: task.color }}
-                      />
-                      {task.name}
-                      {task.isMilestone && <span className={styles.milestoneTag}>Milestone</span>}
+                      <span className={styles.taskColorDot} style={{ background: task.color }} />
+                      <span className={styles.taskNameText}>{task.name}</span>
+                      {task.isMilestone && <span className={styles.milestoneTag}>M</span>}
                     </div>
-                    <div className={styles.colOwner}>{task.responsible}</div>
-                    <div className={styles.colDates}>
-                      {formatDate(task.startDate)} - {formatDate(task.endDate)}
-                    </div>
+                    <div className={styles.colOwner}>{task.responsible.split(' ')[0]}</div>
                     <div className={styles.colProgress}>
                       <div className={styles.progressBar}>
-                        <div
-                          className={styles.progressValue}
-                          style={{ width: `${task.progress}%` }}
-                        />
+                        <div className={styles.progressValue} style={{ width: `${task.progress}%` }} />
                       </div>
-                      <span>{task.progress}%</span>
                     </div>
                   </div>
                 ))}
@@ -411,7 +468,7 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
             {/* Timeline / Gantt */}
             <div className={styles.timeline}>
               <div className={styles.timelineHeader}>
-                <div className={styles.monthRow}>
+                <div className={styles.monthRow} style={{ width: `${TIMELINE_WIDTH}px` }}>
                   {monthMarkers.map((marker, i) => (
                     <div
                       key={i}
@@ -426,9 +483,9 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
               <div
                 className={styles.timelineBody}
                 ref={timelineRef}
-                onScroll={handleTimelineScroll}
+                onScroll={(e) => { handleTimelineScroll(e); handleTimelineVerticalScroll(e); }}
               >
-                <div className={styles.timelineCanvas} style={{ width: `${TIMELINE_WIDTH}px` }}>
+                <div className={styles.timelineCanvas} style={{ width: `${TIMELINE_WIDTH}px`, height: `${tasks.length * ROW_HEIGHT}px` }}>
                   {/* Today line */}
                   <div
                     className={styles.todayLine}
@@ -442,7 +499,7 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
                     <div
                       key={task.id}
                       className={styles.timelineRow}
-                      style={{ top: `${index * ROW_HEIGHT}px` }}
+                      style={{ top: `${index * ROW_HEIGHT}px`, height: `${ROW_HEIGHT}px` }}
                     >
                       {renderTaskBar(task)}
                     </div>
@@ -461,8 +518,8 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
               onClick={() => setResourceCollapsed(!resourceCollapsed)}
             >
               <svg
-                width="16"
-                height="16"
+                width="14"
+                height="14"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -472,9 +529,9 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
             </button>
-            <div>
+            <div className={styles.resourceHeaderText}>
               <h4>Resource load</h4>
-              <p>Weekly capacity across all initiatives touching these owners.</p>
+              <p>Weekly capacity • updates when you drag tasks</p>
             </div>
             <div className={styles.legend}>
               <span className={styles.legendItem}>
@@ -483,42 +540,76 @@ export const InteractivePlanDemo = ({ className }: InteractivePlanDemoProps) => 
               </span>
               <span className={styles.legendItem}>
                 <i className={styles.currentSwatch} />
-                This initiative
+                Initiative
               </span>
               <span className={styles.legendItem}>
                 <i className={styles.overloadSwatch} />
-                Above 100%
+                &gt;100%
               </span>
             </div>
           </div>
 
           {!resourceCollapsed && (
-            <div className={styles.resourceBody}>
+            <div className={styles.resourceBody} style={{ gridTemplateColumns: `${TABLE_WIDTH}px 1fr` }}>
               <div className={styles.resourceNames}>
                 {resourceLoads.map((r) => (
-                  <div key={r.name} className={styles.resourceNameRow}>
+                  <div key={r.name} className={styles.resourceNameRow} style={{ height: `${RESOURCE_ROW_HEIGHT}px` }}>
                     {r.name}
                   </div>
                 ))}
               </div>
-              <div className={styles.resourceTimeline}>
-                {resourceLoads.map((resource, index) => renderResourceRow(resource, index))}
+              <div
+                className={styles.resourceTimeline}
+                ref={resourceTimelineRef}
+                onScroll={handleResourceTimelineScroll}
+              >
+                <div className={styles.resourceCanvas} style={{ width: `${TIMELINE_WIDTH}px` }}>
+                  {resourceLoads.map((resource) => (
+                    <div key={resource.name} className={styles.resourceRow} style={{ height: `${RESOURCE_ROW_HEIGHT}px` }}>
+                      <div className={styles.capacityLine} style={{ bottom: `${hundredPercentOffset}%` }} />
+                      <div className={styles.weekBars}>
+                        {weekBuckets.map((bucket, weekIndex) => {
+                          const load = resource.weeklyLoads[weekIndex] || { baseline: 0, initiative: 0 };
+                          const baselineHeight = (load.baseline / MAX_LOAD) * 100;
+                          const initiativeHeight = (load.initiative / MAX_LOAD) * 100;
+                          const totalHeight = baselineHeight + initiativeHeight;
+                          const overloadHeight = Math.max(0, totalHeight - hundredPercentOffset);
+
+                          return (
+                            <div
+                              key={weekIndex}
+                              className={styles.weekCell}
+                              style={{ left: `${bucket.left}px`, width: `${bucket.width}px` }}
+                            >
+                              <div className={styles.weekBar}>
+                                <span className={styles.baselineBar} style={{ height: `${baselineHeight}%` }} />
+                                <span
+                                  className={styles.initiativeBar}
+                                  style={{ height: `${initiativeHeight}%`, bottom: `${baselineHeight}%` }}
+                                />
+                                {overloadHeight > 0 && (
+                                  <span
+                                    className={styles.overloadBar}
+                                    style={{ height: `${overloadHeight}%`, bottom: `${hundredPercentOffset}%` }}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* Interactive hint */}
-      <div className={styles.interactiveHint}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <path d="M12 18v-6"/>
-          <path d="M9 15l3 3 3-3"/>
-        </svg>
-        Try dragging the task bars
-      </div>
     </div>
   );
 };
+
+// Export tasks type for heatmap
+export type { DemoTask };
+export { INITIAL_TASKS, TEAM_MEMBERS, TIMELINE_START, TIMELINE_END, BASELINE_LOADS };

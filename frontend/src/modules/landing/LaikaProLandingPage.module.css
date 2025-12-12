@@ -925,90 +925,159 @@
    INTERACTIVE DEMO LAYOUT - Feature 3
    ===================================================== */
 
-.interactiveDemoLayout {
+.featureSectionDemo {
+  min-height: auto;
+  padding: 6rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 3rem;
-  max-width: 1200px;
+}
+
+.interactiveDemoLayout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 3rem;
+  max-width: 1500px;
   margin: 0 auto;
   width: 100%;
-  padding: 0 2rem;
+  padding: 0 1rem;
+  align-items: center;
 }
 
 .demoContent {
-  text-align: center;
-  max-width: 700px;
-  margin: 0 auto;
+  text-align: left;
   opacity: 0;
-  transform: translateY(30px);
+  transform: translateX(-30px);
   transition: all 0.8s var(--ease-out-expo);
 }
 
 .demoContent.visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateX(0);
 }
 
 .demoContent .featureNumber {
   font-size: 5rem;
   margin-bottom: -1.5rem;
+  margin-left: -0.3rem;
 }
 
 .demoContent .featureTitle {
-  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-size: clamp(1.75rem, 3vw, 2.5rem);
+  line-height: 1.15;
 }
 
 .demoContent .featureDescription {
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
+  font-size: 1rem;
+  line-height: 1.6;
 }
 
 .demoContent .featureList {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.5rem 2rem;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.demoContent .featureList li {
+  font-size: 0.95rem;
 }
 
 .interactiveDemoWrapper {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   opacity: 0;
-  transform: translateY(40px) scale(0.95);
-  transition: all 1s var(--ease-out-expo) 0.3s;
+  transform: translateX(40px);
+  transition: all 1s var(--ease-out-expo) 0.2s;
 }
 
 .interactiveDemoWrapper.visible {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateX(0);
+}
+
+/* Heatmap Demo Section - 3b */
+.heatmapDemoSection {
+  max-width: 1500px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.heatmapDemoWrapper {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 1s var(--ease-out-expo) 0.5s;
+}
+
+.heatmapDemoWrapper.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* Responsive for Interactive Demo */
-@media (max-width: 1024px) {
+@media (max-width: 1400px) {
   .interactiveDemoLayout {
+    grid-template-columns: 320px 1fr;
     gap: 2rem;
-  }
-
-  .demoContent .featureList {
-    gap: 0.5rem 1.5rem;
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1200px) {
   .interactiveDemoLayout {
-    padding: 0 1rem;
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+
+  .demoContent {
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+    transform: translateY(30px);
+  }
+
+  .demoContent.visible {
+    transform: translateY(0);
+  }
+
+  .demoContent .featureNumber {
+    margin-left: 0;
   }
 
   .demoContent .featureList {
-    flex-direction: column;
     align-items: center;
   }
 
   .interactiveDemoWrapper {
+    justify-content: center;
+    transform: translateY(30px);
+  }
+
+  .interactiveDemoWrapper.visible {
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .featureSectionDemo {
+    padding: 4rem 0.5rem;
+    gap: 2rem;
+  }
+
+  .interactiveDemoLayout {
+    padding: 0 0.5rem;
+  }
+
+  .interactiveDemoWrapper,
+  .heatmapDemoWrapper {
     overflow-x: auto;
     justify-content: flex-start;
-    padding-bottom: 1rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .heatmapDemoSection {
+    padding: 0 0.5rem;
   }
 }
 

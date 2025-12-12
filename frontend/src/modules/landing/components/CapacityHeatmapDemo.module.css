@@ -1,0 +1,348 @@
+/* Demo Container */
+.demoContainer {
+  position: relative;
+  background: #0d1117;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(34, 211, 238, 0.1);
+  width: 100%;
+  max-width: 1000px;
+}
+
+/* Window Chrome */
+.windowChrome {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, #1c1f26 0%, #161920 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  gap: 14px;
+}
+
+.windowControls {
+  display: flex;
+  gap: 7px;
+}
+
+.windowDot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #3c3c3c;
+}
+
+.windowDot[data-color="red"] { background: #ff5f57; }
+.windowDot[data-color="yellow"] { background: #febc2e; }
+.windowDot[data-color="green"] { background: #28c840; }
+
+.windowTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e6edf3;
+  letter-spacing: 0.02em;
+}
+
+.windowActions {
+  margin-left: auto;
+}
+
+.windowTab {
+  font-size: 11px;
+  color: #8b949e;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* App Content */
+.appContent {
+  padding: 16px;
+  background: linear-gradient(180deg, #161920 0%, #0d1117 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e6edf3;
+}
+
+.headerLeft svg {
+  color: #22d3ee;
+}
+
+.headerLeft h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.statValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e6edf3;
+}
+
+.statValue.warning {
+  color: #f97316;
+}
+
+.statLabel {
+  font-size: 10px;
+  color: #6e7681;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.statDivider {
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Heatmap Container */
+.heatmapContainer {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.heatmapGrid {
+  display: flex;
+  flex-direction: column;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 148, 158, 0.3) transparent;
+}
+
+.heatmapGrid::-webkit-scrollbar {
+  height: 6px;
+}
+
+.heatmapGrid::-webkit-scrollbar-thumb {
+  background: rgba(139, 148, 158, 0.3);
+  border-radius: 3px;
+}
+
+/* Header Row */
+.headerRow {
+  display: flex;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.headerRow .nameCell {
+  font-weight: 600;
+  color: #8b949e;
+}
+
+.weekLabel {
+  min-width: 60px;
+  padding: 8px 4px;
+  font-size: 9px;
+  font-weight: 600;
+  color: #6e7681;
+  text-align: center;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.avgLabel {
+  min-width: 50px;
+  padding: 8px 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #8b949e;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Data Rows */
+.dataRow {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.dataRow:last-child {
+  border-bottom: none;
+}
+
+.averageRow {
+  background: rgba(255, 255, 255, 0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.averageRow .nameCell {
+  font-weight: 600;
+  color: #8b949e;
+}
+
+.nameCell {
+  min-width: 110px;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #c9d1d9;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.02);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.heatCell {
+  min-width: 60px;
+  padding: 10px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.3s ease, transform 0.15s ease;
+  cursor: default;
+}
+
+.heatCell:hover {
+  transform: scale(1.05);
+  z-index: 2;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.avgCell {
+  min-width: 50px;
+  padding: 10px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  color: #c9d1d9;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.avgCell.high {
+  color: #f97316;
+}
+
+.avgCell.overloaded {
+  color: #ef4444;
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 4px;
+}
+
+.legendTitle {
+  font-size: 10px;
+  font-weight: 600;
+  color: #6e7681;
+}
+
+.legendItems {
+  display: flex;
+  gap: 12px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #8b949e;
+}
+
+.legendColor {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+/* Sync Indicator */
+.syncIndicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(34, 211, 238, 0.08);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  border-radius: 8px;
+  font-size: 11px;
+  color: #22d3ee;
+}
+
+.syncIndicator svg {
+  animation: spin 3s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .stats {
+    width: 100%;
+    justify-content: space-around;
+  }
+
+  .nameCell {
+    min-width: 90px;
+    padding: 8px;
+    font-size: 10px;
+  }
+
+  .weekLabel,
+  .heatCell {
+    min-width: 50px;
+    font-size: 9px;
+  }
+
+  .legend {
+    flex-wrap: wrap;
+  }
+}

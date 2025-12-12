@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import styles from './LaikaProLandingPage.module.css';
 import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarChart3, Image } from 'lucide-react';
-import { InteractivePlanDemo } from './components/InteractivePlanDemo';
+import { InteractivePlanDemo, DemoTask, INITIAL_TASKS } from './components/InteractivePlanDemo';
+import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 
 // Screenshot placeholders - replace with actual paths when available
 const screenshot1 = '';
@@ -27,6 +28,8 @@ export const LaikaProLandingPage = () => {
   const [scrollY, setScrollY] = useState(0);
   const mouseRef = useRef({ x: 0, y: 0 });
   const orbsRef = useRef<GlowOrb[]>([]);
+  // Shared state for interactive demos
+  const [demoTasks, setDemoTasks] = useState<DemoTask[]>(INITIAL_TASKS);
 
   // Intersection Observer for animations
   useEffect(() => {
@@ -519,14 +522,15 @@ export const LaikaProLandingPage = () => {
       </section>
 
       {/* Feature 3: Capacity Planning - Interactive Demo Style */}
-      <section id="feature-3" data-animate className={styles.featureSection}>
+      <section id="feature-3" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo}`}>
+        {/* 3a: Implementation Plan Demo */}
         <div className={styles.interactiveDemoLayout}>
-          {/* Top - Content */}
+          {/* Left - Content */}
           <div className={`${styles.demoContent} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>03</div>
             <div className={styles.featureLabel}>Planning</div>
             <h2 className={styles.featureTitle}>
-              Smart Capacity Planning & Sequencing
+              Smart Capacity<br />Planning & Sequencing
             </h2>
             <p className={styles.featureDescription}>
               Balance resources and sequence initiatives for maximum impact. Our intelligent
@@ -542,9 +546,16 @@ export const LaikaProLandingPage = () => {
             </ul>
           </div>
 
-          {/* Bottom - Interactive Demo */}
+          {/* Right - Interactive Demo */}
           <div className={`${styles.interactiveDemoWrapper} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
-            <InteractivePlanDemo />
+            <InteractivePlanDemo onTasksChange={setDemoTasks} />
+          </div>
+        </div>
+
+        {/* 3b: Capacity Heatmap Demo */}
+        <div className={styles.heatmapDemoSection}>
+          <div className={`${styles.heatmapDemoWrapper} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
+            <CapacityHeatmapDemo tasks={demoTasks} />
           </div>
         </div>
       </section>
