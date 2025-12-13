@@ -982,6 +982,60 @@
   font-size: 0.95rem;
 }
 
+/* Dashboard Selector (Feature 2 - Reporting) */
+.dashboardSelector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.dashboardOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-align: left;
+}
+
+.dashboardOption:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--color-text);
+}
+
+.dashboardOption.active {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(59, 130, 246, 0.1) 100%);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #fff;
+}
+
+.dashboardOption.active .dashboardOptionArrow {
+  opacity: 1;
+  color: var(--color-primary);
+}
+
+.dashboardOptionTitle {
+  font-weight: 500;
+}
+
+.dashboardOptionArrow {
+  opacity: 0;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.dashboardOption:hover .dashboardOptionArrow {
+  opacity: 0.5;
+}
+
 .interactiveDemoWrapper {
   display: flex;
   justify-content: flex-start;
@@ -1047,6 +1101,13 @@
 
   .demoContent .featureList {
     align-items: center;
+  }
+
+  .dashboardSelector {
+    width: 100%;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .interactiveDemoWrapper {

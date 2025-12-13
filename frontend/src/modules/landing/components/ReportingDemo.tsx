@@ -1,642 +1,345 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import styles from './ReportingDemo.module.css';
 
 // Types
-type DemoView = 'pnl-tree' | 'financial-outlook' | 'stage-gate';
-type WorkstreamId = 'digital' | 'ops' | 'cx';
+export type DemoView = 'pnl-tree' | 'financial-outlook' | 'stage-gate';
 
 interface TreeNodeData {
   id: string;
-  label: string;
-  code: string;
-  baseline: number;
-  withInitiatives: number;
-  children?: TreeNodeData[];
-  isExpanded?: boolean;
+  name: string;
+  baseValue: number;
+  totalValue: number;
+  children: TreeNodeData[];
 }
 
 interface MonthData {
   month: string;
   plan: number;
   actual: number;
-  segments: { initiative: string; value: number; color: string }[];
 }
 
 interface Initiative {
   id: string;
   name: string;
-  stage: string;
   impact: number;
 }
 
-// Demo data
-const WORKSTREAMS: { id: WorkstreamId; name: string; color: string }[] = [
-  { id: 'digital', name: 'Digital Transformation', color: '#8b5cf6' },
-  { id: 'ops', name: 'Operations Excellence', color: '#3b82f6' },
-  { id: 'cx', name: 'Customer Experience', color: '#22d3ee' }
-];
-
-// P&L Tree data
-const PNL_TREE_DATA: TreeNodeData = {
+// P&L Tree data - matching the screenshot structure
+const PNL_TREE: TreeNodeData = {
   id: 'net-profit',
-  label: 'Net Profit',
-  code: 'NP',
-  baseline: 12500000,
-  withInitiatives: 15800000,
+  name: 'Net profit',
+  baseValue: 90,
+  totalValue: 90,
   children: [
     {
-      id: 'revenue',
-      label: 'Revenue',
-      code: 'REV',
-      baseline: 85000000,
-      withInitiatives: 92000000,
+      id: 'ebit',
+      name: 'EBIT',
+      baseValue: 96,
+      totalValue: 96,
       children: [
-        { id: 'product-sales', label: 'Product Sales', code: 'PS', baseline: 65000000, withInitiatives: 70000000 },
-        { id: 'services', label: 'Services', code: 'SVC', baseline: 20000000, withInitiatives: 22000000 }
+        {
+          id: 'opex',
+          name: 'Operating expenses',
+          baseValue: -74,
+          totalValue: -74,
+          children: [
+            { id: 'rent', name: 'Rent & infrastructure', baseValue: -18, totalValue: -18, children: [] },
+            { id: 'marketing', name: 'Marketing programs', baseValue: -32, totalValue: -32, children: [] },
+            { id: 'it', name: 'IT & tooling', baseValue: -24, totalValue: -24, children: [] }
+          ]
+        }
       ]
     },
     {
-      id: 'cogs',
-      label: 'Cost of Goods',
-      code: 'COGS',
-      baseline: -52000000,
-      withInitiatives: -54000000,
-      children: [
-        { id: 'materials', label: 'Materials', code: 'MAT', baseline: -35000000, withInitiatives: -36000000 },
-        { id: 'labor', label: 'Direct Labor', code: 'DL', baseline: -17000000, withInitiatives: -18000000 }
-      ]
+      id: 'interest',
+      name: 'Interest & taxes',
+      baseValue: -6,
+      totalValue: -6,
+      children: []
     },
     {
-      id: 'opex',
-      label: 'Operating Expenses',
-      code: 'OPEX',
-      baseline: -20500000,
-      withInitiatives: -22200000,
-      children: [
-        { id: 'sg-a', label: 'SG&A', code: 'SGA', baseline: -12500000, withInitiatives: -13200000 },
-        { id: 'rd', label: 'R&D', code: 'RD', baseline: -8000000, withInitiatives: -9000000 }
-      ]
+      id: 'depreciation',
+      name: 'Depreciation & amortization',
+      baseValue: -7,
+      totalValue: -7,
+      children: []
     }
   ]
 };
 
-// Financial Outlook data by workstream
-const FINANCIAL_OUTLOOK_DATA: Record<WorkstreamId, MonthData[]> = {
-  digital: [
-    { month: 'Jan', plan: 180, actual: 165, segments: [
-      { initiative: 'Cloud Migration', value: 85, color: '#8b5cf6' },
-      { initiative: 'API Platform', value: 50, color: '#a78bfa' },
-      { initiative: 'Data Lake', value: 30, color: '#c4b5fd' }
-    ]},
-    { month: 'Feb', plan: 220, actual: 210, segments: [
-      { initiative: 'Cloud Migration', value: 110, color: '#8b5cf6' },
-      { initiative: 'API Platform', value: 65, color: '#a78bfa' },
-      { initiative: 'Data Lake', value: 35, color: '#c4b5fd' }
-    ]},
-    { month: 'Mar', plan: 280, actual: 295, segments: [
-      { initiative: 'Cloud Migration', value: 145, color: '#8b5cf6' },
-      { initiative: 'API Platform', value: 90, color: '#a78bfa' },
-      { initiative: 'Data Lake', value: 60, color: '#c4b5fd' }
-    ]},
-    { month: 'Apr', plan: 350, actual: 340, segments: [
-      { initiative: 'Cloud Migration', value: 170, color: '#8b5cf6' },
-      { initiative: 'API Platform', value: 100, color: '#a78bfa' },
-      { initiative: 'Data Lake', value: 70, color: '#c4b5fd' }
-    ]},
-    { month: 'May', plan: 420, actual: 450, segments: [
-      { initiative: 'Cloud Migration', value: 220, color: '#8b5cf6' },
-      { initiative: 'API Platform', value: 130, color: '#a78bfa' },
-      { initiative: 'Data Lake', value: 100, color: '#c4b5fd' }
-    ]},
-    { month: 'Jun', plan: 500, actual: 485, segments: [
-      { initiative: 'Cloud Migration', value: 240, color: '#8b5cf6' },
-      { initiative: 'API Platform', value: 145, color: '#a78bfa' },
-      { initiative: 'Data Lake', value: 100, color: '#c4b5fd' }
-    ]}
-  ],
-  ops: [
-    { month: 'Jan', plan: 120, actual: 135, segments: [
-      { initiative: 'Lean Manufacturing', value: 75, color: '#3b82f6' },
-      { initiative: 'Supply Chain Opt', value: 60, color: '#60a5fa' }
-    ]},
-    { month: 'Feb', plan: 150, actual: 160, segments: [
-      { initiative: 'Lean Manufacturing', value: 90, color: '#3b82f6' },
-      { initiative: 'Supply Chain Opt', value: 70, color: '#60a5fa' }
-    ]},
-    { month: 'Mar', plan: 180, actual: 175, segments: [
-      { initiative: 'Lean Manufacturing', value: 100, color: '#3b82f6' },
-      { initiative: 'Supply Chain Opt', value: 75, color: '#60a5fa' }
-    ]},
-    { month: 'Apr', plan: 220, actual: 235, segments: [
-      { initiative: 'Lean Manufacturing', value: 130, color: '#3b82f6' },
-      { initiative: 'Supply Chain Opt', value: 105, color: '#60a5fa' }
-    ]},
-    { month: 'May', plan: 260, actual: 280, segments: [
-      { initiative: 'Lean Manufacturing', value: 155, color: '#3b82f6' },
-      { initiative: 'Supply Chain Opt', value: 125, color: '#60a5fa' }
-    ]},
-    { month: 'Jun', plan: 310, actual: 305, segments: [
-      { initiative: 'Lean Manufacturing', value: 175, color: '#3b82f6' },
-      { initiative: 'Supply Chain Opt', value: 130, color: '#60a5fa' }
-    ]}
-  ],
-  cx: [
-    { month: 'Jan', plan: 90, actual: 85, segments: [
-      { initiative: 'Mobile App Redesign', value: 45, color: '#22d3ee' },
-      { initiative: 'CRM Integration', value: 40, color: '#67e8f9' }
-    ]},
-    { month: 'Feb', plan: 110, actual: 120, segments: [
-      { initiative: 'Mobile App Redesign', value: 65, color: '#22d3ee' },
-      { initiative: 'CRM Integration', value: 55, color: '#67e8f9' }
-    ]},
-    { month: 'Mar', plan: 140, actual: 155, segments: [
-      { initiative: 'Mobile App Redesign', value: 85, color: '#22d3ee' },
-      { initiative: 'CRM Integration', value: 70, color: '#67e8f9' }
-    ]},
-    { month: 'Apr', plan: 175, actual: 180, segments: [
-      { initiative: 'Mobile App Redesign', value: 100, color: '#22d3ee' },
-      { initiative: 'CRM Integration', value: 80, color: '#67e8f9' }
-    ]},
-    { month: 'May', plan: 210, actual: 225, segments: [
-      { initiative: 'Mobile App Redesign', value: 125, color: '#22d3ee' },
-      { initiative: 'CRM Integration', value: 100, color: '#67e8f9' }
-    ]},
-    { month: 'Jun', plan: 250, actual: 240, segments: [
-      { initiative: 'Mobile App Redesign', value: 135, color: '#22d3ee' },
-      { initiative: 'CRM Integration', value: 105, color: '#67e8f9' }
-    ]}
-  ]
-};
+// Financial Outlook data
+const FINANCIAL_OUTLOOK: MonthData[] = [
+  { month: 'Dec 25', plan: 0, actual: 0 },
+  { month: 'Jan 26', plan: 0, actual: 0 },
+  { month: 'Feb 26', plan: -7, actual: -7 },
+  { month: 'Mar 26', plan: 3, actual: 3 },
+  { month: 'Apr 26', plan: 2, actual: 2 },
+  { month: 'May 26', plan: 5, actual: 5 },
+  { month: 'Jun 26', plan: 6, actual: 6 },
+  { month: 'Jul 26', plan: 9, actual: 9 },
+  { month: 'Aug 26', plan: 10, actual: 10 }
+];
 
-// Stage Gate Pipeline data
-const STAGE_COLUMNS = ['L0', 'L1 Gate', 'L1', 'L2 Gate', 'L2', 'Scale'];
+// Stage-gate Pipeline data
+const STAGE_COLUMNS = ['L0', 'L1 Gate', 'L1', 'L2 Gate', 'L2', 'L3 Gate', 'L3', 'L4 Gate'];
 
-const STAGE_GATE_DATA: Record<WorkstreamId, Record<string, Initiative[]>> = {
-  digital: {
-    'L0': [
-      { id: 'd1', name: 'AI Customer Support', stage: 'L0', impact: 450000 }
-    ],
-    'L1 Gate': [
-      { id: 'd2', name: 'Blockchain Pilot', stage: 'L1 Gate', impact: 280000 }
-    ],
-    'L1': [
-      { id: 'd3', name: 'IoT Sensors Network', stage: 'L1', impact: 620000 },
-      { id: 'd4', name: 'ML Demand Forecasting', stage: 'L1', impact: 380000 }
-    ],
-    'L2 Gate': [
-      { id: 'd5', name: 'Cloud Migration', stage: 'L2 Gate', impact: 1200000 }
-    ],
-    'L2': [
-      { id: 'd6', name: 'API Platform', stage: 'L2', impact: 850000 }
-    ],
-    'Scale': [
-      { id: 'd7', name: 'Data Lake', stage: 'Scale', impact: 1500000 }
-    ]
-  },
-  ops: {
-    'L0': [
-      { id: 'o1', name: 'Robotic Assembly', stage: 'L0', impact: 520000 },
-      { id: 'o2', name: 'Predictive Maintenance', stage: 'L0', impact: 340000 }
-    ],
-    'L1 Gate': [],
-    'L1': [
-      { id: 'o3', name: 'Warehouse Automation', stage: 'L1', impact: 780000 }
-    ],
-    'L2 Gate': [
-      { id: 'o4', name: 'Lean Manufacturing', stage: 'L2 Gate', impact: 920000 }
-    ],
-    'L2': [
-      { id: 'o5', name: 'Supply Chain Opt', stage: 'L2', impact: 1100000 }
-    ],
-    'Scale': []
-  },
-  cx: {
-    'L0': [],
-    'L1 Gate': [
-      { id: 'c1', name: 'Loyalty Program 2.0', stage: 'L1 Gate', impact: 420000 }
-    ],
-    'L1': [
-      { id: 'c2', name: 'Omnichannel Support', stage: 'L1', impact: 550000 }
-    ],
-    'L2 Gate': [],
-    'L2': [
-      { id: 'c3', name: 'Mobile App Redesign', stage: 'L2', impact: 680000 },
-      { id: 'c4', name: 'CRM Integration', stage: 'L2', impact: 490000 }
-    ],
-    'Scale': [
-      { id: 'c5', name: 'Self-Service Portal', stage: 'Scale', impact: 850000 }
-    ]
-  }
-};
+interface WorkstreamData {
+  id: string;
+  name: string;
+  activeInitiatives: number;
+  stages: Record<string, { count: number; impact: number; initiatives: Initiative[] }>;
+}
 
-// View descriptions
-const VIEW_OPTIONS: { id: DemoView; title: string; description: string }[] = [
+const WORKSTREAMS: WorkstreamData[] = [
   {
-    id: 'pnl-tree',
-    title: 'P&L Impact Tree',
-    description: 'Visualize how initiatives impact your P&L structure with drill-down capabilities'
+    id: 'test',
+    name: 'Test new workstream',
+    activeInitiatives: 0,
+    stages: {
+      'L0': { count: 0, impact: 0, initiatives: [] },
+      'L1 Gate': { count: 0, impact: 0, initiatives: [] },
+      'L1': { count: 0, impact: 0, initiatives: [] },
+      'L2 Gate': { count: 0, impact: 0, initiatives: [] },
+      'L2': { count: 0, impact: 0, initiatives: [] },
+      'L3 Gate': { count: 0, impact: 0, initiatives: [] },
+      'L3': { count: 0, impact: 0, initiatives: [] },
+      'L4 Gate': { count: 0, impact: 0, initiatives: [] }
+    }
   },
   {
-    id: 'financial-outlook',
-    title: 'Financial Outlook',
-    description: 'Track actuals vs plan with initiative-level breakdown on click'
+    id: 'innovation',
+    name: 'Innovation',
+    activeInitiatives: 9,
+    stages: {
+      'L0': { count: 4, impact: 1100, initiatives: [
+        { id: 'i1', name: 'AI Customer Support', impact: 450 },
+        { id: 'i2', name: 'IoT Sensors', impact: 320 },
+        { id: 'i3', name: 'Blockchain Pilot', impact: 180 },
+        { id: 'i4', name: 'ML Forecasting', impact: 150 }
+      ]},
+      'L1 Gate': { count: 3, impact: 1800, initiatives: [
+        { id: 'i5', name: 'Cloud Migration', impact: 850 },
+        { id: 'i6', name: 'Data Platform', impact: 550 },
+        { id: 'i7', name: 'API Gateway', impact: 400 }
+      ]},
+      'L1': { count: 0, impact: 0, initiatives: [] },
+      'L2 Gate': { count: 1, impact: 170, initiatives: [
+        { id: 'i8', name: 'Mobile App v2', impact: 170 }
+      ]},
+      'L2': { count: 1, impact: 280, initiatives: [
+        { id: 'i9', name: 'CRM Integration', impact: 280 }
+      ]},
+      'L3 Gate': { count: 0, impact: 0, initiatives: [] },
+      'L3': { count: 0, impact: 0, initiatives: [] },
+      'L4 Gate': { count: 0, impact: 0, initiatives: [] }
+    }
   },
   {
-    id: 'stage-gate',
-    title: 'Stage-Gate Pipeline',
-    description: 'Monitor initiative progression across stage gates by workstream'
+    id: 'sga',
+    name: 'SG&A',
+    activeInitiatives: 3,
+    stages: {
+      'L0': { count: 3, impact: 80, initiatives: [
+        { id: 's1', name: 'Process Automation', impact: 45 },
+        { id: 's2', name: 'Vendor Consolidation', impact: 20 },
+        { id: 's3', name: 'Office Optimization', impact: 15 }
+      ]},
+      'L1 Gate': { count: 0, impact: 0, initiatives: [] },
+      'L1': { count: 0, impact: 0, initiatives: [] },
+      'L2 Gate': { count: 0, impact: 0, initiatives: [] },
+      'L2': { count: 0, impact: 0, initiatives: [] },
+      'L3 Gate': { count: 0, impact: 0, initiatives: [] },
+      'L3': { count: 0, impact: 0, initiatives: [] },
+      'L4 Gate': { count: 0, impact: 0, initiatives: [] }
+    }
   }
 ];
 
 // Formatters
-const formatCurrency = (value: number, compact = true) => {
-  if (compact) {
-    if (Math.abs(value) >= 1000000) {
-      return `$${(value / 1000000).toFixed(1)}M`;
-    }
-    if (Math.abs(value) >= 1000) {
-      return `$${(value / 1000).toFixed(0)}K`;
-    }
-    return `$${value}`;
+const formatCurrency = (value: number) => {
+  if (value === 0) return '$0';
+  const prefix = value < 0 ? '-' : '';
+  const absVal = Math.abs(value);
+  if (absVal >= 1000) {
+    return `${prefix}$${(absVal / 1000).toFixed(1)}K`;
   }
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0
-  }).format(value);
+  return `${prefix}$${absVal}`;
 };
 
-const formatDelta = (baseline: number, withInit: number) => {
-  const delta = withInit - baseline;
-  const pct = baseline !== 0 ? ((delta / Math.abs(baseline)) * 100).toFixed(1) : '0';
-  const sign = delta >= 0 ? '+' : '';
-  return `${sign}${pct}%`;
+const formatDelta = (base: number, total: number) => {
+  if (base === 0) return '0.0%';
+  const delta = ((total - base) / Math.abs(base)) * 100;
+  return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`;
 };
+
+// View descriptions for the selector
+export const VIEW_OPTIONS: { id: DemoView; title: string; shortTitle: string }[] = [
+  { id: 'pnl-tree', title: 'P&L Impact Tree', shortTitle: 'P&L tree' },
+  { id: 'financial-outlook', title: 'Plan vs Actuals', shortTitle: 'Financial outlook' },
+  { id: 'stage-gate', title: 'Stage-Gate Pipeline', shortTitle: 'Stage-gate pipeline' }
+];
 
 interface ReportingDemoProps {
   className?: string;
+  activeView: DemoView;
 }
 
-export const ReportingDemo = ({ className }: ReportingDemoProps) => {
-  const [activeView, setActiveView] = useState<DemoView>('pnl-tree');
-  const [selectedWorkstream, setSelectedWorkstream] = useState<WorkstreamId>('digital');
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['net-profit', 'revenue']));
-  const [selectedBarIndex, setSelectedBarIndex] = useState<number | null>(null);
-  const [showHint, setShowHint] = useState(true);
+export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => {
+  const [expandedWorkstreams, setExpandedWorkstreams] = useState<Set<string>>(new Set());
 
-  // P&L Tree rendering
-  const renderTreeNode = useCallback((node: TreeNodeData, level: number = 0) => {
-    const hasChildren = node.children && node.children.length > 0;
-    const isExpanded = expandedNodes.has(node.id);
-    const delta = node.withInitiatives - node.baseline;
-    const deltaPercent = node.baseline !== 0 ? (delta / Math.abs(node.baseline)) * 100 : 0;
-    const isPositive = delta >= 0;
+  const toggleWorkstream = (id: string) => {
+    setExpandedWorkstreams(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
-    const maxValue = Math.max(Math.abs(node.baseline), Math.abs(node.withInitiatives));
-    const baselineWidth = (Math.abs(node.baseline) / maxValue) * 100;
-    const initiativeWidth = (Math.abs(node.withInitiatives) / maxValue) * 100;
+  // P&L Tree layout calculation
+  const treeLayout = useMemo(() => {
+    const cardWidth = 180;
+    const cardHeight = 80;
+    const horizontalGap = 100;
+    const verticalGap = 20;
+    const positions = new Map<string, { x: number; y: number }>();
+    const connectors: { id: string; path: string }[] = [];
 
-    return (
-      <div key={node.id} className={styles.treeNodeWrapper}>
-        <div
-          className={`${styles.treeNode} ${level === 0 ? styles.rootNode : ''}`}
-          style={{ marginLeft: level * 24 }}
-          onClick={() => {
-            if (hasChildren) {
-              setExpandedNodes(prev => {
-                const next = new Set(prev);
-                if (next.has(node.id)) {
-                  next.delete(node.id);
-                } else {
-                  next.add(node.id);
-                }
-                return next;
-              });
-            }
-          }}
-        >
-          <div className={styles.treeNodeHeader}>
-            {hasChildren && (
-              <span className={`${styles.expandIcon} ${isExpanded ? styles.expanded : ''}`}>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                  <path d="M4 2l4 4-4 4V2z" />
-                </svg>
-              </span>
-            )}
-            <span className={styles.nodeCode}>{node.code}</span>
-            <span className={styles.nodeLabel}>{node.label}</span>
-            <span className={`${styles.nodeDelta} ${isPositive ? styles.positive : styles.negative}`}>
-              {formatDelta(node.baseline, node.withInitiatives)}
-            </span>
-          </div>
-          <div className={styles.nodeChart}>
-            <div className={styles.barRow}>
-              <span className={styles.barLabel}>Baseline</span>
-              <div className={styles.barContainer}>
-                <div
-                  className={styles.baselineBar}
-                  style={{ width: `${baselineWidth}%` }}
-                />
-              </div>
-              <span className={styles.barValue}>{formatCurrency(node.baseline)}</span>
-            </div>
-            <div className={styles.barRow}>
-              <span className={styles.barLabel}>With Init.</span>
-              <div className={styles.barContainer}>
-                <div
-                  className={`${styles.initiativeBar} ${isPositive ? styles.positive : styles.negative}`}
-                  style={{ width: `${initiativeWidth}%` }}
-                />
-              </div>
-              <span className={styles.barValue}>{formatCurrency(node.withInitiatives)}</span>
-            </div>
-          </div>
-        </div>
-        {hasChildren && isExpanded && (
-          <div className={styles.treeChildren}>
-            {node.children!.map(child => renderTreeNode(child, level + 1))}
-          </div>
-        )}
-      </div>
+    let leafIndex = 0;
+    const computePositions = (node: TreeNodeData, depth: number): number => {
+      if (node.children.length === 0) {
+        const y = leafIndex * (cardHeight + verticalGap);
+        leafIndex++;
+        positions.set(node.id, { x: depth * (cardWidth + horizontalGap), y });
+        return y;
+      }
+
+      const childYs = node.children.map(child => computePositions(child, depth + 1));
+      const y = childYs.reduce((sum, cy) => sum + cy, 0) / childYs.length;
+      positions.set(node.id, { x: depth * (cardWidth + horizontalGap), y });
+
+      // Create connectors
+      node.children.forEach(child => {
+        const parentPos = positions.get(node.id)!;
+        const childPos = positions.get(child.id)!;
+        const startX = parentPos.x + cardWidth;
+        const startY = parentPos.y + cardHeight / 2;
+        const endX = childPos.x;
+        const endY = childPos.y + cardHeight / 2;
+        const midX = (startX + endX) / 2;
+        connectors.push({
+          id: `${node.id}-${child.id}`,
+          path: `M ${startX} ${startY} H ${midX} V ${endY} H ${endX}`
+        });
+      });
+
+      return y;
+    };
+
+    computePositions(PNL_TREE, 0);
+
+    const allPositions = Array.from(positions.values());
+    const maxX = Math.max(...allPositions.map(p => p.x)) + cardWidth;
+    const maxY = Math.max(...allPositions.map(p => p.y)) + cardHeight;
+
+    return { positions, connectors, width: maxX + 40, height: maxY + 40, cardWidth, cardHeight };
+  }, []);
+
+  // Calculate max values for stage-gate bars
+  const maxStageValues = useMemo(() => {
+    const maxCount = Math.max(
+      ...WORKSTREAMS.flatMap(ws =>
+        STAGE_COLUMNS.map(col => ws.stages[col]?.count || 0)
+      ),
+      1
     );
-  }, [expandedNodes]);
+    const maxImpact = Math.max(
+      ...WORKSTREAMS.flatMap(ws =>
+        STAGE_COLUMNS.map(col => ws.stages[col]?.impact || 0)
+      ),
+      1
+    );
+    return { maxCount, maxImpact };
+  }, []);
 
-  // Financial Outlook rendering
-  const outlookData = useMemo(() => FINANCIAL_OUTLOOK_DATA[selectedWorkstream], [selectedWorkstream]);
-  const maxActual = useMemo(() => Math.max(...outlookData.map(d => d.actual)), [outlookData]);
+  // Portfolio totals
+  const portfolioTotals = useMemo(() => {
+    const totals: Record<string, { count: number; impact: number }> = {};
+    STAGE_COLUMNS.forEach(col => {
+      totals[col] = { count: 0, impact: 0 };
+      WORKSTREAMS.forEach(ws => {
+        totals[col].count += ws.stages[col]?.count || 0;
+        totals[col].impact += ws.stages[col]?.impact || 0;
+      });
+    });
+    return totals;
+  }, []);
 
-  const renderFinancialOutlook = () => {
+  const totalInitiatives = WORKSTREAMS.reduce((sum, ws) => sum + ws.activeInitiatives, 0);
+  const totalImpact = Object.values(portfolioTotals).reduce((sum, t) => sum + t.impact, 0);
+
+  // Render P&L Tree Node
+  const renderTreeNode = (node: TreeNodeData) => {
+    const pos = treeLayout.positions.get(node.id);
+    if (!pos) return null;
+
+    const isNegative = node.baseValue < 0;
+    const maxAbs = Math.max(Math.abs(node.baseValue), Math.abs(node.totalValue), 1);
+    const baseWidth = (Math.abs(node.baseValue) / maxAbs) * 100;
+    const totalWidth = (Math.abs(node.totalValue) / maxAbs) * 100;
+
     return (
-      <div className={styles.outlookContainer}>
-        <div className={styles.outlookHeader}>
-          <div className={styles.outlookLegend}>
-            <span className={styles.legendItem}>
-              <span className={styles.legendLine} />
-              Plan
-            </span>
-            <span className={styles.legendItem}>
-              <span className={styles.legendBar} style={{ background: WORKSTREAMS.find(w => w.id === selectedWorkstream)?.color }} />
-              Actual
-            </span>
-          </div>
-          <div className={styles.workstreamSelector}>
-            {WORKSTREAMS.map(ws => (
-              <button
-                key={ws.id}
-                className={`${styles.workstreamBtn} ${selectedWorkstream === ws.id ? styles.active : ''}`}
-                onClick={() => {
-                  setSelectedWorkstream(ws.id);
-                  setSelectedBarIndex(null);
-                }}
-                style={{ '--ws-color': ws.color } as React.CSSProperties}
-              >
-                {ws.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className={styles.chartArea}>
-          {/* Y-axis */}
-          <div className={styles.yAxis}>
-            {[500, 400, 300, 200, 100, 0].map(val => (
-              <span key={val} className={styles.yTick}>${val}K</span>
-            ))}
-          </div>
-
-          {/* Chart */}
-          <div className={styles.barsWrapper}>
-            {/* Grid lines */}
-            <div className={styles.gridLines}>
-              {[0, 1, 2, 3, 4, 5].map(i => (
-                <div key={i} className={styles.gridLine} />
-              ))}
-            </div>
-
-            {/* Plan line */}
-            <svg className={styles.planLine} viewBox={`0 0 ${outlookData.length * 60} 200`} preserveAspectRatio="none">
-              <polyline
-                points={outlookData.map((d, i) => `${i * 60 + 30},${200 - (d.plan / 500) * 200}`).join(' ')}
-                fill="none"
-                stroke="rgba(255,255,255,0.5)"
-                strokeWidth="2"
-                strokeDasharray="4 4"
-              />
-              {outlookData.map((d, i) => (
-                <circle
-                  key={i}
-                  cx={i * 60 + 30}
-                  cy={200 - (d.plan / 500) * 200}
-                  r="4"
-                  fill="rgba(255,255,255,0.8)"
-                />
-              ))}
-            </svg>
-
-            {/* Bars */}
-            <div className={styles.bars}>
-              {outlookData.map((d, idx) => (
-                <div key={idx} className={styles.barGroup}>
-                  <div
-                    className={`${styles.stackedBar} ${selectedBarIndex === idx ? styles.selected : ''}`}
-                    style={{ height: `${(d.actual / 500) * 100}%` }}
-                    onClick={() => setSelectedBarIndex(selectedBarIndex === idx ? null : idx)}
-                  >
-                    {d.segments.map((seg, segIdx) => (
-                      <div
-                        key={segIdx}
-                        className={styles.barSegment}
-                        style={{
-                          height: `${(seg.value / d.actual) * 100}%`,
-                          background: seg.color
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <span className={styles.monthLabel}>{d.month}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Breakdown popup */}
-            {selectedBarIndex !== null && (
+      <div
+        key={node.id}
+        className={styles.treeCard}
+        style={{
+          width: treeLayout.cardWidth,
+          height: treeLayout.cardHeight,
+          transform: `translate(${pos.x}px, ${pos.y}px)`
+        }}
+      >
+        <div className={styles.treeCardHeader}>{node.name}</div>
+        <div className={styles.treeCardChart}>
+          <div className={styles.treeBarRow}>
+            <span className={styles.treeBarLabel}>Base</span>
+            <div className={styles.treeBarTrack}>
               <div
-                className={styles.breakdownPopup}
-                style={{
-                  left: `${selectedBarIndex * 60 + 30}px`
-                }}
-              >
-                <div className={styles.popupHeader}>
-                  <span>{outlookData[selectedBarIndex].month} Breakdown</span>
-                  <button onClick={() => setSelectedBarIndex(null)} className={styles.popupClose}>×</button>
-                </div>
-                <div className={styles.popupContent}>
-                  {outlookData[selectedBarIndex].segments.map((seg, i) => (
-                    <div key={i} className={styles.popupRow}>
-                      <span className={styles.popupDot} style={{ background: seg.color }} />
-                      <span className={styles.popupName}>{seg.initiative}</span>
-                      <span className={styles.popupValue}>${seg.value}K</span>
-                    </div>
-                  ))}
-                  <div className={styles.popupTotal}>
-                    <span>Total</span>
-                    <span>${outlookData[selectedBarIndex].actual}K</span>
-                  </div>
-                  <div className={styles.popupVsPlan}>
-                    <span>vs Plan</span>
-                    <span className={outlookData[selectedBarIndex].actual >= outlookData[selectedBarIndex].plan ? styles.positive : styles.negative}>
-                      {outlookData[selectedBarIndex].actual >= outlookData[selectedBarIndex].plan ? '+' : ''}
-                      {outlookData[selectedBarIndex].actual - outlookData[selectedBarIndex].plan}K
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Stage-Gate Pipeline rendering
-  const stageGateData = useMemo(() => STAGE_GATE_DATA[selectedWorkstream], [selectedWorkstream]);
-
-  const renderStageGatePipeline = () => {
-    return (
-      <div className={styles.pipelineContainer}>
-        <div className={styles.pipelineHeader}>
-          <div className={styles.pipelineLegend}>
-            <span className={styles.legendItem}>
-              <span className={styles.legendCircle} style={{ background: '#22c55e' }} />
-              High Impact
-            </span>
-            <span className={styles.legendItem}>
-              <span className={styles.legendCircle} style={{ background: '#f59e0b' }} />
-              Medium
-            </span>
-          </div>
-          <div className={styles.workstreamSelector}>
-            {WORKSTREAMS.map(ws => (
-              <button
-                key={ws.id}
-                className={`${styles.workstreamBtn} ${selectedWorkstream === ws.id ? styles.active : ''}`}
-                onClick={() => setSelectedWorkstream(ws.id)}
-                style={{ '--ws-color': ws.color } as React.CSSProperties}
-              >
-                {ws.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className={styles.pipelineTable}>
-          {/* Header */}
-          <div className={styles.pipelineRow}>
-            <div className={styles.pipelineCell} style={{ background: 'transparent' }} />
-            {STAGE_COLUMNS.map(stage => (
-              <div key={stage} className={`${styles.pipelineCell} ${styles.headerCell}`}>
-                {stage}
-              </div>
-            ))}
-          </div>
-
-          {/* Data row */}
-          <div className={styles.pipelineRow}>
-            <div className={`${styles.pipelineCell} ${styles.wsCell}`}>
-              <span
-                className={styles.wsDot}
-                style={{ background: WORKSTREAMS.find(w => w.id === selectedWorkstream)?.color }}
+                className={`${styles.treeBarFill} ${isNegative ? styles.negative : styles.positive}`}
+                style={{ width: `${Math.max(baseWidth, 2)}%` }}
               />
-              {WORKSTREAMS.find(w => w.id === selectedWorkstream)?.name}
             </div>
-            {STAGE_COLUMNS.map(stage => {
-              const initiatives = stageGateData[stage] || [];
-              const totalImpact = initiatives.reduce((sum, i) => sum + i.impact, 0);
-
-              return (
-                <div key={stage} className={styles.pipelineCell}>
-                  {initiatives.length > 0 ? (
-                    <div className={styles.stageContent}>
-                      <div className={styles.initiativeCount}>{initiatives.length}</div>
-                      <div className={styles.impactBadge}>
-                        {formatCurrency(totalImpact)}
-                      </div>
-                      <div className={styles.initiativeList}>
-                        {initiatives.map(init => (
-                          <div
-                            key={init.id}
-                            className={styles.initiativeChip}
-                            style={{
-                              borderColor: init.impact >= 800000 ? '#22c55e' : '#f59e0b'
-                            }}
-                          >
-                            <span className={styles.chipName}>{init.name}</span>
-                            <span className={styles.chipImpact}>{formatCurrency(init.impact)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <span className={styles.emptyCell}>—</span>
-                  )}
-                </div>
-              );
-            })}
+            <span className={styles.treeBarValue}>{formatCurrency(node.baseValue)}</span>
           </div>
-
-          {/* Summary row */}
-          <div className={`${styles.pipelineRow} ${styles.summaryRow}`}>
-            <div className={`${styles.pipelineCell} ${styles.wsCell}`}>
-              Total Pipeline
+          <div className={styles.treeBarRow}>
+            <span className={styles.treeBarLabel}>With initiatives</span>
+            <div className={styles.treeBarTrack}>
+              <div
+                className={`${styles.treeBarFill} ${styles.initiatives} ${isNegative ? styles.negative : ''}`}
+                style={{ width: `${Math.max(totalWidth, 2)}%` }}
+              />
             </div>
-            {STAGE_COLUMNS.map(stage => {
-              const initiatives = stageGateData[stage] || [];
-              const totalImpact = initiatives.reduce((sum, i) => sum + i.impact, 0);
-              return (
-                <div key={stage} className={`${styles.pipelineCell} ${styles.summaryCell}`}>
-                  {totalImpact > 0 ? formatCurrency(totalImpact) : '—'}
-                </div>
-              );
-            })}
+            <span className={styles.treeBarValue}>
+              {formatCurrency(node.totalValue)}
+              <span className={styles.treeDelta}>{formatDelta(node.baseValue, node.totalValue)}</span>
+            </span>
           </div>
         </div>
       </div>
     );
   };
 
-  // Hint for current view
-  const getHintText = () => {
-    switch (activeView) {
-      case 'pnl-tree':
-        return 'Click on nodes to expand/collapse the P&L hierarchy';
-      case 'financial-outlook':
-        return 'Click on bars to see initiative breakdown';
-      case 'stage-gate':
-        return 'Switch workstreams to explore different pipelines';
-    }
+  // Flatten tree for rendering
+  const flattenTree = (node: TreeNodeData): TreeNodeData[] => {
+    return [node, ...node.children.flatMap(flattenTree)];
   };
+
+  const allNodes = flattenTree(PNL_TREE);
 
   return (
     <div className={`${styles.demoContainer} ${className || ''}`}>
-      {/* Hint overlay */}
-      {showHint && (
-        <div className={styles.hintOverlay}>
-          <div className={styles.hintContent}>
-            <div className={styles.hintIcon}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 16v-4M12 8h.01" />
-              </svg>
-            </div>
-            <div className={styles.hintText}>
-              <span className={styles.hintTitle}>Interactive Demo</span>
-              <span className={styles.hintDesc}>{getHintText()}</span>
-            </div>
-            <button className={styles.hintDismiss} onClick={() => setShowHint(false)}>Got it</button>
-          </div>
-        </div>
-      )}
-
       {/* Window chrome */}
       <div className={styles.windowChrome}>
         <div className={styles.windowControls}>
@@ -644,65 +347,260 @@ export const ReportingDemo = ({ className }: ReportingDemoProps) => {
           <span className={styles.windowDot} data-color="yellow" />
           <span className={styles.windowDot} data-color="green" />
         </div>
-        <div className={styles.windowTitle}>LaikaPro</div>
-        <button
-          className={styles.resetBtn}
-          onClick={() => {
-            setExpandedNodes(new Set(['net-profit', 'revenue']));
-            setSelectedBarIndex(null);
-            setSelectedWorkstream('digital');
-            setShowHint(true);
-          }}
-          title="Reset Demo"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-            <path d="M21 3v5h-5" />
-            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-            <path d="M8 16H3v5" />
-          </svg>
-          Reset
-        </button>
+        <div className={styles.windowTitle}>
+          {VIEW_OPTIONS.find(v => v.id === activeView)?.shortTitle || 'LaikaPro'}
+        </div>
       </div>
 
-      {/* App content */}
-      <div className={styles.appContent}>
-        {/* Navigation sidebar */}
-        <div className={styles.navSidebar}>
-          {VIEW_OPTIONS.map(opt => (
-            <button
-              key={opt.id}
-              className={`${styles.navItem} ${activeView === opt.id ? styles.active : ''}`}
-              onClick={() => {
-                setActiveView(opt.id);
-                setShowHint(true);
-              }}
+      {/* Dashboard Content */}
+      <div className={styles.dashboardContent}>
+        {/* P&L Tree View */}
+        {activeView === 'pnl-tree' && (
+          <div className={styles.pnlTreeWrapper}>
+            <div
+              className={styles.treeCanvas}
+              style={{ width: treeLayout.width, height: treeLayout.height }}
             >
-              <span className={styles.navTitle}>{opt.title}</span>
-              <span className={styles.navDesc}>{opt.description}</span>
-              <svg className={styles.navArrow} width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M6 3l5 5-5 5V3z" />
+              <svg className={styles.treeSvg} width={treeLayout.width} height={treeLayout.height}>
+                {treeLayout.connectors.map(c => (
+                  <path key={c.id} d={c.path} className={styles.connectorPath} />
+                ))}
               </svg>
-            </button>
-          ))}
-        </div>
-
-        {/* Main content */}
-        <div className={styles.mainContent}>
-          {activeView === 'pnl-tree' && (
-            <div className={styles.treeContainer}>
-              <div className={styles.viewHeader}>
-                <h3>P&L Impact Analysis</h3>
-                <span className={styles.viewSubtitle}>FY2025 Projection</span>
-              </div>
-              {renderTreeNode(PNL_TREE_DATA)}
+              {allNodes.map(renderTreeNode)}
             </div>
-          )}
+          </div>
+        )}
 
-          {activeView === 'financial-outlook' && renderFinancialOutlook()}
+        {/* Financial Outlook View */}
+        {activeView === 'financial-outlook' && (
+          <div className={styles.outlookWrapper}>
+            <div className={styles.outlookHeader}>
+              <div className={styles.outlookKpis}>
+                <div className={styles.outlookKpi}>
+                  <span className={styles.kpiLabel}>PLAN (FY)</span>
+                  <div className={styles.kpiRows}>
+                    <div className={styles.kpiRow}><span>FY2026</span><span>$9</span></div>
+                    <div className={styles.kpiRow}><span>FY2027</span><span>$66</span></div>
+                  </div>
+                </div>
+                <div className={styles.outlookKpi}>
+                  <span className={styles.kpiLabel}>ACTUALS (FY)</span>
+                  <div className={styles.kpiRows}>
+                    <div className={styles.kpiRow}><span>FY2026</span><span>$0</span></div>
+                    <div className={styles.kpiRow}><span>FY2027</span><span>$0</span></div>
+                  </div>
+                </div>
+                <div className={styles.outlookKpi}>
+                  <span className={styles.kpiLabel}>RUN RATE (LAST 12 MONTHS)</span>
+                  <div className={styles.kpiBig}>$75</div>
+                  <span className={styles.kpiMeta}>Actual: $0 · Delta: -$75</span>
+                </div>
+                <div className={styles.outlookKpi}>
+                  <span className={styles.kpiLabel}>ROI (ACTUAL VS PLAN)</span>
+                  <div className={styles.kpiBig}>—</div>
+                  <span className={styles.kpiMeta}>Plan: 1,500% · Delta: —</span>
+                </div>
+              </div>
+            </div>
+            <div className={styles.chartSection}>
+              <div className={styles.chartTitle}>PLAN VS ACTUALS</div>
+              <div className={styles.chartArea}>
+                <svg className={styles.lineChart} viewBox="0 0 400 150" preserveAspectRatio="none">
+                  {/* Grid lines */}
+                  <line x1="0" y1="75" x2="400" y2="75" stroke="#e2e8f0" strokeWidth="1" />
 
-          {activeView === 'stage-gate' && renderStageGatePipeline()}
-        </div>
+                  {/* Plan line (main) */}
+                  <polyline
+                    fill="none"
+                    stroke="#22d3ee"
+                    strokeWidth="2"
+                    points={FINANCIAL_OUTLOOK.map((d, i) => {
+                      const x = (i / (FINANCIAL_OUTLOOK.length - 1)) * 380 + 10;
+                      const y = 75 - (d.plan / 15) * 60;
+                      return `${x},${y}`;
+                    }).join(' ')}
+                  />
+
+                  {/* Data points with values */}
+                  {FINANCIAL_OUTLOOK.map((d, i) => {
+                    const x = (i / (FINANCIAL_OUTLOOK.length - 1)) * 380 + 10;
+                    const y = 75 - (d.plan / 15) * 60;
+                    return (
+                      <g key={i}>
+                        <circle cx={x} cy={y} r="4" fill="#22d3ee" />
+                        <text x={x} y={y - 10} textAnchor="middle" fill="#0f172a" fontSize="10" fontWeight="600">
+                          {d.plan === 0 ? '$0' : `$${d.plan}`}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+                <div className={styles.chartXAxis}>
+                  {FINANCIAL_OUTLOOK.map((d, i) => (
+                    <span key={i}>{d.month}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stage-Gate Pipeline View */}
+        {activeView === 'stage-gate' && (
+          <div className={styles.pipelineWrapper}>
+            <div className={styles.pipelineTable}>
+              {/* Header */}
+              <div className={styles.pipelineHeader}>
+                <div className={styles.pipelineHeaderCell} style={{ width: 180 }}>WORKSTREAM</div>
+                <div className={styles.pipelineHeaderCell} style={{ width: 140 }}>METRIC</div>
+                {STAGE_COLUMNS.map(col => (
+                  <div key={col} className={styles.pipelineHeaderCell}>{col}</div>
+                ))}
+              </div>
+
+              {/* Workstream rows */}
+              {WORKSTREAMS.map(ws => {
+                const isExpanded = expandedWorkstreams.has(ws.id);
+                return (
+                  <div key={ws.id} className={styles.workstreamGroup}>
+                    {/* Recurring impact row */}
+                    <div className={styles.pipelineRow}>
+                      <div className={styles.workstreamCell} style={{ width: 180 }}>
+                        <button
+                          className={styles.expandBtn}
+                          onClick={() => toggleWorkstream(ws.id)}
+                        >
+                          {isExpanded ? '−' : '+'}
+                        </button>
+                        <div>
+                          <div className={styles.workstreamName}>{ws.name}</div>
+                          <div className={styles.workstreamMeta}>
+                            {ws.activeInitiatives} active initiatives
+                          </div>
+                        </div>
+                      </div>
+                      <div className={styles.metricCell} style={{ width: 140 }}>
+                        <span className={styles.metricLabel}>RECURRING IMPACT</span>
+                        <strong>{formatCurrency(Object.values(ws.stages).reduce((s, st) => s + st.impact, 0) * 1000)}</strong>
+                      </div>
+                      {STAGE_COLUMNS.map(col => {
+                        const data = ws.stages[col];
+                        const width = data.impact > 0 ? (data.impact / maxStageValues.maxImpact) * 100 : 0;
+                        return (
+                          <div key={col} className={styles.valueCell}>
+                            <div className={styles.barTrack}>
+                              <div
+                                className={`${styles.barFill} ${styles.impactBar}`}
+                                style={{ width: `${width}%` }}
+                              />
+                              <span className={styles.barValue}>
+                                {data.impact > 0 ? formatCurrency(data.impact * 1000) : '$0'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Initiatives count row */}
+                    <div className={styles.pipelineRow}>
+                      <div className={styles.workstreamCell} style={{ width: 180 }} />
+                      <div className={styles.metricCell} style={{ width: 140 }}>
+                        <span className={styles.metricLabel}>INITIATIVES</span>
+                        <strong>{ws.activeInitiatives}</strong>
+                      </div>
+                      {STAGE_COLUMNS.map(col => {
+                        const data = ws.stages[col];
+                        const width = data.count > 0 ? (data.count / maxStageValues.maxCount) * 100 : 0;
+                        return (
+                          <div key={col} className={styles.valueCell}>
+                            <div className={styles.barTrack}>
+                              <div
+                                className={`${styles.barFill} ${styles.countBar}`}
+                                style={{ width: `${width}%` }}
+                              />
+                              <span className={styles.barValue}>{data.count}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Expanded initiatives */}
+                    {isExpanded && ws.stages['L0'].initiatives.length > 0 && (
+                      <div className={styles.initiativesList}>
+                        {Object.entries(ws.stages).map(([stage, data]) =>
+                          data.initiatives.map(init => (
+                            <div key={init.id} className={styles.initiativeRow}>
+                              <div style={{ width: 180, paddingLeft: 36 }}>{init.name}</div>
+                              <div style={{ width: 140 }}>{stage}</div>
+                              <div>{formatCurrency(init.impact * 1000)}</div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Portfolio total row */}
+              <div className={`${styles.pipelineRow} ${styles.totalRow}`}>
+                <div className={styles.workstreamCell} style={{ width: 180 }}>
+                  <div>
+                    <div className={styles.workstreamName}>Portfolio total</div>
+                    <div className={styles.workstreamMeta}>{totalInitiatives} active initiatives</div>
+                  </div>
+                </div>
+                <div className={styles.metricCell} style={{ width: 140 }}>
+                  <span className={styles.metricLabel}>RECURRING IMPACT</span>
+                  <strong>{formatCurrency(totalImpact * 1000)}</strong>
+                </div>
+                {STAGE_COLUMNS.map(col => {
+                  const data = portfolioTotals[col];
+                  const width = data.impact > 0 ? (data.impact / maxStageValues.maxImpact) * 100 : 0;
+                  return (
+                    <div key={col} className={styles.valueCell}>
+                      <div className={`${styles.barTrack} ${styles.totalBarTrack}`}>
+                        <div
+                          className={`${styles.barFill} ${styles.impactBar} ${styles.totalBarFill}`}
+                          style={{ width: `${width}%` }}
+                        />
+                        <span className={styles.barValue}>
+                          {data.impact > 0 ? formatCurrency(data.impact * 1000) : '$0'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Portfolio initiatives row */}
+              <div className={`${styles.pipelineRow} ${styles.totalRow}`}>
+                <div className={styles.workstreamCell} style={{ width: 180 }} />
+                <div className={styles.metricCell} style={{ width: 140 }}>
+                  <span className={styles.metricLabel}>INITIATIVES</span>
+                  <strong>{totalInitiatives}</strong>
+                </div>
+                {STAGE_COLUMNS.map(col => {
+                  const data = portfolioTotals[col];
+                  const width = data.count > 0 ? (data.count / maxStageValues.maxCount) * 100 : 0;
+                  return (
+                    <div key={col} className={styles.valueCell}>
+                      <div className={`${styles.barTrack} ${styles.totalBarTrack}`}>
+                        <div
+                          className={`${styles.barFill} ${styles.countBar} ${styles.totalBarFill}`}
+                          style={{ width: `${width}%` }}
+                        />
+                        <span className={styles.barValue}>{data.count}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

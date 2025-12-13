@@ -4,7 +4,7 @@ import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarCha
 import { InteractivePlanDemo, DemoTask, INITIAL_TASKS } from './components/InteractivePlanDemo';
 import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
-import { ReportingDemo } from './components/ReportingDemo';
+import { ReportingDemo, DemoView, VIEW_OPTIONS } from './components/ReportingDemo';
 
 interface GlowOrb {
   x: number;
@@ -27,6 +27,7 @@ export const LaikaProLandingPage = () => {
   const orbsRef = useRef<GlowOrb[]>([]);
   // Shared state for interactive demos
   const [demoTasks, setDemoTasks] = useState<DemoTask[]>(INITIAL_TASKS);
+  const [activeReportingView, setActiveReportingView] = useState<DemoView>('pnl-tree');
 
   // Intersection Observer for animations
   useEffect(() => {
@@ -435,7 +436,7 @@ export const LaikaProLandingPage = () => {
       {/* Feature 2: Reporting - Interactive Demo Style */}
       <section id="feature-2" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo}`}>
         <div className={styles.interactiveDemoLayout}>
-          {/* Left - Content */}
+          {/* Left - Content with Dashboard Selector */}
           <div className={`${styles.demoContent} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>02</div>
             <div className={styles.featureLabel}>Insights</div>
@@ -448,17 +449,24 @@ export const LaikaProLandingPage = () => {
               with confidence.
             </p>
 
-            <ul className={styles.featureList}>
-              <li><Check size={18} /> Real-time P&L impact visualization</li>
-              <li><Check size={18} /> Initiative contribution breakdown</li>
-              <li><Check size={18} /> Stage-gate pipeline analytics</li>
-              <li><Check size={18} /> Financial outlook vs actuals</li>
-            </ul>
+            {/* Dashboard selector */}
+            <div className={styles.dashboardSelector}>
+              {VIEW_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  className={`${styles.dashboardOption} ${activeReportingView === option.id ? styles.active : ''}`}
+                  onClick={() => setActiveReportingView(option.id)}
+                >
+                  <span className={styles.dashboardOptionTitle}>{option.title}</span>
+                  <ArrowRight size={16} className={styles.dashboardOptionArrow} />
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Right - Interactive Demo */}
           <div className={`${styles.interactiveDemoWrapper} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
-            <ReportingDemo />
+            <ReportingDemo activeView={activeReportingView} />
           </div>
         </div>
       </section>
