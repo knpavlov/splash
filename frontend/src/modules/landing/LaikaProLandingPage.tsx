@@ -1,14 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import styles from './LaikaProLandingPage.module.css';
-import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarChart3, Image } from 'lucide-react';
+import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarChart3 } from 'lucide-react';
 import { InteractivePlanDemo, DemoTask, INITIAL_TASKS } from './components/InteractivePlanDemo';
 import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
-
-// Screenshot placeholders - replace with actual paths when available
-const screenshot1 = '';
-const screenshot2 = '';
-const screenshot3 = '';
+import { ReportingDemo } from './components/ReportingDemo';
 
 interface GlowOrb {
   x: number;
@@ -436,11 +432,11 @@ export const LaikaProLandingPage = () => {
         </div>
       </section>
 
-      {/* Feature 2: Reporting - Rockstar Style Reversed */}
-      <section id="feature-2" data-animate className={`${styles.featureSection} ${styles.featureSectionAlt}`}>
-        <div className={`${styles.rockstarFeatureLayout} ${styles.rockstarReversed}`}>
-          {/* Left side - content */}
-          <div className={`${styles.rockstarContent} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
+      {/* Feature 2: Reporting - Interactive Demo Style */}
+      <section id="feature-2" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo}`}>
+        <div className={styles.interactiveDemoLayout}>
+          {/* Left - Content */}
+          <div className={`${styles.demoContent} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>02</div>
             <div className={styles.featureLabel}>Insights</div>
             <h2 className={styles.featureTitle}>
@@ -448,48 +444,21 @@ export const LaikaProLandingPage = () => {
             </h2>
             <p className={styles.featureDescription}>
               Cut through the noise with crystal-clear reporting. Track P&L impact by
-              line item, spot delayed milestones before they become blockers, and make
-              data-driven decisions with confidence.
+              line item, monitor stage-gate pipelines, and make data-driven decisions
+              with confidence.
             </p>
 
             <ul className={styles.featureList}>
               <li><Check size={18} /> Real-time P&L impact visualization</li>
-              <li><Check size={18} /> Milestone delay tracking & alerts</li>
-              <li><Check size={18} /> Custom dashboards & reports</li>
-              <li><Check size={18} /> Executive summary generation</li>
+              <li><Check size={18} /> Initiative contribution breakdown</li>
+              <li><Check size={18} /> Stage-gate pipeline analytics</li>
+              <li><Check size={18} /> Financial outlook vs actuals</li>
             </ul>
           </div>
 
-          {/* Right side - scattered screenshots */}
-          <div className={`${styles.rockstarScreenshots} ${styles.rockstarScreenshotsAlt} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
-            <div className={styles.screenshotScattered4} data-parallax="-0.12">
-              {screenshot2 ? (
-                <img src={screenshot2} alt="Reporting Dashboard" className={styles.screenshot} />
-              ) : (
-                <div className={styles.screenshotPlaceholderRockstar}>
-                  <Image size={32} />
-                  <span>Reporting Dashboard</span>
-                </div>
-              )}
-              <div className={styles.screenshotFrame} />
-            </div>
-
-            <div className={styles.screenshotScattered5} data-parallax="0.18">
-              <div className={styles.screenshotPlaceholderRockstar}>
-                <span>P&L Impact</span>
-              </div>
-              <div className={styles.screenshotFrame} />
-            </div>
-
-            <div className={styles.screenshotScattered6} data-parallax="-0.08">
-              <div className={styles.screenshotPlaceholderRockstar}>
-                <span>Milestone Tracking</span>
-              </div>
-              <div className={styles.screenshotFrame} />
-            </div>
-
-            {/* Decorative elements */}
-            <div className={styles.rockstarDeco3} />
+          {/* Right - Interactive Demo */}
+          <div className={`${styles.interactiveDemoWrapper} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
+            <ReportingDemo />
           </div>
         </div>
       </section>
