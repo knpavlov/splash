@@ -26,8 +26,8 @@ interface Initiative {
 }
 
 // =============================================
-// P&L TREE DATA - Starting from EBITDA, 3 levels
-// Structure: EBITDA -> (Gross Profit, OpEx) -> (Revenue, COGS, Sales & Marketing, R&D, G&A)
+// P&L TREE DATA - Starting from EBITDA, 4 levels
+// Structure: EBITDA -> (Gross Profit, OpEx) -> (Revenue, COGS, S&M, R&D, G&A) -> (sub-components)
 // =============================================
 const PNL_TREE: TreeNodeData = {
   id: 'ebitda',
@@ -41,17 +41,37 @@ const PNL_TREE: TreeNodeData = {
       baseValue: 5800,
       withInitiatives: 6400,
       children: [
-        { id: 'revenue', name: 'Revenue', baseValue: 12500, withInitiatives: 13800, children: [] },
-        { id: 'cogs', name: 'COGS', baseValue: -6700, withInitiatives: -7400, children: [] }
+        {
+          id: 'revenue',
+          name: 'Revenue',
+          baseValue: 12500,
+          withInitiatives: 13800,
+          children: [
+            { id: 'product-sales', name: 'Product Sales', baseValue: 8200, withInitiatives: 9100, children: [] },
+            { id: 'services', name: 'Services', baseValue: 3500, withInitiatives: 3800, children: [] },
+            { id: 'licensing', name: 'Licensing', baseValue: 800, withInitiatives: 900, children: [] }
+          ]
+        },
+        {
+          id: 'cogs',
+          name: 'COGS',
+          baseValue: -6700,
+          withInitiatives: -7400,
+          children: [
+            { id: 'materials', name: 'Materials', baseValue: -3800, withInitiatives: -4200, children: [] },
+            { id: 'labor', name: 'Labor', baseValue: -2100, withInitiatives: -2300, children: [] },
+            { id: 'overhead', name: 'Overhead', baseValue: -800, withInitiatives: -900, children: [] }
+          ]
+        }
       ]
     },
     {
       id: 'opex',
-      name: 'Operating Expenses',
+      name: 'OpEx',
       baseValue: -3400,
       withInitiatives: -3250,
       children: [
-        { id: 'sales-marketing', name: 'Sales & Marketing', baseValue: -1400, withInitiatives: -1350, children: [] },
+        { id: 'sales-marketing', name: 'S&M', baseValue: -1400, withInitiatives: -1350, children: [] },
         { id: 'rd', name: 'R&D', baseValue: -1200, withInitiatives: -1100, children: [] },
         { id: 'ga', name: 'G&A', baseValue: -800, withInitiatives: -800, children: [] }
       ]
@@ -218,53 +238,71 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
 
   // =============================================
   // P&L TREE LAYOUT - Compact, fits without scroll
+  // Now with 4 levels: EBITDA -> (GP, OpEx) -> (Rev, COGS, S&M, R&D, G&A) -> (sub-items)
   // =============================================
   const treeLayout = useMemo(() => {
-    const cardWidth = 140;
-    const cardHeight = 58;
-    const horizontalGap = 60;
-    const verticalGap = 8;
+    const cardWidth = 100;
+    const cardHeight = 38;
+    const horizontalGap = 24;
+    const verticalGap = 4;
     const positions = new Map<string, { x: number; y: number }>();
     const connectors: { id: string; path: string }[] = [];
 
+    // Count total leaf nodes to calculate available height
+    const countLeaves = (node: TreeNodeData): number => {
+      if (node.children.length === 0) return 1;
+      return node.children.reduce((sum, child) => sum + countLeaves(child), 0);
+    };
+    const totalLeaves = countLeaves(PNL_TREE);
+
+    // Calculate positions - leaves are evenly distributed vertically
     let leafIndex = 0;
-    const computePositions = (node: TreeNodeData, depth: number): number => {
+    const totalHeight = totalLeaves * (cardHeight + verticalGap) - verticalGap;
+
+    const computePositions = (node: TreeNodeData, depth: number): { minY: number; maxY: number; centerY: number } => {
+      const x = depth * (cardWidth + horizontalGap);
+
       if (node.children.length === 0) {
         const y = leafIndex * (cardHeight + verticalGap);
         leafIndex++;
-        positions.set(node.id, { x: depth * (cardWidth + horizontalGap), y });
-        return y;
+        positions.set(node.id, { x, y });
+        return { minY: y, maxY: y + cardHeight, centerY: y + cardHeight / 2 };
       }
 
-      const childYs = node.children.map(child => computePositions(child, depth + 1));
-      const y = childYs.reduce((sum, cy) => sum + cy, 0) / childYs.length;
-      positions.set(node.id, { x: depth * (cardWidth + horizontalGap), y });
+      const childResults = node.children.map(child => computePositions(child, depth + 1));
+      const minY = Math.min(...childResults.map(r => r.minY));
+      const maxY = Math.max(...childResults.map(r => r.maxY));
+      const centerY = (minY + maxY) / 2;
+      const y = centerY - cardHeight / 2;
 
-      // Create connectors
-      node.children.forEach(child => {
+      positions.set(node.id, { x, y });
+
+      // Create connectors from this node to children
+      node.children.forEach((child, idx) => {
         const parentPos = positions.get(node.id)!;
         const childPos = positions.get(child.id)!;
         const startX = parentPos.x + cardWidth;
         const startY = parentPos.y + cardHeight / 2;
         const endX = childPos.x;
         const endY = childPos.y + cardHeight / 2;
-        const midX = (startX + endX) / 2;
+        const midX = startX + horizontalGap / 2;
+
         connectors.push({
           id: `${node.id}-${child.id}`,
           path: `M ${startX} ${startY} H ${midX} V ${endY} H ${endX}`
         });
       });
 
-      return y;
+      return { minY, maxY, centerY };
     };
 
     computePositions(PNL_TREE, 0);
 
     const allPositions = Array.from(positions.values());
-    const maxX = Math.max(...allPositions.map(p => p.x)) + cardWidth;
-    const maxY = Math.max(...allPositions.map(p => p.y)) + cardHeight;
+    const width = Math.max(...allPositions.map(p => p.x)) + cardWidth;
+    const height = totalHeight;
 
-    return { positions, connectors, width: maxX + 20, height: maxY + 20, cardWidth, cardHeight };
+    return { positions, connectors, width, height, cardWidth, cardHeight };
   }, []);
 
   // Calculate max values for charts
@@ -310,7 +348,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
   };
   const allNodes = flattenTree(PNL_TREE);
 
-  // Render P&L Tree Node
+  // Render P&L Tree Node - compact version
   const renderTreeNode = (node: TreeNodeData) => {
     const pos = treeLayout.positions.get(node.id);
     if (!pos) return null;
@@ -318,6 +356,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     const isNegative = node.baseValue < 0;
     const delta = node.withInitiatives - node.baseValue;
     const deltaPercent = formatDelta(node.baseValue, node.withInitiatives);
+    // For any item, delta > 0 is good (revenue up, expense down = less negative)
     const isPositiveDelta = delta > 0;
     const maxVal = Math.max(Math.abs(node.baseValue), Math.abs(node.withInitiatives));
     const baseWidth = maxVal > 0 ? (Math.abs(node.baseValue) / maxVal) * 100 : 0;
@@ -329,7 +368,9 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
         className={styles.treeCard}
         style={{
           width: treeLayout.cardWidth,
-          transform: `translate(${pos.x}px, ${pos.y}px)`
+          height: treeLayout.cardHeight,
+          left: pos.x,
+          top: pos.y
         }}
       >
         <div className={styles.treeCardHeader}>
@@ -339,7 +380,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
           </span>
         </div>
         <div className={styles.treeCardBars}>
-          <div className={styles.treeBarGroup}>
+          <div className={styles.treeBarRow}>
             <div className={styles.treeBarTrack}>
               <div
                 className={`${styles.treeBarBase} ${isNegative ? styles.negativeBar : ''}`}
@@ -348,7 +389,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
             </div>
             <span className={styles.treeBarValue}>{formatCurrency(node.baseValue)}</span>
           </div>
-          <div className={styles.treeBarGroup}>
+          <div className={styles.treeBarRow}>
             <div className={styles.treeBarTrack}>
               <div
                 className={`${styles.treeBarInit} ${isNegative ? styles.negativeBar : ''}`}
@@ -388,11 +429,13 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                 <span><span className={styles.legendDotInit} /> With Initiatives</span>
               </div>
             </div>
-            <div
-              className={styles.treeCanvas}
-              style={{ width: treeLayout.width, height: treeLayout.height }}
-            >
-              <svg className={styles.treeSvg} width={treeLayout.width} height={treeLayout.height}>
+            <div className={styles.treeCanvas}>
+              <svg
+                className={styles.treeSvg}
+                width={treeLayout.width}
+                height={treeLayout.height}
+                style={{ width: treeLayout.width, height: treeLayout.height }}
+              >
                 {treeLayout.connectors.map(c => (
                   <path key={c.id} d={c.path} className={styles.connectorPath} />
                 ))}

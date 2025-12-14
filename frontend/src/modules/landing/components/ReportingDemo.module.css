@@ -56,10 +56,10 @@
 }
 
 /* =============================================
-   P&L TREE - Dark Theme
+   P&L TREE - Dark Theme, Compact 4-level layout
    ============================================= */
 .pnlTreeWrapper {
-  padding: 16px 20px;
+  padding: 12px 16px;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -70,145 +70,150 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   flex-shrink: 0;
 }
 
 .treeHeader h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #e6edf3;
 }
 
 .treeLegend {
   display: flex;
-  gap: 16px;
-  font-size: 11px;
+  gap: 12px;
+  font-size: 10px;
   color: #8b949e;
 }
 
 .treeLegend span {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .legendDotBase {
-  width: 10px;
-  height: 4px;
-  border-radius: 2px;
+  width: 8px;
+  height: 3px;
+  border-radius: 1px;
   background: #64748b;
 }
 
 .legendDotInit {
-  width: 10px;
-  height: 4px;
-  border-radius: 2px;
+  width: 8px;
+  height: 3px;
+  border-radius: 1px;
   background: #3b82f6;
 }
 
 .treeCanvas {
   position: relative;
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-height: 0;
 }
 
 .treeSvg {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   pointer-events: none;
 }
 
 .connectorPath {
   fill: none;
-  stroke: rgba(148, 163, 184, 0.3);
-  stroke-width: 1.5px;
+  stroke: rgba(148, 163, 184, 0.25);
+  stroke-width: 1px;
 }
 
 .treeCard {
   position: absolute;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 8px 10px;
-  transition: all 0.2s ease;
+  border-radius: 6px;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: all 0.15s ease;
 }
 
 .treeCard:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  z-index: 10;
 }
 
 .treeCardHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
+  gap: 4px;
 }
 
 .treeCardName {
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 600;
   color: #e6edf3;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .treeCardDelta {
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
   flex-shrink: 0;
-  margin-left: 8px;
 }
 
 .treeCardDelta.positive {
-  background: rgba(34, 197, 94, 0.15);
+  background: rgba(34, 197, 94, 0.2);
   color: #22c55e;
 }
 
 .treeCardDelta.negative {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(239, 68, 68, 0.2);
   color: #ef4444;
 }
 
 .treeCardBars {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
-.treeBarGroup {
+.treeBarRow {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .treeBarTrack {
   flex: 1;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
   overflow: hidden;
 }
 
 .treeBarBase {
   height: 100%;
   background: linear-gradient(90deg, #475569, #64748b);
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 0.3s ease;
 }
 
 .treeBarInit {
   height: 100%;
   background: linear-gradient(90deg, #2563eb, #3b82f6);
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 0.3s ease;
 }
 
@@ -221,10 +226,10 @@
 }
 
 .treeBarValue {
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 600;
   color: #8b949e;
-  min-width: 36px;
+  min-width: 28px;
   text-align: right;
 }
 
