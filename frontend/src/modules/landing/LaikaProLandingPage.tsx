@@ -461,6 +461,7 @@ export const LaikaProLandingPage = () => {
                   <ArrowRight size={16} className={styles.dashboardOptionArrow} />
                 </button>
               ))}
+              <p className={styles.dashboardSelectorHint}>...and nearly 10 other dynamic dashboards</p>
             </div>
           </div>
 

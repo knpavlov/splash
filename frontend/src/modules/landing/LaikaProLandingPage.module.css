@@ -1036,6 +1036,14 @@
   opacity: 0.5;
 }
 
+.dashboardSelectorHint {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  font-style: italic;
+}
+
 .interactiveDemoWrapper {
   display: flex;
   justify-content: flex-start;

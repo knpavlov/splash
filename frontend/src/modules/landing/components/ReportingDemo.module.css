@@ -112,6 +112,10 @@
   position: relative;
   flex: 1;
   min-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
 
 .treeSvg {
@@ -246,16 +250,49 @@
 
 .outlookHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 12px;
   flex-shrink: 0;
+  gap: 16px;
+}
+
+.outlookTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .outlookHeader h3 {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
+  color: #e6edf3;
+}
+
+.workstreamSelect {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #e6edf3;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.workstreamSelect:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.workstreamSelect:focus {
+  outline: none;
+  border-color: #8b5cf6;
+}
+
+.workstreamSelect option {
+  background: #1c1f26;
   color: #e6edf3;
 }
 
@@ -421,10 +458,25 @@
   vector-effect: non-scaling-stroke;
 }
 
+.planDotsContainer {
+  position: absolute;
+  inset: 0;
+  bottom: 24px;
+  pointer-events: none;
+}
+
+.planDotWrapper {
+  position: absolute;
+  transform: translate(-50%, 50%);
+}
+
 .planDot {
-  fill: #0ea5e9;
-  stroke: #0d1117;
-  stroke-width: 1;
+  display: block;
+  width: 8px;
+  height: 8px;
+  background: #0ea5e9;
+  border: 2px solid #0d1117;
+  border-radius: 50%;
 }
 
 .planLabels {
@@ -503,6 +555,113 @@
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-weight: 600;
   color: #fff;
+}
+
+/* Initiative Popup */
+.initiativePopup {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #1c1f26;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 12px;
+  padding: 0;
+  min-width: 280px;
+  z-index: 200;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 60px rgba(139, 92, 246, 0.15);
+  animation: popupFadeIn 0.2s ease;
+}
+
+@keyframes popupFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.popupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 12px 12px 0 0;
+}
+
+.popupHeader strong {
+  font-size: 12px;
+  color: #e6edf3;
+}
+
+.popupClose {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  border-radius: 6px;
+  color: #8b949e;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.popupClose:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e6edf3;
+}
+
+.popupContent {
+  padding: 12px 16px;
+}
+
+.popupItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.popupItem:last-child {
+  border-bottom: none;
+}
+
+.popupInitName {
+  font-size: 12px;
+  color: #c9d1d9;
+}
+
+.popupInitValue {
+  font-size: 12px;
+  font-weight: 600;
+  color: #22c55e;
+}
+
+.popupInitPercent {
+  margin-left: 6px;
+  font-weight: 400;
+  color: #6e7681;
+}
+
+.popupTotal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  font-weight: 600;
+  color: #e6edf3;
 }
 
 /* KPI Cards */
@@ -742,6 +901,11 @@
 }
 
 .stageImpact {
+  font-size: 9px;
+  color: #6e7681;
+}
+
+.stageCount {
   font-size: 9px;
   color: #6e7681;
 }

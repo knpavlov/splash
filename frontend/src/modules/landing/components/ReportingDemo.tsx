@@ -12,10 +12,16 @@ interface TreeNodeData {
   children: TreeNodeData[];
 }
 
+interface InitiativeContribution {
+  id: string;
+  name: string;
+  impact: number;
+}
+
 interface MonthData {
   month: string;
   baseline: number;
-  initiatives: number;
+  initiatives: InitiativeContribution[];
   plan: number;
 }
 
@@ -27,7 +33,6 @@ interface Initiative {
 
 // =============================================
 // P&L TREE DATA - Starting from EBITDA, 4 levels
-// Structure: EBITDA -> (Gross Profit, OpEx) -> (Revenue, COGS, S&M, R&D, G&A) -> (sub-components)
 // =============================================
 const PNL_TREE: TreeNodeData = {
   id: 'ebitda',
@@ -80,22 +85,140 @@ const PNL_TREE: TreeNodeData = {
 };
 
 // =============================================
-// FINANCIAL OUTLOOK DATA - Plan vs Actuals with baseline + initiatives
-// Showing a 12-month period with improving performance
+// FINANCIAL OUTLOOK DATA - Plan vs Actuals with initiative breakdown
 // =============================================
-const FINANCIAL_OUTLOOK: MonthData[] = [
-  { month: 'Jan', baseline: 180, initiatives: 0, plan: 200 },
-  { month: 'Feb', baseline: 195, initiatives: 15, plan: 220 },
-  { month: 'Mar', baseline: 210, initiatives: 45, plan: 250 },
-  { month: 'Apr', baseline: 200, initiatives: 80, plan: 270 },
-  { month: 'May', baseline: 225, initiatives: 95, plan: 300 },
-  { month: 'Jun', baseline: 240, initiatives: 130, plan: 340 },
-  { month: 'Jul', baseline: 235, initiatives: 165, plan: 380 },
-  { month: 'Aug', baseline: 250, initiatives: 190, plan: 410 },
-  { month: 'Sep', baseline: 260, initiatives: 220, plan: 450 },
-  { month: 'Oct', baseline: 275, initiatives: 260, plan: 500 },
-  { month: 'Nov', baseline: 280, initiatives: 300, plan: 550 },
-  { month: 'Dec', baseline: 290, initiatives: 350, plan: 600 }
+interface WorkstreamOutlook {
+  id: string;
+  name: string;
+  color: string;
+  data: MonthData[];
+}
+
+const WORKSTREAM_OUTLOOKS: WorkstreamOutlook[] = [
+  {
+    id: 'all',
+    name: 'All Workstreams',
+    color: '#8b5cf6',
+    data: [
+      { month: 'Jan', baseline: 180, initiatives: [], plan: 200 },
+      { month: 'Feb', baseline: 195, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 15 }
+      ], plan: 220 },
+      { month: 'Mar', baseline: 210, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 25 },
+        { id: 'i2', name: 'Process Automation', impact: 20 }
+      ], plan: 250 },
+      { month: 'Apr', baseline: 200, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 30 },
+        { id: 'i2', name: 'Process Automation', impact: 30 },
+        { id: 'i3', name: 'Customer Portal', impact: 20 }
+      ], plan: 270 },
+      { month: 'May', baseline: 225, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 35 },
+        { id: 'i2', name: 'Process Automation', impact: 35 },
+        { id: 'i3', name: 'Customer Portal', impact: 25 }
+      ], plan: 300 },
+      { month: 'Jun', baseline: 240, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 40 },
+        { id: 'i2', name: 'Process Automation', impact: 45 },
+        { id: 'i3', name: 'Customer Portal', impact: 30 },
+        { id: 'i4', name: 'AI Analytics', impact: 15 }
+      ], plan: 340 },
+      { month: 'Jul', baseline: 235, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 45 },
+        { id: 'i2', name: 'Process Automation', impact: 50 },
+        { id: 'i3', name: 'Customer Portal', impact: 40 },
+        { id: 'i4', name: 'AI Analytics', impact: 30 }
+      ], plan: 380 },
+      { month: 'Aug', baseline: 250, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 50 },
+        { id: 'i2', name: 'Process Automation', impact: 55 },
+        { id: 'i3', name: 'Customer Portal', impact: 45 },
+        { id: 'i4', name: 'AI Analytics', impact: 40 }
+      ], plan: 410 },
+      { month: 'Sep', baseline: 260, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 55 },
+        { id: 'i2', name: 'Process Automation', impact: 60 },
+        { id: 'i3', name: 'Customer Portal', impact: 55 },
+        { id: 'i4', name: 'AI Analytics', impact: 50 }
+      ], plan: 450 },
+      { month: 'Oct', baseline: 275, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 60 },
+        { id: 'i2', name: 'Process Automation', impact: 70 },
+        { id: 'i3', name: 'Customer Portal', impact: 65 },
+        { id: 'i4', name: 'AI Analytics', impact: 65 }
+      ], plan: 500 },
+      { month: 'Nov', baseline: 280, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 70 },
+        { id: 'i2', name: 'Process Automation', impact: 80 },
+        { id: 'i3', name: 'Customer Portal', impact: 75 },
+        { id: 'i4', name: 'AI Analytics', impact: 75 }
+      ], plan: 550 },
+      { month: 'Dec', baseline: 290, initiatives: [
+        { id: 'i1', name: 'Cloud Migration', impact: 80 },
+        { id: 'i2', name: 'Process Automation', impact: 90 },
+        { id: 'i3', name: 'Customer Portal', impact: 90 },
+        { id: 'i4', name: 'AI Analytics', impact: 90 }
+      ], plan: 600 }
+    ]
+  },
+  {
+    id: 'digital',
+    name: 'Digital Transformation',
+    color: '#8b5cf6',
+    data: [
+      { month: 'Jan', baseline: 80, initiatives: [], plan: 90 },
+      { month: 'Feb', baseline: 85, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 10 }], plan: 100 },
+      { month: 'Mar', baseline: 90, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 20 }], plan: 115 },
+      { month: 'Apr', baseline: 85, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 30 }, { id: 'd2', name: 'API Platform', impact: 15 }], plan: 130 },
+      { month: 'May', baseline: 95, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 35 }, { id: 'd2', name: 'API Platform', impact: 25 }], plan: 145 },
+      { month: 'Jun', baseline: 100, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 40 }, { id: 'd2', name: 'API Platform', impact: 35 }], plan: 165 },
+      { month: 'Jul', baseline: 95, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 45 }, { id: 'd2', name: 'API Platform', impact: 45 }], plan: 185 },
+      { month: 'Aug', baseline: 105, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 50 }, { id: 'd2', name: 'API Platform', impact: 50 }], plan: 200 },
+      { month: 'Sep', baseline: 110, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 55 }, { id: 'd2', name: 'API Platform', impact: 60 }], plan: 220 },
+      { month: 'Oct', baseline: 115, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 60 }, { id: 'd2', name: 'API Platform', impact: 70 }], plan: 245 },
+      { month: 'Nov', baseline: 120, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 70 }, { id: 'd2', name: 'API Platform', impact: 80 }], plan: 270 },
+      { month: 'Dec', baseline: 125, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 80 }, { id: 'd2', name: 'API Platform', impact: 90 }], plan: 295 }
+    ]
+  },
+  {
+    id: 'ops',
+    name: 'Operational Excellence',
+    color: '#3b82f6',
+    data: [
+      { month: 'Jan', baseline: 60, initiatives: [], plan: 65 },
+      { month: 'Feb', baseline: 65, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 5 }], plan: 72 },
+      { month: 'Mar', baseline: 70, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 15 }], plan: 80 },
+      { month: 'Apr', baseline: 68, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 25 }, { id: 'o2', name: 'Supply Chain', impact: 10 }], plan: 88 },
+      { month: 'May', baseline: 75, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 30 }, { id: 'o2', name: 'Supply Chain', impact: 20 }], plan: 96 },
+      { month: 'Jun', baseline: 80, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 35 }, { id: 'o2', name: 'Supply Chain', impact: 30 }], plan: 108 },
+      { month: 'Jul', baseline: 78, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 40 }, { id: 'o2', name: 'Supply Chain', impact: 40 }], plan: 120 },
+      { month: 'Aug', baseline: 85, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 45 }, { id: 'o2', name: 'Supply Chain', impact: 50 }], plan: 130 },
+      { month: 'Sep', baseline: 88, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 50 }, { id: 'o2', name: 'Supply Chain', impact: 55 }], plan: 142 },
+      { month: 'Oct', baseline: 92, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 55 }, { id: 'o2', name: 'Supply Chain', impact: 60 }], plan: 155 },
+      { month: 'Nov', baseline: 95, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 60 }, { id: 'o2', name: 'Supply Chain', impact: 70 }], plan: 170 },
+      { month: 'Dec', baseline: 100, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 70 }, { id: 'o2', name: 'Supply Chain', impact: 80 }], plan: 185 }
+    ]
+  },
+  {
+    id: 'cx',
+    name: 'Customer Experience',
+    color: '#22d3ee',
+    data: [
+      { month: 'Jan', baseline: 40, initiatives: [], plan: 45 },
+      { month: 'Feb', baseline: 45, initiatives: [], plan: 48 },
+      { month: 'Mar', baseline: 50, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 10 }], plan: 55 },
+      { month: 'Apr', baseline: 47, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 20 }, { id: 'c2', name: 'Loyalty Program', impact: 5 }], plan: 62 },
+      { month: 'May', baseline: 55, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 25 }, { id: 'c2', name: 'Loyalty Program', impact: 15 }], plan: 69 },
+      { month: 'Jun', baseline: 60, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 30 }, { id: 'c2', name: 'Loyalty Program', impact: 25 }], plan: 77 },
+      { month: 'Jul', baseline: 62, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 35 }, { id: 'c2', name: 'Loyalty Program', impact: 30 }], plan: 85 },
+      { month: 'Aug', baseline: 60, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 40 }, { id: 'c2', name: 'Loyalty Program', impact: 40 }], plan: 90 },
+      { month: 'Sep', baseline: 62, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 50 }, { id: 'c2', name: 'Loyalty Program', impact: 45 }], plan: 98 },
+      { month: 'Oct', baseline: 68, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 55 }, { id: 'c2', name: 'Loyalty Program', impact: 50 }], plan: 110 },
+      { month: 'Nov', baseline: 65, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 60 }, { id: 'c2', name: 'Loyalty Program', impact: 55 }], plan: 120 },
+      { month: 'Dec', baseline: 65, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 70 }, { id: 'c2', name: 'Loyalty Program', impact: 65 }], plan: 130 }
+    ]
+  }
 ];
 
 // =============================================
@@ -221,8 +344,10 @@ interface ReportingDemoProps {
 }
 
 export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => {
-  const [expandedWorkstreams, setExpandedWorkstreams] = useState<Set<string>>(new Set(['digital']));
-  const [hoveredBar, setHoveredBar] = useState<{ month: string; type: 'actual' | 'plan' } | null>(null);
+  // Stage-gate: start collapsed
+  const [expandedWorkstreams, setExpandedWorkstreams] = useState<Set<string>>(new Set());
+  const [selectedOutlookWorkstream, setSelectedOutlookWorkstream] = useState('all');
+  const [clickedBar, setClickedBar] = useState<{ month: string; initiatives: InitiativeContribution[]; total: number } | null>(null);
 
   const toggleWorkstream = (id: string) => {
     setExpandedWorkstreams(prev => {
@@ -236,26 +361,32 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     });
   };
 
+  // Get current outlook data based on selected workstream
+  const currentOutlookData = useMemo(() => {
+    return WORKSTREAM_OUTLOOKS.find(w => w.id === selectedOutlookWorkstream)?.data || WORKSTREAM_OUTLOOKS[0].data;
+  }, [selectedOutlookWorkstream]);
+
+  const currentOutlookColor = useMemo(() => {
+    return WORKSTREAM_OUTLOOKS.find(w => w.id === selectedOutlookWorkstream)?.color || '#8b5cf6';
+  }, [selectedOutlookWorkstream]);
+
   // =============================================
-  // P&L TREE LAYOUT - Compact, fits without scroll
-  // Now with 4 levels: EBITDA -> (GP, OpEx) -> (Rev, COGS, S&M, R&D, G&A) -> (sub-items)
+  // P&L TREE LAYOUT - Full width
   // =============================================
   const treeLayout = useMemo(() => {
-    const cardWidth = 100;
-    const cardHeight = 38;
-    const horizontalGap = 24;
-    const verticalGap = 4;
+    const cardWidth = 120;
+    const cardHeight = 40;
+    const horizontalGap = 40;
+    const verticalGap = 6;
     const positions = new Map<string, { x: number; y: number }>();
     const connectors: { id: string; path: string }[] = [];
 
-    // Count total leaf nodes to calculate available height
     const countLeaves = (node: TreeNodeData): number => {
       if (node.children.length === 0) return 1;
       return node.children.reduce((sum, child) => sum + countLeaves(child), 0);
     };
     const totalLeaves = countLeaves(PNL_TREE);
 
-    // Calculate positions - leaves are evenly distributed vertically
     let leafIndex = 0;
     const totalHeight = totalLeaves * (cardHeight + verticalGap) - verticalGap;
 
@@ -277,8 +408,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
 
       positions.set(node.id, { x, y });
 
-      // Create connectors from this node to children
-      node.children.forEach((child, idx) => {
+      node.children.forEach((child) => {
         const parentPos = positions.get(node.id)!;
         const childPos = positions.get(child.id)!;
         const startX = parentPos.x + cardWidth;
@@ -307,10 +437,10 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
 
   // Calculate max values for charts
   const outlookMax = useMemo(() => {
-    const maxActual = Math.max(...FINANCIAL_OUTLOOK.map(d => d.baseline + d.initiatives));
-    const maxPlan = Math.max(...FINANCIAL_OUTLOOK.map(d => d.plan));
-    return Math.max(maxActual, maxPlan) * 1.1;
-  }, []);
+    const maxActual = Math.max(...currentOutlookData.map(d => d.baseline + d.initiatives.reduce((s, i) => s + i.impact, 0)));
+    const maxPlan = Math.max(...currentOutlookData.map(d => d.plan));
+    return Math.max(maxActual, maxPlan) * 1.15;
+  }, [currentOutlookData]);
 
   // Stage-gate totals
   const portfolioTotals = useMemo(() => {
@@ -325,17 +455,13 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     return totals;
   }, []);
 
-  const maxStageValues = useMemo(() => {
-    const maxCount = Math.max(
-      ...WORKSTREAMS.flatMap(ws => STAGE_COLUMNS.map(col => ws.stages[col]?.count || 0)),
-      1
-    );
-    const maxImpact = Math.max(
+  const maxStageImpact = useMemo(() => {
+    return Math.max(
       ...WORKSTREAMS.flatMap(ws => STAGE_COLUMNS.map(col => ws.stages[col]?.impact || 0)),
+      ...Object.values(portfolioTotals).map(t => t.impact),
       1
     );
-    return { maxCount, maxImpact };
-  }, []);
+  }, [portfolioTotals]);
 
   const totalInitiatives = WORKSTREAMS.reduce((sum, ws) =>
     sum + STAGE_COLUMNS.reduce((s, col) => s + (ws.stages[col]?.count || 0), 0), 0
@@ -348,7 +474,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
   };
   const allNodes = flattenTree(PNL_TREE);
 
-  // Render P&L Tree Node - compact version
+  // Render P&L Tree Node
   const renderTreeNode = (node: TreeNodeData) => {
     const pos = treeLayout.positions.get(node.id);
     if (!pos) return null;
@@ -356,7 +482,6 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     const isNegative = node.baseValue < 0;
     const delta = node.withInitiatives - node.baseValue;
     const deltaPercent = formatDelta(node.baseValue, node.withInitiatives);
-    // For any item, delta > 0 is good (revenue up, expense down = less negative)
     const isPositiveDelta = delta > 0;
     const maxVal = Math.max(Math.abs(node.baseValue), Math.abs(node.withInitiatives));
     const baseWidth = maxVal > 0 ? (Math.abs(node.baseValue) / maxVal) * 100 : 0;
@@ -449,53 +574,70 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
         {activeView === 'financial-outlook' && (
           <div className={styles.outlookWrapper}>
             <div className={styles.outlookHeader}>
-              <h3>Financial Outlook</h3>
+              <div className={styles.outlookTitleRow}>
+                <h3>Plan vs Actuals</h3>
+                <select
+                  className={styles.workstreamSelect}
+                  value={selectedOutlookWorkstream}
+                  onChange={(e) => setSelectedOutlookWorkstream(e.target.value)}
+                >
+                  {WORKSTREAM_OUTLOOKS.map(ws => (
+                    <option key={ws.id} value={ws.id}>{ws.name}</option>
+                  ))}
+                </select>
+              </div>
               <div className={styles.outlookLegend}>
                 <span><span className={styles.legendBarBase} /> Baseline</span>
-                <span><span className={styles.legendBarInit} /> Initiatives</span>
+                <span><span className={styles.legendBarInit} style={{ background: currentOutlookColor }} /> Initiatives</span>
                 <span><span className={styles.legendLine} /> Plan</span>
               </div>
             </div>
+
             <div className={styles.chartContainer}>
               {/* Y-axis labels */}
               <div className={styles.yAxisLabels}>
-                <span>$600K</span>
-                <span>$400K</span>
-                <span>$200K</span>
-                <span>$0</span>
+                {[...Array(5)].map((_, i) => {
+                  const val = Math.round(outlookMax * (1 - i / 4));
+                  return <span key={i}>${val}K</span>;
+                })}
               </div>
 
               {/* Chart area */}
               <div className={styles.chartArea}>
                 {/* Grid lines */}
                 <div className={styles.gridLines}>
-                  <div className={styles.gridLine} />
-                  <div className={styles.gridLine} />
-                  <div className={styles.gridLine} />
-                  <div className={styles.gridLine} />
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className={styles.gridLine} />
+                  ))}
                 </div>
 
                 {/* Bars */}
                 <div className={styles.barsContainer}>
-                  {FINANCIAL_OUTLOOK.map((d, i) => {
-                    const actualTotal = d.baseline + d.initiatives;
+                  {currentOutlookData.map((d) => {
+                    const initTotal = d.initiatives.reduce((s, i) => s + i.impact, 0);
+                    const actualTotal = d.baseline + initTotal;
                     const actualHeight = (actualTotal / outlookMax) * 100;
                     const baselineHeight = (d.baseline / outlookMax) * 100;
-                    const initiativesHeight = (d.initiatives / outlookMax) * 100;
-                    const isHovered = hoveredBar?.month === d.month;
+                    const initiativesHeight = (initTotal / outlookMax) * 100;
 
                     return (
                       <div key={d.month} className={styles.barColumn}>
                         <div
-                          className={`${styles.stackedBar} ${isHovered ? styles.hovered : ''}`}
+                          className={styles.stackedBar}
                           style={{ height: `${actualHeight}%` }}
-                          onMouseEnter={() => setHoveredBar({ month: d.month, type: 'actual' })}
-                          onMouseLeave={() => setHoveredBar(null)}
                         >
-                          {d.initiatives > 0 && (
+                          {initTotal > 0 && (
                             <div
                               className={styles.barSegmentInit}
-                              style={{ height: `${(initiativesHeight / actualHeight) * 100}%` }}
+                              style={{
+                                height: `${(initiativesHeight / actualHeight) * 100}%`,
+                                background: currentOutlookColor
+                              }}
+                              onClick={() => setClickedBar({
+                                month: d.month,
+                                initiatives: d.initiatives,
+                                total: initTotal
+                              })}
                             />
                           )}
                           <div
@@ -503,73 +645,66 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                             style={{ height: `${(baselineHeight / actualHeight) * 100}%` }}
                           />
                         </div>
-
-                        {/* Tooltip */}
-                        {isHovered && (
-                          <div className={styles.barTooltip}>
-                            <strong>{d.month}</strong>
-                            <div className={styles.tooltipRow}>
-                              <span className={styles.tooltipDotBase} />
-                              <span>Baseline: {formatCurrency(d.baseline * 1000, true)}</span>
-                            </div>
-                            <div className={styles.tooltipRow}>
-                              <span className={styles.tooltipDotInit} />
-                              <span>Initiatives: {formatCurrency(d.initiatives * 1000, true)}</span>
-                            </div>
-                            <div className={styles.tooltipTotal}>
-                              Total: {formatCurrency(actualTotal * 1000, true)}
-                            </div>
-                          </div>
-                        )}
-
                         <span className={styles.monthLabel}>{d.month}</span>
                       </div>
                     );
                   })}
                 </div>
 
-                {/* Plan line */}
+                {/* Plan line - using viewBox for proper scaling */}
                 <svg className={styles.planLineSvg} viewBox="0 0 100 100" preserveAspectRatio="none">
                   <polyline
                     className={styles.planLine}
-                    points={FINANCIAL_OUTLOOK.map((d, i) => {
-                      const x = (i / (FINANCIAL_OUTLOOK.length - 1)) * 100;
+                    points={currentOutlookData.map((d, i) => {
+                      const x = ((i + 0.5) / currentOutlookData.length) * 100;
                       const y = 100 - (d.plan / outlookMax) * 100;
                       return `${x},${y}`;
                     }).join(' ')}
                   />
-                  {FINANCIAL_OUTLOOK.map((d, i) => {
-                    const x = (i / (FINANCIAL_OUTLOOK.length - 1)) * 100;
-                    const y = 100 - (d.plan / outlookMax) * 100;
-                    return (
-                      <circle
-                        key={i}
-                        cx={x}
-                        cy={y}
-                        r="1.5"
-                        className={styles.planDot}
-                      />
-                    );
-                  })}
                 </svg>
-
-                {/* Plan value labels */}
-                <div className={styles.planLabels}>
-                  {FINANCIAL_OUTLOOK.filter((_, i) => i % 3 === 0 || i === FINANCIAL_OUTLOOK.length - 1).map((d, i) => {
-                    const actualIndex = i === 0 ? 0 : i * 3 >= FINANCIAL_OUTLOOK.length - 1 ? FINANCIAL_OUTLOOK.length - 1 : i * 3;
-                    const bottom = (FINANCIAL_OUTLOOK[actualIndex].plan / outlookMax) * 100 + 3;
-                    const left = (actualIndex / (FINANCIAL_OUTLOOK.length - 1)) * 100;
+                {/* Plan dots - absolute positioned to avoid stretching */}
+                <div className={styles.planDotsContainer}>
+                  {currentOutlookData.map((d, i) => {
+                    const left = ((i + 0.5) / currentOutlookData.length) * 100;
+                    const bottom = (d.plan / outlookMax) * 100;
                     return (
-                      <span
-                        key={actualIndex}
-                        className={styles.planLabel}
-                        style={{ bottom: `${bottom}%`, left: `${left}%` }}
+                      <div
+                        key={i}
+                        className={styles.planDotWrapper}
+                        style={{ left: `${left}%`, bottom: `${bottom}%` }}
                       >
-                        {formatCurrency(FINANCIAL_OUTLOOK[actualIndex].plan * 1000, true)}
-                      </span>
+                        <span className={styles.planDot} />
+                      </div>
                     );
                   })}
                 </div>
+
+                {/* Initiative breakdown popup */}
+                {clickedBar && (
+                  <div className={styles.initiativePopup}>
+                    <div className={styles.popupHeader}>
+                      <strong>{clickedBar.month} - Initiative Breakdown</strong>
+                      <button className={styles.popupClose} onClick={() => setClickedBar(null)}>×</button>
+                    </div>
+                    <div className={styles.popupContent}>
+                      {clickedBar.initiatives.map(init => (
+                        <div key={init.id} className={styles.popupItem}>
+                          <span className={styles.popupInitName}>{init.name}</span>
+                          <span className={styles.popupInitValue}>
+                            ${init.impact}K
+                            <span className={styles.popupInitPercent}>
+                              ({Math.round((init.impact / clickedBar.total) * 100)}%)
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                      <div className={styles.popupTotal}>
+                        <span>Total Impact</span>
+                        <span>${clickedBar.total}K</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -619,6 +754,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
               {WORKSTREAMS.map(ws => {
                 const isExpanded = expandedWorkstreams.has(ws.id);
                 const wsTotal = STAGE_COLUMNS.reduce((sum, col) => sum + (ws.stages[col]?.impact || 0), 0);
+                const wsCount = STAGE_COLUMNS.reduce((sum, col) => sum + (ws.stages[col]?.count || 0), 0);
 
                 return (
                   <div key={ws.id} className={styles.workstreamRow}>
@@ -633,13 +769,13 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                         <span className={styles.wsColorDot} style={{ background: ws.color }} />
                         <div>
                           <div className={styles.wsName}>{ws.name}</div>
-                          <div className={styles.wsImpact}>{formatCurrency(wsTotal * 1000)} total</div>
+                          <div className={styles.wsImpact}>{wsCount} initiatives • {formatCurrency(wsTotal * 1000)}</div>
                         </div>
                       </div>
                     </div>
                     {STAGE_COLUMNS.map(col => {
                       const data = ws.stages[col];
-                      const width = data.impact > 0 ? (data.impact / maxStageValues.maxImpact) * 100 : 0;
+                      const width = data.impact > 0 ? (data.impact / maxStageImpact) * 100 : 0;
                       return (
                         <div key={col} className={styles.stageCell}>
                           {data.count > 0 ? (
@@ -649,9 +785,9 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                                   className={styles.stageBarFill}
                                   style={{ width: `${width}%`, background: ws.color }}
                                 />
-                                <span className={styles.stageBarValue}>{data.count}</span>
+                                <span className={styles.stageBarValue}>{formatCurrency(data.impact * 1000)}</span>
                               </div>
-                              <span className={styles.stageImpact}>{formatCurrency(data.impact * 1000)}</span>
+                              <span className={styles.stageCount}>{data.count} init.</span>
                             </div>
                           ) : (
                             <span className={styles.stageEmpty}>—</span>
@@ -690,7 +826,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                 </div>
                 {STAGE_COLUMNS.map(col => {
                   const data = portfolioTotals[col];
-                  const width = data.impact > 0 ? (data.impact / maxStageValues.maxImpact) * 100 : 0;
+                  const width = data.impact > 0 ? (data.impact / maxStageImpact) * 100 : 0;
                   return (
                     <div key={col} className={styles.stageCell}>
                       {data.count > 0 ? (
@@ -700,9 +836,9 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                               className={styles.stageBarFill}
                               style={{ width: `${width}%` }}
                             />
-                            <span className={styles.stageBarValue}>{data.count}</span>
+                            <span className={styles.stageBarValue}>{formatCurrency(data.impact * 1000)}</span>
                           </div>
-                          <span className={styles.stageImpact}>{formatCurrency(data.impact * 1000)}</span>
+                          <span className={styles.stageCount}>{data.count} init.</span>
                         </div>
                       ) : (
                         <span className={styles.stageEmpty}>—</span>
