@@ -6,7 +6,9 @@
       "Bash(cat:*)",
       "Bash(powershell -Command \"(Get-Content App.tsx) -replace ''  if \\(route\\.page === ''''laika''''\\) \\{[\\r\\n]+    return <LaikaLandingPage />;[\\r\\n]+  \\}[\\r\\n]+[\\r\\n]+  if \\(!session\\)'', ''  if (route.page === ''''laika'''') {\\r\\n    return <LaikaLandingPage />;\\r\\n  }\\r\\n\\r\\n  if (route.page === ''''laikapro'''') {\\r\\n    return <LaikaProLandingPage />;\\r\\n  }\\r\\n\\r\\n  if (!session)'' | Set-Content App.tsx\")",
       "Bash(npm run build:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(find:*)",
+      "Bash(/c/Program Files/nodejs/npx.cmd tsc --noEmit)"
     ],
     "deny": [],
     "ask": []

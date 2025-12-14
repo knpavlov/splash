@@ -8,14 +8,15 @@ interface TreeNodeData {
   id: string;
   name: string;
   baseValue: number;
-  totalValue: number;
+  withInitiatives: number;
   children: TreeNodeData[];
 }
 
 interface MonthData {
   month: string;
+  baseline: number;
+  initiatives: number;
   plan: number;
-  actual: number;
 }
 
 interface Initiative {
@@ -24,158 +25,173 @@ interface Initiative {
   impact: number;
 }
 
-// P&L Tree data - matching the screenshot structure
+// =============================================
+// P&L TREE DATA - Starting from EBITDA, 3 levels
+// Structure: EBITDA -> (Gross Profit, OpEx) -> (Revenue, COGS, Sales & Marketing, R&D, G&A)
+// =============================================
 const PNL_TREE: TreeNodeData = {
-  id: 'net-profit',
-  name: 'Net profit',
-  baseValue: 90,
-  totalValue: 90,
+  id: 'ebitda',
+  name: 'EBITDA',
+  baseValue: 2400,
+  withInitiatives: 3150,
   children: [
     {
-      id: 'ebit',
-      name: 'EBIT',
-      baseValue: 96,
-      totalValue: 96,
+      id: 'gross-profit',
+      name: 'Gross Profit',
+      baseValue: 5800,
+      withInitiatives: 6400,
       children: [
-        {
-          id: 'opex',
-          name: 'Operating expenses',
-          baseValue: -74,
-          totalValue: -74,
-          children: [
-            { id: 'rent', name: 'Rent & infrastructure', baseValue: -18, totalValue: -18, children: [] },
-            { id: 'marketing', name: 'Marketing programs', baseValue: -32, totalValue: -32, children: [] },
-            { id: 'it', name: 'IT & tooling', baseValue: -24, totalValue: -24, children: [] }
-          ]
-        }
+        { id: 'revenue', name: 'Revenue', baseValue: 12500, withInitiatives: 13800, children: [] },
+        { id: 'cogs', name: 'COGS', baseValue: -6700, withInitiatives: -7400, children: [] }
       ]
     },
     {
-      id: 'interest',
-      name: 'Interest & taxes',
-      baseValue: -6,
-      totalValue: -6,
-      children: []
-    },
-    {
-      id: 'depreciation',
-      name: 'Depreciation & amortization',
-      baseValue: -7,
-      totalValue: -7,
-      children: []
+      id: 'opex',
+      name: 'Operating Expenses',
+      baseValue: -3400,
+      withInitiatives: -3250,
+      children: [
+        { id: 'sales-marketing', name: 'Sales & Marketing', baseValue: -1400, withInitiatives: -1350, children: [] },
+        { id: 'rd', name: 'R&D', baseValue: -1200, withInitiatives: -1100, children: [] },
+        { id: 'ga', name: 'G&A', baseValue: -800, withInitiatives: -800, children: [] }
+      ]
     }
   ]
 };
 
-// Financial Outlook data
+// =============================================
+// FINANCIAL OUTLOOK DATA - Plan vs Actuals with baseline + initiatives
+// Showing a 12-month period with improving performance
+// =============================================
 const FINANCIAL_OUTLOOK: MonthData[] = [
-  { month: 'Dec 25', plan: 0, actual: 0 },
-  { month: 'Jan 26', plan: 0, actual: 0 },
-  { month: 'Feb 26', plan: -7, actual: -7 },
-  { month: 'Mar 26', plan: 3, actual: 3 },
-  { month: 'Apr 26', plan: 2, actual: 2 },
-  { month: 'May 26', plan: 5, actual: 5 },
-  { month: 'Jun 26', plan: 6, actual: 6 },
-  { month: 'Jul 26', plan: 9, actual: 9 },
-  { month: 'Aug 26', plan: 10, actual: 10 }
+  { month: 'Jan', baseline: 180, initiatives: 0, plan: 200 },
+  { month: 'Feb', baseline: 195, initiatives: 15, plan: 220 },
+  { month: 'Mar', baseline: 210, initiatives: 45, plan: 250 },
+  { month: 'Apr', baseline: 200, initiatives: 80, plan: 270 },
+  { month: 'May', baseline: 225, initiatives: 95, plan: 300 },
+  { month: 'Jun', baseline: 240, initiatives: 130, plan: 340 },
+  { month: 'Jul', baseline: 235, initiatives: 165, plan: 380 },
+  { month: 'Aug', baseline: 250, initiatives: 190, plan: 410 },
+  { month: 'Sep', baseline: 260, initiatives: 220, plan: 450 },
+  { month: 'Oct', baseline: 275, initiatives: 260, plan: 500 },
+  { month: 'Nov', baseline: 280, initiatives: 300, plan: 550 },
+  { month: 'Dec', baseline: 290, initiatives: 350, plan: 600 }
 ];
 
-// Stage-gate Pipeline data
-const STAGE_COLUMNS = ['L0', 'L1 Gate', 'L1', 'L2 Gate', 'L2', 'L3 Gate', 'L3', 'L4 Gate'];
+// =============================================
+// STAGE-GATE PIPELINE DATA
+// =============================================
+const STAGE_COLUMNS = ['L0', 'L1 Gate', 'L1', 'L2 Gate', 'L2', 'L3'];
 
 interface WorkstreamData {
   id: string;
   name: string;
-  activeInitiatives: number;
+  color: string;
   stages: Record<string, { count: number; impact: number; initiatives: Initiative[] }>;
 }
 
 const WORKSTREAMS: WorkstreamData[] = [
   {
-    id: 'test',
-    name: 'Test new workstream',
-    activeInitiatives: 0,
+    id: 'digital',
+    name: 'Digital Transformation',
+    color: '#8b5cf6',
     stages: {
-      'L0': { count: 0, impact: 0, initiatives: [] },
-      'L1 Gate': { count: 0, impact: 0, initiatives: [] },
-      'L1': { count: 0, impact: 0, initiatives: [] },
-      'L2 Gate': { count: 0, impact: 0, initiatives: [] },
-      'L2': { count: 0, impact: 0, initiatives: [] },
-      'L3 Gate': { count: 0, impact: 0, initiatives: [] },
-      'L3': { count: 0, impact: 0, initiatives: [] },
-      'L4 Gate': { count: 0, impact: 0, initiatives: [] }
+      'L0': { count: 3, impact: 890, initiatives: [
+        { id: 'd1', name: 'AI-Powered Analytics', impact: 420 },
+        { id: 'd2', name: 'Cloud Migration Phase 2', impact: 280 },
+        { id: 'd3', name: 'API Modernization', impact: 190 }
+      ]},
+      'L1 Gate': { count: 2, impact: 650, initiatives: [
+        { id: 'd4', name: 'Customer Data Platform', impact: 380 },
+        { id: 'd5', name: 'ML Recommendation Engine', impact: 270 }
+      ]},
+      'L1': { count: 1, impact: 520, initiatives: [
+        { id: 'd6', name: 'Real-time Inventory System', impact: 520 }
+      ]},
+      'L2 Gate': { count: 1, impact: 340, initiatives: [
+        { id: 'd7', name: 'Mobile App Redesign', impact: 340 }
+      ]},
+      'L2': { count: 2, impact: 780, initiatives: [
+        { id: 'd8', name: 'E-commerce Platform', impact: 450 },
+        { id: 'd9', name: 'Omnichannel Integration', impact: 330 }
+      ]},
+      'L3': { count: 1, impact: 620, initiatives: [
+        { id: 'd10', name: 'Predictive Maintenance', impact: 620 }
+      ]}
     }
   },
   {
-    id: 'innovation',
-    name: 'Innovation',
-    activeInitiatives: 9,
+    id: 'ops',
+    name: 'Operational Excellence',
+    color: '#3b82f6',
     stages: {
-      'L0': { count: 4, impact: 1100, initiatives: [
-        { id: 'i1', name: 'AI Customer Support', impact: 450 },
-        { id: 'i2', name: 'IoT Sensors', impact: 320 },
-        { id: 'i3', name: 'Blockchain Pilot', impact: 180 },
-        { id: 'i4', name: 'ML Forecasting', impact: 150 }
+      'L0': { count: 2, impact: 450, initiatives: [
+        { id: 'o1', name: 'Supply Chain Optimization', impact: 280 },
+        { id: 'o2', name: 'Warehouse Automation', impact: 170 }
       ]},
-      'L1 Gate': { count: 3, impact: 1800, initiatives: [
-        { id: 'i5', name: 'Cloud Migration', impact: 850 },
-        { id: 'i6', name: 'Data Platform', impact: 550 },
-        { id: 'i7', name: 'API Gateway', impact: 400 }
+      'L1 Gate': { count: 1, impact: 320, initiatives: [
+        { id: 'o3', name: 'Quality Control AI', impact: 320 }
       ]},
-      'L1': { count: 0, impact: 0, initiatives: [] },
-      'L2 Gate': { count: 1, impact: 170, initiatives: [
-        { id: 'i8', name: 'Mobile App v2', impact: 170 }
+      'L1': { count: 2, impact: 590, initiatives: [
+        { id: 'o4', name: 'Lean Manufacturing', impact: 340 },
+        { id: 'o5', name: 'Vendor Management System', impact: 250 }
       ]},
-      'L2': { count: 1, impact: 280, initiatives: [
-        { id: 'i9', name: 'CRM Integration', impact: 280 }
+      'L2 Gate': { count: 0, impact: 0, initiatives: [] },
+      'L2': { count: 1, impact: 410, initiatives: [
+        { id: 'o6', name: 'Process Automation', impact: 410 }
       ]},
-      'L3 Gate': { count: 0, impact: 0, initiatives: [] },
-      'L3': { count: 0, impact: 0, initiatives: [] },
-      'L4 Gate': { count: 0, impact: 0, initiatives: [] }
+      'L3': { count: 1, impact: 380, initiatives: [
+        { id: 'o7', name: 'Carbon Footprint Reduction', impact: 380 }
+      ]}
     }
   },
   {
-    id: 'sga',
-    name: 'SG&A',
-    activeInitiatives: 3,
+    id: 'cx',
+    name: 'Customer Experience',
+    color: '#22d3ee',
     stages: {
-      'L0': { count: 3, impact: 80, initiatives: [
-        { id: 's1', name: 'Process Automation', impact: 45 },
-        { id: 's2', name: 'Vendor Consolidation', impact: 20 },
-        { id: 's3', name: 'Office Optimization', impact: 15 }
+      'L0': { count: 1, impact: 290, initiatives: [
+        { id: 'c1', name: 'Voice of Customer Platform', impact: 290 }
       ]},
-      'L1 Gate': { count: 0, impact: 0, initiatives: [] },
-      'L1': { count: 0, impact: 0, initiatives: [] },
-      'L2 Gate': { count: 0, impact: 0, initiatives: [] },
-      'L2': { count: 0, impact: 0, initiatives: [] },
-      'L3 Gate': { count: 0, impact: 0, initiatives: [] },
-      'L3': { count: 0, impact: 0, initiatives: [] },
-      'L4 Gate': { count: 0, impact: 0, initiatives: [] }
+      'L1 Gate': { count: 2, impact: 480, initiatives: [
+        { id: 'c2', name: 'Personalization Engine', impact: 310 },
+        { id: 'c3', name: 'Loyalty Program 2.0', impact: 170 }
+      ]},
+      'L1': { count: 1, impact: 360, initiatives: [
+        { id: 'c4', name: 'Self-Service Portal', impact: 360 }
+      ]},
+      'L2 Gate': { count: 1, impact: 240, initiatives: [
+        { id: 'c5', name: 'Chatbot Enhancement', impact: 240 }
+      ]},
+      'L2': { count: 1, impact: 420, initiatives: [
+        { id: 'c6', name: 'CRM Integration', impact: 420 }
+      ]},
+      'L3': { count: 0, impact: 0, initiatives: [] }
     }
   }
 ];
 
 // Formatters
-const formatCurrency = (value: number) => {
+const formatCurrency = (value: number, compact = true) => {
   if (value === 0) return '$0';
   const prefix = value < 0 ? '-' : '';
   const absVal = Math.abs(value);
-  if (absVal >= 1000) {
+  if (compact && absVal >= 1000) {
     return `${prefix}$${(absVal / 1000).toFixed(1)}K`;
   }
   return `${prefix}$${absVal}`;
 };
 
-const formatDelta = (base: number, total: number) => {
-  if (base === 0) return '0.0%';
-  const delta = ((total - base) / Math.abs(base)) * 100;
-  return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`;
+const formatDelta = (base: number, withInit: number) => {
+  if (base === 0) return '+∞';
+  const delta = ((withInit - base) / Math.abs(base)) * 100;
+  return `${delta >= 0 ? '+' : ''}${delta.toFixed(0)}%`;
 };
 
-// View descriptions for the selector
+// View descriptions
 export const VIEW_OPTIONS: { id: DemoView; title: string; shortTitle: string }[] = [
   { id: 'pnl-tree', title: 'P&L Impact Tree', shortTitle: 'P&L tree' },
-  { id: 'financial-outlook', title: 'Plan vs Actuals', shortTitle: 'Financial outlook' },
+  { id: 'financial-outlook', title: 'Plan vs Actuals', shortTitle: 'Financial outlook actuals' },
   { id: 'stage-gate', title: 'Stage-Gate Pipeline', shortTitle: 'Stage-gate pipeline' }
 ];
 
@@ -185,7 +201,8 @@ interface ReportingDemoProps {
 }
 
 export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => {
-  const [expandedWorkstreams, setExpandedWorkstreams] = useState<Set<string>>(new Set());
+  const [expandedWorkstreams, setExpandedWorkstreams] = useState<Set<string>>(new Set(['digital']));
+  const [hoveredBar, setHoveredBar] = useState<{ month: string; type: 'actual' | 'plan' } | null>(null);
 
   const toggleWorkstream = (id: string) => {
     setExpandedWorkstreams(prev => {
@@ -199,12 +216,14 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     });
   };
 
-  // P&L Tree layout calculation
+  // =============================================
+  // P&L TREE LAYOUT - Compact, fits without scroll
+  // =============================================
   const treeLayout = useMemo(() => {
-    const cardWidth = 180;
-    const cardHeight = 80;
-    const horizontalGap = 100;
-    const verticalGap = 20;
+    const cardWidth = 140;
+    const cardHeight = 58;
+    const horizontalGap = 60;
+    const verticalGap = 8;
     const positions = new Map<string, { x: number; y: number }>();
     const connectors: { id: string; path: string }[] = [];
 
@@ -245,27 +264,17 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     const maxX = Math.max(...allPositions.map(p => p.x)) + cardWidth;
     const maxY = Math.max(...allPositions.map(p => p.y)) + cardHeight;
 
-    return { positions, connectors, width: maxX + 40, height: maxY + 40, cardWidth, cardHeight };
+    return { positions, connectors, width: maxX + 20, height: maxY + 20, cardWidth, cardHeight };
   }, []);
 
-  // Calculate max values for stage-gate bars
-  const maxStageValues = useMemo(() => {
-    const maxCount = Math.max(
-      ...WORKSTREAMS.flatMap(ws =>
-        STAGE_COLUMNS.map(col => ws.stages[col]?.count || 0)
-      ),
-      1
-    );
-    const maxImpact = Math.max(
-      ...WORKSTREAMS.flatMap(ws =>
-        STAGE_COLUMNS.map(col => ws.stages[col]?.impact || 0)
-      ),
-      1
-    );
-    return { maxCount, maxImpact };
+  // Calculate max values for charts
+  const outlookMax = useMemo(() => {
+    const maxActual = Math.max(...FINANCIAL_OUTLOOK.map(d => d.baseline + d.initiatives));
+    const maxPlan = Math.max(...FINANCIAL_OUTLOOK.map(d => d.plan));
+    return Math.max(maxActual, maxPlan) * 1.1;
   }, []);
 
-  // Portfolio totals
+  // Stage-gate totals
   const portfolioTotals = useMemo(() => {
     const totals: Record<string, { count: number; impact: number }> = {};
     STAGE_COLUMNS.forEach(col => {
@@ -278,8 +287,28 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     return totals;
   }, []);
 
-  const totalInitiatives = WORKSTREAMS.reduce((sum, ws) => sum + ws.activeInitiatives, 0);
+  const maxStageValues = useMemo(() => {
+    const maxCount = Math.max(
+      ...WORKSTREAMS.flatMap(ws => STAGE_COLUMNS.map(col => ws.stages[col]?.count || 0)),
+      1
+    );
+    const maxImpact = Math.max(
+      ...WORKSTREAMS.flatMap(ws => STAGE_COLUMNS.map(col => ws.stages[col]?.impact || 0)),
+      1
+    );
+    return { maxCount, maxImpact };
+  }, []);
+
+  const totalInitiatives = WORKSTREAMS.reduce((sum, ws) =>
+    sum + STAGE_COLUMNS.reduce((s, col) => s + (ws.stages[col]?.count || 0), 0), 0
+  );
   const totalImpact = Object.values(portfolioTotals).reduce((sum, t) => sum + t.impact, 0);
+
+  // Flatten tree for rendering
+  const flattenTree = (node: TreeNodeData): TreeNodeData[] => {
+    return [node, ...node.children.flatMap(flattenTree)];
+  };
+  const allNodes = flattenTree(PNL_TREE);
 
   // Render P&L Tree Node
   const renderTreeNode = (node: TreeNodeData) => {
@@ -287,9 +316,12 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     if (!pos) return null;
 
     const isNegative = node.baseValue < 0;
-    const maxAbs = Math.max(Math.abs(node.baseValue), Math.abs(node.totalValue), 1);
-    const baseWidth = (Math.abs(node.baseValue) / maxAbs) * 100;
-    const totalWidth = (Math.abs(node.totalValue) / maxAbs) * 100;
+    const delta = node.withInitiatives - node.baseValue;
+    const deltaPercent = formatDelta(node.baseValue, node.withInitiatives);
+    const isPositiveDelta = delta > 0;
+    const maxVal = Math.max(Math.abs(node.baseValue), Math.abs(node.withInitiatives));
+    const baseWidth = maxVal > 0 ? (Math.abs(node.baseValue) / maxVal) * 100 : 0;
+    const initWidth = maxVal > 0 ? (Math.abs(node.withInitiatives) / maxVal) * 100 : 0;
 
     return (
       <div
@@ -297,46 +329,38 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
         className={styles.treeCard}
         style={{
           width: treeLayout.cardWidth,
-          height: treeLayout.cardHeight,
           transform: `translate(${pos.x}px, ${pos.y}px)`
         }}
       >
-        <div className={styles.treeCardHeader}>{node.name}</div>
-        <div className={styles.treeCardChart}>
-          <div className={styles.treeBarRow}>
-            <span className={styles.treeBarLabel}>Base</span>
+        <div className={styles.treeCardHeader}>
+          <span className={styles.treeCardName}>{node.name}</span>
+          <span className={`${styles.treeCardDelta} ${isPositiveDelta ? styles.positive : styles.negative}`}>
+            {deltaPercent}
+          </span>
+        </div>
+        <div className={styles.treeCardBars}>
+          <div className={styles.treeBarGroup}>
             <div className={styles.treeBarTrack}>
               <div
-                className={`${styles.treeBarFill} ${isNegative ? styles.negative : styles.positive}`}
-                style={{ width: `${Math.max(baseWidth, 2)}%` }}
+                className={`${styles.treeBarBase} ${isNegative ? styles.negativeBar : ''}`}
+                style={{ width: `${baseWidth}%` }}
               />
             </div>
             <span className={styles.treeBarValue}>{formatCurrency(node.baseValue)}</span>
           </div>
-          <div className={styles.treeBarRow}>
-            <span className={styles.treeBarLabel}>With initiatives</span>
+          <div className={styles.treeBarGroup}>
             <div className={styles.treeBarTrack}>
               <div
-                className={`${styles.treeBarFill} ${styles.initiatives} ${isNegative ? styles.negative : ''}`}
-                style={{ width: `${Math.max(totalWidth, 2)}%` }}
+                className={`${styles.treeBarInit} ${isNegative ? styles.negativeBar : ''}`}
+                style={{ width: `${initWidth}%` }}
               />
             </div>
-            <span className={styles.treeBarValue}>
-              {formatCurrency(node.totalValue)}
-              <span className={styles.treeDelta}>{formatDelta(node.baseValue, node.totalValue)}</span>
-            </span>
+            <span className={styles.treeBarValue}>{formatCurrency(node.withInitiatives)}</span>
           </div>
         </div>
       </div>
     );
   };
-
-  // Flatten tree for rendering
-  const flattenTree = (node: TreeNodeData): TreeNodeData[] => {
-    return [node, ...node.children.flatMap(flattenTree)];
-  };
-
-  const allNodes = flattenTree(PNL_TREE);
 
   return (
     <div className={`${styles.demoContainer} ${className || ''}`}>
@@ -352,11 +376,18 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
         </div>
       </div>
 
-      {/* Dashboard Content */}
+      {/* Dashboard Content - Fixed height */}
       <div className={styles.dashboardContent}>
         {/* P&L Tree View */}
         {activeView === 'pnl-tree' && (
           <div className={styles.pnlTreeWrapper}>
+            <div className={styles.treeHeader}>
+              <h3>P&L Impact Analysis</h3>
+              <div className={styles.treeLegend}>
+                <span><span className={styles.legendDotBase} /> Baseline</span>
+                <span><span className={styles.legendDotInit} /> With Initiatives</span>
+              </div>
+            </div>
             <div
               className={styles.treeCanvas}
               style={{ width: treeLayout.width, height: treeLayout.height }}
@@ -375,71 +406,146 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
         {activeView === 'financial-outlook' && (
           <div className={styles.outlookWrapper}>
             <div className={styles.outlookHeader}>
-              <div className={styles.outlookKpis}>
-                <div className={styles.outlookKpi}>
-                  <span className={styles.kpiLabel}>PLAN (FY)</span>
-                  <div className={styles.kpiRows}>
-                    <div className={styles.kpiRow}><span>FY2026</span><span>$9</span></div>
-                    <div className={styles.kpiRow}><span>FY2027</span><span>$66</span></div>
-                  </div>
-                </div>
-                <div className={styles.outlookKpi}>
-                  <span className={styles.kpiLabel}>ACTUALS (FY)</span>
-                  <div className={styles.kpiRows}>
-                    <div className={styles.kpiRow}><span>FY2026</span><span>$0</span></div>
-                    <div className={styles.kpiRow}><span>FY2027</span><span>$0</span></div>
-                  </div>
-                </div>
-                <div className={styles.outlookKpi}>
-                  <span className={styles.kpiLabel}>RUN RATE (LAST 12 MONTHS)</span>
-                  <div className={styles.kpiBig}>$75</div>
-                  <span className={styles.kpiMeta}>Actual: $0 · Delta: -$75</span>
-                </div>
-                <div className={styles.outlookKpi}>
-                  <span className={styles.kpiLabel}>ROI (ACTUAL VS PLAN)</span>
-                  <div className={styles.kpiBig}>—</div>
-                  <span className={styles.kpiMeta}>Plan: 1,500% · Delta: —</span>
-                </div>
+              <h3>Financial Outlook</h3>
+              <div className={styles.outlookLegend}>
+                <span><span className={styles.legendBarBase} /> Baseline</span>
+                <span><span className={styles.legendBarInit} /> Initiatives</span>
+                <span><span className={styles.legendLine} /> Plan</span>
               </div>
             </div>
-            <div className={styles.chartSection}>
-              <div className={styles.chartTitle}>PLAN VS ACTUALS</div>
-              <div className={styles.chartArea}>
-                <svg className={styles.lineChart} viewBox="0 0 400 150" preserveAspectRatio="none">
-                  {/* Grid lines */}
-                  <line x1="0" y1="75" x2="400" y2="75" stroke="#e2e8f0" strokeWidth="1" />
+            <div className={styles.chartContainer}>
+              {/* Y-axis labels */}
+              <div className={styles.yAxisLabels}>
+                <span>$600K</span>
+                <span>$400K</span>
+                <span>$200K</span>
+                <span>$0</span>
+              </div>
 
-                  {/* Plan line (main) */}
+              {/* Chart area */}
+              <div className={styles.chartArea}>
+                {/* Grid lines */}
+                <div className={styles.gridLines}>
+                  <div className={styles.gridLine} />
+                  <div className={styles.gridLine} />
+                  <div className={styles.gridLine} />
+                  <div className={styles.gridLine} />
+                </div>
+
+                {/* Bars */}
+                <div className={styles.barsContainer}>
+                  {FINANCIAL_OUTLOOK.map((d, i) => {
+                    const actualTotal = d.baseline + d.initiatives;
+                    const actualHeight = (actualTotal / outlookMax) * 100;
+                    const baselineHeight = (d.baseline / outlookMax) * 100;
+                    const initiativesHeight = (d.initiatives / outlookMax) * 100;
+                    const isHovered = hoveredBar?.month === d.month;
+
+                    return (
+                      <div key={d.month} className={styles.barColumn}>
+                        <div
+                          className={`${styles.stackedBar} ${isHovered ? styles.hovered : ''}`}
+                          style={{ height: `${actualHeight}%` }}
+                          onMouseEnter={() => setHoveredBar({ month: d.month, type: 'actual' })}
+                          onMouseLeave={() => setHoveredBar(null)}
+                        >
+                          {d.initiatives > 0 && (
+                            <div
+                              className={styles.barSegmentInit}
+                              style={{ height: `${(initiativesHeight / actualHeight) * 100}%` }}
+                            />
+                          )}
+                          <div
+                            className={styles.barSegmentBase}
+                            style={{ height: `${(baselineHeight / actualHeight) * 100}%` }}
+                          />
+                        </div>
+
+                        {/* Tooltip */}
+                        {isHovered && (
+                          <div className={styles.barTooltip}>
+                            <strong>{d.month}</strong>
+                            <div className={styles.tooltipRow}>
+                              <span className={styles.tooltipDotBase} />
+                              <span>Baseline: {formatCurrency(d.baseline * 1000, true)}</span>
+                            </div>
+                            <div className={styles.tooltipRow}>
+                              <span className={styles.tooltipDotInit} />
+                              <span>Initiatives: {formatCurrency(d.initiatives * 1000, true)}</span>
+                            </div>
+                            <div className={styles.tooltipTotal}>
+                              Total: {formatCurrency(actualTotal * 1000, true)}
+                            </div>
+                          </div>
+                        )}
+
+                        <span className={styles.monthLabel}>{d.month}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Plan line */}
+                <svg className={styles.planLineSvg} viewBox="0 0 100 100" preserveAspectRatio="none">
                   <polyline
-                    fill="none"
-                    stroke="#22d3ee"
-                    strokeWidth="2"
+                    className={styles.planLine}
                     points={FINANCIAL_OUTLOOK.map((d, i) => {
-                      const x = (i / (FINANCIAL_OUTLOOK.length - 1)) * 380 + 10;
-                      const y = 75 - (d.plan / 15) * 60;
+                      const x = (i / (FINANCIAL_OUTLOOK.length - 1)) * 100;
+                      const y = 100 - (d.plan / outlookMax) * 100;
                       return `${x},${y}`;
                     }).join(' ')}
                   />
-
-                  {/* Data points with values */}
                   {FINANCIAL_OUTLOOK.map((d, i) => {
-                    const x = (i / (FINANCIAL_OUTLOOK.length - 1)) * 380 + 10;
-                    const y = 75 - (d.plan / 15) * 60;
+                    const x = (i / (FINANCIAL_OUTLOOK.length - 1)) * 100;
+                    const y = 100 - (d.plan / outlookMax) * 100;
                     return (
-                      <g key={i}>
-                        <circle cx={x} cy={y} r="4" fill="#22d3ee" />
-                        <text x={x} y={y - 10} textAnchor="middle" fill="#0f172a" fontSize="10" fontWeight="600">
-                          {d.plan === 0 ? '$0' : `$${d.plan}`}
-                        </text>
-                      </g>
+                      <circle
+                        key={i}
+                        cx={x}
+                        cy={y}
+                        r="1.5"
+                        className={styles.planDot}
+                      />
                     );
                   })}
                 </svg>
-                <div className={styles.chartXAxis}>
-                  {FINANCIAL_OUTLOOK.map((d, i) => (
-                    <span key={i}>{d.month}</span>
-                  ))}
+
+                {/* Plan value labels */}
+                <div className={styles.planLabels}>
+                  {FINANCIAL_OUTLOOK.filter((_, i) => i % 3 === 0 || i === FINANCIAL_OUTLOOK.length - 1).map((d, i) => {
+                    const actualIndex = i === 0 ? 0 : i * 3 >= FINANCIAL_OUTLOOK.length - 1 ? FINANCIAL_OUTLOOK.length - 1 : i * 3;
+                    const bottom = (FINANCIAL_OUTLOOK[actualIndex].plan / outlookMax) * 100 + 3;
+                    const left = (actualIndex / (FINANCIAL_OUTLOOK.length - 1)) * 100;
+                    return (
+                      <span
+                        key={actualIndex}
+                        className={styles.planLabel}
+                        style={{ bottom: `${bottom}%`, left: `${left}%` }}
+                      >
+                        {formatCurrency(FINANCIAL_OUTLOOK[actualIndex].plan * 1000, true)}
+                      </span>
+                    );
+                  })}
                 </div>
+              </div>
+            </div>
+
+            {/* KPI summary */}
+            <div className={styles.outlookKpis}>
+              <div className={styles.kpiCard}>
+                <span className={styles.kpiLabel}>YTD Actual</span>
+                <span className={styles.kpiValue}>$4.2M</span>
+                <span className={styles.kpiDelta}>+18% vs plan</span>
+              </div>
+              <div className={styles.kpiCard}>
+                <span className={styles.kpiLabel}>Initiative Impact</span>
+                <span className={styles.kpiValue}>$1.9M</span>
+                <span className={styles.kpiDelta}>45% of total</span>
+              </div>
+              <div className={styles.kpiCard}>
+                <span className={styles.kpiLabel}>Run Rate</span>
+                <span className={styles.kpiValue}>$640K/mo</span>
+                <span className={styles.kpiDelta}>+12% MoM</span>
               </div>
             </div>
           </div>
@@ -448,93 +554,78 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
         {/* Stage-Gate Pipeline View */}
         {activeView === 'stage-gate' && (
           <div className={styles.pipelineWrapper}>
+            <div className={styles.pipelineHeader}>
+              <h3>Pipeline Overview</h3>
+              <div className={styles.pipelineStats}>
+                <span>{totalInitiatives} initiatives</span>
+                <span className={styles.statDivider}>•</span>
+                <span className={styles.statHighlight}>{formatCurrency(totalImpact * 1000)} impact</span>
+              </div>
+            </div>
+
             <div className={styles.pipelineTable}>
               {/* Header */}
-              <div className={styles.pipelineHeader}>
-                <div className={styles.pipelineHeaderCell} style={{ width: 180 }}>WORKSTREAM</div>
-                <div className={styles.pipelineHeaderCell} style={{ width: 140 }}>METRIC</div>
+              <div className={styles.pipelineTableHeader}>
+                <div className={styles.wsHeaderCell}>Workstream</div>
                 {STAGE_COLUMNS.map(col => (
-                  <div key={col} className={styles.pipelineHeaderCell}>{col}</div>
+                  <div key={col} className={styles.stageHeaderCell}>{col}</div>
                 ))}
               </div>
 
               {/* Workstream rows */}
               {WORKSTREAMS.map(ws => {
                 const isExpanded = expandedWorkstreams.has(ws.id);
+                const wsTotal = STAGE_COLUMNS.reduce((sum, col) => sum + (ws.stages[col]?.impact || 0), 0);
+
                 return (
-                  <div key={ws.id} className={styles.workstreamGroup}>
-                    {/* Recurring impact row */}
-                    <div className={styles.pipelineRow}>
-                      <div className={styles.workstreamCell} style={{ width: 180 }}>
-                        <button
-                          className={styles.expandBtn}
-                          onClick={() => toggleWorkstream(ws.id)}
-                        >
-                          {isExpanded ? '−' : '+'}
-                        </button>
+                  <div key={ws.id} className={styles.workstreamRow}>
+                    <div className={styles.wsCell}>
+                      <button
+                        className={styles.expandBtn}
+                        onClick={() => toggleWorkstream(ws.id)}
+                      >
+                        {isExpanded ? '−' : '+'}
+                      </button>
+                      <div className={styles.wsInfo}>
+                        <span className={styles.wsColorDot} style={{ background: ws.color }} />
                         <div>
-                          <div className={styles.workstreamName}>{ws.name}</div>
-                          <div className={styles.workstreamMeta}>
-                            {ws.activeInitiatives} active initiatives
-                          </div>
+                          <div className={styles.wsName}>{ws.name}</div>
+                          <div className={styles.wsImpact}>{formatCurrency(wsTotal * 1000)} total</div>
                         </div>
                       </div>
-                      <div className={styles.metricCell} style={{ width: 140 }}>
-                        <span className={styles.metricLabel}>RECURRING IMPACT</span>
-                        <strong>{formatCurrency(Object.values(ws.stages).reduce((s, st) => s + st.impact, 0) * 1000)}</strong>
-                      </div>
-                      {STAGE_COLUMNS.map(col => {
-                        const data = ws.stages[col];
-                        const width = data.impact > 0 ? (data.impact / maxStageValues.maxImpact) * 100 : 0;
-                        return (
-                          <div key={col} className={styles.valueCell}>
-                            <div className={styles.barTrack}>
-                              <div
-                                className={`${styles.barFill} ${styles.impactBar}`}
-                                style={{ width: `${width}%` }}
-                              />
-                              <span className={styles.barValue}>
-                                {data.impact > 0 ? formatCurrency(data.impact * 1000) : '$0'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
                     </div>
-
-                    {/* Initiatives count row */}
-                    <div className={styles.pipelineRow}>
-                      <div className={styles.workstreamCell} style={{ width: 180 }} />
-                      <div className={styles.metricCell} style={{ width: 140 }}>
-                        <span className={styles.metricLabel}>INITIATIVES</span>
-                        <strong>{ws.activeInitiatives}</strong>
-                      </div>
-                      {STAGE_COLUMNS.map(col => {
-                        const data = ws.stages[col];
-                        const width = data.count > 0 ? (data.count / maxStageValues.maxCount) * 100 : 0;
-                        return (
-                          <div key={col} className={styles.valueCell}>
-                            <div className={styles.barTrack}>
-                              <div
-                                className={`${styles.barFill} ${styles.countBar}`}
-                                style={{ width: `${width}%` }}
-                              />
-                              <span className={styles.barValue}>{data.count}</span>
+                    {STAGE_COLUMNS.map(col => {
+                      const data = ws.stages[col];
+                      const width = data.impact > 0 ? (data.impact / maxStageValues.maxImpact) * 100 : 0;
+                      return (
+                        <div key={col} className={styles.stageCell}>
+                          {data.count > 0 ? (
+                            <div className={styles.stageContent}>
+                              <div className={styles.stageBar}>
+                                <div
+                                  className={styles.stageBarFill}
+                                  style={{ width: `${width}%`, background: ws.color }}
+                                />
+                                <span className={styles.stageBarValue}>{data.count}</span>
+                              </div>
+                              <span className={styles.stageImpact}>{formatCurrency(data.impact * 1000)}</span>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          ) : (
+                            <span className={styles.stageEmpty}>—</span>
+                          )}
+                        </div>
+                      );
+                    })}
 
                     {/* Expanded initiatives */}
-                    {isExpanded && ws.stages['L0'].initiatives.length > 0 && (
-                      <div className={styles.initiativesList}>
-                        {Object.entries(ws.stages).map(([stage, data]) =>
-                          data.initiatives.map(init => (
-                            <div key={init.id} className={styles.initiativeRow}>
-                              <div style={{ width: 180, paddingLeft: 36 }}>{init.name}</div>
-                              <div style={{ width: 140 }}>{stage}</div>
-                              <div>{formatCurrency(init.impact * 1000)}</div>
+                    {isExpanded && (
+                      <div className={styles.initiativesExpanded}>
+                        {STAGE_COLUMNS.map(col =>
+                          ws.stages[col]?.initiatives.map(init => (
+                            <div key={init.id} className={styles.initiativeItem}>
+                              <span className={styles.initName}>{init.name}</span>
+                              <span className={styles.initStage}>{col}</span>
+                              <span className={styles.initImpact}>{formatCurrency(init.impact * 1000)}</span>
                             </div>
                           ))
                         )}
@@ -544,56 +635,35 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                 );
               })}
 
-              {/* Portfolio total row */}
-              <div className={`${styles.pipelineRow} ${styles.totalRow}`}>
-                <div className={styles.workstreamCell} style={{ width: 180 }}>
-                  <div>
-                    <div className={styles.workstreamName}>Portfolio total</div>
-                    <div className={styles.workstreamMeta}>{totalInitiatives} active initiatives</div>
+              {/* Total row */}
+              <div className={`${styles.workstreamRow} ${styles.totalRow}`}>
+                <div className={styles.wsCell}>
+                  <div className={styles.wsInfo}>
+                    <div>
+                      <div className={styles.wsName}>Portfolio Total</div>
+                      <div className={styles.wsImpact}>{totalInitiatives} initiatives</div>
+                    </div>
                   </div>
-                </div>
-                <div className={styles.metricCell} style={{ width: 140 }}>
-                  <span className={styles.metricLabel}>RECURRING IMPACT</span>
-                  <strong>{formatCurrency(totalImpact * 1000)}</strong>
                 </div>
                 {STAGE_COLUMNS.map(col => {
                   const data = portfolioTotals[col];
                   const width = data.impact > 0 ? (data.impact / maxStageValues.maxImpact) * 100 : 0;
                   return (
-                    <div key={col} className={styles.valueCell}>
-                      <div className={`${styles.barTrack} ${styles.totalBarTrack}`}>
-                        <div
-                          className={`${styles.barFill} ${styles.impactBar} ${styles.totalBarFill}`}
-                          style={{ width: `${width}%` }}
-                        />
-                        <span className={styles.barValue}>
-                          {data.impact > 0 ? formatCurrency(data.impact * 1000) : '$0'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Portfolio initiatives row */}
-              <div className={`${styles.pipelineRow} ${styles.totalRow}`}>
-                <div className={styles.workstreamCell} style={{ width: 180 }} />
-                <div className={styles.metricCell} style={{ width: 140 }}>
-                  <span className={styles.metricLabel}>INITIATIVES</span>
-                  <strong>{totalInitiatives}</strong>
-                </div>
-                {STAGE_COLUMNS.map(col => {
-                  const data = portfolioTotals[col];
-                  const width = data.count > 0 ? (data.count / maxStageValues.maxCount) * 100 : 0;
-                  return (
-                    <div key={col} className={styles.valueCell}>
-                      <div className={`${styles.barTrack} ${styles.totalBarTrack}`}>
-                        <div
-                          className={`${styles.barFill} ${styles.countBar} ${styles.totalBarFill}`}
-                          style={{ width: `${width}%` }}
-                        />
-                        <span className={styles.barValue}>{data.count}</span>
-                      </div>
+                    <div key={col} className={styles.stageCell}>
+                      {data.count > 0 ? (
+                        <div className={styles.stageContent}>
+                          <div className={`${styles.stageBar} ${styles.totalStageBar}`}>
+                            <div
+                              className={styles.stageBarFill}
+                              style={{ width: `${width}%` }}
+                            />
+                            <span className={styles.stageBarValue}>{data.count}</span>
+                          </div>
+                          <span className={styles.stageImpact}>{formatCurrency(data.impact * 1000)}</span>
+                        </div>
+                      ) : (
+                        <span className={styles.stageEmpty}>—</span>
+                      )}
                     </div>
                   );
                 })}
