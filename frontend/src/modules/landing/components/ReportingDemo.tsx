@@ -371,13 +371,14 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
   }, [selectedOutlookWorkstream]);
 
   // =============================================
-  // P&L TREE LAYOUT - Full width
+  // P&L TREE LAYOUT - Full width (4 levels = 4 cards + 3 gaps)
+  // Container ~860px, so: 4*cardWidth + 3*gap = 860
   // =============================================
   const treeLayout = useMemo(() => {
-    const cardWidth = 120;
-    const cardHeight = 40;
-    const horizontalGap = 40;
-    const verticalGap = 6;
+    const cardWidth = 155;
+    const cardHeight = 38;
+    const horizontalGap = 50;
+    const verticalGap = 4;
     const positions = new Map<string, { x: number; y: number }>();
     const connectors: { id: string; path: string }[] = [];
 
@@ -796,17 +797,25 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                       );
                     })}
 
-                    {/* Expanded initiatives */}
+                    {/* Expanded initiatives - displayed in table format */}
                     {isExpanded && (
                       <div className={styles.initiativesExpanded}>
-                        {STAGE_COLUMNS.map(col =>
+                        {STAGE_COLUMNS.flatMap(col =>
                           ws.stages[col]?.initiatives.map(init => (
-                            <div key={init.id} className={styles.initiativeItem}>
-                              <span className={styles.initName}>{init.name}</span>
-                              <span className={styles.initStage}>{col}</span>
-                              <span className={styles.initImpact}>{formatCurrency(init.impact * 1000)}</span>
+                            <div key={init.id} className={styles.initRow}>
+                              <div className={styles.initNameCell}>
+                                <span className={styles.initDot} style={{ background: ws.color }} />
+                                {init.name}
+                              </div>
+                              {STAGE_COLUMNS.map(stageCol => (
+                                <div key={stageCol} className={styles.initStageCell}>
+                                  {stageCol === col && (
+                                    <span className={styles.initImpactValue}>{formatCurrency(init.impact * 1000)}</span>
+                                  )}
+                                </div>
+                              ))}
                             </div>
-                          ))
+                          )) || []
                         )}
                       </div>
                     )}
