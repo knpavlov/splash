@@ -410,7 +410,7 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
           <span className={styles.windowDot} data-color="yellow" />
           <span className={styles.windowDot} data-color="green" />
         </div>
-        <div className={styles.windowTitle}>LaikaPro</div>
+        <div className={styles.windowTitle}>Laiten</div>
         <div className={styles.windowActions}>
           <span className={styles.windowTab}>Initiative Profile</span>
         </div>

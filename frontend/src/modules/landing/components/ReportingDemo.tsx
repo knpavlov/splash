@@ -224,7 +224,14 @@ const WORKSTREAM_OUTLOOKS: WorkstreamOutlook[] = [
 // =============================================
 // STAGE-GATE PIPELINE DATA
 // =============================================
-const STAGE_COLUMNS = ['L0', 'L1 Gate', 'L1', 'L2 Gate', 'L2', 'L3'];
+const PIPELINE_COLUMNS: { label: string; key: string }[] = [
+  { label: 'L0', key: 'L0' },
+  { label: 'L1', key: 'L1 Gate' },
+  { label: 'L2', key: 'L1' },
+  { label: 'L3', key: 'L2 Gate' },
+  { label: 'L4', key: 'L2' },
+  { label: 'L5', key: 'L3' }
+];
 
 interface WorkstreamData {
   id: string;
@@ -446,11 +453,11 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
   // Stage-gate totals
   const portfolioTotals = useMemo(() => {
     const totals: Record<string, { count: number; impact: number }> = {};
-    STAGE_COLUMNS.forEach(col => {
-      totals[col] = { count: 0, impact: 0 };
+    PIPELINE_COLUMNS.forEach(({ label, key }) => {
+      totals[label] = { count: 0, impact: 0 };
       WORKSTREAMS.forEach(ws => {
-        totals[col].count += ws.stages[col]?.count || 0;
-        totals[col].impact += ws.stages[col]?.impact || 0;
+        totals[label].count += ws.stages[key]?.count || 0;
+        totals[label].impact += ws.stages[key]?.impact || 0;
       });
     });
     return totals;
@@ -458,14 +465,14 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
 
   const maxStageImpact = useMemo(() => {
     return Math.max(
-      ...WORKSTREAMS.flatMap(ws => STAGE_COLUMNS.map(col => ws.stages[col]?.impact || 0)),
+      ...WORKSTREAMS.flatMap(ws => PIPELINE_COLUMNS.map(({ key }) => ws.stages[key]?.impact || 0)),
       ...Object.values(portfolioTotals).map(t => t.impact),
       1
     );
   }, [portfolioTotals]);
 
   const totalInitiatives = WORKSTREAMS.reduce((sum, ws) =>
-    sum + STAGE_COLUMNS.reduce((s, col) => s + (ws.stages[col]?.count || 0), 0), 0
+    sum + PIPELINE_COLUMNS.reduce((s, { key }) => s + (ws.stages[key]?.count || 0), 0), 0
   );
   const totalImpact = Object.values(portfolioTotals).reduce((sum, t) => sum + t.impact, 0);
 
@@ -539,7 +546,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
           <span className={styles.windowDot} data-color="green" />
         </div>
         <div className={styles.windowTitle}>
-          {VIEW_OPTIONS.find(v => v.id === activeView)?.shortTitle || 'LaikaPro'}
+          {VIEW_OPTIONS.find(v => v.id === activeView)?.shortTitle || 'Laiten'}
         </div>
       </div>
 
@@ -618,8 +625,8 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                     const initTotal = d.initiatives.reduce((s, i) => s + i.impact, 0);
                     const actualTotal = d.baseline + initTotal;
                     const actualHeight = (actualTotal / outlookMax) * 100;
-                    const baselineHeight = (d.baseline / outlookMax) * 100;
-                    const initiativesHeight = (initTotal / outlookMax) * 100;
+                    const baselineRatio = actualTotal > 0 ? (d.baseline / actualTotal) * 100 : 0;
+                    const initiativesRatio = actualTotal > 0 ? (initTotal / actualTotal) * 100 : 0;
 
                     return (
                       <div key={d.month} className={styles.barColumn}>
@@ -631,7 +638,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                             <div
                               className={styles.barSegmentInit}
                               style={{
-                                height: `${(initiativesHeight / actualHeight) * 100}%`,
+                                height: `${initiativesRatio}%`,
                                 background: currentOutlookColor
                               }}
                               onClick={() => setClickedBar({
@@ -643,7 +650,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                           )}
                           <div
                             className={styles.barSegmentBase}
-                            style={{ height: `${(baselineHeight / actualHeight) * 100}%` }}
+                            style={{ height: `${baselineRatio}%` }}
                           />
                         </div>
                         <span className={styles.monthLabel}>{d.month}</span>
@@ -746,16 +753,16 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
               {/* Header */}
               <div className={styles.pipelineTableHeader}>
                 <div className={styles.wsHeaderCell}>Workstream</div>
-                {STAGE_COLUMNS.map(col => (
-                  <div key={col} className={styles.stageHeaderCell}>{col}</div>
+                {PIPELINE_COLUMNS.map(col => (
+                  <div key={col.label} className={styles.stageHeaderCell}>{col.label}</div>
                 ))}
               </div>
 
               {/* Workstream rows */}
               {WORKSTREAMS.map(ws => {
                 const isExpanded = expandedWorkstreams.has(ws.id);
-                const wsTotal = STAGE_COLUMNS.reduce((sum, col) => sum + (ws.stages[col]?.impact || 0), 0);
-                const wsCount = STAGE_COLUMNS.reduce((sum, col) => sum + (ws.stages[col]?.count || 0), 0);
+                const wsTotal = PIPELINE_COLUMNS.reduce((sum, { key }) => sum + (ws.stages[key]?.impact || 0), 0);
+                const wsCount = PIPELINE_COLUMNS.reduce((sum, { key }) => sum + (ws.stages[key]?.count || 0), 0);
 
                 return (
                   <div key={ws.id} className={styles.workstreamRow}>
@@ -774,11 +781,11 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                         </div>
                       </div>
                     </div>
-                    {STAGE_COLUMNS.map(col => {
-                      const data = ws.stages[col];
+                    {PIPELINE_COLUMNS.map(col => {
+                      const data = ws.stages[col.key] ?? { count: 0, impact: 0, initiatives: [] };
                       const width = data.impact > 0 ? (data.impact / maxStageImpact) * 100 : 0;
                       return (
-                        <div key={col} className={styles.stageCell}>
+                        <div key={col.label} className={styles.stageCell}>
                           {data.count > 0 ? (
                             <div className={styles.stageContent}>
                               <div className={styles.stageBar}>
@@ -800,16 +807,16 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                     {/* Expanded initiatives - displayed in table format */}
                     {isExpanded && (
                       <div className={styles.initiativesExpanded}>
-                        {STAGE_COLUMNS.flatMap(col =>
-                          ws.stages[col]?.initiatives.map(init => (
+                        {PIPELINE_COLUMNS.flatMap(stage =>
+                          ws.stages[stage.key]?.initiatives.map(init => (
                             <div key={init.id} className={styles.initRow}>
                               <div className={styles.initNameCell}>
                                 <span className={styles.initDot} style={{ background: ws.color }} />
                                 {init.name}
                               </div>
-                              {STAGE_COLUMNS.map(stageCol => (
-                                <div key={stageCol} className={styles.initStageCell}>
-                                  {stageCol === col && (
+                              {PIPELINE_COLUMNS.map(col => (
+                                <div key={col.label} className={styles.initStageCell}>
+                                  {col.key === stage.key && (
                                     <span className={styles.initImpactValue}>{formatCurrency(init.impact * 1000)}</span>
                                   )}
                                 </div>
@@ -833,11 +840,11 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                     </div>
                   </div>
                 </div>
-                {STAGE_COLUMNS.map(col => {
-                  const data = portfolioTotals[col];
+                {PIPELINE_COLUMNS.map(col => {
+                  const data = portfolioTotals[col.label];
                   const width = data.impact > 0 ? (data.impact / maxStageImpact) * 100 : 0;
                   return (
-                    <div key={col} className={styles.stageCell}>
+                    <div key={col.label} className={styles.stageCell}>
                       {data.count > 0 ? (
                         <div className={styles.stageContent}>
                           <div className={`${styles.stageBar} ${styles.totalStageBar}`}>

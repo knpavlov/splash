@@ -44,7 +44,8 @@ const parseHash = (hash: string): AppRoute => {
   const segments = pathPart.split('/').filter(Boolean);
   const query = new URLSearchParams(queryString ?? '');
   const [rawPage, action, identifier] = segments;
-  const normalizedPage = rawPage === 'snapshot-settings' ? 'general-settings' : rawPage;
+  const normalizedPage =
+    rawPage === 'snapshot-settings' ? 'general-settings' : rawPage === 'laikapro' ? 'laiten' : rawPage;
   const page = navigationItems.find((item) => item.key === normalizedPage)?.key ?? 'workstreams';
 
   if (page === 'initiatives') {
@@ -155,6 +156,18 @@ const AppContent = () => {
   }, [setRouteFromHash]);
 
   useEffect(() => {
+    const currentHash = window.location.hash;
+    if (!currentHash) {
+      return;
+    }
+
+    const redirectedHash = currentHash.replace(/^#\/laikapro(?=\/|\?|$)/, '#/laiten');
+    if (redirectedHash !== currentHash) {
+      window.location.hash = redirectedHash.startsWith('#') ? redirectedHash.slice(1) : redirectedHash;
+    }
+  }, []);
+
+  useEffect(() => {
     if (!window.location.hash && window.location.pathname && window.location.pathname !== '/') {
       const path = `${window.location.pathname}${window.location.search || ''}`;
       const normalized = path.startsWith('/') ? path : `/${path}`;
@@ -221,7 +234,7 @@ const AppContent = () => {
     return <LaikaLandingPage />;
   }
 
-  if (route.page === 'laikapro') {
+  if (route.page === 'laiten') {
     return <LaikaProLandingPage />;
   }
 

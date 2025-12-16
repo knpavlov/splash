@@ -261,7 +261,7 @@ export const LaikaProLandingPage = () => {
       <header className={styles.header}>
         <div className={styles.logo}>
           <span className={styles.logoIcon}>L</span>
-          LaikaPro
+          Laiten
         </div>
         <nav className={styles.navLinks}>
           <span
@@ -691,7 +691,7 @@ export const LaikaProLandingPage = () => {
           </div>
 
           <a href="#" className={styles.changelogLink}>
-            See what's new in LaikaPro <ArrowRight size={16} />
+            See what's new in Laiten <ArrowRight size={16} />
           </a>
         </div>
       </section>
@@ -812,8 +812,8 @@ export const LaikaProLandingPage = () => {
 
           <div className={styles.contactAlternative}>
             <span>Or schedule a call with our team</span>
-            <a href="mailto:hello@laikapro.com" className={styles.contactLink}>
-              hello@laikapro.com
+            <a href="mailto:hello@laiten.com" className={styles.contactLink}>
+              hello@laiten.com
             </a>
           </div>
         </div>
@@ -825,7 +825,7 @@ export const LaikaProLandingPage = () => {
           <div className={styles.footerBrand}>
             <div className={styles.logo}>
               <span className={styles.logoIcon}>L</span>
-              LaikaPro
+              Laiten
             </div>
             <p>Enterprise transformation management, streamlined.</p>
           </div>
@@ -853,7 +853,7 @@ export const LaikaProLandingPage = () => {
         </div>
 
         <div className={styles.footerBottom}>
-          <p>&copy; {new Date().getFullYear()} LaikaPro. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Laiten. All rights reserved.</p>
         </div>
       </footer>
     </div>

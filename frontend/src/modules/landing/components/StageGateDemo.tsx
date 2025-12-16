@@ -464,7 +464,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
           <span className={styles.windowDot} data-color="yellow" />
           <span className={styles.windowDot} data-color="green" />
         </div>
-        <div className={styles.windowTitle}>LaikaPro</div>
+        <div className={styles.windowTitle}>Laiten</div>
         <div className={styles.windowTabs}>
           <span className={`${styles.windowTab} ${isOwnerPhase ? styles.active : ''}`}>
             Initiative Owner View
