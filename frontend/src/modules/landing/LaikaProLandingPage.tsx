@@ -5,6 +5,7 @@ import { InteractivePlanDemo, DemoTask, INITIAL_TASKS } from './components/Inter
 import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
 import { ReportingDemo, DemoView, VIEW_OPTIONS } from './components/ReportingDemo';
+import { ImplementationMonitoringDemo } from './components/ImplementationMonitoringDemo';
 
 interface GlowOrb {
   x: number;
@@ -270,12 +271,12 @@ export const LaikaProLandingPage = () => {
           >
             Intro
           </span>
-          <span
-            onClick={() => scrollToSection('features')}
-            className={`${styles.navLink} ${activeNav === 'feature-1' || activeNav === 'feature-2' || activeNav === 'feature-3' ? styles.navLinkActive : ''}`}
-          >
-            Features
-          </span>
+            <span
+              onClick={() => scrollToSection('features')}
+              className={`${styles.navLink} ${activeNav === 'feature-1' || activeNav === 'feature-2' || activeNav === 'feature-3' || activeNav === 'feature-4' ? styles.navLinkActive : ''}`}
+            >
+              Features
+            </span>
           <span
             onClick={() => scrollToSection('pricing')}
             className={`${styles.navLink} ${activeNav === 'pricing' ? styles.navLinkActive : ''}`}
@@ -507,6 +508,36 @@ export const LaikaProLandingPage = () => {
         <div className={styles.heatmapDemoSection}>
           <div className={`${styles.heatmapDemoWrapper} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
             <CapacityHeatmapDemo tasks={demoTasks} />
+          </div>
+        </div>
+      </section>
+
+      {/* Feature 4: Implementation Monitoring */}
+      <section id="feature-4" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo}`}>
+        <div className={styles.interactiveDemoLayout}>
+          {/* Left - Content */}
+          <div className={`${styles.demoContent} ${visibleSections['feature-4'] ? styles.visible : ''}`}>
+            <div className={styles.featureNumber}>04</div>
+            <div className={styles.featureLabel}>Execution</div>
+            <h2 className={styles.featureTitle}>
+              Effortless<br />Delivery Monitoring
+            </h2>
+            <p className={styles.featureDescription}>
+              Turn routine weekly status reports into an always-fresh delivery signal. Capture updates per task,
+              adjust dates and progress in seconds, and instantly see what's at risk in Deadline radar.
+            </p>
+
+            <ul className={styles.featureList}>
+              <li><Check size={18} /> Structured weekly status reports</li>
+              <li><Check size={18} /> One-click submit to keep stakeholders aligned</li>
+              <li><Check size={18} /> Deadline radar auto-highlights overdue & due-soon work</li>
+              <li><Check size={18} /> Filters by workstream, owner, and status buckets</li>
+            </ul>
+          </div>
+
+          {/* Right - Interactive Demo */}
+          <div className={`${styles.interactiveDemoWrapper} ${visibleSections['feature-4'] ? styles.visible : ''}`}>
+            <ImplementationMonitoringDemo />
           </div>
         </div>
       </section>
@@ -836,6 +867,7 @@ export const LaikaProLandingPage = () => {
               <span onClick={() => scrollToSection('feature-1')}>Stage Gates</span>
               <span onClick={() => scrollToSection('feature-2')}>Reporting</span>
               <span onClick={() => scrollToSection('feature-3')}>Capacity Planning</span>
+              <span onClick={() => scrollToSection('feature-4')}>Execution Monitoring</span>
             </div>
             <div className={styles.footerLinkGroup}>
               <h4>Company</h4>
