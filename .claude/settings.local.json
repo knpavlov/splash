@@ -8,7 +8,8 @@
       "Bash(npm run build:*)",
       "Bash(echo:*)",
       "Bash(find:*)",
-      "Bash(/c/Program Files/nodejs/npx.cmd tsc --noEmit)"
+      "Bash(/c/Program Files/nodejs/npx.cmd tsc --noEmit)",
+      "Bash(node node_modules/typescript/bin/tsc:*)"
     ],
     "deny": [],
     "ask": []

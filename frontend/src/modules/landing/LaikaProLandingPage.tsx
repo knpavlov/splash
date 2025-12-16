@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import styles from './LaikaProLandingPage.module.css';
-import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarChart3 } from 'lucide-react';
+import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarChart3, Sparkles, Calendar } from 'lucide-react';
 import { InteractivePlanDemo, DemoTask, INITIAL_TASKS } from './components/InteractivePlanDemo';
 import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
@@ -508,6 +508,191 @@ export const LaikaProLandingPage = () => {
           <div className={`${styles.heatmapDemoWrapper} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
             <CapacityHeatmapDemo tasks={demoTasks} />
           </div>
+        </div>
+      </section>
+
+      {/* Features Marquee Section */}
+      <section id="features-marquee" data-animate className={styles.featuresMarqueeSection}>
+        <div className={styles.featuresMarqueeHeader}>
+          <div className={styles.featuresMarqueeBadge}>
+            <Sparkles size={14} />
+            And Much More
+          </div>
+          <h2 className={styles.featuresMarqueeTitle}>
+            Everything You Need to Transform
+          </h2>
+          <p className={styles.featuresMarqueeSubtitle}>
+            A comprehensive toolkit built for enterprise transformation teams
+          </p>
+        </div>
+
+        <div className={styles.marqueeContainer}>
+          {/* Row 1 - Left to Right */}
+          <div className={styles.marqueeRow}>
+            <div className={styles.marqueeTrack}>
+              {[
+                "Multi-stage gate process management",
+                "Role-based access control",
+                "Hierarchical budget structures",
+                "Participant directory management",
+                "Initiative lifecycle tracking",
+                "Monthly cash flow planning",
+                "Approval workflow automation",
+                "Financial modeling tools",
+                "Bulk Excel data import",
+                "Deadline radar dashboard",
+                "Multi-stage gate process management",
+                "Role-based access control",
+                "Hierarchical budget structures",
+                "Participant directory management",
+                "Initiative lifecycle tracking",
+                "Monthly cash flow planning",
+                "Approval workflow automation",
+                "Financial modeling tools",
+                "Bulk Excel data import",
+                "Deadline radar dashboard",
+              ].map((feature, idx) => (
+                <div key={idx} className={styles.marqueeItem}>
+                  <Check size={14} className={styles.marqueeItemIcon} />
+                  {feature}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 2 - Right to Left */}
+          <div className={`${styles.marqueeRow} ${styles.marqueeRowReverse}`}>
+            <div className={`${styles.marqueeTrack} ${styles.marqueeTrackReverse}`}>
+              {[
+                "Enterprise SSO integration",
+                "Custom KPI definitions",
+                "Benefits realization tracking",
+                "Threaded comment discussions",
+                "Document attachment support",
+                "Activity change logging",
+                "Real-time collaboration",
+                "Stage submission workflows",
+                "Resource conflict detection",
+                "Organizational hierarchy view",
+                "Enterprise SSO integration",
+                "Custom KPI definitions",
+                "Benefits realization tracking",
+                "Threaded comment discussions",
+                "Document attachment support",
+                "Activity change logging",
+                "Real-time collaboration",
+                "Stage submission workflows",
+                "Resource conflict detection",
+                "Organizational hierarchy view",
+              ].map((feature, idx) => (
+                <div key={idx} className={styles.marqueeItem}>
+                  <Check size={14} className={styles.marqueeItemIcon} />
+                  {feature}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 3 - Left to Right (slower) */}
+          <div className={styles.marqueeRow}>
+            <div className={`${styles.marqueeTrack} ${styles.marqueeTrackSlow}`}>
+              {[
+                "Approval decision audit trails",
+                "Recurring vs one-off costs separation",
+                "User invitation system",
+                "Account activation workflows",
+                "Workstream configuration",
+                "Portfolio plan dashboards",
+                "Financial ratio analysis",
+                "Budget vs actuals comparison",
+                "Fiscal year period settings",
+                "Automated data snapshots",
+                "Approval decision audit trails",
+                "Recurring vs one-off costs separation",
+                "User invitation system",
+                "Account activation workflows",
+                "Workstream configuration",
+                "Portfolio plan dashboards",
+                "Financial ratio analysis",
+                "Budget vs actuals comparison",
+                "Fiscal year period settings",
+                "Automated data snapshots",
+              ].map((feature, idx) => (
+                <div key={idx} className={styles.marqueeItem}>
+                  <Check size={14} className={styles.marqueeItemIcon} />
+                  {feature}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Changelog Section */}
+      <section id="changelog" data-animate className={styles.changelogSection}>
+        <div className={`${styles.changelogContent} ${visibleSections['changelog'] ? styles.visible : ''}`}>
+          <div className={styles.changelogHeader}>
+            <h2 className={styles.changelogTitle}>Changelog</h2>
+            <p className={styles.changelogSubtitle}>We ship new features and improvements every week</p>
+          </div>
+
+          <div className={styles.changelogGrid}>
+            <div className={styles.changelogCard}>
+              <div className={styles.changelogCardHeader}>
+                <span className={styles.changelogVersion}>2.4</span>
+                <span className={styles.changelogDate}>Dec 10, 2025</span>
+              </div>
+              <h3 className={styles.changelogCardTitle}>
+                Enhanced Security & Two-Factor Authentication
+              </h3>
+              <p className={styles.changelogCardDescription}>
+                Added TOTP-based 2FA, passkey support, and improved session management for enterprise security compliance.
+              </p>
+            </div>
+
+            <div className={styles.changelogCard}>
+              <div className={styles.changelogCardHeader}>
+                <span className={styles.changelogVersion}>2.3</span>
+                <span className={styles.changelogDate}>Nov 21, 2025</span>
+              </div>
+              <h3 className={styles.changelogCardTitle}>
+                Advanced Activity Logging & Audit Trail
+              </h3>
+              <p className={styles.changelogCardDescription}>
+                Comprehensive action logging for compliance, with searchable audit trails and exportable activity reports.
+              </p>
+            </div>
+
+            <div className={styles.changelogCard}>
+              <div className={styles.changelogCardHeader}>
+                <span className={styles.changelogVersion}>2.2</span>
+                <span className={styles.changelogDate}>Oct 29, 2025</span>
+              </div>
+              <h3 className={styles.changelogCardTitle}>
+                Daily Data Snapshots & Historical Comparison
+              </h3>
+              <p className={styles.changelogCardDescription}>
+                Automated daily snapshots of all project data, enabling point-in-time comparisons and change tracking.
+              </p>
+            </div>
+
+            <div className={styles.changelogCard}>
+              <div className={styles.changelogCardHeader}>
+                <span className={styles.changelogVersion}>2.1</span>
+                <span className={styles.changelogDate}>Sep 29, 2025</span>
+              </div>
+              <h3 className={styles.changelogCardTitle}>
+                Improved Comments & Collaboration System
+              </h3>
+              <p className={styles.changelogCardDescription}>
+                Threaded discussions, @mentions, email notifications, and inline commenting across all initiative content.
+              </p>
+            </div>
+          </div>
+
+          <a href="#" className={styles.changelogLink}>
+            See what's new in LaikaPro <ArrowRight size={16} />
+          </a>
         </div>
       </section>
 
