@@ -154,6 +154,8 @@
   position: relative;
   padding: 6rem 2rem 4rem;
   overflow: hidden;
+  background: #030712;
+  isolation: isolate;
 }
 
 .canvasBackground {
@@ -163,87 +165,20 @@
   width: 100%;
   height: 100%;
   z-index: 0;
+  transform: translateZ(0);
+  filter: saturate(1.18) contrast(1.06);
 }
 
-/* Parallax Layers */
-.parallaxLayers {
+/* Hero readability overlay */
+.hero::before {
+  content: '';
   position: absolute;
   inset: 0;
+  z-index: 1;
   pointer-events: none;
-  overflow: hidden;
-}
-
-.parallaxLayer {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  will-change: transform;
-}
-
-.parallaxLayer1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.4) 0%, transparent 70%);
-  top: -10%;
-  left: -5%;
-}
-
-.parallaxLayer2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
-  top: 20%;
-  right: -10%;
-}
-
-.parallaxLayer3 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.25) 0%, transparent 70%);
-  bottom: 10%;
-  left: 20%;
-}
-
-.parallaxLayer4 {
-  width: 350px;
-  height: 350px;
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.3) 0%, transparent 70%);
-  bottom: 30%;
-  right: 25%;
-}
-
-/* Floating geometric shapes */
-.floatingShape1 {
-  position: absolute;
-  width: 120px;
-  height: 120px;
-  border: 2px solid rgba(139, 92, 246, 0.2);
-  top: 15%;
-  right: 15%;
-  will-change: transform;
-}
-
-.floatingShape2 {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  border: 2px solid rgba(34, 211, 238, 0.15);
-  border-radius: 50%;
-  top: 60%;
-  left: 10%;
-  will-change: transform;
-}
-
-.floatingShape3 {
-  position: absolute;
-  width: 0;
-  height: 0;
-  border-left: 50px solid transparent;
-  border-right: 50px solid transparent;
-  border-bottom: 86px solid rgba(236, 72, 153, 0.1);
-  bottom: 20%;
-  right: 20%;
-  will-change: transform;
+  background:
+    radial-gradient(900px 600px at 50% 25%, rgba(3, 7, 18, 0.18) 0%, rgba(3, 7, 18, 0.72) 70%, rgba(3, 7, 18, 0.9) 100%),
+    linear-gradient(180deg, rgba(3, 7, 18, 0.0) 0%, rgba(3, 7, 18, 0.25) 55%, rgba(3, 7, 18, 0.7) 100%);
 }
 
 .heroTitleLine {
@@ -253,7 +188,7 @@
 
 .heroContent {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   max-width: 900px;
 }
 
@@ -307,9 +242,30 @@
   gap: 1rem;
   justify-content: center;
   flex-wrap: wrap;
-  margin-bottom: 4rem;
+  margin-bottom: 1.4rem;
   opacity: 0;
   animation: fadeUp 0.8s var(--ease-out-expo) forwards 0.4s;
+}
+
+.heroHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+  color: rgba(201, 209, 217, 0.82);
+  font-size: 0.9rem;
+  margin: 0 auto 3.1rem;
+  opacity: 0;
+  animation: fadeUp 0.8s var(--ease-out-expo) forwards 0.5s;
+}
+
+.heroHintKey {
+  color: rgba(230, 237, 243, 0.95);
+  font-weight: 700;
 }
 
 .ctaPrimary {
@@ -392,6 +348,7 @@
   bottom: 2rem;
   left: 50%;
   transform: translateX(-50%);
+  z-index: 2;
   color: var(--color-text-subtle);
   cursor: pointer;
   animation: bounce 2s infinite;
@@ -1633,12 +1590,6 @@
     grid-template-columns: repeat(3, 1fr);
   }
 
-  /* Hide floating shapes on tablet */
-  .floatingShape1,
-  .floatingShape2,
-  .floatingShape3 {
-    display: none;
-  }
 }
 
 @media (max-width: 768px) {
@@ -1676,10 +1627,6 @@
   .rockstarDeco4,
   .rockstarDeco5 {
     display: none;
-  }
-
-  .parallaxLayers {
-    opacity: 0.5;
   }
 
   .header {

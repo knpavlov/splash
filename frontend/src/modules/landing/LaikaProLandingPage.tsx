@@ -7,15 +7,14 @@ import { StageGateDemo } from './components/StageGateDemo';
 import { ReportingDemo, DemoView, VIEW_OPTIONS } from './components/ReportingDemo';
 import { ImplementationMonitoringDemo } from './components/ImplementationMonitoringDemo';
 
-interface GlowOrb {
+type HeroPointer = {
   x: number;
   y: number;
   targetX: number;
   targetY: number;
-  size: number;
-  color: string;
-  speed: number;
-}
+  active: boolean;
+  down: boolean;
+};
 
 export const LaikaProLandingPage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,8 +23,7 @@ export const LaikaProLandingPage = () => {
   const [activeNav, setActiveNav] = useState('hero');
   const [scrollProgress, setScrollProgress] = useState(0);
   const [scrollY, setScrollY] = useState(0);
-  const mouseRef = useRef({ x: 0, y: 0 });
-  const orbsRef = useRef<GlowOrb[]>([]);
+  const pointerRef = useRef<HeroPointer>({ x: 0, y: 0, targetX: 0, targetY: 0, active: false, down: false });
   // Shared state for interactive demos
   const [demoTasks, setDemoTasks] = useState<DemoTask[]>(INITIAL_TASKS);
   const [activeReportingView, setActiveReportingView] = useState<DemoView>('pnl-tree');
@@ -82,7 +80,7 @@ export const LaikaProLandingPage = () => {
     return () => window.removeEventListener('scroll', handleParallax);
   }, []);
 
-  // Epic Canvas Animation - Flowing Gradient Mesh with Orbs
+  // Hero Canvas Animation - Interactive Aurora Flow Field
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -91,154 +89,329 @@ export const LaikaProLandingPage = () => {
     if (!ctx) return;
 
     let animationId: number;
-    let width = canvas.width = window.innerWidth;
-    let height = canvas.height = window.innerHeight;
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
+    const pointer = pointerRef.current;
 
-    // Initialize glowing orbs
-    const colors = [
-      'rgba(139, 92, 246, 0.6)',   // Violet
-      'rgba(59, 130, 246, 0.5)',   // Blue
-      'rgba(236, 72, 153, 0.4)',   // Pink
-      'rgba(34, 211, 238, 0.4)',   // Cyan
-      'rgba(168, 85, 247, 0.5)',   // Purple
-    ];
-
-    orbsRef.current = Array.from({ length: 5 }, (_, i) => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      targetX: Math.random() * width,
-      targetY: Math.random() * height,
-      size: 200 + Math.random() * 300,
-      color: colors[i % colors.length],
-      speed: 0.002 + Math.random() * 0.003
-    }));
-
-    // Particle system for sparkles
-    interface Particle {
+    type Particle = {
       x: number;
       y: number;
+      px: number;
+      py: number;
       vx: number;
       vy: number;
-      life: number;
-      maxLife: number;
-      size: number;
-    }
+      hue: number;
+      w: number;
+    };
+
+    type Pulse = { x: number; y: number; startedAt: number; strength: number };
+    const pulses: Pulse[] = [];
+
+    const ribbons = Array.from({ length: 3 }, (_, i) => ({
+      seed: Math.random() * 10_000,
+      phase: Math.random() * Math.PI * 2,
+      hue: 200 + i * 70 + Math.random() * 10
+    }));
 
     const particles: Particle[] = [];
-    const maxParticles = 80;
+    const spawnParticle = (x: number, y: number, burst = false) => {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = burst ? 2.4 + Math.random() * 2.2 : 0.6 + Math.random() * 1.4;
+      const hue = 200 + Math.random() * 120;
+      particles.push({
+        x,
+        y,
+        px: x,
+        py: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        hue,
+        w: 0.8 + Math.random() * 1.8
+      });
+    };
 
-    const handleMouseMove = (e: MouseEvent) => {
-      mouseRef.current = { x: e.clientX, y: e.clientY };
+    let width = 1;
+    let height = 1;
+    let dpr = 1;
+    let canvasRect = canvas.getBoundingClientRect();
+    let baseGradient: CanvasGradient | null = null;
 
-      // Spawn particles near mouse
-      if (particles.length < maxParticles && Math.random() > 0.7) {
-        particles.push({
-          x: e.clientX + (Math.random() - 0.5) * 40,
-          y: e.clientY + (Math.random() - 0.5) * 40,
-          vx: (Math.random() - 0.5) * 2,
-          vy: (Math.random() - 0.5) * 2 - 1,
-          life: 1,
-          maxLife: 60 + Math.random() * 60,
-          size: 1 + Math.random() * 2
-        });
+    const resize = () => {
+      canvasRect = canvas.getBoundingClientRect();
+      width = Math.max(1, Math.floor(canvasRect.width));
+      height = Math.max(1, Math.floor(canvasRect.height));
+      dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      baseGradient = ctx.createLinearGradient(0, 0, width, height);
+      baseGradient.addColorStop(0, '#050816');
+      baseGradient.addColorStop(0.45, '#030712');
+      baseGradient.addColorStop(1, '#070a16');
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = baseGradient;
+      ctx.fillRect(0, 0, width, height);
+      ctx.globalAlpha = 1;
+
+      if (!pointer.x && !pointer.y) {
+        pointer.x = width * 0.62;
+        pointer.y = height * 0.42;
+        pointer.targetX = pointer.x;
+        pointer.targetY = pointer.y;
+      }
+
+      const desired = Math.min(260, Math.max(120, Math.floor((width * height) / 6500)));
+      while (particles.length < desired) {
+        spawnParticle(Math.random() * width, Math.random() * height);
+      }
+      if (particles.length > desired) {
+        particles.splice(desired);
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    const host = (heroRef.current as unknown as HTMLElement | null) ?? canvas;
 
-    const animate = () => {
-      ctx.fillStyle = 'rgba(3, 7, 18, 1)';
+    const updatePointerTarget = (event: PointerEvent) => {
+      const x = event.clientX - canvasRect.left;
+      const y = event.clientY - canvasRect.top;
+      pointer.targetX = Math.max(0, Math.min(width, x));
+      pointer.targetY = Math.max(0, Math.min(height, y));
+      pointer.active = true;
+    };
+
+    const handlePointerMove = (event: PointerEvent) => updatePointerTarget(event);
+    const handlePointerEnter = (event: PointerEvent) => updatePointerTarget(event);
+    const handlePointerLeave = () => {
+      pointer.active = false;
+      pointer.down = false;
+    };
+    const handlePointerDown = (event: PointerEvent) => {
+      updatePointerTarget(event);
+      pointer.down = true;
+      pulses.push({ x: pointer.targetX, y: pointer.targetY, startedAt: performance.now(), strength: 1 });
+      for (let i = 0; i < 26; i += 1) {
+        spawnParticle(pointer.targetX + (Math.random() - 0.5) * 18, pointer.targetY + (Math.random() - 0.5) * 18, true);
+      }
+    };
+    const handlePointerUp = () => {
+      pointer.down = false;
+    };
+
+    host.addEventListener('pointermove', handlePointerMove, { passive: true });
+    host.addEventListener('pointerenter', handlePointerEnter, { passive: true });
+    host.addEventListener('pointerleave', handlePointerLeave, { passive: true });
+    host.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    window.addEventListener('pointerup', handlePointerUp, { passive: true });
+    window.addEventListener('pointercancel', handlePointerUp, { passive: true });
+
+    const fieldVector = (x: number, y: number, t: number) => {
+      const nx = x * 0.0018;
+      const ny = y * 0.0018;
+      const base =
+        Math.sin(nx * 1.9 + t * 0.75) +
+        Math.cos(ny * 2.2 - t * 0.62) +
+        Math.sin((nx + ny) * 1.1 - t * 0.48) +
+        Math.cos((nx - ny) * 1.3 + t * 0.35);
+
+      let angle = base * Math.PI;
+      let fx = Math.cos(angle);
+      let fy = Math.sin(angle);
+
+      const dx = x - pointer.x;
+      const dy = y - pointer.y;
+      const dist2 = dx * dx + dy * dy;
+      if (pointer.active && dist2 < 420_000) {
+        const inv = 1 / Math.sqrt(dist2 + 1);
+        const spin = (pointer.down ? 2.0 : 1.25) * (1 / (1 + dist2 / 90_000));
+        fx += (-dy * inv) * spin;
+        fy += (dx * inv) * spin;
+      }
+
+      for (let i = 0; i < pulses.length; i += 1) {
+        const p = pulses[i];
+        const age = (t - p.startedAt) / 1000;
+        if (age > 1.4) continue;
+        const radius = 80 + age * 420;
+        const pdx = x - p.x;
+        const pdy = y - p.y;
+        const d = Math.sqrt(pdx * pdx + pdy * pdy);
+        const band = Math.max(0, 1 - Math.abs(d - radius) / 120);
+        if (band > 0) {
+          const inv = 1 / (d + 1);
+          const push = (p.strength * band) / (1 + d * 0.01);
+          fx += pdx * inv * push;
+          fy += pdy * inv * push;
+        }
+      }
+
+      return { fx, fy };
+    };
+
+    const drawStatic = () => {
+      ctx.clearRect(0, 0, width, height);
+      const gradient = ctx.createLinearGradient(0, 0, width, height);
+      gradient.addColorStop(0, '#050816');
+      gradient.addColorStop(0.5, '#030712');
+      gradient.addColorStop(1, '#070a16');
+      ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, width, height);
 
-      // Draw flowing gradient orbs
-      orbsRef.current.forEach((orb) => {
-        // Move orb towards target with smooth interpolation
-        orb.x += (orb.targetX - orb.x) * orb.speed;
-        orb.y += (orb.targetY - orb.y) * orb.speed;
-
-        // Mouse influence
-        const dx = mouseRef.current.x - orb.x;
-        const dy = mouseRef.current.y - orb.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 400) {
-          orb.x += dx * 0.01;
-          orb.y += dy * 0.01;
-        }
-
-        // Update target periodically
-        if (Math.random() < 0.002) {
-          orb.targetX = Math.random() * width;
-          orb.targetY = Math.random() * height;
-        }
-
-        // Draw gradient orb
-        const gradient = ctx.createRadialGradient(
-          orb.x, orb.y, 0,
-          orb.x, orb.y, orb.size
-        );
-        gradient.addColorStop(0, orb.color);
-        gradient.addColorStop(0.5, orb.color.replace(/[\d.]+\)$/, '0.2)'));
-        gradient.addColorStop(1, 'transparent');
-
-        ctx.fillStyle = gradient;
+      ctx.globalCompositeOperation = 'lighter';
+      ribbons.forEach((r, idx) => {
+        const g = ctx.createLinearGradient(0, 0, width, 0);
+        g.addColorStop(0, `hsla(${r.hue}, 85%, 62%, 0)`);
+        g.addColorStop(0.35, `hsla(${r.hue}, 90%, 62%, 0.18)`);
+        g.addColorStop(0.65, `hsla(${r.hue + 40}, 92%, 64%, 0.18)`);
+        g.addColorStop(1, `hsla(${r.hue + 60}, 85%, 62%, 0)`);
+        ctx.strokeStyle = g;
+        ctx.lineWidth = 110 - idx * 18;
+        ctx.shadowBlur = 80;
+        ctx.shadowColor = `hsla(${r.hue}, 90%, 62%, 0.28)`;
         ctx.beginPath();
-        ctx.arc(orb.x, orb.y, orb.size, 0, Math.PI * 2);
-        ctx.fill();
+        const baseY = height * (0.25 + idx * 0.18);
+        for (let x = -80; x <= width + 80; x += 40) {
+          const y = baseY + Math.sin(x * 0.006 + r.phase) * (height * 0.05) + Math.cos(x * 0.003 + r.seed) * (height * 0.03);
+          if (x === -80) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      });
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.shadowBlur = 0;
+    };
+
+    resize();
+
+    if (prefersReducedMotion) {
+      drawStatic();
+      return () => {
+        host.removeEventListener('pointermove', handlePointerMove);
+        host.removeEventListener('pointerenter', handlePointerEnter);
+        host.removeEventListener('pointerleave', handlePointerLeave);
+        host.removeEventListener('pointerdown', handlePointerDown);
+        window.removeEventListener('pointerup', handlePointerUp);
+        window.removeEventListener('pointercancel', handlePointerUp);
+      };
+    }
+
+    const ro = 'ResizeObserver' in window ? new ResizeObserver(() => resize()) : null;
+    ro?.observe(canvas);
+    window.addEventListener('resize', resize);
+
+    let lastFrame = performance.now();
+
+    const animate = (now: number) => {
+      const dt = Math.min(48, now - lastFrame);
+      lastFrame = now;
+
+      if (!pointer.active) {
+        pointer.targetX = width * 0.62 + Math.sin(now * 0.00035) * width * 0.06;
+        pointer.targetY = height * 0.42 + Math.cos(now * 0.0003) * height * 0.05;
+      }
+      pointer.x += (pointer.targetX - pointer.x) * 0.12;
+      pointer.y += (pointer.targetY - pointer.y) * 0.12;
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = baseGradient ?? '#030712';
+      ctx.fillRect(0, 0, width, height);
+      ctx.globalAlpha = 1;
+
+      const t = now;
+
+      ctx.globalCompositeOperation = 'lighter';
+      ribbons.forEach((r, idx) => {
+        const baseY = height * (0.22 + idx * 0.2) + Math.sin(t * 0.00025 + r.phase) * height * 0.04;
+        const g = ctx.createLinearGradient(0, 0, width, 0);
+        g.addColorStop(0, `hsla(${r.hue}, 90%, 62%, 0)`);
+        g.addColorStop(0.3, `hsla(${r.hue}, 95%, 64%, 0.14)`);
+        g.addColorStop(0.6, `hsla(${r.hue + 50}, 95%, 66%, 0.16)`);
+        g.addColorStop(1, `hsla(${r.hue + 80}, 90%, 62%, 0)`);
+        ctx.strokeStyle = g;
+        ctx.lineWidth = 120 - idx * 18;
+        ctx.shadowBlur = 90;
+        ctx.shadowColor = `hsla(${r.hue}, 95%, 62%, 0.22)`;
+        ctx.beginPath();
+        for (let x = -90; x <= width + 90; x += 38) {
+          const y =
+            baseY +
+            Math.sin(x * 0.006 + t * 0.00055 + r.phase) * (height * 0.055) +
+            Math.cos(x * 0.003 + t * 0.00042 + r.seed) * (height * 0.032) +
+            Math.sin(x * 0.0015 - t * 0.0006) * (height * 0.018);
+          if (x === -90) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
       });
 
-      // Draw and update particles
-      for (let i = particles.length - 1; i >= 0; i--) {
+      ctx.shadowBlur = 0;
+      ctx.lineCap = 'round';
+      for (let i = 0; i < particles.length; i += 1) {
         const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vy += 0.02; // gravity
-        p.life++;
+        p.px = p.x;
+        p.py = p.y;
 
-        const alpha = 1 - p.life / p.maxLife;
-        if (alpha <= 0) {
-          particles.splice(i, 1);
-          continue;
+        const { fx, fy } = fieldVector(p.x, p.y, t);
+        p.vx = p.vx * 0.86 + fx * (0.55 + dt * 0.008);
+        p.vy = p.vy * 0.86 + fy * (0.55 + dt * 0.008);
+
+        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        const maxSpeed = pointer.down ? 5.2 : 3.8;
+        if (speed > maxSpeed) {
+          p.vx = (p.vx / speed) * maxSpeed;
+          p.vy = (p.vy / speed) * maxSpeed;
         }
 
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
-        ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
-        ctx.fill();
-      }
+        p.x += p.vx;
+        p.y += p.vy;
 
-      // Draw grid lines with gradient
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
-      ctx.lineWidth = 1;
-      const gridSize = 60;
+        if (p.x < -60) p.x = width + 60;
+        if (p.x > width + 60) p.x = -60;
+        if (p.y < -60) p.y = height + 60;
+        if (p.y > height + 60) p.y = -60;
 
-      for (let x = 0; x < width; x += gridSize) {
+        const alpha = Math.min(0.22, 0.06 + speed * 0.035);
+        ctx.strokeStyle = `hsla(${p.hue + t * 0.01}, 92%, 70%, ${alpha})`;
+        ctx.lineWidth = p.w * (0.8 + speed * 0.12);
         ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-      for (let y = 0; y < height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.moveTo(p.px, p.py);
+        ctx.lineTo(p.x, p.y);
         ctx.stroke();
       }
 
+      for (let i = pulses.length - 1; i >= 0; i -= 1) {
+        const p = pulses[i];
+        const age = (t - p.startedAt) / 1000;
+        if (age > 1.4) {
+          pulses.splice(i, 1);
+          continue;
+        }
+        const radius = 80 + age * 520;
+        const alpha = Math.max(0, 1 - age / 1.4);
+        ctx.strokeStyle = `rgba(34, 211, 238, ${alpha * 0.18})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.globalCompositeOperation = 'source-over';
       animationId = requestAnimationFrame(animate);
     };
 
-    animate();
-
-    const handleResize = () => {
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', handleResize);
+    animationId = requestAnimationFrame(animate);
 
     return () => {
       cancelAnimationFrame(animationId);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('resize', handleResize);
+      ro?.disconnect();
+      window.removeEventListener('resize', resize);
+      host.removeEventListener('pointermove', handlePointerMove);
+      host.removeEventListener('pointerenter', handlePointerEnter);
+      host.removeEventListener('pointerleave', handlePointerLeave);
+      host.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
     };
   }, []);
 
@@ -298,40 +471,7 @@ export const LaikaProLandingPage = () => {
 
       {/* Hero Section with Parallax */}
       <section id="hero" data-animate ref={heroRef} className={styles.hero}>
-        <canvas ref={canvasRef} className={styles.canvasBackground} />
-
-        {/* Parallax floating elements */}
-        <div className={styles.parallaxLayers}>
-          <div
-            className={`${styles.parallaxLayer} ${styles.parallaxLayer1}`}
-            style={{ transform: `translateY(${scrollY * 0.3}px)` }}
-          />
-          <div
-            className={`${styles.parallaxLayer} ${styles.parallaxLayer2}`}
-            style={{ transform: `translateY(${scrollY * 0.5}px) rotate(${scrollY * 0.02}deg)` }}
-          />
-          <div
-            className={`${styles.parallaxLayer} ${styles.parallaxLayer3}`}
-            style={{ transform: `translateY(${scrollY * 0.2}px) scale(${1 + scrollY * 0.0002})` }}
-          />
-          <div
-            className={`${styles.parallaxLayer} ${styles.parallaxLayer4}`}
-            style={{ transform: `translateY(${scrollY * 0.4}px) translateX(${scrollY * 0.1}px)` }}
-          />
-          {/* Floating geometric shapes */}
-          <div
-            className={styles.floatingShape1}
-            style={{ transform: `translateY(${scrollY * -0.2}px) rotate(${45 + scrollY * 0.05}deg)` }}
-          />
-          <div
-            className={styles.floatingShape2}
-            style={{ transform: `translateY(${scrollY * -0.3}px) rotate(${-30 + scrollY * 0.03}deg)` }}
-          />
-          <div
-            className={styles.floatingShape3}
-            style={{ transform: `translateY(${scrollY * -0.15}px)` }}
-          />
-        </div>
+        <canvas ref={canvasRef} className={styles.canvasBackground} aria-hidden="true" />
 
         <div
           className={styles.heroContent}
@@ -360,7 +500,7 @@ export const LaikaProLandingPage = () => {
 
           <p className={styles.heroSubtitle}>
             The complete platform for managing enterprise transformation initiatives.
-            From stage gates to capacity planning — all in one place.
+            From stage gates to capacity planning - all in one place.
           </p>
 
           <div className={styles.heroCtas}>
@@ -372,6 +512,10 @@ export const LaikaProLandingPage = () => {
               Explore Features
               <ChevronDown size={18} />
             </button>
+          </div>
+
+          <div className={styles.heroHint}>
+            <span className={styles.heroHintKey}>Try it:</span> move your cursor to bend the flow · click to send a pulse
           </div>
 
           <div className={styles.heroStats}>
