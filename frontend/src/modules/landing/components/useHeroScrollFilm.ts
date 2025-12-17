@@ -47,7 +47,8 @@ const createNoise = (): Noise => {
 export const useHeroScrollFilm = (canvasRef: RefObject<HTMLCanvasElement>, hostRef: RefObject<HTMLElement>) => {
   useEffect(() => {
     const canvas = canvasRef.current;
-    const host = hostRef.current;
+    const hostCandidate = hostRef.current ?? canvas?.parentElement;
+    const host = hostCandidate instanceof HTMLElement ? hostCandidate : null;
     if (!canvas || !host) return;
 
     const ctx = canvas.getContext('2d');
@@ -65,9 +66,12 @@ export const useHeroScrollFilm = (canvasRef: RefObject<HTMLCanvasElement>, hostR
     const noise = createNoise();
 
     const resize = () => {
-      const rect = canvas.getBoundingClientRect();
-      width = Math.max(1, Math.floor(rect.width));
-      height = Math.max(1, Math.floor(rect.height));
+      const canvasRect = canvas.getBoundingClientRect();
+      const hostRect = host.getBoundingClientRect();
+      const nextW = canvasRect.width || hostRect.width;
+      const nextH = canvasRect.height || hostRect.height;
+      width = Math.max(1, Math.floor(nextW));
+      height = Math.max(1, Math.floor(nextH));
       dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
       canvas.width = Math.floor(width * dpr);
       canvas.height = Math.floor(height * dpr);
@@ -78,7 +82,8 @@ export const useHeroScrollFilm = (canvasRef: RefObject<HTMLCanvasElement>, hostR
     const computeT = () => {
       const rect = host.getBoundingClientRect();
       const vh = Math.max(1, window.innerHeight || 1);
-      const travel = Math.max(1, Math.min(rect.height, vh) * 0.9);
+      // Finish the "film" well before leaving the hero so the transition reads early.
+      const travel = Math.max(1, vh * 0.45);
       const t = clamp((-rect.top) / travel, 0, 1);
       return prefersReducedMotion ? 0 : t;
     };
@@ -134,9 +139,9 @@ export const useHeroScrollFilm = (canvasRef: RefObject<HTMLCanvasElement>, hostR
 
       // Background sky (subtle, restrained)
       const bg = ctx.createLinearGradient(0, 0, 0, height);
-      bg.addColorStop(0, hsl(228, 42, lerp(10, 12, warm), 1));
-      bg.addColorStop(0.5, hsl(224, 30, lerp(8, 10, warm), 1));
-      bg.addColorStop(1, hsl(220, 45, lerp(6, 7, warm), 1));
+      bg.addColorStop(0, hsl(228, 42, lerp(11, 13, warm), 1));
+      bg.addColorStop(0.5, hsl(224, 30, lerp(9, 11, warm), 1));
+      bg.addColorStop(1, hsl(220, 45, lerp(6.5, 7.5, warm), 1));
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
       ctx.fillStyle = bg;
@@ -147,8 +152,8 @@ export const useHeroScrollFilm = (canvasRef: RefObject<HTMLCanvasElement>, hostR
       ctx.globalCompositeOperation = 'lighter';
       const horizonGlow = ctx.createLinearGradient(0, horizonY - 80, 0, horizonY + 120);
       horizonGlow.addColorStop(0, 'rgba(0,0,0,0)');
-      horizonGlow.addColorStop(0.45, `rgba(245,158,11,${0.08 * warm})`);
-      horizonGlow.addColorStop(0.7, `rgba(34,211,238,${0.06 * cool})`);
+      horizonGlow.addColorStop(0.45, `rgba(245,158,11,${0.11 * warm})`);
+      horizonGlow.addColorStop(0.7, `rgba(34,211,238,${0.085 * cool})`);
       horizonGlow.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = horizonGlow;
       ctx.fillRect(0, horizonY - 140, width, 320);
@@ -175,19 +180,20 @@ export const useHeroScrollFilm = (canvasRef: RefObject<HTMLCanvasElement>, hostR
 
       // Sunrise -> bulb positions
       const sunriseX = width * 0.5;
-      const sunriseY = lerp(horizonY + 160, horizonY - 120, tSun);
+      const sunR = lerp(Math.min(width, height) * 0.15, Math.min(width, height) * 0.085, tBulb);
+      // Start with the sun already kissing the horizon so the effect is visible immediately.
+      const sunriseY = lerp(horizonY + sunR * 0.6, horizonY - 120, tSun);
       const bulbCx = width * 0.5;
       const bulbCy = height * 0.44;
       const sunX = lerp(sunriseX, bulbCx, tBulb);
       const sunY = lerp(sunriseY, bulbCy + height * 0.02, tBulb);
-      const sunR = lerp(Math.min(width, height) * 0.15, Math.min(width, height) * 0.085, tBulb);
 
       // Sun core + bloom
       ctx.globalCompositeOperation = 'lighter';
       const sunGlow = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, sunR * 3.2);
-      sunGlow.addColorStop(0, `rgba(255,255,255,${0.11 + tSun * 0.05})`);
-      sunGlow.addColorStop(0.18, `rgba(245,158,11,${0.16 * warm})`);
-      sunGlow.addColorStop(0.45, `rgba(34,211,238,${0.13 * cool})`);
+      sunGlow.addColorStop(0, `rgba(255,255,255,${0.14 + tSun * 0.06})`);
+      sunGlow.addColorStop(0.18, `rgba(245,158,11,${0.22 * warm})`);
+      sunGlow.addColorStop(0.45, `rgba(34,211,238,${0.16 * cool})`);
       sunGlow.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = sunGlow;
       ctx.beginPath();
@@ -205,7 +211,7 @@ export const useHeroScrollFilm = (canvasRef: RefObject<HTMLCanvasElement>, hostR
       ctx.fill();
 
       // Rays (stronger early, cleaner later)
-      const rayA = lerp(0.19, 0.06, tBulb) * lerp(1, 0.15, tBulb);
+      const rayA = lerp(0.24, 0.06, tBulb) * lerp(1, 0.12, tBulb);
       const rayCount = 56;
       const rayLen = Math.min(width, height) * lerp(0.72, 0.5, tBulb);
       ctx.save();

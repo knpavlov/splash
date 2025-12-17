@@ -700,14 +700,14 @@ export const LaikaProLandingPage = () => {
           <h1 className={styles.heroTitle} aria-label="Transformation - Lightened. Decision makers - enlightened.">
             <span className={styles.heroTitleSwap}>
               <span className={styles.heroTitleSizer} aria-hidden="true">
-                Decision makers <span className={styles.heroTitleDash}>{'\u2014'}</span>
+                Decision makers <span className={styles.heroTitleDash}>-</span>
                 <br />
                 enlightened
               </span>
 
               <span className={styles.heroTitlePrimary} aria-hidden="true">
                 <span className={styles.heroTitleLine}>
-                  Transformation <span className={styles.heroTitleDash}>{'\u2014'}</span>
+                  Transformation <span className={styles.heroTitleDash}>-</span>
                 </span>
                 <br />
                 <span className={styles.heroTitleAccent}>Lightened</span>
@@ -715,7 +715,7 @@ export const LaikaProLandingPage = () => {
 
               <span className={styles.heroTitleSecondary} aria-hidden="true">
                 <span className={styles.heroTitleLine}>
-                  Decision makers <span className={styles.heroTitleDash}>{'\u2014'}</span>
+                  Decision makers <span className={styles.heroTitleDash}>-</span>
                 </span>
                 <br />
                 <span className={styles.heroTitleAccent}>enlightened</span>

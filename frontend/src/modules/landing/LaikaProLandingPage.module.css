@@ -169,7 +169,7 @@
   height: 100%;
   z-index: 0;
   transform: translateZ(0);
-  filter: contrast(1.05) brightness(0.985);
+  filter: contrast(1.06) brightness(1.01) saturate(1.06);
 }
 
 /* Hero readability overlay */
@@ -180,8 +180,8 @@
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(900px 600px at 50% 25%, rgba(3, 7, 18, 0.04) 0%, rgba(3, 7, 18, 0.48) 70%, rgba(3, 7, 18, 0.86) 100%),
-    linear-gradient(180deg, rgba(3, 7, 18, 0.0) 0%, rgba(3, 7, 18, 0.18) 55%, rgba(3, 7, 18, 0.66) 100%);
+    radial-gradient(900px 600px at 50% 25%, rgba(3, 7, 18, 0.03) 0%, rgba(3, 7, 18, 0.36) 70%, rgba(3, 7, 18, 0.82) 100%),
+    linear-gradient(180deg, rgba(3, 7, 18, 0.0) 0%, rgba(3, 7, 18, 0.15) 55%, rgba(3, 7, 18, 0.64) 100%);
 }
 
 .heroTitleLine {
@@ -210,14 +210,14 @@
 .heroTitlePrimary {
   opacity: calc(1 - var(--hero-film));
   transform: translateY(calc(var(--hero-film) * -16px)) scale(calc(1 - var(--hero-film) * 0.01));
-  filter: blur(calc(var(--hero-film) * 5px));
+  filter: blur(calc(var(--hero-film) * 2.6px));
   will-change: opacity, transform, filter;
 }
 
 .heroTitleSecondary {
   opacity: var(--hero-film);
   transform: translateY(calc((1 - var(--hero-film)) * 16px)) scale(calc(0.99 + var(--hero-film) * 0.01));
-  filter: blur(calc((1 - var(--hero-film)) * 5px));
+  filter: blur(calc((1 - var(--hero-film)) * 2.6px));
   will-change: opacity, transform, filter;
 }
 
