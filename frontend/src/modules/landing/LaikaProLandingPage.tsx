@@ -740,7 +740,7 @@ export const LaikaProLandingPage = () => {
           </div>
 
           <div className={styles.heroHint}>
-            <span className={styles.heroHintKey}>Scroll to play:</span> sunrise turns into insight.
+            <span className={styles.heroHintKey}>Scroll to illuminate:</span> watch the sunrise become insight
           </div>
 
           <div className={styles.heroStats}>
@@ -761,12 +761,15 @@ export const LaikaProLandingPage = () => {
           </div>
         </div>
 
-        <div
-          className={styles.scrollIndicator}
-          onClick={() => scrollToSection('features')}
-          style={{ opacity: Math.max(0, 1 - scrollY / 200) }}
-        >
-          <ChevronDown size={24} />
+        {/* Film progress indicator */}
+        <div className={styles.filmProgressContainer}>
+          <div className={styles.filmProgressTrack}>
+            <div className={styles.filmProgressBar} />
+          </div>
+          <div className={styles.filmProgressLabel}>
+            <ChevronDown size={16} />
+            <span>Keep scrolling</span>
+          </div>
         </div>
       </section>
 
