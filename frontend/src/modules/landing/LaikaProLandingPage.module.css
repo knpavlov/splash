@@ -158,6 +158,7 @@
   background: #030712;
   isolation: isolate;
   --gradient-text: linear-gradient(135deg, #ffffff 0%, rgba(226, 232, 240, 0.92) 58%, rgba(34, 211, 238, 0.95) 100%);
+  --hero-film: 0;
 }
 
 .canvasBackground {
@@ -168,7 +169,7 @@
   height: 100%;
   z-index: 0;
   transform: translateZ(0);
-  filter: contrast(1.08) brightness(0.98);
+  filter: contrast(1.05) brightness(0.985);
 }
 
 /* Hero readability overlay */
@@ -179,13 +180,52 @@
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(900px 600px at 50% 25%, rgba(3, 7, 18, 0.06) 0%, rgba(3, 7, 18, 0.56) 70%, rgba(3, 7, 18, 0.88) 100%),
-    linear-gradient(180deg, rgba(3, 7, 18, 0.0) 0%, rgba(3, 7, 18, 0.22) 55%, rgba(3, 7, 18, 0.68) 100%);
+    radial-gradient(900px 600px at 50% 25%, rgba(3, 7, 18, 0.04) 0%, rgba(3, 7, 18, 0.48) 70%, rgba(3, 7, 18, 0.86) 100%),
+    linear-gradient(180deg, rgba(3, 7, 18, 0.0) 0%, rgba(3, 7, 18, 0.18) 55%, rgba(3, 7, 18, 0.66) 100%);
 }
 
 .heroTitleLine {
   display: inline-block;
   will-change: transform;
+}
+
+.heroTitleSwap {
+  position: relative;
+  display: inline-block;
+}
+
+.heroTitleSizer {
+  display: inline-block;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.heroTitlePrimary,
+.heroTitleSecondary {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.heroTitlePrimary {
+  opacity: calc(1 - var(--hero-film));
+  transform: translateY(calc(var(--hero-film) * -16px)) scale(calc(1 - var(--hero-film) * 0.01));
+  filter: blur(calc(var(--hero-film) * 5px));
+  will-change: opacity, transform, filter;
+}
+
+.heroTitleSecondary {
+  opacity: var(--hero-film);
+  transform: translateY(calc((1 - var(--hero-film)) * 16px)) scale(calc(0.99 + var(--hero-film) * 0.01));
+  filter: blur(calc((1 - var(--hero-film)) * 5px));
+  will-change: opacity, transform, filter;
+}
+
+.heroTitleDash {
+  display: inline-block;
+  opacity: 0.72;
+  margin-left: 0.12em;
+  transform: translateY(-0.06em);
 }
 
 .heroContent {

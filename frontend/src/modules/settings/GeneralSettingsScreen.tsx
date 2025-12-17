@@ -556,7 +556,7 @@ export const GeneralSettingsScreen = () => {
               aria-label={rolesCollapsed ? 'Expand workstream roles' : 'Collapse workstream roles'}
               onClick={() => setRolesCollapsed((prev) => !prev)}
             >
-              ▾
+              {'\u25BE'}
             </button>
             <div className={styles.cardHeaderLeft}>
               <p className={styles.cardEyebrow}>Access control</p>
@@ -616,7 +616,7 @@ export const GeneralSettingsScreen = () => {
                 aria-label={milestoneCollapsed ? 'Expand milestone types' : 'Collapse milestone types'}
                 onClick={() => setMilestoneCollapsed((prev) => !prev)}
               >
-                ▾
+                {'\u25BE'}
               </button>
               <div>
                 <p className={styles.cardEyebrow}>Plan module</p>
@@ -675,7 +675,7 @@ export const GeneralSettingsScreen = () => {
                 aria-label={riskCollapsed ? 'Expand risk categories' : 'Collapse risk categories'}
                 onClick={() => setRiskCollapsed((prev) => !prev)}
               >
-                ¢-?
+                {'\u25BE'}
               </button>
               <div>
                 <p className={styles.cardEyebrow}>Governance</p>
@@ -735,7 +735,7 @@ export const GeneralSettingsScreen = () => {
                 aria-label={periodCollapsed ? 'Expand period defaults' : 'Collapse period defaults'}
                 onClick={() => setPeriodCollapsed((prev) => !prev)}
               >
-                ▾
+                {'\u25BE'}
               </button>
               <div>
                 <p className={styles.cardEyebrow}>Planning window</p>
@@ -801,7 +801,7 @@ export const GeneralSettingsScreen = () => {
                 aria-label={statusCollapsed ? 'Expand reporting cadence' : 'Collapse reporting cadence'}
                 onClick={() => setStatusCollapsed((prev) => !prev)}
               >
-                ▾
+                {'\u25BE'}
               </button>
               <div>
                 <p className={styles.cardEyebrow}>Status reports</p>
@@ -901,7 +901,7 @@ export const GeneralSettingsScreen = () => {
                 aria-label={kpiCollapsed ? 'Expand KPI options' : 'Collapse KPI options'}
                 onClick={() => setKpiCollapsed((prev) => !prev)}
               >
-                ▾
+                {'\u25BE'}
               </button>
               <div>
                 <p className={styles.cardEyebrow}>KPI catalog</p>

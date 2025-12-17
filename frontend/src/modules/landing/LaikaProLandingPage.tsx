@@ -6,9 +6,11 @@ import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
 import { ReportingDemo, DemoView, VIEW_OPTIONS } from './components/ReportingDemo';
 import { ImplementationMonitoringDemo } from './components/ImplementationMonitoringDemo';
-import { useHeroLight3D } from './components/useHeroLight3D';
+import { useHeroScrollFilm } from './components/useHeroScrollFilm';
 import { apiRequest, ApiError } from '../../shared/api/httpClient';
 
+/* ---------------------------------------------------------------------------
+   PREVIOUS HERO (2D rays) pointer state — kept here for easy rollback.
 type HeroPointer = {
   x: number;
   y: number;
@@ -17,6 +19,7 @@ type HeroPointer = {
   active: boolean;
   down: boolean;
 };
+--------------------------------------------------------------------------- */
 
 export const LaikaProLandingPage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,7 +28,8 @@ export const LaikaProLandingPage = () => {
   const [activeNav, setActiveNav] = useState('hero');
   const [scrollProgress, setScrollProgress] = useState(0);
   const [scrollY, setScrollY] = useState(0);
-  const pointerRef = useRef<HeroPointer>({ x: 0, y: 0, targetX: 0, targetY: 0, active: false, down: false });
+  // PREVIOUS HERO (2D rays) pointer ref — kept for easy rollback.
+  // const pointerRef = useRef<HeroPointer>({ x: 0, y: 0, targetX: 0, targetY: 0, active: false, down: false });
   // Shared state for interactive demos
   const [demoTasks, setDemoTasks] = useState<DemoTask[]>(INITIAL_TASKS);
   const [activeReportingView, setActiveReportingView] = useState<DemoView>('pnl-tree');
@@ -199,7 +203,7 @@ export const LaikaProLandingPage = () => {
     return () => window.removeEventListener('scroll', handleParallax);
   }, []);
 
-  useHeroLight3D(canvasRef, heroRef, pointerRef);
+  useHeroScrollFilm(canvasRef, heroRef);
 
   /* ---------------------------------------------------------------------------
      PREVIOUS HERO (2D light rays / occluders) - preserved for easy rollback.
@@ -686,32 +690,42 @@ export const LaikaProLandingPage = () => {
 
         <div
           className={styles.heroContent}
-          style={{ transform: `translateY(${scrollY * 0.4}px)`, opacity: Math.max(0, 1 - scrollY / 600) }}
+          style={{ transform: `translateY(${scrollY * 0.22}px)`, opacity: Math.max(0, 1 - scrollY / 900) }}
         >
           <div className={styles.heroBadge}>
             <Zap size={14} />
             Enterprise-Ready Platform
           </div>
 
-          <h1 className={styles.heroTitle}>
-            <span
-              className={styles.heroTitleLine}
-              style={{ transform: `translateX(${scrollY * -0.1}px)` }}
-            >
-              Transformation
-            </span>
-            <br />
-            <span
-              className={styles.heroTitleAccent}
-              style={{ transform: `translateX(${scrollY * 0.15}px)` }}
-            >
-              Streamlined.
+          <h1 className={styles.heroTitle} aria-label="Transformation - Lightened. Decision makers - enlightened.">
+            <span className={styles.heroTitleSwap}>
+              <span className={styles.heroTitleSizer} aria-hidden="true">
+                Decision makers <span className={styles.heroTitleDash}>{'\u2014'}</span>
+                <br />
+                enlightened
+              </span>
+
+              <span className={styles.heroTitlePrimary} aria-hidden="true">
+                <span className={styles.heroTitleLine}>
+                  Transformation <span className={styles.heroTitleDash}>{'\u2014'}</span>
+                </span>
+                <br />
+                <span className={styles.heroTitleAccent}>Lightened</span>
+              </span>
+
+              <span className={styles.heroTitleSecondary} aria-hidden="true">
+                <span className={styles.heroTitleLine}>
+                  Decision makers <span className={styles.heroTitleDash}>{'\u2014'}</span>
+                </span>
+                <br />
+                <span className={styles.heroTitleAccent}>enlightened</span>
+              </span>
             </span>
           </h1>
 
           <p className={styles.heroSubtitle}>
-            The complete platform for managing enterprise transformation initiatives.
-            From stage gates to capacity planning - all in one place.
+            The end-to-end platform for steering enterprise transformation.
+            Clear stage gates, fast reporting, and execution insight in one place.
           </p>
 
           <div className={styles.heroCtas}>
@@ -726,7 +740,7 @@ export const LaikaProLandingPage = () => {
           </div>
 
           <div className={styles.heroHint}>
-            <span className={styles.heroHintKey}>Try it:</span> move your cursor to steer the light. Click to flare it, or hold to sharpen shadows.
+            <span className={styles.heroHintKey}>Scroll to play:</span> sunrise turns into insight.
           </div>
 
           <div className={styles.heroStats}>
