@@ -580,6 +580,12 @@ export const LaikaProLandingPage = () => {
           >
             Contact
           </span>
+          <a href="#/laiten/about" className={styles.navLink}>
+            About
+          </a>
+          <a href="#/laiten/careers" className={styles.navLink}>
+            Careers
+          </a>
         </nav>
         <button className={styles.loginButton} onClick={() => window.location.hash = ''}>
           Log in
@@ -983,7 +989,7 @@ export const LaikaProLandingPage = () => {
             </div>
           </div>
 
-          <a href="#" className={styles.changelogLink}>
+          <a href="#/laiten/whats-new" className={styles.changelogLink}>
             See what's new in Laiten <ArrowRight size={16} />
           </a>
         </div>
@@ -1342,12 +1348,13 @@ export const LaikaProLandingPage = () => {
               <span onClick={() => scrollToSection('feature-2')}>Reporting</span>
               <span onClick={() => scrollToSection('feature-3')}>Capacity Planning</span>
               <span onClick={() => scrollToSection('feature-4')}>Execution Monitoring</span>
+              <a href="#/laiten/whats-new">Release notes</a>
             </div>
             <div className={styles.footerLinkGroup}>
               <h4>Company</h4>
-              <span>About Us</span>
-              <span>Careers</span>
-              <span>Contact</span>
+              <a href="#/laiten/about">About Us</a>
+              <a href="#/laiten/careers">Careers</a>
+              <span onClick={() => scrollToSection('contact')}>Contact</span>
             </div>
             <div className={styles.footerLinkGroup}>
               <h4>Legal</h4>

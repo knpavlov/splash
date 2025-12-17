@@ -97,6 +97,7 @@
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
+  text-decoration: none;
   transition: color 0.2s ease;
   position: relative;
 }
@@ -1856,16 +1857,19 @@
   margin-bottom: 1.25rem;
 }
 
-.footerLinkGroup span {
+.footerLinkGroup span,
+.footerLinkGroup a {
   display: block;
   color: var(--color-text-muted);
   font-size: 0.95rem;
   cursor: pointer;
   margin-bottom: 0.75rem;
   transition: color 0.2s ease;
+  text-decoration: none;
 }
 
-.footerLinkGroup span:hover {
+.footerLinkGroup span:hover,
+.footerLinkGroup a:hover {
   color: var(--color-text);
 }
 

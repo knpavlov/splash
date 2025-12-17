@@ -22,11 +22,12 @@ import { InitiativeLogsScreen } from './modules/logs/InitiativeLogsScreen';
 import { ActivityScreen } from './modules/activity/ActivityScreen';
 import { TaigaLandingPage } from './modules/landing/TaigaLandingPage';
 import { LaikaLandingPage } from './modules/landing/LaikaLandingPage';
-import { LaikaProLandingPage } from './modules/landing/LaikaProLandingPage';
+import { LaitenSite, LaitenSiteView } from './modules/landing/LaitenSite';
 
 interface AppRoute {
   page: NavigationKey;
   initiative?: InitiativesViewRoute;
+  laiten?: { view: LaitenSiteView };
 }
 
 type NavigationItem = (typeof navigationItems)[number];
@@ -35,7 +36,8 @@ type NavigationItem = (typeof navigationItems)[number];
 
 const parseHash = (hash: string): AppRoute => {
   const normalized = hash.startsWith('#') ? hash.slice(1) : hash;
-  const trimmed = normalized.replace(/^\/+/, '').trim();
+  const [pathWithQuery] = normalized.split('#');
+  const trimmed = pathWithQuery.replace(/^\/+/, '').trim();
   if (!trimmed) {
     return { page: 'activity' };
   }
@@ -47,6 +49,18 @@ const parseHash = (hash: string): AppRoute => {
   const normalizedPage =
     rawPage === 'snapshot-settings' ? 'general-settings' : rawPage === 'laikapro' ? 'laiten' : rawPage;
   const page = navigationItems.find((item) => item.key === normalizedPage)?.key ?? 'workstreams';
+
+  if (page === 'laiten') {
+    const view: LaitenSiteView =
+      action === 'about'
+        ? 'about'
+        : action === 'careers'
+          ? 'careers'
+          : action === 'whats-new' || action === 'whatsnew' || action === 'updates'
+            ? 'whats-new'
+            : 'home';
+    return { page: 'laiten', laiten: { view } };
+  }
 
   if (page === 'initiatives') {
     if (action === 'new') {
@@ -76,6 +90,11 @@ const parseHash = (hash: string): AppRoute => {
 
 const buildHash = (route: AppRoute): string => {
 
+
+  if (route.page === 'laiten') {
+    const view = route.laiten?.view ?? 'home';
+    return view === 'home' ? '/laiten' : `/laiten/${view}`;
+  }
 
   if (route.page === 'initiatives') {
     const initiativeRoute = route.initiative ?? { mode: 'list' };
@@ -114,6 +133,12 @@ const buildHash = (route: AppRoute): string => {
 const routesEqual = (a: AppRoute, b: AppRoute) => {
   if (a.page !== b.page) {
     return false;
+  }
+
+  if (a.page === 'laiten') {
+    const left = a.laiten?.view ?? 'home';
+    const right = b.laiten?.view ?? 'home';
+    return left === right;
   }
 
   if (a.page === 'initiatives') {
@@ -235,7 +260,7 @@ const AppContent = () => {
   }
 
   if (route.page === 'laiten') {
-    return <LaikaProLandingPage />;
+    return <LaitenSite view={route.laiten?.view ?? 'home'} />;
   }
 
   if (!session) {
