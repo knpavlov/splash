@@ -1029,6 +1029,24 @@ const createTables = async () => {
     VALUES (1, FALSE, 60, 'Australia/Sydney', 19, 0, '[]'::jsonb)
     ON CONFLICT (id) DO NOTHING;
   `);
+
+  await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS landing_inquiries (
+      id UUID PRIMARY KEY,
+      intent TEXT NOT NULL,
+      seats INTEGER NOT NULL,
+      annual_billing BOOLEAN NOT NULL DEFAULT TRUE,
+      contact_name TEXT NOT NULL,
+      contact_email TEXT NOT NULL,
+      company TEXT,
+      message TEXT,
+      meta JSONB,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  await postgresPool.query(`CREATE INDEX IF NOT EXISTS landing_inquiries_created_at_idx ON landing_inquiries (created_at DESC);`);
+  await postgresPool.query(`CREATE INDEX IF NOT EXISTS landing_inquiries_email_idx ON landing_inquiries (contact_email);`);
 };
 
 const syncSuperAdmin = async () => {

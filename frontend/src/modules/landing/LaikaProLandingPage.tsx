@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import styles from './LaikaProLandingPage.module.css';
-import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarChart3, Sparkles, Calendar } from 'lucide-react';
+import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarChart3, Sparkles, Calendar, X } from 'lucide-react';
 import { InteractivePlanDemo, DemoTask, INITIAL_TASKS } from './components/InteractivePlanDemo';
 import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
 import { ReportingDemo, DemoView, VIEW_OPTIONS } from './components/ReportingDemo';
 import { ImplementationMonitoringDemo } from './components/ImplementationMonitoringDemo';
+import { apiRequest, ApiError } from '../../shared/api/httpClient';
 
 type HeroPointer = {
   x: number;
@@ -27,6 +28,123 @@ export const LaikaProLandingPage = () => {
   // Shared state for interactive demos
   const [demoTasks, setDemoTasks] = useState<DemoTask[]>(INITIAL_TASKS);
   const [activeReportingView, setActiveReportingView] = useState<DemoView>('pnl-tree');
+  const [pricingSeats, setPricingSeats] = useState(150);
+  const [pricingContactOpen, setPricingContactOpen] = useState<null | 'sales' | 'card'>(null);
+  const [pricingContactStatus, setPricingContactStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [pricingContactError, setPricingContactError] = useState<string>('');
+  const [pricingContactId, setPricingContactId] = useState<string>('');
+  const [pricingContactForm, setPricingContactForm] = useState<{
+    name: string;
+    email: string;
+    company: string;
+    message: string;
+  }>({
+    name: '',
+    email: '',
+    company: '',
+    message: ''
+  });
+
+  const pricingTiers = [
+    { minSeats: 50, maxSeats: 200, monthlyPerSeat: 50 },
+    { minSeats: 250, maxSeats: 500, monthlyPerSeat: 45 },
+    { minSeats: 550, maxSeats: 1000, monthlyPerSeat: 40 },
+    { minSeats: 1050, maxSeats: 2000, monthlyPerSeat: 35 }
+  ] as const;
+
+  const annualDiscount = 0.2;
+  const activePricingTier = pricingTiers.find((t) => pricingSeats >= t.minSeats && pricingSeats <= t.maxSeats) ?? pricingTiers[0];
+  const monthlyPerSeat = activePricingTier.monthlyPerSeat;
+  const annualPerSeatMonthly = Math.round(monthlyPerSeat * (1 - annualDiscount));
+  const estimatedMonthly = annualPerSeatMonthly * pricingSeats;
+  const estimatedAnnual = estimatedMonthly * 12;
+
+  const formatUsd = (value: number) => {
+    return `$${value.toLocaleString('en-US')}`;
+  };
+
+  useEffect(() => {
+    if (!pricingContactOpen) {
+      setPricingContactStatus('idle');
+      setPricingContactError('');
+      setPricingContactId('');
+      return;
+    }
+
+    setPricingContactStatus('idle');
+    setPricingContactError('');
+    setPricingContactId('');
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPricingContactOpen(null);
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [pricingContactOpen]);
+
+  const submitPricingContact = useCallback(async () => {
+    setPricingContactStatus('submitting');
+    setPricingContactError('');
+    setPricingContactId('');
+
+    const payload = {
+      intent: pricingContactOpen ?? 'sales',
+      seats: pricingSeats,
+      annualBilling: true,
+      annualDiscountPercent: Math.round(annualDiscount * 100),
+      pricing: {
+        tier: { minSeats: activePricingTier.minSeats, maxSeats: activePricingTier.maxSeats },
+        monthlyPerSeat,
+        annualPerSeatMonthly
+      },
+      contact: {
+        name: pricingContactForm.name.trim(),
+        email: pricingContactForm.email.trim(),
+        company: pricingContactForm.company.trim(),
+        message: pricingContactForm.message.trim()
+      },
+      page: { path: window.location.hash || window.location.pathname || '/' }
+    };
+
+    try {
+      const result = await apiRequest<{ id: string }>('/landing/inquiries', {
+        method: 'POST',
+        body: payload
+      });
+      setPricingContactId(result.id);
+      setPricingContactStatus('success');
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setPricingContactError(error.message || 'Failed to submit.');
+      } else if (error instanceof Error) {
+        setPricingContactError(error.message || 'Failed to submit.');
+      } else {
+        setPricingContactError('Failed to submit.');
+      }
+      setPricingContactStatus('error');
+    }
+  }, [
+    activePricingTier.maxSeats,
+    activePricingTier.minSeats,
+    annualDiscount,
+    annualPerSeatMonthly,
+    monthlyPerSeat,
+    pricingContactForm.company,
+    pricingContactForm.email,
+    pricingContactForm.message,
+    pricingContactForm.name,
+    pricingContactOpen,
+    pricingSeats
+  ]);
 
   // Intersection Observer for animations
   useEffect(() => {
@@ -876,20 +994,73 @@ export const LaikaProLandingPage = () => {
         <div className={styles.pricingHeader}>
           <h2 className={styles.sectionTitle}>Simple, Transparent Pricing</h2>
           <p className={styles.sectionSubtitle}>
-            One plan, all features included. Volume discounts applied automatically.
+            One subscription. Pricing is determined by seat count - volume discounts apply automatically.
           </p>
         </div>
 
         <div className={`${styles.pricingCard} ${visibleSections['pricing'] ? styles.visible : ''}`}>
           <div className={styles.pricingCardHeader}>
-            <div className={styles.pricingBadge}>Most Popular</div>
-            <h3 className={styles.pricingPlanName}>Enterprise</h3>
+            <div className={styles.pricingBadge}>Annual billing</div>
+            <h3 className={styles.pricingPlanName}>One plan. Priced by seats.</h3>
+
+            <div className={styles.pricingSeats}>
+              <div className={styles.pricingSeatsRow}>
+                <div className={styles.pricingSeatsLabel}>Seats</div>
+                <div className={styles.pricingSeatsControls}>
+                  <button
+                    type="button"
+                    className={styles.pricingSeatBtn}
+                    onClick={() => setPricingSeats((prev) => Math.max(50, prev - 50))}
+                    aria-label="Decrease seats"
+                  >
+                    -50
+                  </button>
+                  <div className={styles.pricingSeatsValue}>{pricingSeats.toLocaleString('en-US')}</div>
+                  <button
+                    type="button"
+                    className={styles.pricingSeatBtn}
+                    onClick={() => setPricingSeats((prev) => Math.min(2000, prev + 50))}
+                    aria-label="Increase seats"
+                  >
+                    +50
+                  </button>
+                </div>
+              </div>
+
+              <input
+                className={styles.pricingSeatSlider}
+                type="range"
+                min={50}
+                max={2000}
+                step={50}
+                value={pricingSeats}
+                onChange={(e) => setPricingSeats(Number(e.target.value))}
+                aria-label="Seat count"
+              />
+
+              <div className={styles.pricingTierNote}>
+                Tier: {activePricingTier.minSeats.toLocaleString('en-US')}-{activePricingTier.maxSeats.toLocaleString('en-US')} seats ·{' '}
+                {formatUsd(annualPerSeatMonthly)} / seat / month billed annually
+              </div>
+            </div>
+
             <div className={styles.pricingPrice}>
               <span className={styles.pricingCurrency}>$</span>
-              <span className={styles.pricingAmount}>49</span>
-              <span className={styles.pricingPeriod}>/ user / month</span>
+              <span className={styles.pricingAmount}>{annualPerSeatMonthly}</span>
+              <span className={styles.pricingPeriod}>/ seat / month</span>
             </div>
-            <p className={styles.pricingNote}>Volume discounts available for 50+ users</p>
+            <div className={styles.pricingMeta}>
+              <span className={styles.pricingMetaPrimary}>Billed annually · Save {Math.round(annualDiscount * 100)}%</span>
+              <span className={styles.pricingMetaSecondary}>
+                Equivalent to {formatUsd(monthlyPerSeat)} / seat / month on monthly billing
+              </span>
+            </div>
+            <p className={styles.pricingNote}>
+              Estimated total: <strong>{formatUsd(estimatedMonthly)}</strong> / month · {formatUsd(estimatedAnnual)} billed yearly
+            </p>
+            <p className={styles.pricingNote}>
+              Pay by card instantly, or work with Sales for invoicing and procurement.
+            </p>
           </div>
 
           <div className={styles.pricingFeatures}>
@@ -946,13 +1117,172 @@ export const LaikaProLandingPage = () => {
             </div>
           </div>
 
-          <button className={styles.pricingCta} onClick={() => scrollToSection('contact')}>
-            Start Free Trial
-            <ArrowRight size={18} />
-          </button>
+          <div className={styles.pricingCtaRow}>
+            <button className={styles.pricingCtaPrimary} type="button" onClick={() => setPricingContactOpen('card')}>
+              Pay by card
+              <ArrowRight size={18} />
+            </button>
+            <button className={styles.pricingCtaSecondary} type="button" onClick={() => setPricingContactOpen('sales')}>
+              Contact Sales
+              <ArrowRight size={18} />
+            </button>
+          </div>
         </div>
 
       </section>
+
+      {pricingContactOpen && (
+        <div
+          className={styles.modalOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-label={pricingContactOpen === 'sales' ? 'Contact sales form' : 'Card checkout form'}
+          onMouseDown={() => setPricingContactOpen(null)}
+        >
+          <div className={styles.modal} onMouseDown={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div>
+                <h3 className={styles.modalTitle}>{pricingContactOpen === 'sales' ? 'Contact Sales' : 'Pay by card'}</h3>
+                <p className={styles.modalSubtitle}>
+                  {pricingContactOpen === 'sales'
+                    ? 'Share your details and we will reach out with a quote and procurement options.'
+                    : 'In this demo we will collect your request and send a secure checkout link.'}
+                </p>
+              </div>
+              <button className={styles.modalClose} type="button" onClick={() => setPricingContactOpen(null)} aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className={styles.modalBody}>
+              <div className={styles.modalSummary}>
+                <div className={styles.modalSummaryRow}>
+                  <span className={styles.modalSummaryLabel}>Seats</span>
+                  <div className={styles.modalSeatsControls}>
+                    <button
+                      type="button"
+                      className={styles.modalSeatBtn}
+                      onClick={() => setPricingSeats((prev) => Math.max(50, prev - 50))}
+                      aria-label="Decrease seats"
+                    >
+                      -50
+                    </button>
+                    <span className={styles.modalSeatsValue}>{pricingSeats.toLocaleString('en-US')}</span>
+                    <button
+                      type="button"
+                      className={styles.modalSeatBtn}
+                      onClick={() => setPricingSeats((prev) => Math.min(2000, prev + 50))}
+                      aria-label="Increase seats"
+                    >
+                      +50
+                    </button>
+                  </div>
+                </div>
+                <div className={styles.modalSummaryRow}>
+                  <span className={styles.modalSummaryLabel}>Price</span>
+                  <span className={styles.modalSummaryValue}>
+                    {formatUsd(annualPerSeatMonthly)} / seat / month · billed annually ({Math.round(annualDiscount * 100)}% off)
+                  </span>
+                </div>
+                <div className={styles.modalSummaryRow}>
+                  <span className={styles.modalSummaryLabel}>Estimated</span>
+                  <span className={styles.modalSummaryValue}>
+                    {formatUsd(estimatedMonthly)} / month · {formatUsd(estimatedAnnual)} / year
+                  </span>
+                </div>
+              </div>
+
+              <form
+                className={styles.modalForm}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void submitPricingContact();
+                }}
+              >
+                <div className={styles.modalGrid}>
+                  <label className={styles.modalField}>
+                    <span className={styles.modalLabel}>Full name</span>
+                    <input
+                      className={styles.modalInput}
+                      value={pricingContactForm.name}
+                      onChange={(e) => setPricingContactForm((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="Jane Doe"
+                      required
+                    />
+                  </label>
+
+                  <label className={styles.modalField}>
+                    <span className={styles.modalLabel}>Work email</span>
+                    <input
+                      className={styles.modalInput}
+                      value={pricingContactForm.email}
+                      onChange={(e) => setPricingContactForm((prev) => ({ ...prev, email: e.target.value }))}
+                      placeholder="jane@company.com"
+                      type="email"
+                      required
+                    />
+                  </label>
+
+                  {pricingContactOpen === 'sales' && (
+                    <label className={styles.modalField}>
+                      <span className={styles.modalLabel}>Company</span>
+                      <input
+                        className={styles.modalInput}
+                        value={pricingContactForm.company}
+                        onChange={(e) => setPricingContactForm((prev) => ({ ...prev, company: e.target.value }))}
+                        placeholder="Company, Inc."
+                        required
+                      />
+                    </label>
+                  )}
+
+                  <label className={`${styles.modalField} ${styles.modalFieldFull}`}>
+                    <span className={styles.modalLabel}>
+                      {pricingContactOpen === 'sales' ? 'Notes for Sales' : 'Notes'}
+                    </span>
+                    <textarea
+                      className={styles.modalTextarea}
+                      value={pricingContactForm.message}
+                      onChange={(e) => setPricingContactForm((prev) => ({ ...prev, message: e.target.value }))}
+                      placeholder={
+                        pricingContactOpen === 'sales'
+                          ? 'Preferred procurement flow, SSO requirements, timelines, etc.'
+                          : 'Anything we should know before sending a checkout link?'
+                      }
+                      rows={3}
+                    />
+                  </label>
+                </div>
+
+                {pricingContactStatus === 'error' && <div className={styles.modalError}>{pricingContactError}</div>}
+                {pricingContactStatus === 'success' && (
+                  <div className={styles.modalSuccess}>
+                    Submitted successfully. Reference id: <span className={styles.modalCode}>{pricingContactId}</span>
+                  </div>
+                )}
+
+                <div className={styles.modalActions}>
+                  <button
+                    className={styles.modalSubmit}
+                    type="submit"
+                    disabled={pricingContactStatus === 'submitting' || pricingContactStatus === 'success'}
+                  >
+                    {pricingContactStatus === 'submitting'
+                      ? 'Submitting...'
+                      : pricingContactOpen === 'sales'
+                        ? 'Submit to Sales'
+                        : 'Request checkout link'}
+                    <ArrowRight size={18} />
+                  </button>
+                  <button className={styles.modalCancel} type="button" onClick={() => setPricingContactOpen(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Contact Section */}
       <section id="contact" data-animate className={styles.contactSection}>

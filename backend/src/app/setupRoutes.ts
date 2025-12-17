@@ -19,6 +19,7 @@ import { snapshotsRouter } from '../modules/snapshots/snapshots.router.js';
 import { initiativeLogsRouter } from '../modules/logs/initiativeLogs.router.js';
 import { activityRouter } from '../modules/activity/activity.router.js';
 import { financialDynamicsRouter } from '../modules/financialDynamics/financialDynamics.router.js';
+import { landingRouter } from '../modules/landing/landing.router.js';
 
 export const registerAppRoutes = (app: Application) => {
   // TODO: add middleware for authentication and request logging
@@ -42,4 +43,5 @@ export const registerAppRoutes = (app: Application) => {
   app.use('/initiative-logs', initiativeLogsRouter);
   app.use('/activity', activityRouter);
   app.use('/demo', demoRouter);
+  app.use('/landing', landingRouter);
 };
