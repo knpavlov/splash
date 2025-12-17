@@ -6,7 +6,7 @@ import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
 import { ReportingDemo, DemoView, VIEW_OPTIONS } from './components/ReportingDemo';
 import { ImplementationMonitoringDemo } from './components/ImplementationMonitoringDemo';
-import { useHeroScrollFilm } from './components/useHeroScrollFilm';
+import { useHeroLightenSpotlights } from './components/useHeroLightenSpotlights';
 import { apiRequest, ApiError } from '../../shared/api/httpClient';
 
 /* ---------------------------------------------------------------------------
@@ -203,7 +203,7 @@ export const LaikaProLandingPage = () => {
     return () => window.removeEventListener('scroll', handleParallax);
   }, []);
 
-  useHeroScrollFilm(canvasRef, heroRef);
+  useHeroLightenSpotlights(canvasRef, heroRef);
 
   /* ---------------------------------------------------------------------------
      PREVIOUS HERO (2D light rays / occluders) - preserved for easy rollback.
@@ -697,30 +697,12 @@ export const LaikaProLandingPage = () => {
             Enterprise-Ready Platform
           </div>
 
-          <h1 className={styles.heroTitle} aria-label="Transformation - Lightened. Decision makers - enlightened.">
-            <span className={styles.heroTitleSwap}>
-              <span className={styles.heroTitleSizer} aria-hidden="true">
-                Decision makers <span className={styles.heroTitleDash}>-</span>
-                <br />
-                enlightened
-              </span>
-
-              <span className={styles.heroTitlePrimary} aria-hidden="true">
-                <span className={styles.heroTitleLine}>
-                  Transformation <span className={styles.heroTitleDash}>-</span>
-                </span>
-                <br />
-                <span className={styles.heroTitleAccent}>Lightened</span>
-              </span>
-
-              <span className={styles.heroTitleSecondary} aria-hidden="true">
-                <span className={styles.heroTitleLine}>
-                  Decision makers <span className={styles.heroTitleDash}>-</span>
-                </span>
-                <br />
-                <span className={styles.heroTitleAccent}>enlightened</span>
-              </span>
+          <h1 className={styles.heroTitle} aria-label="Transformation - Lightened.">
+            <span className={styles.heroTitleLine}>
+              Transformation <span className={styles.heroTitleDash}>-</span>
             </span>
+            <br />
+            <span className={styles.heroTitleAccent}>Lightened</span>
           </h1>
 
           <p className={styles.heroSubtitle}>
@@ -740,7 +722,7 @@ export const LaikaProLandingPage = () => {
           </div>
 
           <div className={styles.heroHint}>
-            <span className={styles.heroHintKey}>Scroll to illuminate:</span> watch the sunrise become insight
+            <span className={styles.heroHintKey}>Illuminate:</span> move & scroll to explore light and shadow
           </div>
 
           <div className={styles.heroStats}>
@@ -761,15 +743,19 @@ export const LaikaProLandingPage = () => {
           </div>
         </div>
 
-        {/* Film progress indicator */}
-        <div className={styles.filmProgressContainer}>
-          <div className={styles.filmProgressTrack}>
-            <div className={styles.filmProgressBar} />
-          </div>
-          <div className={styles.filmProgressLabel}>
-            <ChevronDown size={16} />
-            <span>Keep scrolling</span>
-          </div>
+        <div
+          className={styles.scrollIndicator}
+          onClick={() => scrollToSection('features')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              scrollToSection('features');
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <ChevronDown size={22} />
         </div>
       </section>
 
