@@ -6,6 +6,7 @@ import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
 import { ReportingDemo, DemoView, VIEW_OPTIONS } from './components/ReportingDemo';
 import { ImplementationMonitoringDemo } from './components/ImplementationMonitoringDemo';
+import { useHeroLight3D } from './components/useHeroLight3D';
 import { apiRequest, ApiError } from '../../shared/api/httpClient';
 
 type HeroPointer = {
@@ -19,7 +20,7 @@ type HeroPointer = {
 
 export const LaikaProLandingPage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const heroRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
   const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>({});
   const [activeNav, setActiveNav] = useState('hero');
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -198,6 +199,11 @@ export const LaikaProLandingPage = () => {
     return () => window.removeEventListener('scroll', handleParallax);
   }, []);
 
+  useHeroLight3D(canvasRef, heroRef, pointerRef);
+
+  /* ---------------------------------------------------------------------------
+     PREVIOUS HERO (2D light rays / occluders) - preserved for easy rollback.
+     ---------------------------------------------------------------------------
   // Hero Canvas Animation - Light rays through geometric occluders ("Laiten" = light)
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -612,6 +618,7 @@ export const LaikaProLandingPage = () => {
       window.removeEventListener('pointercancel', handlePointerUp);
     };
   }, []);
+  --------------------------------------------------------------------------- */
 
   const scrollToSection = useCallback((id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -719,7 +726,7 @@ export const LaikaProLandingPage = () => {
           </div>
 
           <div className={styles.heroHint}>
-            <span className={styles.heroHintKey}>Try it:</span> move your cursor to steer the light. Click to send a pulse.
+            <span className={styles.heroHintKey}>Try it:</span> move your cursor to steer the light. Click to flare it, or hold to sharpen shadows.
           </div>
 
           <div className={styles.heroStats}>
