@@ -198,7 +198,7 @@ export const LaikaProLandingPage = () => {
     return () => window.removeEventListener('scroll', handleParallax);
   }, []);
 
-  // Hero Canvas Animation - Interactive Aurora Flow Field
+  // Hero Canvas Animation - Light rays through geometric occluders ("Laiten" = light)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -210,48 +210,89 @@ export const LaikaProLandingPage = () => {
     const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
     const pointer = pointerRef.current;
 
-    type Particle = {
-      x: number;
-      y: number;
-      px: number;
-      py: number;
-      vx: number;
-      vy: number;
-      hue: number;
-      w: number;
-    };
+    type Point = { x: number; y: number };
+    type Segment = { a: Point; b: Point; kind: 'occluder' | 'frame' };
 
     type Pulse = { x: number; y: number; startedAt: number; strength: number };
     const pulses: Pulse[] = [];
 
-    const ribbons = Array.from({ length: 3 }, (_, i) => ({
-      seed: Math.random() * 10_000,
-      phase: Math.random() * Math.PI * 2,
-      hue: 200 + i * 70 + Math.random() * 10
-    }));
-
-    const particles: Particle[] = [];
-    const spawnParticle = (x: number, y: number, burst = false) => {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = burst ? 2.4 + Math.random() * 2.2 : 0.6 + Math.random() * 1.4;
-      const hue = 200 + Math.random() * 120;
-      particles.push({
-        x,
-        y,
-        px: x,
-        py: y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        hue,
-        w: 0.8 + Math.random() * 1.8
-      });
-    };
+    type Occluder = { points: Point[]; fill: string; stroke: string; glow?: string };
+    let occluders: Occluder[] = [];
+    let segments: Segment[] = [];
 
     let width = 1;
     let height = 1;
     let dpr = 1;
     let canvasRect = canvas.getBoundingClientRect();
     let baseGradient: CanvasGradient | null = null;
+    let maxDist = 1;
+
+    const addPolySegments = (poly: Point[], kind: Segment['kind']) => {
+      for (let i = 0; i < poly.length; i += 1) {
+        const a = poly[i];
+        const b = poly[(i + 1) % poly.length];
+        segments.push({ a, b, kind });
+      }
+    };
+
+    const buildOccluders = () => {
+      const p = (nx: number, ny: number): Point => ({ x: nx * width, y: ny * height });
+
+      const lMonogram: Point[] = [
+        p(0.345, 0.23),
+        p(0.485, 0.23),
+        p(0.505, 0.25),
+        p(0.505, 0.56),
+        p(0.675, 0.56),
+        p(0.695, 0.58),
+        p(0.695, 0.705),
+        p(0.675, 0.725),
+        p(0.345, 0.725),
+        p(0.325, 0.705),
+        p(0.325, 0.25)
+      ];
+
+      const prism1: Point[] = [
+        p(0.58, 0.285),
+        p(0.76, 0.39),
+        p(0.64, 0.52),
+        p(0.50, 0.42)
+      ];
+
+      const prism2: Point[] = [
+        p(0.52, 0.44),
+        p(0.64, 0.56),
+        p(0.55, 0.70),
+        p(0.42, 0.60)
+      ];
+
+      const shardA: Point[] = [p(0.18, 0.34), p(0.30, 0.27), p(0.34, 0.36), p(0.24, 0.44)];
+      const shardB: Point[] = [p(0.78, 0.64), p(0.90, 0.60), p(0.88, 0.74), p(0.77, 0.75)];
+
+      const slat1: Point[] = [p(0.14, 0.62), p(0.36, 0.54), p(0.38, 0.58), p(0.16, 0.66)];
+      const slat2: Point[] = [p(0.62, 0.18), p(0.92, 0.27), p(0.90, 0.31), p(0.60, 0.22)];
+
+      occluders = [
+        {
+          points: lMonogram,
+          fill: 'rgba(2, 6, 23, 0.72)',
+          stroke: 'rgba(255, 255, 255, 0.06)',
+          glow: 'rgba(34, 211, 238, 0.10)'
+        },
+        { points: prism1, fill: 'rgba(2, 6, 23, 0.55)', stroke: 'rgba(255, 255, 255, 0.05)', glow: 'rgba(139, 92, 246, 0.10)' },
+        { points: prism2, fill: 'rgba(2, 6, 23, 0.50)', stroke: 'rgba(255, 255, 255, 0.05)', glow: 'rgba(236, 72, 153, 0.08)' },
+        { points: shardA, fill: 'rgba(2, 6, 23, 0.48)', stroke: 'rgba(255, 255, 255, 0.04)' },
+        { points: shardB, fill: 'rgba(2, 6, 23, 0.48)', stroke: 'rgba(255, 255, 255, 0.04)' },
+        { points: slat1, fill: 'rgba(2, 6, 23, 0.42)', stroke: 'rgba(255, 255, 255, 0.035)' },
+        { points: slat2, fill: 'rgba(2, 6, 23, 0.42)', stroke: 'rgba(255, 255, 255, 0.035)' }
+      ];
+
+      segments = [];
+      // Canvas frame stops rays cleanly.
+      const frame: Point[] = [p(0, 0), p(1, 0), p(1, 1), p(0, 1)];
+      addPolySegments(frame, 'frame');
+      occluders.forEach((o) => addPolySegments(o.points, 'occluder'));
+    };
 
     const resize = () => {
       canvasRect = canvas.getBoundingClientRect();
@@ -271,20 +312,14 @@ export const LaikaProLandingPage = () => {
       ctx.fillStyle = baseGradient;
       ctx.fillRect(0, 0, width, height);
       ctx.globalAlpha = 1;
+      maxDist = Math.sqrt(width * width + height * height);
+      buildOccluders();
 
       if (!pointer.x && !pointer.y) {
-        pointer.x = width * 0.62;
-        pointer.y = height * 0.42;
+        pointer.x = width * 0.27;
+        pointer.y = height * 0.34;
         pointer.targetX = pointer.x;
         pointer.targetY = pointer.y;
-      }
-
-      const desired = Math.min(260, Math.max(120, Math.floor((width * height) / 6500)));
-      while (particles.length < desired) {
-        spawnParticle(Math.random() * width, Math.random() * height);
-      }
-      if (particles.length > desired) {
-        particles.splice(desired);
       }
     };
 
@@ -308,9 +343,6 @@ export const LaikaProLandingPage = () => {
       updatePointerTarget(event);
       pointer.down = true;
       pulses.push({ x: pointer.targetX, y: pointer.targetY, startedAt: performance.now(), strength: 1 });
-      for (let i = 0; i < 26; i += 1) {
-        spawnParticle(pointer.targetX + (Math.random() - 0.5) * 18, pointer.targetY + (Math.random() - 0.5) * 18, true);
-      }
     };
     const handlePointerUp = () => {
       pointer.down = false;
@@ -323,80 +355,95 @@ export const LaikaProLandingPage = () => {
     window.addEventListener('pointerup', handlePointerUp, { passive: true });
     window.addEventListener('pointercancel', handlePointerUp, { passive: true });
 
-    const fieldVector = (x: number, y: number, t: number) => {
-      const nx = x * 0.0018;
-      const ny = y * 0.0018;
-      const base =
-        Math.sin(nx * 1.9 + t * 0.75) +
-        Math.cos(ny * 2.2 - t * 0.62) +
-        Math.sin((nx + ny) * 1.1 - t * 0.48) +
-        Math.cos((nx - ny) * 1.3 + t * 0.35);
+    const intersectRaySegment = (origin: Point, dir: Point, seg: Segment) => {
+      const r_px = origin.x;
+      const r_py = origin.y;
+      const r_dx = dir.x;
+      const r_dy = dir.y;
 
-      let angle = base * Math.PI;
-      let fx = Math.cos(angle);
-      let fy = Math.sin(angle);
+      const s_px = seg.a.x;
+      const s_py = seg.a.y;
+      const s_dx = seg.b.x - seg.a.x;
+      const s_dy = seg.b.y - seg.a.y;
 
-      const dx = x - pointer.x;
-      const dy = y - pointer.y;
-      const dist2 = dx * dx + dy * dy;
-      if (pointer.active && dist2 < 420_000) {
-        const inv = 1 / Math.sqrt(dist2 + 1);
-        const spin = (pointer.down ? 2.0 : 1.25) * (1 / (1 + dist2 / 90_000));
-        fx += (-dy * inv) * spin;
-        fy += (dx * inv) * spin;
-      }
+      const denom = r_dx * s_dy - r_dy * s_dx;
+      if (Math.abs(denom) < 1e-6) return null;
 
-      for (let i = 0; i < pulses.length; i += 1) {
-        const p = pulses[i];
-        const age = (t - p.startedAt) / 1000;
-        if (age > 1.4) continue;
-        const radius = 80 + age * 420;
-        const pdx = x - p.x;
-        const pdy = y - p.y;
-        const d = Math.sqrt(pdx * pdx + pdy * pdy);
-        const band = Math.max(0, 1 - Math.abs(d - radius) / 120);
-        if (band > 0) {
-          const inv = 1 / (d + 1);
-          const push = (p.strength * band) / (1 + d * 0.01);
-          fx += pdx * inv * push;
-          fy += pdy * inv * push;
+      const t = ((s_px - r_px) * s_dy - (s_py - r_py) * s_dx) / denom;
+      const u = ((s_px - r_px) * r_dy - (s_py - r_py) * r_dx) / denom;
+
+      if (t < 0 || u < 0 || u > 1) return null;
+      return { t, x: r_px + t * r_dx, y: r_py + t * r_dy };
+    };
+
+    const castRay = (origin: Point, angle: number) => {
+      const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+      let bestT = Infinity;
+      let hit: Point = { x: origin.x + dir.x * maxDist, y: origin.y + dir.y * maxDist };
+
+      for (let i = 0; i < segments.length; i += 1) {
+        const res = intersectRaySegment(origin, dir, segments[i]);
+        if (!res) continue;
+        if (res.t < bestT) {
+          bestT = res.t;
+          hit = { x: res.x, y: res.y };
         }
       }
 
-      return { fx, fy };
+      return { hit, dist: bestT };
     };
 
     const drawStatic = () => {
       ctx.clearRect(0, 0, width, height);
-      const gradient = ctx.createLinearGradient(0, 0, width, height);
-      gradient.addColorStop(0, '#050816');
-      gradient.addColorStop(0.5, '#030712');
-      gradient.addColorStop(1, '#070a16');
-      ctx.fillStyle = gradient;
+      ctx.fillStyle = baseGradient ?? '#030712';
       ctx.fillRect(0, 0, width, height);
 
-      ctx.globalCompositeOperation = 'lighter';
-      ribbons.forEach((r, idx) => {
-        const g = ctx.createLinearGradient(0, 0, width, 0);
-        g.addColorStop(0, `hsla(${r.hue}, 85%, 62%, 0)`);
-        g.addColorStop(0.35, `hsla(${r.hue}, 90%, 62%, 0.18)`);
-        g.addColorStop(0.65, `hsla(${r.hue + 40}, 92%, 64%, 0.18)`);
-        g.addColorStop(1, `hsla(${r.hue + 60}, 85%, 62%, 0)`);
-        ctx.strokeStyle = g;
-        ctx.lineWidth = 110 - idx * 18;
-        ctx.shadowBlur = 80;
-        ctx.shadowColor = `hsla(${r.hue}, 90%, 62%, 0.28)`;
-        ctx.beginPath();
-        const baseY = height * (0.25 + idx * 0.18);
-        for (let x = -80; x <= width + 80; x += 40) {
-          const y = baseY + Math.sin(x * 0.006 + r.phase) * (height * 0.05) + Math.cos(x * 0.003 + r.seed) * (height * 0.03);
-          if (x === -80) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+      const origin = { x: width * 0.27, y: height * 0.34 };
+
+      const drawBeams = (hue: number, angleOffset: number, alpha: number) => {
+        const rayCount = 560;
+        const step = (Math.PI * 2) / rayCount;
+        const points: Point[] = [];
+
+        for (let i = 0; i < rayCount; i += 1) {
+          const a = i * step + angleOffset;
+          points.push(castRay(origin, a).hit);
         }
+
+        const grad = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, maxDist * 0.9);
+        grad.addColorStop(0, `hsla(${hue}, 100%, 72%, ${alpha})`);
+        grad.addColorStop(0.18, `hsla(${hue + 30}, 100%, 66%, ${alpha * 0.55})`);
+        grad.addColorStop(1, 'transparent');
+
+        ctx.fillStyle = grad;
+        for (let i = 0; i < points.length; i += 1) {
+          const p1 = points[i];
+          const p2 = points[(i + 1) % points.length];
+          ctx.beginPath();
+          ctx.moveTo(origin.x, origin.y);
+          ctx.lineTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.closePath();
+          ctx.fill();
+        }
+      };
+
+      ctx.globalCompositeOperation = 'lighter';
+      drawBeams(195, -0.0024, 0.12);
+      drawBeams(255, 0.0, 0.11);
+      drawBeams(325, 0.0024, 0.09);
+
+      ctx.globalCompositeOperation = 'source-over';
+      occluders.forEach((o) => {
+        ctx.beginPath();
+        o.points.forEach((pt, idx) => (idx === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+        ctx.closePath();
+        ctx.fillStyle = o.fill;
+        ctx.fill();
+        ctx.strokeStyle = o.stroke;
+        ctx.lineWidth = 1;
         ctx.stroke();
       });
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.shadowBlur = 0;
     };
 
     resize();
@@ -420,101 +467,134 @@ export const LaikaProLandingPage = () => {
     let lastFrame = performance.now();
 
     const animate = (now: number) => {
-      const dt = Math.min(48, now - lastFrame);
       lastFrame = now;
 
       if (!pointer.active) {
-        pointer.targetX = width * 0.62 + Math.sin(now * 0.00035) * width * 0.06;
-        pointer.targetY = height * 0.42 + Math.cos(now * 0.0003) * height * 0.05;
+        pointer.targetX = width * 0.23 + Math.sin(now * 0.00024) * width * 0.18;
+        pointer.targetY = height * 0.33 + Math.cos(now * 0.00021) * height * 0.14;
       }
       pointer.x += (pointer.targetX - pointer.x) * 0.12;
       pointer.y += (pointer.targetY - pointer.y) * 0.12;
 
       ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 0.12;
+      ctx.globalAlpha = 0.16;
       ctx.fillStyle = baseGradient ?? '#030712';
       ctx.fillRect(0, 0, width, height);
       ctx.globalAlpha = 1;
 
-      const t = now;
+      const origin = { x: pointer.x, y: pointer.y };
+      const pulseBoost = pulses.reduce((sum, p) => {
+        const age = (now - p.startedAt) / 1000;
+        if (age < 0 || age > 1.25) return sum;
+        return sum + (1 - age / 1.25) * p.strength;
+      }, 0);
+
+      const intensity = (pointer.down ? 0.26 : 0.18) + pulseBoost * 0.06;
+      const sparkle = Math.min(1, 0.45 + pulseBoost * 0.35);
+      const rayCount = width < 720 ? 520 : 720;
+      const step = (Math.PI * 2) / rayCount;
+
+      const drawChannel = (hue: number, angleOffset: number, alpha: number, lineEvery: number) => {
+        const grad = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, maxDist * 0.95);
+        grad.addColorStop(0, `hsla(${hue}, 100%, 74%, ${alpha})`);
+        grad.addColorStop(0.22, `hsla(${hue + 30}, 100%, 66%, ${alpha * 0.55})`);
+        grad.addColorStop(1, 'transparent');
+
+        const points: Point[] = [];
+        for (let i = 0; i < rayCount; i += 1) {
+          const a = i * step + angleOffset;
+          points.push(castRay(origin, a).hit);
+        }
+
+        ctx.fillStyle = grad;
+        for (let i = 0; i < points.length; i += 1) {
+          const p1 = points[i];
+          const p2 = points[(i + 1) % points.length];
+          ctx.beginPath();
+          ctx.moveTo(origin.x, origin.y);
+          ctx.lineTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = `hsla(${hue}, 100%, 72%, ${Math.min(0.085, alpha * 0.55)})`;
+        ctx.lineWidth = 1;
+        for (let i = 0; i < points.length; i += lineEvery) {
+          const pt = points[i];
+          ctx.beginPath();
+          ctx.moveTo(origin.x, origin.y);
+          ctx.lineTo(pt.x, pt.y);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = `hsla(${hue + 25}, 100%, 70%, ${0.06 * sparkle})`;
+        for (let i = 0; i < points.length; i += 18) {
+          const pt = points[i];
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      };
 
       ctx.globalCompositeOperation = 'lighter';
-      ribbons.forEach((r, idx) => {
-        const baseY = height * (0.22 + idx * 0.2) + Math.sin(t * 0.00025 + r.phase) * height * 0.04;
-        const g = ctx.createLinearGradient(0, 0, width, 0);
-        g.addColorStop(0, `hsla(${r.hue}, 90%, 62%, 0)`);
-        g.addColorStop(0.3, `hsla(${r.hue}, 95%, 64%, 0.14)`);
-        g.addColorStop(0.6, `hsla(${r.hue + 50}, 95%, 66%, 0.16)`);
-        g.addColorStop(1, `hsla(${r.hue + 80}, 90%, 62%, 0)`);
-        ctx.strokeStyle = g;
-        ctx.lineWidth = 120 - idx * 18;
-        ctx.shadowBlur = 90;
-        ctx.shadowColor = `hsla(${r.hue}, 95%, 62%, 0.22)`;
-        ctx.beginPath();
-        for (let x = -90; x <= width + 90; x += 38) {
-          const y =
-            baseY +
-            Math.sin(x * 0.006 + t * 0.00055 + r.phase) * (height * 0.055) +
-            Math.cos(x * 0.003 + t * 0.00042 + r.seed) * (height * 0.032) +
-            Math.sin(x * 0.0015 - t * 0.0006) * (height * 0.018);
-          if (x === -90) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-      });
 
-      ctx.shadowBlur = 0;
-      ctx.lineCap = 'round';
-      for (let i = 0; i < particles.length; i += 1) {
-        const p = particles[i];
-        p.px = p.x;
-        p.py = p.y;
+      // Soft spotlight core
+      const spot = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, Math.min(maxDist * 0.18, 320));
+      spot.addColorStop(0, `rgba(255, 255, 255, ${0.10 + pulseBoost * 0.04})`);
+      spot.addColorStop(1, 'transparent');
+      ctx.fillStyle = spot;
+      ctx.beginPath();
+      ctx.arc(origin.x, origin.y, Math.min(maxDist * 0.18, 320), 0, Math.PI * 2);
+      ctx.fill();
 
-        const { fx, fy } = fieldVector(p.x, p.y, t);
-        p.vx = p.vx * 0.86 + fx * (0.55 + dt * 0.008);
-        p.vy = p.vy * 0.86 + fy * (0.55 + dt * 0.008);
+      // Chromatic dispersion (small angular offsets).
+      drawChannel(195, -0.0028, intensity * 0.62, 10);
+      drawChannel(255, 0.0, intensity * 0.58, 12);
+      drawChannel(325, 0.0028, intensity * 0.50, 14);
 
-        const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-        const maxSpeed = pointer.down ? 5.2 : 3.8;
-        if (speed > maxSpeed) {
-          p.vx = (p.vx / speed) * maxSpeed;
-          p.vy = (p.vy / speed) * maxSpeed;
-        }
-
-        p.x += p.vx;
-        p.y += p.vy;
-
-        if (p.x < -60) p.x = width + 60;
-        if (p.x > width + 60) p.x = -60;
-        if (p.y < -60) p.y = height + 60;
-        if (p.y > height + 60) p.y = -60;
-
-        const alpha = Math.min(0.22, 0.06 + speed * 0.035);
-        ctx.strokeStyle = `hsla(${p.hue + t * 0.01}, 92%, 70%, ${alpha})`;
-        ctx.lineWidth = p.w * (0.8 + speed * 0.12);
-        ctx.beginPath();
-        ctx.moveTo(p.px, p.py);
-        ctx.lineTo(p.x, p.y);
-        ctx.stroke();
-      }
-
+      // Light ripple rings
       for (let i = pulses.length - 1; i >= 0; i -= 1) {
         const p = pulses[i];
-        const age = (t - p.startedAt) / 1000;
-        if (age > 1.4) {
+        const age = (now - p.startedAt) / 1000;
+        if (age > 1.25) {
           pulses.splice(i, 1);
           continue;
         }
-        const radius = 80 + age * 520;
-        const alpha = Math.max(0, 1 - age / 1.4);
-        ctx.strokeStyle = `rgba(34, 211, 238, ${alpha * 0.18})`;
-        ctx.lineWidth = 2;
+        const radius = 50 + age * 680;
+        const a = Math.max(0, 1 - age / 1.25);
+        ctx.strokeStyle = `rgba(34, 211, 238, ${a * 0.14})`;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
         ctx.stroke();
       }
 
       ctx.globalCompositeOperation = 'source-over';
+
+      // Occluders: silhouettes + subtle edge highlights.
+      occluders.forEach((o) => {
+        ctx.beginPath();
+        o.points.forEach((pt, idx) => (idx === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+        ctx.closePath();
+
+        ctx.fillStyle = o.fill;
+        ctx.fill();
+
+        if (o.glow) {
+          ctx.shadowBlur = 24;
+          ctx.shadowColor = o.glow;
+        } else {
+          ctx.shadowBlur = 0;
+        }
+
+        ctx.strokeStyle = o.stroke;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      });
+
       animationId = requestAnimationFrame(animate);
     };
 
@@ -639,7 +719,7 @@ export const LaikaProLandingPage = () => {
           </div>
 
           <div className={styles.heroHint}>
-            <span className={styles.heroHintKey}>Try it:</span> move your cursor to bend the flow · click to send a pulse
+            <span className={styles.heroHintKey}>Try it:</span> move your cursor to steer the light. Click to send a pulse.
           </div>
 
           <div className={styles.heroStats}>

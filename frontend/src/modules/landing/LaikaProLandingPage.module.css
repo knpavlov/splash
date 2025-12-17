@@ -178,8 +178,8 @@
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(900px 600px at 50% 25%, rgba(3, 7, 18, 0.18) 0%, rgba(3, 7, 18, 0.72) 70%, rgba(3, 7, 18, 0.9) 100%),
-    linear-gradient(180deg, rgba(3, 7, 18, 0.0) 0%, rgba(3, 7, 18, 0.25) 55%, rgba(3, 7, 18, 0.7) 100%);
+    radial-gradient(900px 600px at 50% 25%, rgba(3, 7, 18, 0.06) 0%, rgba(3, 7, 18, 0.56) 70%, rgba(3, 7, 18, 0.88) 100%),
+    linear-gradient(180deg, rgba(3, 7, 18, 0.0) 0%, rgba(3, 7, 18, 0.22) 55%, rgba(3, 7, 18, 0.68) 100%);
 }
 
 .heroTitleLine {
