@@ -692,7 +692,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                   <div className={styles.initiativePopup}>
                     <div className={styles.popupHeader}>
                       <strong>{clickedBar.month} - Initiative Breakdown</strong>
-                      <button className={styles.popupClose} onClick={() => setClickedBar(null)}>×</button>
+                      <button className={styles.popupClose} onClick={() => setClickedBar(null)}>{'\u00D7'}</button>
                     </div>
                     <div className={styles.popupContent}>
                       {clickedBar.initiatives.map(init => (

@@ -184,6 +184,19 @@
     linear-gradient(180deg, rgba(3, 7, 18, 0.0) 0%, rgba(3, 7, 18, 0.15) 55%, rgba(3, 7, 18, 0.64) 100%);
 }
 
+/* Smooth transition into the feature section */
+.hero::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 160px;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(3, 7, 18, 0) 0%, rgba(3, 7, 18, 1) 100%);
+}
+
 .heroTitleLine {
   display: inline-block;
   will-change: transform;
@@ -982,6 +995,7 @@
 .interactiveDemoLayout {
   display: grid;
   grid-template-columns: 380px 1fr;
+  grid-template-areas: "content demo";
   gap: 3rem;
   max-width: 1500px;
   margin: 0 auto;
@@ -990,11 +1004,21 @@
   align-items: center;
 }
 
+.interactiveDemoLayoutReverse {
+  grid-template-columns: 1fr 380px;
+  grid-template-areas: "demo content";
+}
+
 .demoContent {
+  grid-area: content;
   text-align: left;
   opacity: 0;
   transform: translateX(-30px);
   transition: all 0.8s var(--ease-out-expo);
+}
+
+.interactiveDemoLayoutReverse .demoContent {
+  transform: translateX(30px);
 }
 
 .demoContent.visible {
@@ -1091,11 +1115,17 @@
 }
 
 .interactiveDemoWrapper {
+  grid-area: demo;
   display: flex;
   justify-content: flex-start;
   opacity: 0;
   transform: translateX(40px);
   transition: all 1s var(--ease-out-expo) 0.2s;
+}
+
+.interactiveDemoLayoutReverse .interactiveDemoWrapper {
+  justify-content: flex-end;
+  transform: translateX(-40px);
 }
 
 .interactiveDemoWrapper.visible {
@@ -1109,14 +1139,21 @@
   margin: 0 auto;
   width: 100%;
   padding: 0 1rem;
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 3rem;
+  align-items: start;
+}
+
+.heatmapDemoSpacer {
+  display: block;
 }
 
 .heatmapDemoWrapper {
   opacity: 0;
   transform: translateY(30px);
   transition: all 1s var(--ease-out-expo) 0.5s;
+  width: 100%;
 }
 
 .heatmapDemoWrapper.visible {
@@ -1127,6 +1164,15 @@
 /* Responsive for Interactive Demo */
 @media (max-width: 1400px) {
   .interactiveDemoLayout {
+    grid-template-columns: 320px 1fr;
+    gap: 2rem;
+  }
+
+  .interactiveDemoLayoutReverse {
+    grid-template-columns: 1fr 320px;
+  }
+
+  .heatmapDemoSection {
     grid-template-columns: 320px 1fr;
     gap: 2rem;
   }
@@ -1171,6 +1217,24 @@
 
   .interactiveDemoWrapper.visible {
     transform: translateY(0);
+  }
+
+  .interactiveDemoLayoutReverse .demoContent {
+    transform: translateY(30px);
+  }
+
+  .interactiveDemoLayoutReverse .interactiveDemoWrapper {
+    justify-content: center;
+    transform: translateY(30px);
+  }
+
+  .heatmapDemoSection {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+
+  .heatmapDemoSpacer {
+    display: none;
   }
 }
 
@@ -1610,6 +1674,13 @@
   color: #fff;
   font-weight: 750;
   letter-spacing: -0.02em;
+}
+
+.modalSeatSlider {
+  width: 100%;
+  margin: 0.25rem 0 0.55rem;
+  accent-color: #8b5cf6;
+  cursor: pointer;
 }
 
 .modalForm {

@@ -3,11 +3,13 @@ import landingStyles from '../LaikaProLandingPage.module.css';
 import pageStyles from './LaitenSubpages.module.css';
 import type { LaitenSiteView } from './laitenSiteView';
 
-const NAV: { href: string; label: string; view: LaitenSiteView }[] = [
-  { href: '#/laiten', label: 'Overview', view: 'home' },
-  { href: '#/laiten/whats-new', label: "What's New", view: 'whats-new' },
-  { href: '#/laiten/about', label: 'About', view: 'about' },
-  { href: '#/laiten/careers', label: 'Careers', view: 'careers' }
+const NAV: { href: string; label: string; activeWhen?: Exclude<LaitenSiteView, 'home'> }[] = [
+  { href: '#/laiten#hero', label: 'Intro' },
+  { href: '#/laiten#features', label: 'Features' },
+  { href: '#/laiten#pricing', label: 'Pricing' },
+  { href: '#/laiten#contact', label: 'Contact' },
+  { href: '#/laiten/about', label: 'About', activeWhen: 'about' },
+  { href: '#/laiten/careers', label: 'Careers', activeWhen: 'careers' }
 ];
 
 export const LaitenPageLayout = ({
@@ -29,7 +31,7 @@ export const LaitenPageLayout = ({
             <a
               key={item.href}
               href={item.href}
-              className={`${landingStyles.navLink} ${item.view === activeView ? landingStyles.navLinkActive : ''}`}
+              className={`${landingStyles.navLink} ${item.activeWhen === activeView ? landingStyles.navLinkActive : ''}`}
             >
               {item.label}
             </a>

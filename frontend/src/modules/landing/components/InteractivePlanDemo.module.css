@@ -15,17 +15,17 @@
 /* Hint Overlay */
 .hintOverlay {
   position: absolute;
-  top: 40px;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 56px;
+  right: 14px;
+  left: auto;
+  bottom: auto;
   z-index: 100;
   display: flex;
   align-items: flex-start;
-  justify-content: center;
-  padding-top: 80px;
-  background: linear-gradient(180deg, rgba(13, 17, 23, 0.95) 0%, rgba(13, 17, 23, 0.7) 50%, rgba(13, 17, 23, 0.3) 100%);
-  backdrop-filter: blur(2px);
+  justify-content: flex-end;
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
   pointer-events: none;
   animation: fadeIn 0.5s ease;
 }
@@ -35,19 +35,40 @@
 }
 
 .hintContent {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px 28px;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%);
-  border: 1px solid rgba(139, 92, 246, 0.4);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(139, 92, 246, 0.3);
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.16) 0%, rgba(59, 130, 246, 0.12) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.32);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  max-width: 360px;
+  pointer-events: auto;
+}
+
+.hintDismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.2);
+  color: rgba(226, 232, 240, 0.9);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.hintDismiss:hover {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .hintIcon {
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -63,19 +84,19 @@
 }
 
 .hintTitle {
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   color: #fff;
 }
 
 .hintDesc {
-  font-size: 14px;
+  font-size: 12px;
   color: #94a3b8;
 }
 
 .hintArrow {
   color: #8b5cf6;
-  animation: bounceRight 1.5s ease-in-out infinite;
+  opacity: 0.7;
 }
 
 @keyframes fadeIn {

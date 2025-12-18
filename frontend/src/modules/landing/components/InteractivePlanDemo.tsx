@@ -186,6 +186,7 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
   const [tasks, setTasks] = useState(INITIAL_TASKS);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [showHintPulse, setShowHintPulse] = useState(true);
+  const [hintDismissed, setHintDismissed] = useState(false);
 
   const timelineRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -379,9 +380,17 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
   return (
     <div className={`${styles.demoContainer} ${className || ''}`}>
       {/* Interactive hint overlay */}
-      {!hasInteracted && (
+      {!hasInteracted && !hintDismissed && (
         <div className={`${styles.hintOverlay} ${showHintPulse ? styles.pulse : ''}`}>
           <div className={styles.hintContent}>
+            <button
+              type="button"
+              className={styles.hintDismiss}
+              onClick={() => setHintDismissed(true)}
+              aria-label="Dismiss hint"
+            >
+              {'\u00D7'}
+            </button>
             <div className={styles.hintIcon}>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M18 11V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h4" />

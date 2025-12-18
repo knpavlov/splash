@@ -228,6 +228,7 @@ export const ImplementationMonitoringDemo = ({ className }: { className?: string
 
   const [bucketMode, setBucketMode] = useState<BucketMode>('week');
   const [viewMode, setViewMode] = useState<ViewMode>('chart');
+  const [showRadarHint, setShowRadarHint] = useState(true);
   const [workstreamFilter, setWorkstreamFilter] = useState<string>('all');
   const [ownerFilter, setOwnerFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<StatusKey | 'all'>('all');
@@ -552,11 +553,19 @@ export const ImplementationMonitoringDemo = ({ className }: { className?: string
           </div>
 
           <div className={styles.windowBody}>
-            {!hasAnySubmitted && (
-              <div className={styles.lockOverlay}>
-                <div className={styles.lockCard}>
-                  <div className={styles.lockTitle}>Submit a status report to populate the radar</div>
-                  <div className={styles.lockDesc}>Your submitted updates will appear here instantly (dates, progress, notes).</div>
+            {!hasAnySubmitted && showRadarHint && (
+              <div className={styles.lockCallout} role="note">
+                <button
+                  type="button"
+                  className={styles.lockDismiss}
+                  onClick={() => setShowRadarHint(false)}
+                  aria-label="Dismiss hint"
+                >
+                  {'\u00D7'}
+                </button>
+                <div className={styles.lockTitle}>Submit a status report to populate the radar</div>
+                <div className={styles.lockDesc}>
+                  Your submitted updates will appear here instantly (dates, progress, notes).
                 </div>
               </div>
             )}

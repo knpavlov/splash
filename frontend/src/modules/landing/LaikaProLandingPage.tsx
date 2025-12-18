@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import styles from './LaikaProLandingPage.module.css';
-import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Zap, Users, BarChart3, Sparkles, Calendar, X } from 'lucide-react';
+import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Users, BarChart3, Calendar, X } from 'lucide-react';
 import { InteractivePlanDemo, DemoTask, INITIAL_TASKS } from './components/InteractivePlanDemo';
 import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
@@ -38,7 +38,6 @@ export const LaikaProLandingPage = () => {
   const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>({});
   const [activeNav, setActiveNav] = useState('hero');
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [scrollY, setScrollY] = useState(0);
   // PREVIOUS HERO (2D rays) pointer ref — kept for easy rollback.
   const pointerRef = useRef<HeroPointer>({ x: 0, y: 0, targetX: 0, targetY: 0, active: false, down: false });
   // Shared state for interactive demos
@@ -188,7 +187,6 @@ export const LaikaProLandingPage = () => {
       const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = (window.scrollY / scrollHeight) * 100;
       setScrollProgress(progress);
-      setScrollY(window.scrollY);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
@@ -827,6 +825,22 @@ export const LaikaProLandingPage = () => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
+  useEffect(() => {
+    const scrollToAnchor = () => {
+      const parts = window.location.hash.split('#');
+      const anchor = parts.length >= 3 ? decodeURIComponent(parts[2] || '').trim() : '';
+      if (!anchor) {
+        return;
+      }
+
+      requestAnimationFrame(() => scrollToSection(anchor));
+    };
+
+    scrollToAnchor();
+    window.addEventListener('hashchange', scrollToAnchor);
+    return () => window.removeEventListener('hashchange', scrollToAnchor);
+  }, [scrollToSection]);
+
   const handleDemoSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -889,13 +903,7 @@ export const LaikaProLandingPage = () => {
 
         <div
           className={styles.heroContent}
-          style={{ transform: `translateY(${scrollY * 0.22}px)`, opacity: Math.max(0, 1 - scrollY / 900) }}
         >
-          <div className={styles.heroBadge}>
-            <Zap size={14} />
-            Enterprise-Ready Platform
-          </div>
-
           <h1 ref={heroTitleRef} className={styles.heroTitle} aria-label="Transformation - Lightened.">
             <span className={styles.heroTitleLine}>
               Transformation <span className={styles.heroTitleDash}>-</span>
@@ -914,14 +922,6 @@ export const LaikaProLandingPage = () => {
               Request Demo
               <ArrowRight size={18} />
             </button>
-            <button className={styles.ctaSecondary} onClick={() => scrollToSection('features')}>
-              Explore Features
-              <ChevronDown size={18} />
-            </button>
-          </div>
-
-          <div className={styles.heroHint}>
-            <span className={styles.heroHintKey}>Illuminate:</span> move & scroll to explore light and shadow
           </div>
 
           <div className={styles.heroStats}>
@@ -993,7 +993,7 @@ export const LaikaProLandingPage = () => {
 
       {/* Feature 2: Reporting - Interactive Demo Style */}
       <section id="feature-2" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo}`}>
-        <div className={styles.interactiveDemoLayout}>
+        <div className={`${styles.interactiveDemoLayout} ${styles.interactiveDemoLayoutReverse}`}>
           {/* Left - Content with Dashboard Selector */}
           <div className={`${styles.demoContent} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>02</div>
@@ -1063,6 +1063,7 @@ export const LaikaProLandingPage = () => {
 
         {/* 3b: Capacity Heatmap Demo */}
         <div className={styles.heatmapDemoSection}>
+          <div className={styles.heatmapDemoSpacer} aria-hidden="true" />
           <div className={`${styles.heatmapDemoWrapper} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
             <CapacityHeatmapDemo tasks={demoTasks} />
           </div>
@@ -1071,7 +1072,7 @@ export const LaikaProLandingPage = () => {
 
       {/* Feature 4: Implementation Monitoring */}
       <section id="feature-4" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo}`}>
-        <div className={styles.interactiveDemoLayout}>
+        <div className={`${styles.interactiveDemoLayout} ${styles.interactiveDemoLayoutReverse}`}>
           {/* Left - Content */}
           <div className={`${styles.demoContent} ${visibleSections['feature-4'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>04</div>
@@ -1102,10 +1103,6 @@ export const LaikaProLandingPage = () => {
       {/* Features Marquee Section */}
       <section id="features-marquee" data-animate className={styles.featuresMarqueeSection}>
         <div className={styles.featuresMarqueeHeader}>
-          <div className={styles.featuresMarqueeBadge}>
-            <Sparkles size={14} />
-            And Much More
-          </div>
           <h2 className={styles.featuresMarqueeTitle}>
             Everything You Need to Transform
           </h2>
@@ -1221,7 +1218,7 @@ export const LaikaProLandingPage = () => {
         <div className={`${styles.changelogContent} ${visibleSections['changelog'] ? styles.visible : ''}`}>
           <div className={styles.changelogHeader}>
             <h2 className={styles.changelogTitle}>Changelog</h2>
-            <p className={styles.changelogSubtitle}>We ship new features and improvements every week</p>
+            <p className={styles.changelogSubtitle}>We ship new features and improvements at least every month</p>
           </div>
 
           <div className={styles.changelogGrid}>
@@ -1295,30 +1292,13 @@ export const LaikaProLandingPage = () => {
 
         <div className={`${styles.pricingCard} ${visibleSections['pricing'] ? styles.visible : ''}`}>
           <div className={styles.pricingCardHeader}>
-            <div className={styles.pricingBadge}>Annual billing</div>
             <h3 className={styles.pricingPlanName}>One plan. Priced by seats.</h3>
 
             <div className={styles.pricingSeats}>
               <div className={styles.pricingSeatsRow}>
                 <div className={styles.pricingSeatsLabel}>Seats</div>
                 <div className={styles.pricingSeatsControls}>
-                  <button
-                    type="button"
-                    className={styles.pricingSeatBtn}
-                    onClick={() => setPricingSeats((prev) => Math.max(50, prev - 50))}
-                    aria-label="Decrease seats"
-                  >
-                    -50
-                  </button>
                   <div className={styles.pricingSeatsValue}>{pricingSeats.toLocaleString('en-US')}</div>
-                  <button
-                    type="button"
-                    className={styles.pricingSeatBtn}
-                    onClick={() => setPricingSeats((prev) => Math.min(2000, prev + 50))}
-                    aria-label="Increase seats"
-                  >
-                    +50
-                  </button>
                 </div>
               </div>
 
@@ -1346,13 +1326,7 @@ export const LaikaProLandingPage = () => {
             </div>
             <div className={styles.pricingMeta}>
               <span className={styles.pricingMetaPrimary}>Billed annually · Save {Math.round(annualDiscount * 100)}%</span>
-              <span className={styles.pricingMetaSecondary}>
-                Equivalent to {formatUsd(monthlyPerSeat)} / seat / month on monthly billing
-              </span>
             </div>
-            <p className={styles.pricingNote}>
-              Estimated total: <strong>{formatUsd(estimatedMonthly)}</strong> / month · {formatUsd(estimatedAnnual)} billed yearly
-            </p>
             <p className={styles.pricingNote}>
               Pay by card instantly, or work with Sales for invoicing and procurement.
             </p>
@@ -1417,7 +1391,7 @@ export const LaikaProLandingPage = () => {
               Pay by card
               <ArrowRight size={18} />
             </button>
-            <button className={styles.pricingCtaSecondary} type="button" onClick={() => setPricingContactOpen('sales')}>
+            <button className={styles.pricingCtaPrimary} type="button" onClick={() => setPricingContactOpen('sales')}>
               Contact Sales
               <ArrowRight size={18} />
             </button>
@@ -1454,35 +1428,23 @@ export const LaikaProLandingPage = () => {
                 <div className={styles.modalSummaryRow}>
                   <span className={styles.modalSummaryLabel}>Seats</span>
                   <div className={styles.modalSeatsControls}>
-                    <button
-                      type="button"
-                      className={styles.modalSeatBtn}
-                      onClick={() => setPricingSeats((prev) => Math.max(50, prev - 50))}
-                      aria-label="Decrease seats"
-                    >
-                      -50
-                    </button>
                     <span className={styles.modalSeatsValue}>{pricingSeats.toLocaleString('en-US')}</span>
-                    <button
-                      type="button"
-                      className={styles.modalSeatBtn}
-                      onClick={() => setPricingSeats((prev) => Math.min(2000, prev + 50))}
-                      aria-label="Increase seats"
-                    >
-                      +50
-                    </button>
                   </div>
                 </div>
+                <input
+                  className={styles.modalSeatSlider}
+                  type="range"
+                  min={50}
+                  max={2000}
+                  step={50}
+                  value={pricingSeats}
+                  onChange={(e) => setPricingSeats(Number(e.target.value))}
+                  aria-label="Seat count"
+                />
                 <div className={styles.modalSummaryRow}>
                   <span className={styles.modalSummaryLabel}>Price</span>
                   <span className={styles.modalSummaryValue}>
                     {formatUsd(annualPerSeatMonthly)} / seat / month · billed annually ({Math.round(annualDiscount * 100)}% off)
-                  </span>
-                </div>
-                <div className={styles.modalSummaryRow}>
-                  <span className={styles.modalSummaryLabel}>Estimated</span>
-                  <span className={styles.modalSummaryValue}>
-                    {formatUsd(estimatedMonthly)} / month · {formatUsd(estimatedAnnual)} / year
                   </span>
                 </div>
               </div>

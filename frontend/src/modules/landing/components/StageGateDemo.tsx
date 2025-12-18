@@ -386,7 +386,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
       <div className={styles.commentPopup}>
         <div className={styles.commentHeader}>
           <span>Add Comment</span>
-          <button onClick={() => setSelectedCell(null)} className={styles.closeBtn}>×</button>
+          <button onClick={() => setSelectedCell(null)} className={styles.closeBtn}>{'\u00D7'}</button>
         </div>
         <textarea
           value={commentText}
