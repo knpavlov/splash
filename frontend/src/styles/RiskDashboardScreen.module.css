@@ -1,0 +1,567 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  max-width: 860px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 14px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.snapshotControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  width: 100%;
+}
+
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding-top: 18px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+}
+
+.checkboxField input {
+  width: 14px;
+  height: 14px;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 240px;
+}
+
+.filterField span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.filterField select {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.searchField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+  flex: 1;
+}
+
+.searchField span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.searchField input {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.filterHint {
+  align-self: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.linkButton {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(116, 191, 255, 0.95);
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
+
+.categoryFilter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.categoryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.categoryHeader span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.categoryChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.categoryChip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.categoryChipActive {
+  border-color: rgba(116, 191, 255, 0.75);
+  background: rgba(116, 191, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.matrixSection,
+.tableSection {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.matrixHeader,
+.tableHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.matrixHeader h3,
+.tableHeader h3 {
+  margin: 0;
+}
+
+.matrixHeader p,
+.tableHeader p {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.matrixWrapper {
+  position: relative;
+  padding-left: 46px;
+  padding-bottom: 34px;
+}
+
+.matrixAxisY {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(-6px, -50%) rotate(-90deg);
+  transform-origin: left center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.matrixAxisX {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.matrixGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(5, 90px);
+  gap: 8px;
+}
+
+.matrixCanvas {
+  position: relative;
+}
+
+.matrixOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.connectorUp {
+  stroke: rgba(255, 106, 106, 0.70);
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.connectorDown {
+  stroke: rgba(76, 201, 160, 0.70);
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.connectorFlat {
+  stroke: rgba(255, 255, 255, 0.35);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.matrixCell {
+  position: relative;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  padding: 0;
+  z-index: 3;
+}
+
+.matrixCell:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.matrixCellActive {
+  border-color: rgba(116, 191, 255, 0.8);
+  box-shadow: 0 0 0 2px rgba(116, 191, 255, 0.18);
+}
+
+.matrixCellLabel {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+
+.riskDot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.riskDotLow {
+  background: rgba(76, 201, 160, 0.95);
+}
+
+.riskDotMedium {
+  background: rgba(255, 194, 71, 0.95);
+}
+
+.riskDotHigh {
+  background: rgba(255, 106, 106, 0.95);
+}
+
+.moreBadge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.26);
+  color: rgba(255, 255, 255, 0.75);
+  pointer-events: none;
+}
+
+.axisTicksY {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 40px;
+  height: calc(5 * 90px + 4 * 8px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.axisTicksX {
+  position: absolute;
+  left: 46px;
+  bottom: 34px;
+  width: calc(100% - 46px);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 18px;
+}
+
+.axisTick {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.tableWrapper {
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1100px;
+}
+
+.table th,
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: left;
+  vertical-align: top;
+  font-size: 12px;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  background: rgba(12, 14, 20, 0.92);
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 600;
+  z-index: 1;
+}
+
+.scoreCell {
+  width: 70px;
+}
+
+.scoreBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.scoreLow {
+  border-color: rgba(76, 201, 160, 0.38);
+  background: rgba(76, 201, 160, 0.12);
+}
+
+.scoreMedium {
+  border-color: rgba(255, 194, 71, 0.38);
+  background: rgba(255, 194, 71, 0.12);
+}
+
+.scoreHigh {
+  border-color: rgba(255, 106, 106, 0.38);
+  background: rgba(255, 106, 106, 0.12);
+}
+
+.riskTitleCell {
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.descriptionCell {
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.mitigationCell {
+  max-width: 340px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actionCell {
+  width: 120px;
+  text-align: right;
+}
+
+.secondaryButton {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.22);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.secondaryButton:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.detailsCell {
+  padding: 0;
+  border-bottom: none;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.commentPanel {
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.commentPanelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.commentPanelMeta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.62);
+  margin-top: 3px;
+}
+
+.commentPanelHint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+  padding: 6px 0;
+}
+
+.commentList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.commentItem {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.commentBody {
+  white-space: pre-wrap;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.commentMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.commentComposer {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.commentComposer textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.commentComposerActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.primaryButton {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(116, 191, 255, 0.65);
+  background: rgba(116, 191, 255, 0.14);
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.primaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.movementCell {
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+}
+
+.link {
+  color: rgba(116, 191, 255, 0.95);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.tableHint {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.placeholder {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.72);
+}

@@ -253,4 +253,46 @@ router.delete('/:id/comments/:threadId', async (req, res) => {
   }
 });
 
+router.get('/:id/risk-comments', async (req, res) => {
+  try {
+    const comments = await initiativesService.listRiskComments(req.params.id);
+    res.json(comments);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.post('/:id/risk-comments', async (req, res) => {
+  const { comment, actor } = req.body as { comment?: unknown; actor?: unknown };
+  if (!comment || typeof comment !== 'object') {
+    res.status(400).json({ code: 'invalid-input', message: 'Provide risk comment payload.' });
+    return;
+  }
+  try {
+    const created = await initiativesService.createRiskComment(req.params.id, comment as any, normalizeActor(actor));
+    res.status(201).json(created);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.patch('/:id/risk-comments/:commentId/status', async (req, res) => {
+  const { resolved, actor } = req.body as { resolved?: unknown; actor?: unknown };
+  if (typeof resolved !== 'boolean') {
+    res.status(400).json({ code: 'invalid-input', message: 'Provide resolved flag.' });
+    return;
+  }
+  try {
+    const updated = await initiativesService.setRiskCommentResolution(
+      req.params.id,
+      req.params.commentId,
+      resolved,
+      normalizeActor(actor)
+    );
+    res.json(updated);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
 export { router as initiativesRouter };

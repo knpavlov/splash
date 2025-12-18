@@ -33,7 +33,9 @@ import {
   InitiativeStatusReportEntry,
   InitiativePlanTask,
   InitiativePlanModel,
-  InitiativeRisk
+  InitiativeRisk,
+  InitiativeRiskComment,
+  InitiativeRiskCommentRow
 } from './initiatives.types.js';
 import { normalizePlanModel } from './initiativePlan.helpers.js';
 import {
@@ -58,6 +60,7 @@ const hashPayload = (value: string) => createHash('sha1').update(value).digest('
 
 const STATUS_UPDATE_MAX_LENGTH = 2000;
 const STATUS_SUMMARY_MAX_LENGTH = 4000;
+const RISK_COMMENT_MAX_LENGTH = 2000;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const diffInDays = (start: Date, end: Date) => Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
 
@@ -621,6 +624,20 @@ const mapCommentThreadRow = (
   resolvedByName: thread.resolved_by_name ?? null
 });
 
+const mapRiskCommentRow = (row: InitiativeRiskCommentRow): InitiativeRiskComment => ({
+  id: row.id,
+  initiativeId: row.initiative_id,
+  riskId: row.risk_id,
+  snapshotId: row.snapshot_id ?? null,
+  body: row.body,
+  authorAccountId: row.author_account_id ?? null,
+  authorName: row.author_name ?? null,
+  createdAt: toIsoString(row.created_at) ?? new Date().toISOString(),
+  resolvedAt: row.resolved_at ? toIsoString(row.resolved_at) : null,
+  resolvedByAccountId: row.resolved_by_account_id ?? null,
+  resolvedByName: row.resolved_by_name ?? null
+});
+
 export class InitiativesService {
   constructor(
     private readonly repository: InitiativesRepository,
@@ -1131,6 +1148,64 @@ export class InitiativesService {
 
     await this.repository.deleteCommentMessage(messageId);
     return { deleted: 'message', threadId, messageId };
+  }
+
+  async listRiskComments(initiativeId: string): Promise<InitiativeRiskComment[]> {
+    const record = await this.repository.findInitiative(initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    const rows = await this.repository.listRiskComments(initiativeId);
+    return rows.map((row) => mapRiskCommentRow(row));
+  }
+
+  async createRiskComment(
+    initiativeId: string,
+    payload: { riskId?: unknown; body?: unknown; snapshotId?: unknown },
+    actor?: InitiativeMutationMetadata
+  ): Promise<InitiativeRiskComment> {
+    const record = await this.repository.findInitiative(initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    const riskId = sanitizeString(payload?.riskId);
+    const body = sanitizeString(payload?.body);
+    const snapshotId = sanitizeOptionalString(payload?.snapshotId);
+    if (!riskId || !body) {
+      throw new Error('INVALID_INPUT');
+    }
+    const trimmedBody = body.length > RISK_COMMENT_MAX_LENGTH ? body.slice(0, RISK_COMMENT_MAX_LENGTH) : body;
+    const created = await this.repository.insertRiskComment({
+      id: randomUUID(),
+      initiativeId,
+      riskId,
+      snapshotId,
+      body: trimmedBody,
+      authorAccountId: actor?.actorAccountId ?? null,
+      authorName: actor?.actorName ?? null
+    });
+    if (!created) {
+      throw new Error('UNKNOWN');
+    }
+    return mapRiskCommentRow(created);
+  }
+
+  async setRiskCommentResolution(
+    initiativeId: string,
+    commentId: string,
+    resolved: boolean,
+    actor?: InitiativeMutationMetadata
+  ): Promise<InitiativeRiskComment> {
+    const updated = await this.repository.updateRiskCommentResolution(
+      commentId,
+      resolved,
+      actor?.actorAccountId ?? null,
+      actor?.actorName ?? null
+    );
+    if (!updated || updated.initiative_id !== initiativeId) {
+      throw new Error('NOT_FOUND');
+    }
+    return mapRiskCommentRow(updated);
   }
 
   private sanitizeStatusReportPayload(

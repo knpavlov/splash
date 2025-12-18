@@ -13,6 +13,7 @@ import {
   Clock,
   Grid,
   Network,
+  ShieldAlert,
   UserCog,
   Settings,
   Camera,
@@ -33,6 +34,7 @@ export type NavigationKey =
   | 'financial-tree'
   | 'portfolio-plan'
   | 'financial-dynamics'
+  | 'risk-dashboard'
   | 'financials'
   | 'kpis'
   | 'general-settings'
@@ -92,6 +94,7 @@ export const navigationItems: NavigationItem[] = [
   { key: 'deadline-dashboard', label: 'Deadline radar', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Clock },
   { key: 'capacity-heatmap', label: 'Capacity heatmap', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Grid },
   { key: 'financial-tree', label: 'P&L tree', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Network },
+  { key: 'risk-dashboard', label: 'Risk matrix', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: ShieldAlert },
   { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: UserCog },
   { key: 'general-settings', label: 'General settings', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: Settings },
   {

@@ -16,6 +16,7 @@ import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboar
 import { DeadlineDashboardScreen } from './modules/dashboards/DeadlineDashboardScreen';
 import { PortfolioPlanScreen } from './modules/dashboards/PortfolioPlanScreen';
 import { FinancialDynamicsScreen } from './modules/dashboards/FinancialDynamicsScreen';
+import { RiskDashboardScreen } from './modules/dashboards/RiskDashboardScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 import { GeneralSettingsScreen } from './modules/settings/GeneralSettingsScreen';
 import { InitiativeLogsScreen } from './modules/logs/InitiativeLogsScreen';
@@ -331,6 +332,8 @@ const AppContent = () => {
         return <DeadlineDashboardScreen />;
       case 'financial-dynamics':
         return <FinancialDynamicsScreen />;
+      case 'risk-dashboard':
+        return <RiskDashboardScreen />;
       case 'accounts':
         return <AccountsScreen />;
       case 'general-settings':

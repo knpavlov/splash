@@ -1,6 +1,7 @@
 ﻿import type { FinancialBlueprintRecord } from '../financials/financials.types.js';
 import type {
   InitiativePlanModel,
+  InitiativeRisk,
   InitiativeStageKey,
   InitiativeStageStateMap,
   InitiativeTotals
@@ -81,6 +82,7 @@ export interface ProgramSnapshotInitiativeSummary {
   updatedAt: string;
   totals: InitiativeTotals;
   plan: InitiativePlanModel;
+  risks?: InitiativeRisk[];
   timeline: {
     startDate: string | null;
     endDate: string | null;

@@ -956,6 +956,32 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS initiative_risk_comments (
+      id UUID PRIMARY KEY,
+      initiative_id UUID NOT NULL REFERENCES workstream_initiatives(id) ON DELETE CASCADE,
+      risk_id TEXT NOT NULL,
+      snapshot_id UUID,
+      body TEXT NOT NULL,
+      author_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+      author_name TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      resolved_at TIMESTAMPTZ,
+      resolved_by_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+      resolved_by_name TEXT
+    );
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS initiative_risk_comments_initiative_idx
+      ON initiative_risk_comments(initiative_id, created_at DESC);
+  `);
+
+  await postgresPool.query(`
+    CREATE INDEX IF NOT EXISTS initiative_risk_comments_risk_idx
+      ON initiative_risk_comments(risk_id, created_at DESC);
+  `);
+
+  await postgresPool.query(`
     CREATE INDEX IF NOT EXISTS program_snapshots_category_captured_idx
       ON program_snapshots(category, captured_at DESC);
   `);

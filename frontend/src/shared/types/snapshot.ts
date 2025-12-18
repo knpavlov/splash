@@ -1,5 +1,6 @@
 import {
   InitiativePlanModel,
+  InitiativeRisk,
   InitiativeStageKey,
   InitiativeStageStateMap,
   InitiativeTotals
@@ -93,6 +94,7 @@ export interface ProgramSnapshotInitiativeSummary {
   updatedAt: string;
   totals: InitiativeTotals;
   plan: InitiativePlanModel;
+  risks?: InitiativeRisk[];
   timeline: {
     startDate: string | null;
     endDate: string | null;

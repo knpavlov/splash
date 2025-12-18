@@ -155,6 +155,7 @@ export class SnapshotsService {
             updatedAt: initiative.updatedAt,
             totals: initiative.totals,
             plan,
+            risks: initiative.risks ?? [],
             timeline: planTimeline
           };
         })
@@ -189,7 +190,7 @@ export class SnapshotsService {
     const capturedAt = new Date().toISOString();
 
     return {
-      version: 1,
+      version: 2,
       capturedAt,
       metrics: {
         initiatives: initiatives.length,

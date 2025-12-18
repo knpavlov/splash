@@ -16,6 +16,7 @@ import {
   InitiativeStageKey,
   InitiativeWriteModel,
   InitiativeRisk,
+  InitiativeRiskCommentRow,
   InitiativeApprovalRow,
   InitiativeApprovalRecord,
   InitiativeEventRecord,
@@ -1167,5 +1168,66 @@ export class InitiativesRepository {
       [threadId]
     );
     return parseInt(result.rows?.[0]?.count ?? '0', 10);
+  }
+
+  async listRiskComments(initiativeId: string): Promise<InitiativeRiskCommentRow[]> {
+    const result = await postgresPool.query<InitiativeRiskCommentRow>(
+      `SELECT *
+         FROM initiative_risk_comments
+        WHERE initiative_id = $1
+        ORDER BY created_at ASC, id ASC;`,
+      [initiativeId]
+    );
+    return result.rows ?? [];
+  }
+
+  async insertRiskComment(payload: {
+    id: string;
+    initiativeId: string;
+    riskId: string;
+    snapshotId?: string | null;
+    body: string;
+    authorAccountId?: string | null;
+    authorName?: string | null;
+  }): Promise<InitiativeRiskCommentRow | null> {
+    const result = await postgresPool.query<InitiativeRiskCommentRow>(
+      `INSERT INTO initiative_risk_comments
+         (id, initiative_id, risk_id, snapshot_id, body, author_account_id, author_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *;`,
+      [
+        payload.id,
+        payload.initiativeId,
+        payload.riskId,
+        payload.snapshotId ?? null,
+        payload.body,
+        payload.authorAccountId ?? null,
+        payload.authorName ?? null
+      ]
+    );
+    return result.rows?.[0] ?? null;
+  }
+
+  async updateRiskCommentResolution(
+    commentId: string,
+    resolved: boolean,
+    actorAccountId?: string | null,
+    actorName?: string | null
+  ): Promise<InitiativeRiskCommentRow | null> {
+    const result = await postgresPool.query<InitiativeRiskCommentRow>(
+      `UPDATE initiative_risk_comments
+          SET resolved_at = $2,
+              resolved_by_account_id = $3,
+              resolved_by_name = $4
+        WHERE id = $1
+        RETURNING *;`,
+      [
+        commentId,
+        resolved ? new Date() : null,
+        resolved ? actorAccountId ?? null : null,
+        resolved ? actorName ?? null : null
+      ]
+    );
+    return result.rows?.[0] ?? null;
   }
 }

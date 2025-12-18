@@ -16,6 +16,7 @@ import {
   InitiativeCommentSelection,
   InitiativeCommentMessage,
   InitiativeCommentThread,
+  InitiativeRiskComment,
   InitiativeStatusReport,
   InitiativeStatusReportEntry,
   InitiativeStatusReportSource,
@@ -655,6 +656,47 @@ const ensureCommentThreadList = (value: unknown): InitiativeCommentThread[] => {
   return value.map((entry) => normalizeCommentThread(entry)).filter((entry): entry is InitiativeCommentThread => Boolean(entry));
 };
 
+const normalizeRiskComment = (value: unknown): InitiativeRiskComment | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  const id = typeof payload.id === 'string' ? payload.id : null;
+  const initiativeId = typeof payload.initiativeId === 'string' ? payload.initiativeId : null;
+  const riskId = typeof payload.riskId === 'string' ? payload.riskId : null;
+  if (!id || !initiativeId || !riskId) {
+    return null;
+  }
+  return {
+    id,
+    initiativeId,
+    riskId,
+    snapshotId: typeof payload.snapshotId === 'string' ? payload.snapshotId : null,
+    body: typeof payload.body === 'string' ? payload.body : '',
+    authorAccountId: typeof payload.authorAccountId === 'string' ? payload.authorAccountId : null,
+    authorName: typeof payload.authorName === 'string' ? payload.authorName : null,
+    createdAt: toIsoString(payload.createdAt) ?? new Date().toISOString(),
+    resolvedAt: toIsoString(payload.resolvedAt) ?? null,
+    resolvedByAccountId: typeof payload.resolvedByAccountId === 'string' ? payload.resolvedByAccountId : null,
+    resolvedByName: typeof payload.resolvedByName === 'string' ? payload.resolvedByName : null
+  };
+};
+
+const ensureRiskComment = (value: unknown): InitiativeRiskComment => {
+  const comment = normalizeRiskComment(value);
+  if (!comment) {
+    throw new Error('Failed to parse risk comment payload.');
+  }
+  return comment;
+};
+
+const ensureRiskCommentList = (value: unknown): InitiativeRiskComment[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((entry) => normalizeRiskComment(entry)).filter((entry): entry is InitiativeRiskComment => Boolean(entry));
+};
+
 export interface InitiativeCommentInput {
   targetId: string;
   targetLabel?: string | null;
@@ -667,6 +709,12 @@ export interface InitiativeCommentInput {
 export interface InitiativeCommentReplyInput {
   body: string;
   parentId?: string | null;
+}
+
+export interface InitiativeRiskCommentInput {
+  riskId: string;
+  body: string;
+  snapshotId?: string | null;
 }
 
 export interface InitiativeStatusReportEntryInput {
@@ -938,5 +986,26 @@ export const initiativesApi = {
       return result as { deleted: 'thread' | 'message'; threadId: string; messageId?: string };
     }
     throw new Error('Invalid response');
-  }
+  },
+  listRiskComments: async (id: string) =>
+    ensureRiskCommentList(await apiRequest<unknown>(`/initiatives/${id}/risk-comments`)),
+  createRiskComment: async (id: string, input: InitiativeRiskCommentInput, actor?: InitiativeActorMetadata) =>
+    ensureRiskComment(
+      await apiRequest<unknown>(`/initiatives/${id}/risk-comments`, {
+        method: 'POST',
+        body: withActor({ comment: input }, actor)
+      })
+    ),
+  setRiskCommentResolution: async (
+    id: string,
+    commentId: string,
+    resolved: boolean,
+    actor?: InitiativeActorMetadata
+  ) =>
+    ensureRiskComment(
+      await apiRequest<unknown>(`/initiatives/${id}/risk-comments/${commentId}/status`, {
+        method: 'PATCH',
+        body: withActor({ resolved }, actor)
+      })
+    )
 };

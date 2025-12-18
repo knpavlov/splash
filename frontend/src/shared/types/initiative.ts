@@ -211,6 +211,20 @@ export interface InitiativeCommentThread {
   resolvedByName: string | null;
 }
 
+export interface InitiativeRiskComment {
+  id: string;
+  initiativeId: string;
+  riskId: string;
+  snapshotId: string | null;
+  body: string;
+  authorAccountId: string | null;
+  authorName: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  resolvedByAccountId: string | null;
+  resolvedByName: string | null;
+}
+
 export interface InitiativeTotals {
   recurringBenefits: number;
   recurringCosts: number;

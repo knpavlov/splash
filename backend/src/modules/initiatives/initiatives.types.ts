@@ -318,6 +318,34 @@ export interface InitiativeRisk {
   mitigation: string;
 }
 
+export interface InitiativeRiskCommentRow extends Record<string, unknown> {
+  id: string;
+  initiative_id: string;
+  risk_id: string;
+  snapshot_id: string | null;
+  body: string;
+  author_account_id: string | null;
+  author_name: string | null;
+  created_at: Date;
+  resolved_at: Date | null;
+  resolved_by_account_id: string | null;
+  resolved_by_name: string | null;
+}
+
+export interface InitiativeRiskComment {
+  id: string;
+  initiativeId: string;
+  riskId: string;
+  snapshotId: string | null;
+  body: string;
+  authorAccountId: string | null;
+  authorName: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  resolvedByAccountId: string | null;
+  resolvedByName: string | null;
+}
+
 export interface InitiativeBusinessCaseFile {
   id: string;
   fileName: string;

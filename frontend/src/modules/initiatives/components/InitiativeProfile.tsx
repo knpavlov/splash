@@ -40,6 +40,7 @@ import { StageKpiEditor } from './StageKpiEditor';
 import { StageKpiActuals } from './StageKpiActuals';
 import { snapshotsApi } from '../../snapshots/services/snapshotsApi';
 import { StageSupportingDocs } from './StageSupportingDocs';
+import { RiskReviewPanel } from './RiskReviewPanel';
 
 interface InitiativeProfileProps {
   mode: 'create' | 'view';
@@ -2163,6 +2164,15 @@ export const InitiativeProfile = ({
               })}
             </div>
           ))}
+
+        {!risksCollapsed && (
+          <RiskReviewPanel
+            initiativeId={draft.id}
+            risks={draft.risks ?? []}
+            readOnly={isReadOnlyMode}
+            actor={session ? { accountId: session.accountId, name: session.email } : undefined}
+          />
+        )}
       </section>
 
       <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
