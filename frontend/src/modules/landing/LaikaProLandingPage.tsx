@@ -228,6 +228,10 @@ export const LaikaProLandingPage = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const lightCanvas = document.createElement('canvas');
+    const lightCtx = lightCanvas.getContext('2d');
+    if (!lightCtx) return;
+
     let animationId: number;
     const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
     const pointer = pointerRef.current;
@@ -260,53 +264,33 @@ export const LaikaProLandingPage = () => {
     const buildOccluders = () => {
       const p = (nx: number, ny: number): Point => ({ x: nx * width, y: ny * height });
 
-      const lMonogram: Point[] = [
-        p(0.345, 0.23),
-        p(0.485, 0.23),
-        p(0.505, 0.25),
-        p(0.505, 0.56),
-        p(0.675, 0.56),
-        p(0.695, 0.58),
-        p(0.695, 0.705),
-        p(0.675, 0.725),
-        p(0.345, 0.725),
-        p(0.325, 0.705),
-        p(0.325, 0.25)
-      ];
-
       const prism1: Point[] = [
-        p(0.58, 0.285),
-        p(0.76, 0.39),
-        p(0.64, 0.52),
-        p(0.50, 0.42)
+        p(0.64, 0.30),
+        p(0.90, 0.44),
+        p(0.76, 0.62),
+        p(0.56, 0.48)
       ];
 
       const prism2: Point[] = [
-        p(0.52, 0.44),
-        p(0.64, 0.56),
-        p(0.55, 0.70),
-        p(0.42, 0.60)
+        p(0.10, 0.56),
+        p(0.32, 0.50),
+        p(0.28, 0.72),
+        p(0.06, 0.68)
       ];
 
-      const shardA: Point[] = [p(0.18, 0.34), p(0.30, 0.27), p(0.34, 0.36), p(0.24, 0.44)];
-      const shardB: Point[] = [p(0.78, 0.64), p(0.90, 0.60), p(0.88, 0.74), p(0.77, 0.75)];
+      const shardA: Point[] = [p(0.16, 0.28), p(0.30, 0.22), p(0.36, 0.32), p(0.22, 0.38)];
+      const shardB: Point[] = [p(0.72, 0.72), p(0.90, 0.68), p(0.86, 0.82), p(0.68, 0.84)];
 
-      const slat1: Point[] = [p(0.14, 0.62), p(0.36, 0.54), p(0.38, 0.58), p(0.16, 0.66)];
-      const slat2: Point[] = [p(0.62, 0.18), p(0.92, 0.27), p(0.90, 0.31), p(0.60, 0.22)];
+      const slat1: Point[] = [p(0.10, 0.78), p(0.40, 0.66), p(0.42, 0.70), p(0.12, 0.82)];
+      const slat2: Point[] = [p(0.58, 0.14), p(0.96, 0.26), p(0.94, 0.32), p(0.56, 0.20)];
 
       occluders = [
-        {
-          points: lMonogram,
-          fill: 'rgba(2, 6, 23, 0.72)',
-          stroke: 'rgba(255, 255, 255, 0.06)',
-          glow: 'rgba(34, 211, 238, 0.10)'
-        },
-        { points: prism1, fill: 'rgba(2, 6, 23, 0.55)', stroke: 'rgba(255, 255, 255, 0.05)', glow: 'rgba(139, 92, 246, 0.10)' },
-        { points: prism2, fill: 'rgba(2, 6, 23, 0.50)', stroke: 'rgba(255, 255, 255, 0.05)', glow: 'rgba(236, 72, 153, 0.08)' },
-        { points: shardA, fill: 'rgba(2, 6, 23, 0.48)', stroke: 'rgba(255, 255, 255, 0.04)' },
-        { points: shardB, fill: 'rgba(2, 6, 23, 0.48)', stroke: 'rgba(255, 255, 255, 0.04)' },
-        { points: slat1, fill: 'rgba(2, 6, 23, 0.42)', stroke: 'rgba(255, 255, 255, 0.035)' },
-        { points: slat2, fill: 'rgba(2, 6, 23, 0.42)', stroke: 'rgba(255, 255, 255, 0.035)' }
+        { points: prism1, fill: 'rgba(2, 6, 23, 0.50)', stroke: 'rgba(255, 255, 255, 0.05)', glow: 'rgba(139, 92, 246, 0.10)' },
+        { points: prism2, fill: 'rgba(2, 6, 23, 0.46)', stroke: 'rgba(255, 255, 255, 0.05)', glow: 'rgba(236, 72, 153, 0.08)' },
+        { points: shardA, fill: 'rgba(2, 6, 23, 0.40)', stroke: 'rgba(255, 255, 255, 0.04)' },
+        { points: shardB, fill: 'rgba(2, 6, 23, 0.40)', stroke: 'rgba(255, 255, 255, 0.04)' },
+        { points: slat1, fill: 'rgba(2, 6, 23, 0.34)', stroke: 'rgba(255, 255, 255, 0.032)' },
+        { points: slat2, fill: 'rgba(2, 6, 23, 0.34)', stroke: 'rgba(255, 255, 255, 0.032)' }
       ];
 
       segments = [];
@@ -325,6 +309,10 @@ export const LaikaProLandingPage = () => {
       canvas.height = Math.floor(height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+      lightCanvas.width = canvas.width;
+      lightCanvas.height = canvas.height;
+      lightCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
       baseGradient = ctx.createLinearGradient(0, 0, width, height);
       baseGradient.addColorStop(0, '#050816');
       baseGradient.addColorStop(0.45, '#030712');
@@ -336,10 +324,21 @@ export const LaikaProLandingPage = () => {
       ctx.globalAlpha = 1;
       maxDist = Math.sqrt(width * width + height * height);
       buildOccluders();
+      refreshTitleMetrics();
 
       if (!pointer.x && !pointer.y) {
-        pointer.x = width * 0.27;
-        pointer.y = height * 0.34;
+        let initX = width * 0.27;
+        let initY = height * 0.34;
+        if (titleEl) {
+          const tRect = titleEl.getBoundingClientRect();
+          const cx = tRect.left - canvasRect.left + tRect.width / 2;
+          const cy = tRect.top - canvasRect.top + tRect.height / 2;
+          initX = Math.max(0, Math.min(width, cx - width * 0.18));
+          initY = Math.max(0, Math.min(height, cy - height * 0.22));
+        }
+
+        pointer.x = initX;
+        pointer.y = initY;
         pointer.targetX = pointer.x;
         pointer.targetY = pointer.y;
       }
@@ -351,6 +350,7 @@ export const LaikaProLandingPage = () => {
     let titleLines: string[] = [];
     let titleFont = '800 72px Inter, system-ui, -apple-system, sans-serif';
     let titleLetterSpacingPx = 0;
+    let titleLineHeightPx = 72;
 
     const parseCssPx = (raw: string, base = 16) => {
       const v = raw.trim();
@@ -369,28 +369,49 @@ export const LaikaProLandingPage = () => {
       const fontFamily = style.fontFamily || 'Inter, system-ui, -apple-system, sans-serif';
       titleFont = `${fontWeight} ${fontSize}px ${fontFamily}`;
       titleLetterSpacingPx = parseCssPx(style.letterSpacing, fontSize);
+      const lhRaw = style.lineHeight;
+      titleLineHeightPx = lhRaw === 'normal' ? fontSize * 1.05 : parseCssPx(lhRaw, fontSize) || fontSize * 1.05;
       const text = (titleEl.innerText || '').trim();
       titleLines = text ? text.split('\n').map((s) => s.trim()).filter(Boolean) : [];
     };
 
-    const fillTextWithLetterSpacing = (text: string, x: number, y: number, spacingPx: number) => {
+    const getTitleCenterInCanvas = (): Point | null => {
+      if (!titleEl) return null;
+      const tRect = titleEl.getBoundingClientRect();
+      const cRect = canvas.getBoundingClientRect();
+      return { x: tRect.left - cRect.left + tRect.width / 2, y: tRect.top - cRect.top + tRect.height / 2 };
+    };
+
+    const fillTextWithLetterSpacing = (
+      drawCtx: CanvasRenderingContext2D,
+      text: string,
+      x: number,
+      y: number,
+      spacingPx: number
+    ) => {
       if (!spacingPx) {
-        ctx.fillText(text, x, y);
+        drawCtx.fillText(text, x, y);
         return;
       }
 
       const chars = Array.from(text);
-      const widths = chars.map((ch) => ctx.measureText(ch).width);
+      const widths = chars.map((ch) => drawCtx.measureText(ch).width);
       const total = widths.reduce((sum, w) => sum + w, 0) + spacingPx * (chars.length - 1);
 
       let cursorX = x - total / 2;
       for (let i = 0; i < chars.length; i += 1) {
-        ctx.fillText(chars[i], cursorX + widths[i] / 2, y);
+        drawCtx.fillText(chars[i], cursorX + widths[i] / 2, y);
         cursorX += widths[i] + spacingPx;
       }
     };
 
-    const drawTitleShadow = (origin: Point) => {
+    type TitleShadowMode = 'multiply' | 'destination-out';
+
+    const drawTitleShadow = (
+      drawCtx: CanvasRenderingContext2D,
+      origin: Point,
+      opts: { mode: TitleShadowMode; strength: number; bloom: boolean }
+    ) => {
       if (!titleEl) return;
       if (!titleLines.length) refreshTitleMetrics();
       if (!titleLines.length) return;
@@ -411,59 +432,67 @@ export const LaikaProLandingPage = () => {
       const dirY = dy / dist;
 
       const minDim = Math.min(width, height);
-      const len = Math.max(minDim * 0.12, Math.min(minDim * 0.44, dist * 0.58));
-      const steps = width < 720 ? 18 : 26;
+      const lenBase = opts.mode === 'destination-out' ? minDim * 0.82 : minDim * 0.44;
+      const len = Math.max(minDim * 0.12, Math.min(lenBase, dist * (opts.mode === 'destination-out' ? 0.95 : 0.58)));
+      const steps = width < 720 ? (opts.mode === 'destination-out' ? 22 : 18) : opts.mode === 'destination-out' ? 34 : 26;
+      const strength = Math.max(0, Math.min(1.35, opts.strength));
 
-      ctx.save();
-      ctx.font = titleFont;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      const lineHeight = Math.max(1, titleLineHeightPx);
+      const textBlockH = (titleLines.length - 1) * lineHeight;
+      const startY = y + h / 2 - textBlockH / 2;
 
-      // Subtle "lit edge" bloom on the side facing the light source.
-      ctx.save();
-      ctx.globalCompositeOperation = 'screen';
-      ctx.filter = 'blur(14px)';
-      ctx.globalAlpha = 0.085;
-      ctx.fillStyle = 'rgba(255,255,255,1)';
-      const hx = -dirX * Math.min(22, len * 0.12);
-      const hy = -dirY * Math.min(22, len * 0.12);
-      for (let i = 0; i < titleLines.length; i += 1) {
-        const ly = y + (h / titleLines.length) * (i + 0.5);
-        fillTextWithLetterSpacing(titleLines[i], cx + hx, ly + hy, titleLetterSpacingPx);
+      drawCtx.save();
+      drawCtx.font = titleFont;
+      drawCtx.textAlign = 'center';
+      drawCtx.textBaseline = 'middle';
+
+      if (opts.bloom) {
+        // Subtle "lit edge" bloom on the side facing the light source.
+        drawCtx.save();
+        drawCtx.globalCompositeOperation = 'screen';
+        drawCtx.filter = 'blur(14px)';
+        drawCtx.globalAlpha = 0.085 * strength;
+        drawCtx.fillStyle = 'rgba(255,255,255,1)';
+        const hx = -dirX * Math.min(22, len * 0.12);
+        const hy = -dirY * Math.min(22, len * 0.12);
+        for (let i = 0; i < titleLines.length; i += 1) {
+          const ly = startY + i * lineHeight;
+          fillTextWithLetterSpacing(drawCtx, titleLines[i], cx + hx, ly + hy, titleLetterSpacingPx);
+        }
+        drawCtx.restore();
       }
-      ctx.restore();
 
-      ctx.globalCompositeOperation = 'multiply';
+      drawCtx.globalCompositeOperation = opts.mode;
 
       // Soft penumbra
-      ctx.save();
-      ctx.filter = 'blur(18px)';
-      ctx.globalAlpha = 0.14;
-      ctx.fillStyle = 'rgba(0,0,0,1)';
-      const px = dirX * (len * 0.62);
-      const py = dirY * (len * 0.62);
+      drawCtx.save();
+      drawCtx.filter = opts.mode === 'destination-out' ? 'blur(22px)' : 'blur(18px)';
+      drawCtx.globalAlpha = (opts.mode === 'destination-out' ? 0.68 : 0.14) * strength;
+      drawCtx.fillStyle = 'rgba(0,0,0,1)';
+      const px = dirX * (len * 0.56);
+      const py = dirY * (len * 0.56);
       for (let i = 0; i < titleLines.length; i += 1) {
-        const ly = y + (h / titleLines.length) * (i + 0.5);
-        fillTextWithLetterSpacing(titleLines[i], cx + px, ly + py, titleLetterSpacingPx);
+        const ly = startY + i * lineHeight;
+        fillTextWithLetterSpacing(drawCtx, titleLines[i], cx + px, ly + py, titleLetterSpacingPx);
       }
-      ctx.restore();
+      drawCtx.restore();
 
-      // Crisp extrusion for a "cutout" shadow feel
-      ctx.filter = 'none';
-      ctx.fillStyle = 'rgba(0,0,0,1)';
+      // Crisp extrusion (stronger for light cutout so the shadow reads instantly)
+      drawCtx.filter = 'none';
+      drawCtx.fillStyle = 'rgba(0,0,0,1)';
       for (let s = 1; s <= steps; s += 1) {
         const t = s / steps;
         const falloff = (1 - t) * (1 - t);
-        ctx.globalAlpha = 0.22 * falloff;
+        drawCtx.globalAlpha = (opts.mode === 'destination-out' ? 0.22 : 0.18) * falloff * strength;
         const ox = dirX * (len * t);
         const oy = dirY * (len * t);
         for (let i = 0; i < titleLines.length; i += 1) {
-          const ly = y + (h / titleLines.length) * (i + 0.5);
-          fillTextWithLetterSpacing(titleLines[i], cx + ox, ly + oy, titleLetterSpacingPx);
+          const ly = startY + i * lineHeight;
+          fillTextWithLetterSpacing(drawCtx, titleLines[i], cx + ox, ly + oy, titleLetterSpacingPx);
         }
       }
 
-      ctx.restore();
+      drawCtx.restore();
     };
 
     const updatePointerTarget = (event: PointerEvent) => {
@@ -593,7 +622,10 @@ export const LaikaProLandingPage = () => {
 
     if (prefersReducedMotion) {
       drawStatic();
-      drawTitleShadow({ x: width * 0.27, y: height * 0.34 });
+      const staticOrigin = { x: width * 0.27, y: height * 0.34 };
+      // Cut the light with the title shape, then add a subtle readable shadow.
+      drawTitleShadow(ctx, staticOrigin, { mode: 'destination-out', strength: 1, bloom: false });
+      drawTitleShadow(ctx, staticOrigin, { mode: 'multiply', strength: 0.6, bloom: true });
       return () => {
         host.removeEventListener('pointermove', handlePointerMove);
         host.removeEventListener('pointerenter', handlePointerEnter);
@@ -620,14 +652,26 @@ export const LaikaProLandingPage = () => {
       lastFrame = now;
 
       if (!pointer.active) {
-        pointer.targetX = width * 0.23 + Math.sin(now * 0.00024) * width * 0.18;
-        pointer.targetY = height * 0.33 + Math.cos(now * 0.00021) * height * 0.14;
+        const titleCenter = getTitleCenterInCanvas();
+        if (titleCenter) {
+          pointer.targetX = Math.max(
+            0,
+            Math.min(width, titleCenter.x - width * 0.18 + Math.sin(now * 0.00024) * width * 0.14)
+          );
+          pointer.targetY = Math.max(
+            0,
+            Math.min(height, titleCenter.y - height * 0.22 + Math.cos(now * 0.00021) * height * 0.12)
+          );
+        } else {
+          pointer.targetX = width * 0.23 + Math.sin(now * 0.00024) * width * 0.18;
+          pointer.targetY = height * 0.33 + Math.cos(now * 0.00021) * height * 0.14;
+        }
       }
       pointer.x += (pointer.targetX - pointer.x) * 0.12;
       pointer.y += (pointer.targetY - pointer.y) * 0.12;
 
       ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 0.16;
+      ctx.globalAlpha = 0.22;
       ctx.fillStyle = baseGradient ?? '#030712';
       ctx.fillRect(0, 0, width, height);
       ctx.globalAlpha = 1;
@@ -645,7 +689,7 @@ export const LaikaProLandingPage = () => {
       const step = (Math.PI * 2) / rayCount;
 
       const drawChannel = (hue: number, angleOffset: number, alpha: number, lineEvery: number) => {
-        const grad = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, maxDist * 0.95);
+        const grad = lightCtx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, maxDist * 0.95);
         grad.addColorStop(0, `hsla(${hue}, 100%, 74%, ${alpha})`);
         grad.addColorStop(0.22, `hsla(${hue + 30}, 100%, 66%, ${alpha * 0.55})`);
         grad.addColorStop(1, 'transparent');
@@ -656,48 +700,51 @@ export const LaikaProLandingPage = () => {
           points.push(castRay(origin, a).hit);
         }
 
-        ctx.fillStyle = grad;
+        lightCtx.fillStyle = grad;
         for (let i = 0; i < points.length; i += 1) {
           const p1 = points[i];
           const p2 = points[(i + 1) % points.length];
-          ctx.beginPath();
-          ctx.moveTo(origin.x, origin.y);
-          ctx.lineTo(p1.x, p1.y);
-          ctx.lineTo(p2.x, p2.y);
-          ctx.closePath();
-          ctx.fill();
+          lightCtx.beginPath();
+          lightCtx.moveTo(origin.x, origin.y);
+          lightCtx.lineTo(p1.x, p1.y);
+          lightCtx.lineTo(p2.x, p2.y);
+          lightCtx.closePath();
+          lightCtx.fill();
         }
 
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = `hsla(${hue}, 100%, 72%, ${Math.min(0.085, alpha * 0.55)})`;
-        ctx.lineWidth = 1;
+        lightCtx.lineCap = 'round';
+        lightCtx.strokeStyle = `hsla(${hue}, 100%, 72%, ${Math.min(0.085, alpha * 0.55)})`;
+        lightCtx.lineWidth = 1;
         for (let i = 0; i < points.length; i += lineEvery) {
           const pt = points[i];
-          ctx.beginPath();
-          ctx.moveTo(origin.x, origin.y);
-          ctx.lineTo(pt.x, pt.y);
-          ctx.stroke();
+          lightCtx.beginPath();
+          lightCtx.moveTo(origin.x, origin.y);
+          lightCtx.lineTo(pt.x, pt.y);
+          lightCtx.stroke();
         }
 
-        ctx.fillStyle = `hsla(${hue + 25}, 100%, 70%, ${0.06 * sparkle})`;
+        lightCtx.fillStyle = `hsla(${hue + 25}, 100%, 70%, ${0.06 * sparkle})`;
         for (let i = 0; i < points.length; i += 18) {
           const pt = points[i];
-          ctx.beginPath();
-          ctx.arc(pt.x, pt.y, 1.2, 0, Math.PI * 2);
-          ctx.fill();
+          lightCtx.beginPath();
+          lightCtx.arc(pt.x, pt.y, 1.2, 0, Math.PI * 2);
+          lightCtx.fill();
         }
       };
 
-      ctx.globalCompositeOperation = 'lighter';
+      // Render the light into an offscreen layer so we can subtract the title silhouette cleanly.
+      lightCtx.globalCompositeOperation = 'source-over';
+      lightCtx.clearRect(0, 0, width, height);
+      lightCtx.globalCompositeOperation = 'lighter';
 
       // Soft spotlight core
-      const spot = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, Math.min(maxDist * 0.18, 320));
+      const spot = lightCtx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, Math.min(maxDist * 0.18, 320));
       spot.addColorStop(0, `rgba(255, 255, 255, ${0.10 + pulseBoost * 0.04})`);
       spot.addColorStop(1, 'transparent');
-      ctx.fillStyle = spot;
-      ctx.beginPath();
-      ctx.arc(origin.x, origin.y, Math.min(maxDist * 0.18, 320), 0, Math.PI * 2);
-      ctx.fill();
+      lightCtx.fillStyle = spot;
+      lightCtx.beginPath();
+      lightCtx.arc(origin.x, origin.y, Math.min(maxDist * 0.18, 320), 0, Math.PI * 2);
+      lightCtx.fill();
 
       // Chromatic dispersion (small angular offsets).
       drawChannel(195, -0.0028, intensity * 0.62, 10);
@@ -714,12 +761,20 @@ export const LaikaProLandingPage = () => {
         }
         const radius = 50 + age * 680;
         const a = Math.max(0, 1 - age / 1.25);
-        ctx.strokeStyle = `rgba(34, 211, 238, ${a * 0.14})`;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
-        ctx.stroke();
+        lightCtx.strokeStyle = `rgba(34, 211, 238, ${a * 0.14})`;
+        lightCtx.lineWidth = 1.5;
+        lightCtx.beginPath();
+        lightCtx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        lightCtx.stroke();
       }
+
+      // Title becomes the main occluder: subtract its projected shadow from the light layer.
+      drawTitleShadow(lightCtx, origin, { mode: 'destination-out', strength: 1, bloom: false });
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(lightCanvas, 0, 0, width, height);
+      ctx.restore();
 
       ctx.globalCompositeOperation = 'source-over';
 
@@ -745,8 +800,8 @@ export const LaikaProLandingPage = () => {
         ctx.shadowBlur = 0;
       });
 
-      // Headline is the key occluder: cast a dynamic shadow into the scene.
-      drawTitleShadow(origin);
+      // Add a subtle surface shadow to anchor the illusion behind the DOM headline.
+      drawTitleShadow(ctx, origin, { mode: 'multiply', strength: 0.52, bloom: true });
 
       animationId = requestAnimationFrame(animate);
     };
