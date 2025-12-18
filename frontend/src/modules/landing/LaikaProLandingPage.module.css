@@ -169,7 +169,7 @@
   height: 100%;
   z-index: 0;
   transform: translateZ(0);
-  filter: contrast(1.08) brightness(1.02) saturate(0.98);
+  filter: contrast(1.06) brightness(1.01) saturate(1.06);
 }
 
 /* Hero readability overlay */

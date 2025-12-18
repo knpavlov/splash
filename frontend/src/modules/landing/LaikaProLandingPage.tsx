@@ -6,7 +6,8 @@ import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
 import { ReportingDemo, DemoView, VIEW_OPTIONS } from './components/ReportingDemo';
 import { ImplementationMonitoringDemo } from './components/ImplementationMonitoringDemo';
-import { useHeroLightenSpotlights } from './components/useHeroLightenSpotlights';
+// Alternative hero (spotlights + mono geometry) kept for easy rollback:
+// import { useHeroLightenSpotlights } from './components/useHeroLightenSpotlights';
 import { apiRequest, ApiError } from '../../shared/api/httpClient';
 
 /* ---------------------------------------------------------------------------
@@ -21,15 +22,25 @@ type HeroPointer = {
 };
 --------------------------------------------------------------------------- */
 
+type HeroPointer = {
+  x: number;
+  y: number;
+  targetX: number;
+  targetY: number;
+  active: boolean;
+  down: boolean;
+};
+
 export const LaikaProLandingPage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const heroRef = useRef<HTMLElement>(null);
+  const heroTitleRef = useRef<HTMLHeadingElement>(null);
   const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>({});
   const [activeNav, setActiveNav] = useState('hero');
   const [scrollProgress, setScrollProgress] = useState(0);
   const [scrollY, setScrollY] = useState(0);
   // PREVIOUS HERO (2D rays) pointer ref — kept for easy rollback.
-  // const pointerRef = useRef<HeroPointer>({ x: 0, y: 0, targetX: 0, targetY: 0, active: false, down: false });
+  const pointerRef = useRef<HeroPointer>({ x: 0, y: 0, targetX: 0, targetY: 0, active: false, down: false });
   // Shared state for interactive demos
   const [demoTasks, setDemoTasks] = useState<DemoTask[]>(INITIAL_TASKS);
   const [activeReportingView, setActiveReportingView] = useState<DemoView>('pnl-tree');
@@ -203,11 +214,12 @@ export const LaikaProLandingPage = () => {
     return () => window.removeEventListener('scroll', handleParallax);
   }, []);
 
-  useHeroLightenSpotlights(canvasRef, heroRef);
+  // Alternative hero (spotlights + mono geometry) kept for easy rollback:
+  // useHeroLightenSpotlights(canvasRef, heroRef);
 
-  /* ---------------------------------------------------------------------------
-     PREVIOUS HERO (2D light rays / occluders) - preserved for easy rollback.
-     ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // PREVIOUS HERO (2D light rays / occluders) - preserved for easy rollback.
+  // ---------------------------------------------------------------------------
   // Hero Canvas Animation - Light rays through geometric occluders ("Laiten" = light)
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -334,8 +346,128 @@ export const LaikaProLandingPage = () => {
     };
 
     const host = (heroRef.current as unknown as HTMLElement | null) ?? canvas;
+    const titleEl = heroTitleRef.current;
+
+    let titleLines: string[] = [];
+    let titleFont = '800 72px Inter, system-ui, -apple-system, sans-serif';
+    let titleLetterSpacingPx = 0;
+
+    const parseCssPx = (raw: string, base = 16) => {
+      const v = raw.trim();
+      if (!v) return 0;
+      if (v.endsWith('px')) return Number.parseFloat(v);
+      if (v.endsWith('em')) return Number.parseFloat(v) * base;
+      const n = Number.parseFloat(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const refreshTitleMetrics = () => {
+      if (!titleEl) return;
+      const style = window.getComputedStyle(titleEl);
+      const fontSize = parseCssPx(style.fontSize, 16) || 72;
+      const fontWeight = style.fontWeight || '800';
+      const fontFamily = style.fontFamily || 'Inter, system-ui, -apple-system, sans-serif';
+      titleFont = `${fontWeight} ${fontSize}px ${fontFamily}`;
+      titleLetterSpacingPx = parseCssPx(style.letterSpacing, fontSize);
+      const text = (titleEl.innerText || '').trim();
+      titleLines = text ? text.split('\n').map((s) => s.trim()).filter(Boolean) : [];
+    };
+
+    const fillTextWithLetterSpacing = (text: string, x: number, y: number, spacingPx: number) => {
+      if (!spacingPx) {
+        ctx.fillText(text, x, y);
+        return;
+      }
+
+      const chars = Array.from(text);
+      const widths = chars.map((ch) => ctx.measureText(ch).width);
+      const total = widths.reduce((sum, w) => sum + w, 0) + spacingPx * (chars.length - 1);
+
+      let cursorX = x - total / 2;
+      for (let i = 0; i < chars.length; i += 1) {
+        ctx.fillText(chars[i], cursorX + widths[i] / 2, y);
+        cursorX += widths[i] + spacingPx;
+      }
+    };
+
+    const drawTitleShadow = (origin: Point) => {
+      if (!titleEl) return;
+      if (!titleLines.length) refreshTitleMetrics();
+      if (!titleLines.length) return;
+
+      const rect = titleEl.getBoundingClientRect();
+      const cRect = canvas.getBoundingClientRect();
+      const x = rect.left - cRect.left;
+      const y = rect.top - cRect.top;
+      const w = rect.width;
+      const h = rect.height;
+
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const dx = cx - origin.x;
+      const dy = cy - origin.y;
+      const dist = Math.max(1, Math.hypot(dx, dy));
+      const dirX = dx / dist;
+      const dirY = dy / dist;
+
+      const minDim = Math.min(width, height);
+      const len = Math.max(minDim * 0.12, Math.min(minDim * 0.44, dist * 0.58));
+      const steps = width < 720 ? 18 : 26;
+
+      ctx.save();
+      ctx.font = titleFont;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Subtle "lit edge" bloom on the side facing the light source.
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.filter = 'blur(14px)';
+      ctx.globalAlpha = 0.085;
+      ctx.fillStyle = 'rgba(255,255,255,1)';
+      const hx = -dirX * Math.min(22, len * 0.12);
+      const hy = -dirY * Math.min(22, len * 0.12);
+      for (let i = 0; i < titleLines.length; i += 1) {
+        const ly = y + (h / titleLines.length) * (i + 0.5);
+        fillTextWithLetterSpacing(titleLines[i], cx + hx, ly + hy, titleLetterSpacingPx);
+      }
+      ctx.restore();
+
+      ctx.globalCompositeOperation = 'multiply';
+
+      // Soft penumbra
+      ctx.save();
+      ctx.filter = 'blur(18px)';
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = 'rgba(0,0,0,1)';
+      const px = dirX * (len * 0.62);
+      const py = dirY * (len * 0.62);
+      for (let i = 0; i < titleLines.length; i += 1) {
+        const ly = y + (h / titleLines.length) * (i + 0.5);
+        fillTextWithLetterSpacing(titleLines[i], cx + px, ly + py, titleLetterSpacingPx);
+      }
+      ctx.restore();
+
+      // Crisp extrusion for a "cutout" shadow feel
+      ctx.filter = 'none';
+      ctx.fillStyle = 'rgba(0,0,0,1)';
+      for (let s = 1; s <= steps; s += 1) {
+        const t = s / steps;
+        const falloff = (1 - t) * (1 - t);
+        ctx.globalAlpha = 0.22 * falloff;
+        const ox = dirX * (len * t);
+        const oy = dirY * (len * t);
+        for (let i = 0; i < titleLines.length; i += 1) {
+          const ly = y + (h / titleLines.length) * (i + 0.5);
+          fillTextWithLetterSpacing(titleLines[i], cx + ox, ly + oy, titleLetterSpacingPx);
+        }
+      }
+
+      ctx.restore();
+    };
 
     const updatePointerTarget = (event: PointerEvent) => {
+      canvasRect = canvas.getBoundingClientRect();
       const x = event.clientX - canvasRect.left;
       const y = event.clientY - canvasRect.top;
       pointer.targetX = Math.max(0, Math.min(width, x));
@@ -457,9 +589,11 @@ export const LaikaProLandingPage = () => {
     };
 
     resize();
+    refreshTitleMetrics();
 
     if (prefersReducedMotion) {
       drawStatic();
+      drawTitleShadow({ x: width * 0.27, y: height * 0.34 });
       return () => {
         host.removeEventListener('pointermove', handlePointerMove);
         host.removeEventListener('pointerenter', handlePointerEnter);
@@ -473,10 +607,16 @@ export const LaikaProLandingPage = () => {
     const ro = 'ResizeObserver' in window ? new ResizeObserver(() => resize()) : null;
     ro?.observe(canvas);
     window.addEventListener('resize', resize);
+    window.addEventListener('resize', refreshTitleMetrics);
 
     let lastFrame = performance.now();
 
     const animate = (now: number) => {
+      const dt = now - lastFrame;
+      if (dt < 1000 / 48) {
+        animationId = requestAnimationFrame(animate);
+        return;
+      }
       lastFrame = now;
 
       if (!pointer.active) {
@@ -605,6 +745,9 @@ export const LaikaProLandingPage = () => {
         ctx.shadowBlur = 0;
       });
 
+      // Headline is the key occluder: cast a dynamic shadow into the scene.
+      drawTitleShadow(origin);
+
       animationId = requestAnimationFrame(animate);
     };
 
@@ -614,6 +757,7 @@ export const LaikaProLandingPage = () => {
       cancelAnimationFrame(animationId);
       ro?.disconnect();
       window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', refreshTitleMetrics);
       host.removeEventListener('pointermove', handlePointerMove);
       host.removeEventListener('pointerenter', handlePointerEnter);
       host.removeEventListener('pointerleave', handlePointerLeave);
@@ -622,7 +766,7 @@ export const LaikaProLandingPage = () => {
       window.removeEventListener('pointercancel', handlePointerUp);
     };
   }, []);
-  --------------------------------------------------------------------------- */
+  // ---------------------------------------------------------------------------
 
   const scrollToSection = useCallback((id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -697,7 +841,7 @@ export const LaikaProLandingPage = () => {
             Enterprise-Ready Platform
           </div>
 
-          <h1 className={styles.heroTitle} aria-label="Transformation - Lightened.">
+          <h1 ref={heroTitleRef} className={styles.heroTitle} aria-label="Transformation - Lightened.">
             <span className={styles.heroTitleLine}>
               Transformation <span className={styles.heroTitleDash}>-</span>
             </span>
