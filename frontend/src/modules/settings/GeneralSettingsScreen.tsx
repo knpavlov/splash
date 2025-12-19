@@ -14,7 +14,15 @@ import {
   StageColumnKey
 } from '../../shared/types/snapshot';
 import { initiativeStageKeys, initiativeStageLabels } from '../../shared/types/initiative';
+import {
+  createDefaultInitiativeFormSettingsMatrix,
+  initiativeFormBlocks,
+  type InitiativeFormBlockKey,
+  type InitiativeFormFieldRequirement,
+  type InitiativeFormSettingsMatrix
+} from '../../shared/types/initiativeFormSettings';
 import { WorkstreamRoleOption, defaultWorkstreamRoleOptions } from '../../shared/types/workstream';
+import { initiativeFormSettingsApi } from '../initiatives/services/initiativeFormSettingsApi';
 
 const DEFAULT_OPTIONS = ['Standard', 'Value Step', 'Change Management'];
 const VALUE_STEP_LABEL = 'Value Step';
@@ -154,6 +162,15 @@ export const GeneralSettingsScreen = () => {
   const [statusCollapsed, setStatusCollapsed] = useState(false);
   const [kpiCollapsed, setKpiCollapsed] = useState(false);
   const [riskCollapsed, setRiskCollapsed] = useState(false);
+  const [initiativeFormCollapsed, setInitiativeFormCollapsed] = useState(false);
+
+  const [initiativeFormSettingsDraft, setInitiativeFormSettingsDraft] = useState<InitiativeFormSettingsMatrix>(() =>
+    createDefaultInitiativeFormSettingsMatrix()
+  );
+  const [initiativeFormSettingsLoading, setInitiativeFormSettingsLoading] = useState(true);
+  const [initiativeFormSettingsSaving, setInitiativeFormSettingsSaving] = useState(false);
+  const [initiativeFormSettingsError, setInitiativeFormSettingsError] = useState<string | null>(null);
+  const [initiativeFormSettingsMessage, setInitiativeFormSettingsMessage] = useState<string | null>(null);
 
   const [snapshotSettings, setSnapshotSettings] = useState<SnapshotSettingsPayload | null>(null);
   const [snapshotForm, setSnapshotForm] = useState<SnapshotFormState>(() => buildFormState(null));
@@ -187,6 +204,38 @@ export const GeneralSettingsScreen = () => {
     setRiskCategoryDrafts(riskCategories);
   }, [riskCategories]);
 
+  useEffect(() => {
+    let active = true;
+    setInitiativeFormSettingsLoading(true);
+    setInitiativeFormSettingsError(null);
+    setInitiativeFormSettingsMessage(null);
+    initiativeFormSettingsApi
+      .get()
+      .then((settings) => {
+        if (!active) {
+          return;
+        }
+        const fallback = createDefaultInitiativeFormSettingsMatrix();
+        const stages = settings?.stages ?? fallback.stages;
+        setInitiativeFormSettingsDraft({ stages });
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+        console.error('Failed to load initiative form settings:', error);
+        setInitiativeFormSettingsError('Could not load initiative form settings.');
+      })
+      .finally(() => {
+        if (active) {
+          setInitiativeFormSettingsLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const normalizedOptions = useMemo(() => normalizeOptions(draftOptions), [draftOptions]);
   const slugifyRole = (label: string) =>
     label
@@ -215,6 +264,41 @@ export const GeneralSettingsScreen = () => {
   const handleSaveStatusSettings = () => {
     saveStatusReportSettings(statusSettings);
     setToast('Reporting cadence saved.');
+  };
+
+  const setInitiativeFormRequirement = (
+    stageKey: keyof InitiativeFormSettingsMatrix['stages'],
+    blockKey: InitiativeFormBlockKey,
+    requirement: InitiativeFormFieldRequirement
+  ) => {
+    setInitiativeFormSettingsDraft((prev) => ({
+      stages: {
+        ...prev.stages,
+        [stageKey]: {
+          ...prev.stages[stageKey],
+          [blockKey]: requirement
+        }
+      }
+    }));
+    setInitiativeFormSettingsMessage(null);
+    setInitiativeFormSettingsError(null);
+  };
+
+  const handleSaveInitiativeFormSettings = async () => {
+    setInitiativeFormSettingsSaving(true);
+    setInitiativeFormSettingsError(null);
+    setInitiativeFormSettingsMessage(null);
+    try {
+      const updated = await initiativeFormSettingsApi.update(initiativeFormSettingsDraft);
+      const fallback = createDefaultInitiativeFormSettingsMatrix();
+      setInitiativeFormSettingsDraft({ stages: updated?.stages ?? fallback.stages });
+      setInitiativeFormSettingsMessage('Stage gate requirements saved.');
+    } catch (error) {
+      console.error('Failed to save initiative form settings:', error);
+      setInitiativeFormSettingsError('Could not save stage gate requirements.');
+    } finally {
+      setInitiativeFormSettingsSaving(false);
+    }
   };
 
   const handleRemove = (index: number) => {
@@ -722,6 +806,112 @@ export const GeneralSettingsScreen = () => {
                 </button>
               </div>
               <p className={styles.cardSubtitle}>Categories appear on the initiative editor under the Risks block.</p>
+            </>
+          )}
+        </section>
+
+        <section className={styles.card}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitleRow}>
+              <button
+                className={`${styles.collapseButton} ${initiativeFormCollapsed ? styles.collapsed : ''}`}
+                type="button"
+                aria-label={initiativeFormCollapsed ? 'Expand stage gate requirements' : 'Collapse stage gate requirements'}
+                onClick={() => setInitiativeFormCollapsed((prev) => !prev)}
+              >
+                {'\u25BE'}
+              </button>
+              <div>
+                <p className={styles.cardEyebrow}>Stage gates</p>
+                <h3 className={styles.cardTitle}>Initiative editor blocks</h3>
+                <p className={styles.cardSubtitle}>
+                  Choose which blocks are visible for each stage gate, and mark them as Required or Optional.
+                </p>
+              </div>
+            </div>
+            <button
+              className={styles.primaryButton}
+              type="button"
+              onClick={() => void handleSaveInitiativeFormSettings()}
+              disabled={initiativeFormSettingsLoading || initiativeFormSettingsSaving}
+            >
+              {initiativeFormSettingsSaving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+
+          {!initiativeFormCollapsed && (
+            <>
+              {initiativeFormSettingsError && <div className={styles.errorBanner}>{initiativeFormSettingsError}</div>}
+              {initiativeFormSettingsMessage && <div className={styles.successBanner}>{initiativeFormSettingsMessage}</div>}
+              <p className={styles.helpText}>
+                Set both toggles off to hide a block for that stage gate. Required blocks block submission until they are filled.
+              </p>
+
+              {initiativeFormSettingsLoading ? (
+                <p className={styles.helpText}>Loading stage gate requirements...</p>
+              ) : (
+                <div className={styles.tableScroll}>
+                  <table className={`${styles.snapshotTable} ${styles.matrixTable}`}>
+                    <thead>
+                      <tr>
+                        <th>Block</th>
+                        {initiativeStageKeys.map((stageKey) => (
+                          <th key={`form-stage-${stageKey}`}>{initiativeStageLabels[stageKey]}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {initiativeFormBlocks.map((block) => (
+                        <tr key={`form-block-${block.key}`}>
+                          <th scope="row">
+                            <div className={styles.matrixRowLabel}>
+                              <span>{block.label}</span>
+                              <span className={styles.matrixRowHint}>{block.submitHint}</span>
+                            </div>
+                          </th>
+                          {initiativeStageKeys.map((stageKey) => {
+                            const requirement = initiativeFormSettingsDraft.stages[stageKey]?.[block.key] ?? 'optional';
+                            return (
+                              <td key={`form-cell-${block.key}-${stageKey}`}>
+                                <div className={styles.matrixCell}>
+                                  <label className={styles.matrixToggle}>
+                                    <input
+                                      type="checkbox"
+                                      checked={requirement === 'required'}
+                                      onChange={(event) =>
+                                        setInitiativeFormRequirement(
+                                          stageKey,
+                                          block.key,
+                                          event.target.checked ? 'required' : 'hidden'
+                                        )
+                                      }
+                                    />
+                                    <span>Required</span>
+                                  </label>
+                                  <label className={styles.matrixToggle}>
+                                    <input
+                                      type="checkbox"
+                                      checked={requirement === 'optional'}
+                                      onChange={(event) =>
+                                        setInitiativeFormRequirement(
+                                          stageKey,
+                                          block.key,
+                                          event.target.checked ? 'optional' : 'hidden'
+                                        )
+                                      }
+                                    />
+                                    <span>Optional</span>
+                                  </label>
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </>
           )}
         </section>

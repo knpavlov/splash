@@ -578,6 +578,54 @@
   font-size: 12px;
 }
 
+.matrixTable th:first-child,
+.matrixTable td:first-child {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 2;
+}
+
+.matrixTable thead th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+  z-index: 3;
+}
+
+.matrixRowLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.matrixRowHint {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.matrixCell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 110px;
+}
+
+.matrixToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+  user-select: none;
+}
+
+.matrixToggle input {
+  width: 16px;
+  height: 16px;
+}
+
 .cardHeader h3,
 .cardTitle {
   margin: 0;

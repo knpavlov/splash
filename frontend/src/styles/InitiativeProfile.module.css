@@ -478,6 +478,42 @@
   font-size: 14px;
 }
 
+.sectionTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.requiredBadge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+}
+
+.formBlockWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.requiredNotice {
+  align-self: flex-start;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.12);
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 12px;
+  border: 1px solid rgba(14, 165, 233, 0.28);
+}
+
 .stageHeader {
   display: flex;
   justify-content: space-between;
@@ -626,7 +662,7 @@
   transition: opacity 0.12s ease, transform 0.12s ease;
   pointer-events: none;
   max-width: 260px;
-  white-space: normal;
+  white-space: pre-line;
   line-height: 1.4;
   z-index: 5;
 }
@@ -722,6 +758,11 @@
   display: grid;
   gap: 6px;
   color: #334155;
+}
+
+.submitChecklistMissing {
+  color: #b91c1c;
+  font-weight: 800;
 }
 
 .submitActions {

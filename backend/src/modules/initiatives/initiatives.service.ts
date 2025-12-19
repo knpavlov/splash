@@ -1,6 +1,8 @@
 import { randomUUID, createHash } from 'crypto';
 import { ApprovalTaskRow, InitiativesRepository } from './initiatives.repository.js';
 import { WorkstreamsRepository } from '../workstreams/workstreams.repository.js';
+import { InitiativeFormSettingsRepository } from './initiativeFormSettings.repository.js';
+import { initiativeFormBlockKeys } from './initiativeFormSettings.types.js';
 import {
   initiativeFinancialKinds,
   initiativeStageKeys,
@@ -57,6 +59,66 @@ const sanitizeOptionalString = (value: unknown) => {
 };
 
 const hashPayload = (value: string) => createHash('sha1').update(value).digest('hex');
+
+const hasNumericEntry = (input: unknown) =>
+  Boolean(
+    input &&
+      typeof input === 'object' &&
+      Object.values(input as Record<string, unknown>).some((value) => typeof value === 'number' && Number.isFinite(value))
+  );
+
+const hasFinancialPlanContent = (stage: InitiativeStagePayload | null | undefined) => {
+  if (!stage) {
+    return false;
+  }
+  return initiativeFinancialKinds.some((kind) =>
+    (stage.financials?.[kind] ?? []).some(
+      (entry) => sanitizeString(entry.label) !== '' && hasNumericEntry(entry.distribution)
+    )
+  );
+};
+
+const hasFinancialActualsContent = (stage: InitiativeStagePayload | null | undefined) => {
+  if (!stage) {
+    return false;
+  }
+  return initiativeFinancialKinds.some((kind) =>
+    (stage.financials?.[kind] ?? []).some(
+      (entry) => sanitizeString(entry.label) !== '' && hasNumericEntry(entry.actuals)
+    )
+  );
+};
+
+const hasKpiPlanContent = (stage: InitiativeStagePayload | null | undefined) => {
+  if (!stage) {
+    return false;
+  }
+  return (stage.kpis ?? []).some((kpi) => sanitizeString(kpi.name) !== '' && hasNumericEntry(kpi.distribution));
+};
+
+const hasKpiActualsContent = (stage: InitiativeStagePayload | null | undefined) => {
+  if (!stage) {
+    return false;
+  }
+  return (stage.kpis ?? []).some((kpi) => sanitizeString(kpi.name) !== '' && hasNumericEntry(kpi.actuals));
+};
+
+const hasSupportingDocsContent = (stage: InitiativeStagePayload | null | undefined) =>
+  Boolean(stage && Array.isArray(stage.supportingDocs) && stage.supportingDocs.length > 0);
+
+const hasImplementationPlanContent = (plan: InitiativePlanModel | null | undefined) =>
+  Boolean(plan && Array.isArray(plan.tasks) && plan.tasks.some((task) => sanitizeString(task.name) !== ''));
+
+const hasImplementationPlanActualsContent = (plan: InitiativePlanModel | null | undefined) =>
+  Boolean(
+    plan &&
+      plan.actuals &&
+      Array.isArray(plan.actuals.tasks) &&
+      plan.actuals.tasks.some((task) => sanitizeString(task.name) !== '')
+  );
+
+const hasRisksContent = (risks: InitiativeRisk[] | null | undefined) =>
+  Boolean(risks && Array.isArray(risks) && risks.some((risk) => sanitizeString(risk.title) !== ''));
 
 const STATUS_UPDATE_MAX_LENGTH = 2000;
 const STATUS_SUMMARY_MAX_LENGTH = 4000;
@@ -641,7 +703,8 @@ const mapRiskCommentRow = (row: InitiativeRiskCommentRow): InitiativeRiskComment
 export class InitiativesService {
   constructor(
     private readonly repository: InitiativesRepository,
-    private readonly workstreamsRepository: WorkstreamsRepository
+    private readonly workstreamsRepository: WorkstreamsRepository,
+    private readonly formSettingsRepository: InitiativeFormSettingsRepository
   ) {}
 
   async listInitiatives(): Promise<InitiativeResponse[]> {
@@ -798,6 +861,42 @@ export class InitiativesService {
     if (stageStateEntry.status === 'approved') {
       throw new Error('STAGE_ALREADY_APPROVED');
     }
+
+    const formSettings = await this.formSettingsRepository.getSettings();
+    const stageMatrix = formSettings.stages?.[stageKey];
+    if (stageMatrix) {
+      const requiredBlocks = initiativeFormBlockKeys.filter((blockKey) => stageMatrix[blockKey] === 'required');
+      const stagePayload = record.stages?.[stageKey];
+      const missing = requiredBlocks.filter((blockKey) => {
+        switch (blockKey) {
+          case 'financial-outlook':
+            return !hasFinancialPlanContent(stagePayload);
+          case 'pnl-actuals':
+            return !hasFinancialActualsContent(stagePayload);
+          case 'kpis':
+            return !hasKpiPlanContent(stagePayload);
+          case 'kpi-actuals':
+            return !hasKpiActualsContent(stagePayload);
+          case 'supporting-docs':
+            return !hasSupportingDocsContent(stagePayload);
+          case 'implementation-plan':
+            return !hasImplementationPlanContent(record.plan);
+          case 'implementation-plan-actuals':
+            return !hasImplementationPlanActualsContent(record.plan);
+          case 'risks':
+            return !hasRisksContent(record.risks);
+          default:
+            return false;
+        }
+      });
+
+      if (missing.length > 0) {
+        const error = new Error('REQUIRED_FIELDS_MISSING') as Error & { missing?: string[] };
+        error.missing = missing;
+        throw error;
+      }
+    }
+
     const workstream = await this.workstreamsRepository.findWorkstream(record.workstreamId);
     if (!workstream) {
       throw new Error('WORKSTREAM_NOT_FOUND');

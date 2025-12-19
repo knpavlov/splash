@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { initiativesService } from './initiatives.module.js';
+import { initiativeFormSettingsRepository, initiativesService } from './initiatives.module.js';
 import type { InitiativeCommentPayload, InitiativeCommentReplyPayload } from './initiatives.service.js';
 import type { InitiativeMutationMetadata } from './initiatives.types.js';
 
@@ -40,6 +40,17 @@ const handleError = (error: unknown, res: Response) => {
     case 'STAGE_ALREADY_APPROVED':
       res.status(409).json({ code: 'stage-approved', message: 'This stage has already been approved.' });
       return;
+    case 'REQUIRED_FIELDS_MISSING': {
+      const missing = Array.isArray((error as Error & { missing?: unknown }).missing)
+        ? ((error as Error & { missing?: unknown }).missing as unknown[]).filter((item) => typeof item === 'string')
+        : [];
+      res.status(422).json({
+        code: 'required-fields-missing',
+        message: 'Complete all required checklist items before submitting.',
+        missing
+      });
+      return;
+    }
     case 'MISSING_APPROVERS':
       res.status(422).json({ code: 'missing-approvers', message: 'Assign account roles for all approvers before submitting.' });
       return;
@@ -56,6 +67,31 @@ const handleError = (error: unknown, res: Response) => {
       res.status(500).json({ code: 'unknown', message: 'Failed to process the request.' });
   }
 };
+
+router.get('/form-settings', async (_req, res) => {
+  try {
+    const settings = await initiativeFormSettingsRepository.getSettings();
+    res.json(settings);
+  } catch (error) {
+    console.error('Failed to load initiative form settings:', error);
+    res.status(500).json({ code: 'initiative-form-settings-error', message: 'Unable to load initiative form settings.' });
+  }
+});
+
+router.put('/form-settings', async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const stages =
+      body && typeof body === 'object' && (body as any).stages && typeof (body as any).stages === 'object'
+        ? (body as any).stages
+        : body;
+    const updated = await initiativeFormSettingsRepository.updateSettings({ stages } as any);
+    res.json(updated);
+  } catch (error) {
+    console.error('Failed to update initiative form settings:', error);
+    res.status(500).json({ code: 'initiative-form-settings-error', message: 'Unable to update initiative form settings.' });
+  }
+});
 
 router.get('/', async (_req, res) => {
   const initiatives = await initiativesService.listInitiatives();

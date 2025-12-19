@@ -1057,6 +1057,45 @@ const createTables = async () => {
   `);
 
   await postgresPool.query(`
+    CREATE TABLE IF NOT EXISTS initiative_stage_form_settings (
+      id SMALLINT PRIMARY KEY DEFAULT 1,
+      matrix JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+
+  const defaultInitiativeStageFormMatrix = (() => {
+    const stageKeys = ['l0', 'l1', 'l2', 'l3', 'l4', 'l5'] as const;
+    const blockKeys = [
+      'financial-outlook',
+      'pnl-actuals',
+      'kpis',
+      'kpi-actuals',
+      'supporting-docs',
+      'implementation-plan',
+      'implementation-plan-actuals',
+      'risks'
+    ] as const;
+    return stageKeys.reduce((acc, stage) => {
+      acc[stage] = blockKeys.reduce((blocks, block) => {
+        blocks[block] = 'optional';
+        return blocks;
+      }, {} as Record<(typeof blockKeys)[number], 'optional'>);
+      return acc;
+    }, {} as Record<(typeof stageKeys)[number], Record<(typeof blockKeys)[number], 'optional'>>);
+  })();
+
+  await postgresPool.query(
+    `
+      INSERT INTO initiative_stage_form_settings (id, matrix)
+      VALUES (1, $1::jsonb)
+      ON CONFLICT (id) DO NOTHING;
+    `,
+    [JSON.stringify(defaultInitiativeStageFormMatrix)]
+  );
+
+  await postgresPool.query(`
     CREATE TABLE IF NOT EXISTS landing_inquiries (
       id UUID PRIMARY KEY,
       intent TEXT NOT NULL,

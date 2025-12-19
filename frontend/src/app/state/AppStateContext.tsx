@@ -1062,6 +1062,9 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
             if (error.code === 'stage-approved') {
               return { ok: false, error: 'stage-approved' };
             }
+            if (error.code === 'required-fields-missing') {
+              return { ok: false, error: 'required-fields-missing' };
+            }
             if (error.code === 'missing-approvers') {
               return { ok: false, error: 'missing-approvers' };
             }

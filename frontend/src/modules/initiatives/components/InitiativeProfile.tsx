@@ -41,6 +41,15 @@ import { StageKpiActuals } from './StageKpiActuals';
 import { snapshotsApi } from '../../snapshots/services/snapshotsApi';
 import { StageSupportingDocs } from './StageSupportingDocs';
 import { RiskReviewPanel } from './RiskReviewPanel';
+import { initiativeFormSettingsApi } from '../services/initiativeFormSettingsApi';
+import {
+  createDefaultInitiativeFormSettingsMatrix,
+  initiativeFormBlocks,
+  initiativeFormBlockKeys,
+  type InitiativeFormBlockKey,
+  type InitiativeFormFieldRequirement,
+  type InitiativeFormSettingsPayload
+} from '../../../shared/types/initiativeFormSettings';
 
 interface InitiativeProfileProps {
   mode: 'create' | 'view';
@@ -72,13 +81,54 @@ type ValidationErrors = {
 };
 
 const VALUE_STEP_LABEL = 'Value Step';
-const submitChecklistByStage: Record<InitiativeStageKey, string[]> = {
-  l0: ['Placeholder: confirm L0 scope definition', 'Placeholder: upload initial overview pack'],
-  l1: ['Placeholder: confirm L1 data pack is complete', 'Placeholder: log key risks and mitigations'],
-  l2: ['Placeholder: upload L2 financial assumptions', 'Placeholder: capture stakeholder alignment notes'],
-  l3: ['Placeholder: attach L3 evidence deck', 'Placeholder: validate benefits and costs inputs'],
-  l4: ['Placeholder: confirm go-live readiness items', 'Placeholder: document rollback/contingency approach'],
-  l5: ['Placeholder: add post-implementation review draft', 'Placeholder: set up ongoing benefits tracking']
+
+const initiativeFormBlockByKey = initiativeFormBlocks.reduce(
+  (acc, block) => {
+    acc[block.key] = block;
+    return acc;
+  },
+  {} as Record<InitiativeFormBlockKey, (typeof initiativeFormBlocks)[number]>
+);
+const defaultInitiativeFormMatrix = createDefaultInitiativeFormSettingsMatrix();
+
+const hasNumericEntry = (input: Record<string, number> | null | undefined) =>
+  Boolean(input && Object.values(input).some((value) => Number.isFinite(value)));
+
+const isFormBlockFilled = (initiative: Initiative, stageKey: InitiativeStageKey, blockKey: InitiativeFormBlockKey) => {
+  const stage = initiative.stages?.[stageKey];
+  switch (blockKey) {
+    case 'financial-outlook':
+      return initiativeFinancialKinds.some((kind) =>
+        (stage?.financials?.[kind] ?? []).some((entry) => entry.label.trim() !== '' && hasNumericEntry(entry.distribution))
+      );
+    case 'pnl-actuals':
+      return initiativeFinancialKinds.some((kind) =>
+        (stage?.financials?.[kind] ?? []).some((entry) => entry.label.trim() !== '' && hasNumericEntry(entry.actuals))
+      );
+    case 'kpis':
+      return (stage?.kpis ?? []).some((kpi) => kpi.name.trim() !== '' && hasNumericEntry(kpi.distribution));
+    case 'kpi-actuals':
+      return (stage?.kpis ?? []).some((kpi) => kpi.name.trim() !== '' && hasNumericEntry(kpi.actuals));
+    case 'supporting-docs':
+      return (stage?.supportingDocs ?? []).length > 0;
+    case 'implementation-plan':
+      return (initiative.plan?.tasks ?? []).some((task) => task.name.trim() !== '');
+    case 'implementation-plan-actuals':
+      return (initiative.plan?.actuals?.tasks ?? []).some((task) => task.name.trim() !== '');
+    case 'risks':
+      return (initiative.risks ?? []).some((risk) => risk.title.trim() !== '');
+    default:
+      return true;
+  }
+};
+
+const resolveFormRequirement = (
+  settings: InitiativeFormSettingsPayload | null,
+  stageKey: InitiativeStageKey,
+  blockKey: InitiativeFormBlockKey
+): InitiativeFormFieldRequirement => {
+  const stage = settings?.stages?.[stageKey] ?? defaultInitiativeFormMatrix.stages[stageKey];
+  return stage?.[blockKey] ?? 'optional';
 };
 
 const createEmptyStage = (key: InitiativeStageKey, period?: PeriodSettings): InitiativeStageData => {
@@ -646,6 +696,8 @@ export const InitiativeProfile = ({
   const [includeOneOffs, setIncludeOneOffs] = useState(true);
   const [seriesMode, setSeriesMode] = useState<'plan' | 'actuals'>('plan');
   const [kpiOptions, setKpiOptions] = useState<string[]>([]);
+  const [initiativeFormSettings, setInitiativeFormSettings] = useState<InitiativeFormSettingsPayload | null>(null);
+  const [initiativeFormSettingsError, setInitiativeFormSettingsError] = useState<string | null>(null);
   const [workstreamAssignments, setWorkstreamAssignments] = useState<WorkstreamRoleAssignment[]>([]);
   const { session } = useAuth();
   const commentActor = useMemo(
@@ -837,6 +889,29 @@ export const InitiativeProfile = ({
     void loadChangeLog();
   }, [loadChangeLog]);
 
+  useEffect(() => {
+    let active = true;
+    setInitiativeFormSettingsError(null);
+    initiativeFormSettingsApi
+      .get()
+      .then((settings) => {
+        if (!active) {
+          return;
+        }
+        setInitiativeFormSettings(settings);
+      })
+      .catch((error) => {
+        if (!active) {
+          return;
+        }
+        console.error('Failed to load initiative form settings:', error);
+        setInitiativeFormSettingsError('Could not load stage gate requirements.');
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const riskCategoryOptions = useMemo(
     () => (riskCategories.length ? riskCategories : ['Uncategorized']),
     [riskCategories]
@@ -854,6 +929,21 @@ export const InitiativeProfile = ({
     draft.stageState[selectedStage] ??
     { status: 'draft', roundIndex: 0, comment: null };
   const selectedWorkstream = workstreams.find((ws) => ws.id === draft.workstreamId) ?? null;
+  const selectedStageFormSettings = useMemo(
+    () =>
+      initiativeFormBlockKeys.reduce(
+        (acc, blockKey) => {
+          acc[blockKey] = resolveFormRequirement(initiativeFormSettings, selectedStage, blockKey);
+          return acc;
+        },
+        {} as Record<InitiativeFormBlockKey, InitiativeFormFieldRequirement>
+      ),
+    [initiativeFormSettings, selectedStage]
+  );
+  const isBlockVisibleForSelectedStage = (blockKey: InitiativeFormBlockKey) =>
+    selectedStageFormSettings[blockKey] !== 'hidden';
+  const isBlockRequiredForSelectedStage = (blockKey: InitiativeFormBlockKey) =>
+    selectedStageFormSettings[blockKey] === 'required';
 
   useEffect(() => {
     if (!selectedWorkstream) {
@@ -887,7 +977,30 @@ export const InitiativeProfile = ({
     );
   const planValueStepTaskId = planValueStepTask?.id ?? null;
   const stageRounds = stageGateKey && selectedWorkstream ? selectedWorkstream.gates[stageGateKey]?.length ?? 0 : 0;
-  const submitChecklistItems = submitChecklistByStage[selectedStage] ?? ['Placeholder checklist item for this gate'];
+  const requiredBlocksForSubmitStage = useMemo(
+    () =>
+      initiativeFormBlockKeys.filter(
+        (blockKey) => resolveFormRequirement(initiativeFormSettings, draft.activeStage, blockKey) === 'required'
+      ),
+    [draft.activeStage, initiativeFormSettings]
+  );
+  const missingRequiredBlocksForSubmitStage = useMemo(
+    () => requiredBlocksForSubmitStage.filter((blockKey) => !isFormBlockFilled(draft, draft.activeStage, blockKey)),
+    [draft, requiredBlocksForSubmitStage]
+  );
+  const submitChecklistEntries = useMemo(() => {
+    if (requiredBlocksForSubmitStage.length === 0) {
+      return [{ blockKey: null, missing: false, text: 'No required checklist items are configured for this stage gate.' }];
+    }
+    return requiredBlocksForSubmitStage.map((blockKey) => {
+      const block = initiativeFormBlockByKey[blockKey];
+      return {
+        blockKey,
+        missing: missingRequiredBlocksForSubmitStage.includes(blockKey),
+        text: block ? `${block.label} — ${block.submitHint}` : blockKey
+      };
+    });
+  }, [missingRequiredBlocksForSubmitStage, requiredBlocksForSubmitStage]);
   const selectedStageLabel = initiativeStageLabels[selectedStage] ?? selectedStage.toUpperCase();
   const canSubmitStage = isStageEditable && currentStageState.status !== 'pending';
   const isReadOnlyMode = readOnly;
@@ -946,6 +1059,18 @@ export const InitiativeProfile = ({
     }
     if (!isStageEditable) {
       return selectedIndex > activeIndex ? 'Stage not active yet' : 'Earlier gates are view-only';
+    }
+    if (missingRequiredBlocksForSubmitStage.length > 0) {
+      const missingList = missingRequiredBlocksForSubmitStage
+        .map((blockKey) => initiativeFormBlockByKey[blockKey]?.label ?? blockKey)
+        .join('\n• ');
+      return `Complete required items before submitting:\n• ${missingList}`;
+    }
+    if (requiredBlocksForSubmitStage.length > 0) {
+      const requiredList = requiredBlocksForSubmitStage
+        .map((blockKey) => initiativeFormBlockByKey[blockKey]?.label ?? blockKey)
+        .join('\n• ');
+      return `Required for submission:\n• ${requiredList}`;
     }
     return 'Ready to submit for the next gate';
   })();
@@ -1311,7 +1436,10 @@ export const InitiativeProfile = ({
       return;
     }
     if (!canSubmitStage) {
-      setIsSubmitConfirmOpen(false);
+      return;
+    }
+    if (missingRequiredBlocksForSubmitStage.length > 0) {
+      setBanner({ type: 'error', text: 'Complete the required items listed in the checklist before submitting.' });
       return;
     }
     setIsSubmitting(true);
@@ -1326,6 +1454,8 @@ export const InitiativeProfile = ({
             ? 'The current stage has already been approved.'
             : result.error === 'missing-approvers'
               ? 'Assign account roles for all approvers in the workstream before submitting.'
+              : result.error === 'required-fields-missing'
+                ? 'Complete all required checklist items before submitting.'
               : result.error === 'version-conflict'
                 ? 'Could not submit because the initiative was updated elsewhere.'
                 : result.error === 'not-found'
@@ -1851,6 +1981,7 @@ export const InitiativeProfile = ({
         )}
       </div>
 
+      {isBlockVisibleForSelectedStage('financial-outlook') && (
       <section className={`${styles.cardSection} ${styles.financialCard}`} {...buildProfileAnchor('financial-outlook', 'Financial outlook')}>
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
@@ -1864,7 +1995,12 @@ export const InitiativeProfile = ({
               <ChevronIcon direction={financialCollapsed ? 'right' : 'down'} size={16} />
             </button>
             <div>
-              <h3>Financial outlook</h3>
+              <div className={styles.sectionTitleRow}>
+                <h3>Financial outlook</h3>
+                {isBlockRequiredForSelectedStage('financial-outlook') && (
+                  <span className={styles.requiredBadge}>Required</span>
+                )}
+              </div>
               <p>Balance recurring and one-off impacts for this stage.</p>
             </div>
           </div>
@@ -1878,7 +2014,9 @@ export const InitiativeProfile = ({
           />
         )}
       </section>
+      )}
 
+      {isBlockVisibleForSelectedStage('pnl-actuals') && (
       <section
         className={`${styles.cardSection} ${styles.financialCard}`}
         {...buildProfileAnchor('pnl-actuals', 'P&L actuals')}
@@ -1895,7 +2033,10 @@ export const InitiativeProfile = ({
               <ChevronIcon direction={actualsCollapsed ? 'right' : 'down'} size={16} />
             </button>
             <div>
-              <h3>P&amp;L actuals</h3>
+              <div className={styles.sectionTitleRow}>
+                <h3>P&amp;L actuals</h3>
+                {isBlockRequiredForSelectedStage('pnl-actuals') && <span className={styles.requiredBadge}>Required</span>}
+              </div>
               <p>Input realised benefits and costs side-by-side with plan.</p>
             </div>
           </div>
@@ -1909,7 +2050,9 @@ export const InitiativeProfile = ({
           />
         )}
       </section>
+      )}
 
+      {isBlockVisibleForSelectedStage('kpis') && (
       <section className={styles.cardSection} {...buildProfileAnchor('kpis', 'KPIs')}>
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
@@ -1923,7 +2066,10 @@ export const InitiativeProfile = ({
               <ChevronIcon direction={collapsedSections['kpis'] ? 'right' : 'down'} size={16} />
             </button>
             <div>
-              <h3>KPIs</h3>
+              <div className={styles.sectionTitleRow}>
+                <h3>KPIs</h3>
+                {isBlockRequiredForSelectedStage('kpis') && <span className={styles.requiredBadge}>Required</span>}
+              </div>
               <p>Track KPIs with monthly values per stage.</p>
             </div>
           </div>
@@ -1938,7 +2084,9 @@ export const InitiativeProfile = ({
           />
         )}
       </section>
+      )}
 
+      {isBlockVisibleForSelectedStage('kpi-actuals') && (
       <section className={styles.cardSection} {...buildProfileAnchor('kpi-actuals', 'KPI actuals')}>
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
@@ -1952,7 +2100,10 @@ export const InitiativeProfile = ({
               <ChevronIcon direction={collapsedSections['kpi-actuals'] ? 'right' : 'down'} size={16} />
             </button>
             <div>
-              <h3>KPI actuals</h3>
+              <div className={styles.sectionTitleRow}>
+                <h3>KPI actuals</h3>
+                {isBlockRequiredForSelectedStage('kpi-actuals') && <span className={styles.requiredBadge}>Required</span>}
+              </div>
               <p>Mirror KPI plans and capture actual results.</p>
             </div>
           </div>
@@ -1966,12 +2117,19 @@ export const InitiativeProfile = ({
           />
         )}
       </section>
+      )}
 
+      {isBlockVisibleForSelectedStage('supporting-docs') && (
       <section className={`${styles.cardSection} ${styles.supportingCard}`} {...buildProfileAnchor('supporting-docs', 'Supporting documentation')}>
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
             <div>
-              <h3>Supporting documentation</h3>
+              <div className={styles.sectionTitleRow}>
+                <h3>Supporting documentation</h3>
+                {isBlockRequiredForSelectedStage('supporting-docs') && (
+                  <span className={styles.requiredBadge}>Required</span>
+                )}
+              </div>
               <p>Upload evidence and add a short note.</p>
             </div>
           </div>
@@ -1982,30 +2140,46 @@ export const InitiativeProfile = ({
           onChange={(nextStage) => updateStage(selectedStage, nextStage)}
         />
       </section>
+      )}
 
-      <InitiativePlanModule
-        plan={draft.plan}
-        initiativeId={draft.id}
-        allInitiatives={allInitiatives}
-        onChange={handlePlanChange}
-        readOnly={isReadOnlyMode}
-        focusTaskId={focusPlanTaskId}
-        openFullscreen={openPlanFullscreen}
-        onFocusHandled={onPlanFocusClear}
-      />
+      {isBlockVisibleForSelectedStage('implementation-plan') && (
+        <div className={styles.formBlockWrapper}>
+          {isBlockRequiredForSelectedStage('implementation-plan') && (
+            <div className={styles.requiredNotice}>Required for submission</div>
+          )}
+          <InitiativePlanModule
+            plan={draft.plan}
+            initiativeId={draft.id}
+            allInitiatives={allInitiatives}
+            onChange={handlePlanChange}
+            readOnly={isReadOnlyMode}
+            focusTaskId={focusPlanTaskId}
+            openFullscreen={openPlanFullscreen}
+            onFocusHandled={onPlanFocusClear}
+          />
+        </div>
+      )}
 
-      <InitiativePlanModule
-        plan={draft.plan.actuals ?? createEmptyPlanActualsModel()}
-        baselinePlan={draft.plan}
-      variant="actuals"
-      initiativeId={draft.id}
-      allInitiatives={allInitiatives}
-      onChange={handlePlanActualsChange}
-      readOnly={isReadOnlyMode}
-      title="Implementation plan - actuals"
-      subtitle="Track real delivery, compare against the baseline, and highlight variance."
-    />
+      {isBlockVisibleForSelectedStage('implementation-plan-actuals') && (
+        <div className={styles.formBlockWrapper}>
+          {isBlockRequiredForSelectedStage('implementation-plan-actuals') && (
+            <div className={styles.requiredNotice}>Required for submission</div>
+          )}
+          <InitiativePlanModule
+            plan={draft.plan.actuals ?? createEmptyPlanActualsModel()}
+            baselinePlan={draft.plan}
+            variant="actuals"
+            initiativeId={draft.id}
+            allInitiatives={allInitiatives}
+            onChange={handlePlanActualsChange}
+            readOnly={isReadOnlyMode}
+            title="Implementation plan - actuals"
+            subtitle="Track real delivery, compare against the baseline, and highlight variance."
+          />
+        </div>
+      )}
 
+      {isBlockVisibleForSelectedStage('risks') && (
       <section className={`${styles.cardSection} ${styles.riskSection}`} {...buildProfileAnchor('risks', 'Risks')}>
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
@@ -2019,7 +2193,10 @@ export const InitiativeProfile = ({
               <ChevronIcon direction={risksCollapsed ? 'right' : 'down'} size={16} />
             </button>
             <div>
-              <h3>Risks</h3>
+              <div className={styles.sectionTitleRow}>
+                <h3>Risks</h3>
+                {isBlockRequiredForSelectedStage('risks') && <span className={styles.requiredBadge}>Required</span>}
+              </div>
               <p>Compact register with sortable score to highlight what needs mitigation.</p>
             </div>
           </div>
@@ -2174,6 +2351,7 @@ export const InitiativeProfile = ({
           />
         )}
       </section>
+      )}
 
       <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
         <header className={styles.changeLogHeader}>
@@ -2302,19 +2480,36 @@ export const InitiativeProfile = ({
             <div className={styles.submitHeader}>
               <h4>Submit {selectedStageLabel}</h4>
               <p className={styles.submitPrompt}>
-                I confirm that I've provided all required checklist items for the submission for this stage gate:
+                {missingRequiredBlocksForSubmitStage.length > 0
+                  ? 'Complete the required items below before submitting this stage gate:'
+                  : 'Required items for this stage gate submission:'}
               </p>
             </div>
             <ul className={styles.submitChecklist}>
-              {submitChecklistItems.map((item, index) => (
-                <li key={`${selectedStage}-${index}`}>{item}</li>
+              {submitChecklistEntries.map((entry, index) => (
+                <li
+                  key={`${selectedStage}-${entry.blockKey ?? 'none'}-${index}`}
+                  className={entry.missing ? styles.submitChecklistMissing : undefined}
+                >
+                  {entry.text}
+                </li>
               ))}
             </ul>
             <div className={styles.submitActions}>
               <button className={styles.cancelSubmitButton} onClick={handleCancelSubmit} type="button" disabled={isSubmitting}>
-                Hold on, don’t submit
+                Hold on, don't submit
               </button>
-              <button className={styles.confirmSubmitButton} onClick={handleSubmitClick} type="button" disabled={isSubmitting}>
+              <button
+                className={styles.confirmSubmitButton}
+                onClick={handleSubmitClick}
+                type="button"
+                disabled={isSubmitting || missingRequiredBlocksForSubmitStage.length > 0}
+                title={
+                  missingRequiredBlocksForSubmitStage.length > 0
+                    ? 'Complete required items before submitting.'
+                    : undefined
+                }
+              >
                 {isSubmitting ? 'Submitting...' : 'I confirm, submit'}
               </button>
             </div>
