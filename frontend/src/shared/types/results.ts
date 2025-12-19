@@ -5,6 +5,7 @@ export type DomainErrorCode =
   | 'invalid-input'
   | 'stage-pending'
   | 'stage-approved'
+  | 'required-fields-missing'
   | 'missing-approvers'
   | 'mailer-unavailable'
   | 'process-already-started'

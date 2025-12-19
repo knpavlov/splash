@@ -912,6 +912,8 @@ export const InitiativeProfile = ({
     };
   }, []);
 
+  const initiativeFormSettingsLoading = initiativeFormSettings === null && !initiativeFormSettingsError;
+
   const riskCategoryOptions = useMemo(
     () => (riskCategories.length ? riskCategories : ['Uncategorized']),
     [riskCategories]
@@ -978,17 +980,33 @@ export const InitiativeProfile = ({
   const planValueStepTaskId = planValueStepTask?.id ?? null;
   const stageRounds = stageGateKey && selectedWorkstream ? selectedWorkstream.gates[stageGateKey]?.length ?? 0 : 0;
   const requiredBlocksForSubmitStage = useMemo(
-    () =>
-      initiativeFormBlockKeys.filter(
+    () => {
+      if (initiativeFormSettingsLoading || initiativeFormSettingsError) {
+        return [];
+      }
+      return initiativeFormBlockKeys.filter(
         (blockKey) => resolveFormRequirement(initiativeFormSettings, draft.activeStage, blockKey) === 'required'
-      ),
-    [draft.activeStage, initiativeFormSettings]
+      );
+    },
+    [draft.activeStage, initiativeFormSettings, initiativeFormSettingsError, initiativeFormSettingsLoading]
   );
   const missingRequiredBlocksForSubmitStage = useMemo(
     () => requiredBlocksForSubmitStage.filter((blockKey) => !isFormBlockFilled(draft, draft.activeStage, blockKey)),
     [draft, requiredBlocksForSubmitStage]
   );
   const submitChecklistEntries = useMemo(() => {
+    if (initiativeFormSettingsLoading) {
+      return [{ blockKey: null, missing: false, text: 'Loading stage gate requirements...' }];
+    }
+    if (initiativeFormSettingsError) {
+      return [
+        {
+          blockKey: null,
+          missing: false,
+          text: 'Stage gate requirements could not be loaded. Submission will be validated on the server.'
+        }
+      ];
+    }
     if (requiredBlocksForSubmitStage.length === 0) {
       return [{ blockKey: null, missing: false, text: 'No required checklist items are configured for this stage gate.' }];
     }
@@ -1000,7 +1018,7 @@ export const InitiativeProfile = ({
         text: block ? `${block.label} — ${block.submitHint}` : blockKey
       };
     });
-  }, [missingRequiredBlocksForSubmitStage, requiredBlocksForSubmitStage]);
+  }, [initiativeFormSettingsError, initiativeFormSettingsLoading, missingRequiredBlocksForSubmitStage, requiredBlocksForSubmitStage]);
   const selectedStageLabel = initiativeStageLabels[selectedStage] ?? selectedStage.toUpperCase();
   const canSubmitStage = isStageEditable && currentStageState.status !== 'pending';
   const isReadOnlyMode = readOnly;
@@ -1037,6 +1055,7 @@ export const InitiativeProfile = ({
     isSubmitting ||
     mode !== 'view' ||
     !initiative ||
+    initiativeFormSettingsLoading ||
     !isStageEditable ||
     stageLocked ||
     currentStageState.status === 'pending' ||
@@ -1047,6 +1066,12 @@ export const InitiativeProfile = ({
     }
     if (!initiative) {
       return 'Save the initiative before submitting.';
+    }
+    if (initiativeFormSettingsLoading) {
+      return 'Loading stage gate requirements...';
+    }
+    if (initiativeFormSettingsError) {
+      return 'Stage gate requirements could not be loaded. Submission will be validated on the server.';
     }
     if (mode !== 'view') {
       return 'Submission is available after creating the initiative.';
