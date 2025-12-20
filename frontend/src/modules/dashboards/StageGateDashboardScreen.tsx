@@ -988,12 +988,12 @@ export const StageGateDashboardScreen = () => {
               {stageColumns.map((column) => (
                 <Fragment key={`${column.key}-sub`}>
                   <th className={styles.stageSubHeader}>Now</th>
-                  <th className={styles.stageSubHeader}>Delta</th>
+                  <th className={styles.stageSubHeaderCompact}>Δ</th>
                 </Fragment>
               ))}
               <Fragment key="total-sub">
                 <th className={styles.stageSubHeader}>Now</th>
-                <th className={styles.stageSubHeader}>Delta</th>
+                <th className={styles.stageSubHeaderCompact}>Δ</th>
               </Fragment>
             </tr>
           </thead>

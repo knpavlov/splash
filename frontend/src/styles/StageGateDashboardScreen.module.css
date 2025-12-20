@@ -143,6 +143,16 @@
   padding: 4px 0;
 }
 
+.stageSubHeaderCompact {
+  text-align: center;
+  font-size: 10px;
+  color: #94a3b8;
+  padding: 4px 0;
+  width: 28px;
+  min-width: 28px;
+  max-width: 28px;
+}
+
 .workstreamColumn {
   width: 210px;
 }
@@ -193,9 +203,9 @@
 }
 
 .valueCell {
-  padding: 10px 4px;
+  padding: 8px 3px;
   text-align: center;
-  min-width: 70px;
+  min-width: 60px;
 }
 
 .totalValueCell {
@@ -203,9 +213,10 @@
 }
 
 .deltaCell {
-  padding: 10px 2px;
+  padding: 6px 2px;
   text-align: center;
-  min-width: 48px;
+  min-width: 28px;
+  width: 28px;
 }
 
 .totalDeltaCell {
@@ -271,15 +282,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  padding: 2px 4px;
-  border-radius: 10px;
-  font-size: 10px;
+  min-width: 24px;
+  padding: 2px 3px;
+  border-radius: 8px;
+  font-size: 9px;
   font-weight: 600;
 }
 
 .totalDeltaBadge {
-  min-width: 44px;
+  min-width: 24px;
 }
 
 .deltaPositive {
@@ -388,9 +399,9 @@
 }
 
 .valueCell {
-  padding: 10px 4px;
+  padding: 8px 3px;
   text-align: center;
-  min-width: 70px;
+  min-width: 60px;
 }
 
 .totalValueCell {
@@ -398,9 +409,10 @@
 }
 
 .deltaCell {
-  padding: 10px 2px;
+  padding: 6px 2px;
   text-align: center;
-  min-width: 48px;
+  min-width: 28px;
+  width: 28px;
 }
 
 .totalDeltaCell {
@@ -466,15 +478,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  padding: 2px 4px;
-  border-radius: 10px;
-  font-size: 10px;
+  min-width: 24px;
+  padding: 2px 3px;
+  border-radius: 8px;
+  font-size: 9px;
   font-weight: 600;
 }
 
 .totalDeltaBadge {
-  min-width: 44px;
+  min-width: 24px;
 }
 
 .deltaPositive {

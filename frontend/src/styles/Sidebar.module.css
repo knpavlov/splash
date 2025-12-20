@@ -60,7 +60,7 @@
 
 .collapseToggle {
   position: absolute;
-  top: 16px;
+  top: 60px;
   right: 8px;
   width: 24px;
   height: 24px;
@@ -74,6 +74,12 @@
   cursor: pointer;
   transition: all 0.2s ease;
   z-index: 10;
+}
+
+.collapsed .collapseToggle {
+  top: 60px;
+  right: 50%;
+  transform: translateX(50%);
 }
 
 .collapseToggle:hover {

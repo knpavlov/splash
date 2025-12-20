@@ -6,22 +6,35 @@
 
 .toolbar {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .collapseButton {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.5);
-  background: #0f172a;
-  color: #fff;
+  background: rgba(241, 245, 249, 0.85);
+  color: #0f172a;
   cursor: pointer;
-  font-size: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  transition: background 0.15s ease, border-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.collapseButton:hover {
+  background: rgba(226, 232, 240, 0.9);
+  border-color: rgba(148, 163, 184, 0.8);
+}
+
+.toolbarLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .subtleText {
@@ -31,27 +44,27 @@
 
 .tabs {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
-  padding: 0 4px;
 }
 
 .tab,
 .activeTab {
   border: 1px solid rgba(148, 163, 184, 0.5);
-  border-radius: 12px;
-  padding: 12px 18px;
+  border-radius: 10px;
+  padding: 8px 14px;
   background: rgba(255, 255, 255, 0.85);
   color: #0f172a;
   cursor: pointer;
   font-weight: 600;
+  font-size: 13px;
 }
 
 .activeTab {
   background: linear-gradient(135deg, #0ea5e9, #6366f1);
   color: #fff;
   border-color: transparent;
-  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.2);
 }
 
 .card {
@@ -85,47 +98,78 @@
 }
 
 .stageFilters {
-  border: 1px dashed rgba(148, 163, 184, 0.6);
-  border-radius: 14px;
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: rgba(248, 250, 252, 0.6);
 }
 
-.stageFiltersHeader {
+.stageFiltersRow {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stageFiltersLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .stagePresetButtons {
   display: flex;
-  gap: 6px;
+  gap: 4px;
+}
+
+.presetButton {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 6px;
+  padding: 3px 8px;
+  background: #fff;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.presetButton:hover {
+  background: rgba(14, 165, 233, 0.1);
+  border-color: rgba(14, 165, 233, 0.4);
+  color: #0ea5e9;
 }
 
 .stageOptions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .stageChip,
 .stageChipActive {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.6);
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
   cursor: pointer;
   font-weight: 600;
-  color: #0f172a;
-  background: rgba(248, 250, 252, 0.8);
+  font-size: 11px;
+  color: #475569;
+  background: #fff;
+}
+
+.stageChip input,
+.stageChipActive input {
+  display: none;
 }
 
 .stageChipActive {
   background: rgba(14, 165, 233, 0.15);
-  border-color: rgba(14, 165, 233, 0.6);
+  border-color: rgba(14, 165, 233, 0.5);
   color: #0ea5e9;
 }

@@ -10,6 +10,7 @@ import { Workstream } from '../../../shared/types/workstream';
 import dashboardStyles from '../../../styles/InitiativesDashboard.module.css';
 import stageStyles from '../../../styles/StageGateDashboardScreen.module.css';
 import financialStyles from '../../../styles/FinancialEditor.module.css';
+import { ChevronIcon } from '../../../components/icons/ChevronIcon';
 import {
   buildStageGateDataset,
   bucketForInitiative,
@@ -262,7 +263,7 @@ const calculateRoi = (totals: Initiative['totals']): number | null => {
 };
 
 export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstreamId }: InitiativesDashboardProps) => {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [activeTab, setActiveTab] = useState<'pipeline' | 'outlook' | 'actuals'>('pipeline');
   const [stageFilter, setStageFilter] = useState<Set<InitiativeStageKey>>(new Set(initiativeStageKeys));
   const [includeOneOffOutlook, setIncludeOneOffOutlook] = useState(true);
@@ -441,29 +442,28 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
 
   const renderStageFilters = () => (
     <div className={dashboardStyles.stageFilters}>
-      <div className={dashboardStyles.stageFiltersHeader}>
-        <span>Stage filters</span>
+      <div className={dashboardStyles.stageFiltersRow}>
+        <span className={dashboardStyles.stageFiltersLabel}>Stages</span>
         <div className={dashboardStyles.stagePresetButtons}>
-          <button type="button" onClick={() => setStageFilter(new Set(initiativeStageKeys))} className={dashboardStyles.pillButton}>
+          <button type="button" onClick={() => setStageFilter(new Set(initiativeStageKeys))} className={dashboardStyles.presetButton}>
             All
           </button>
-          <button type="button" onClick={() => setStageFilter(new Set())} className={dashboardStyles.pillButton}>
+          <button type="button" onClick={() => setStageFilter(new Set())} className={dashboardStyles.presetButton}>
             None
           </button>
         </div>
+        <div className={dashboardStyles.stageOptions}>
+          {initiativeStageKeys.map((stage) => {
+            const active = stageFilter.has(stage);
+            return (
+              <label key={stage} className={active ? dashboardStyles.stageChipActive : dashboardStyles.stageChip}>
+                <input type="checkbox" checked={active} onChange={() => toggleStage(stage)} />
+                <span>{stage.toUpperCase()}</span>
+              </label>
+            );
+          })}
+        </div>
       </div>
-      <div className={dashboardStyles.stageOptions}>
-        {initiativeStageKeys.map((stage) => {
-          const active = stageFilter.has(stage);
-          return (
-            <label key={stage} className={active ? dashboardStyles.stageChipActive : dashboardStyles.stageChip}>
-              <input type="checkbox" checked={active} onChange={() => toggleStage(stage)} />
-              <span>{stage.toUpperCase()}</span>
-            </label>
-          );
-        })}
-      </div>
-      <p className={dashboardStyles.helperText}>Filters apply to the financial charts below.</p>
     </div>
   );
 
@@ -630,12 +630,6 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
     const hasInitiatives = stageGateDataset.totalRow.totals.initiatives > 0;
     return (
       <div className={dashboardStyles.card}>
-        <header className={dashboardStyles.cardHeader}>
-          <div>
-            <h3>Stage-gate pipeline</h3>
-            <p className={dashboardStyles.subtleText}>Adapted from the pipeline dashboard for the selected workstream scope.</p>
-          </div>
-        </header>
         <div className={dashboardStyles.metricSelector}>
           {measurementKeyList.map((measurement) => {
             const active = activeMeasurements.includes(measurement);
@@ -677,12 +671,12 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
                 {stageColumns.map((column) => (
                   <Fragment key={`${column.key}-sub`}>
                     <th className={stageStyles.stageSubHeader}>Now</th>
-                    <th className={stageStyles.stageSubHeader}>Delta</th>
+                    <th className={stageStyles.stageSubHeaderCompact}>Δ</th>
                   </Fragment>
                 ))}
                 <Fragment key="total-sub">
                   <th className={stageStyles.stageSubHeader}>Now</th>
-                  <th className={stageStyles.stageSubHeader}>Delta</th>
+                  <th className={stageStyles.stageSubHeaderCompact}>Δ</th>
                 </Fragment>
               </tr>
             </thead>
@@ -697,15 +691,11 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
   };
 
   const renderOutlook = () => {
-    const gridTemplateColumns = `${CATEGORY_COLUMN_WIDTH}px repeat(${Math.max(outlookMonths.length, 1)}, minmax(110px, 1fr))`;
+    const gridTemplateColumns = `${CATEGORY_COLUMN_WIDTH}px repeat(${Math.max(outlookMonths.length, 1)}, minmax(36px, 1fr))`;
     const hasData = outlookChartData.some((month) => month.positiveTotal > 0 || month.negativeTotal > 0);
     return (
       <div className={dashboardStyles.card}>
         <header className={dashboardStyles.cardHeader}>
-          <div>
-            <h3>Financial outlook</h3>
-            <p className={dashboardStyles.subtleText}>Same visualization as the initiative editor, scoped by workstream and stage.</p>
-          </div>
           <label className={financialStyles.oneOffToggle}>
             <input type="checkbox" checked={includeOneOffOutlook} onChange={(event) => setIncludeOneOffOutlook(event.target.checked)} />
             <span>Include one-off items</span>
@@ -762,16 +752,12 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
   };
 
   const renderActuals = () => {
-    const gridTemplateColumns = `${CATEGORY_COLUMN_WIDTH}px repeat(${Math.max(actualMonths.length, 1)}, minmax(110px, 1fr))`;
+    const gridTemplateColumns = `${CATEGORY_COLUMN_WIDTH}px repeat(${Math.max(actualMonths.length, 1)}, minmax(36px, 1fr))`;
     const hasPlanData = actualPlanChartData.some((month) => month.positiveTotal > 0 || month.negativeTotal > 0);
     const hasActualData = actualChartData.some((month) => month.positiveTotal > 0 || month.negativeTotal > 0);
     return (
       <div className={dashboardStyles.card}>
         <header className={dashboardStyles.cardHeader}>
-          <div>
-            <h3>Financial outlook actuals</h3>
-            <p className={dashboardStyles.subtleText}>Plan vs actuals with the same line + bar view from the editor.</p>
-          </div>
           <div className={financialStyles.actualsToggles}>
             <label className={financialStyles.oneOffToggle}>
               <input
@@ -866,13 +852,12 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
           className={dashboardStyles.collapseButton}
           onClick={() => setCollapsed((prev) => !prev)}
           aria-expanded={!collapsed}
-          aria-label={collapsed ? '>' : 'v'}
+          aria-label={collapsed ? 'Expand dashboards' : 'Collapse dashboards'}
         >
-          {collapsed ? '>' : 'v'}
+          <ChevronIcon direction={collapsed ? 'right' : 'down'} size={14} />
         </button>
-      </div>
-      {!collapsed && (
-        <>
+        <span className={dashboardStyles.toolbarLabel}>Dashboards</span>
+        {!collapsed && (
           <div className={dashboardStyles.tabs}>
             <button
               type="button"
@@ -896,6 +881,10 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
               Outlook actuals
             </button>
           </div>
+        )}
+      </div>
+      {!collapsed && (
+        <>
           {activeTab === 'pipeline' && renderPipeline()}
           {activeTab === 'outlook' && renderOutlook()}
           {activeTab === 'actuals' && renderActuals()}
