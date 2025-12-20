@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { MailerService, MAILER_NOT_CONFIGURED } from '../../shared/mailer.service.js';
 import { AccountsRepository } from './accounts.repository.js';
-import type { AccountRecord, AccountRole, InterviewerSeniority } from './accounts.types.js';
+import type { AccountRecord, AccountRole, InterviewerSeniority, UiPreferences } from './accounts.types.js';
 
 export class AccountsService {
   constructor(private readonly repository: AccountsRepository, private readonly mailer = new MailerService()) {}
@@ -197,5 +197,21 @@ export class AccountsService {
     }
 
     return updated;
+  }
+
+  async getUiPreferences(id: string): Promise<UiPreferences> {
+    const prefs = await this.repository.getUiPreferences(id);
+    if (prefs === null) {
+      throw new Error('NOT_FOUND');
+    }
+    return prefs;
+  }
+
+  async updateUiPreferences(id: string, preferences: UiPreferences): Promise<UiPreferences> {
+    const updated = await this.repository.updateUiPreferences(id, preferences);
+    if (!updated) {
+      throw new Error('NOT_FOUND');
+    }
+    return updated.uiPreferences ?? {};
   }
 }

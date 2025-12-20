@@ -1,4 +1,4 @@
-import { AccountRecord, InterviewerSeniority } from './accounts.types.js';
+import { AccountRecord, InterviewerSeniority, UiPreferences } from './accounts.types.js';
 import { postgresPool } from '../../shared/database/postgres.client.js';
 
 const toTitleCase = (value: string): string =>
@@ -89,7 +89,8 @@ const mapRowToAccount = (row: any): AccountRecord => {
     lastName: lastNameRaw || derivedParts.lastName,
     invitationToken: row.invitation_token,
     createdAt: new Date(row.created_at),
-    activatedAt: row.activated_at ? new Date(row.activated_at) : undefined
+    activatedAt: row.activated_at ? new Date(row.activated_at) : undefined,
+    uiPreferences: (row.ui_preferences as UiPreferences) ?? {}
   };
 };
 
@@ -162,5 +163,23 @@ export class AccountsRepository {
     const result = await postgresPool.query('DELETE FROM accounts WHERE id = $1 RETURNING *;', [id]);
     const row = result.rows[0];
     return row ? mapRowToAccount(row) : null;
+  }
+
+  async updateUiPreferences(id: string, preferences: UiPreferences): Promise<AccountRecord | null> {
+    const result = await postgresPool.query(
+      `UPDATE accounts
+          SET ui_preferences = $2
+        WHERE id = $1
+        RETURNING *;`,
+      [id, JSON.stringify(preferences)]
+    );
+    const row = result.rows[0];
+    return row ? mapRowToAccount(row) : null;
+  }
+
+  async getUiPreferences(id: string): Promise<UiPreferences | null> {
+    const result = await postgresPool.query('SELECT ui_preferences FROM accounts WHERE id = $1 LIMIT 1;', [id]);
+    const row = result.rows[0];
+    return row ? ((row.ui_preferences as UiPreferences) ?? {}) : null;
   }
 }

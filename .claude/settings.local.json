@@ -9,7 +9,9 @@
       "Bash(echo:*)",
       "Bash(find:*)",
       "Bash(/c/Program Files/nodejs/npx.cmd tsc --noEmit)",
-      "Bash(node node_modules/typescript/bin/tsc:*)"
+      "Bash(node node_modules/typescript/bin/tsc:*)",
+      "Bash(\"c:/Program Files/nodejs/npx.cmd\" tsc --noEmit --project \"c:/Users/Lev/Downloads/splash-2/splash/frontend\")",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

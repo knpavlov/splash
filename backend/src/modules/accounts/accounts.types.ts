@@ -3,6 +3,11 @@ export type AccountStatus = 'pending' | 'active';
 
 export type InterviewerSeniority = 'MD' | 'SD' | 'D' | 'SM' | 'M' | 'SA' | 'A';
 
+export interface UiPreferences {
+  initiativesTableColumns?: Record<string, number>;
+  [key: string]: unknown;
+}
+
 export interface AccountRecord {
   id: string;
   email: string;
@@ -15,4 +20,5 @@ export interface AccountRecord {
   invitationToken: string;
   createdAt: Date;
   activatedAt?: Date;
+  uiPreferences?: UiPreferences;
 }

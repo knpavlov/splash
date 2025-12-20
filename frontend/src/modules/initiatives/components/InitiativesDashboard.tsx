@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import {
   Initiative,
   InitiativeFinancialKind,
@@ -21,12 +21,43 @@ import {
   stageColumns,
   StageColumnKey,
   StageGateEntity,
+  StageGateDataset,
   WorkstreamRow
 } from '../../dashboards/StageGateDashboardScreen';
 import { CombinedChart, PlanVsActualChart, ChartMonthStack, ChartSegment } from './FinancialEditor';
 import { calculateRunRate, calculateYearSummaries, parseMonthKey } from './financials.helpers';
 import { useFinancialsState, usePlanSettingsState } from '../../../app/state/AppStateContext';
 import { DEFAULT_FISCAL_YEAR_START_MONTH } from '../../../shared/config/finance';
+import { ProgramSnapshotDetail, ProgramSnapshotSummary } from '../../../shared/types/snapshot';
+import { snapshotsApi } from '../../snapshots/services/snapshotsApi';
+
+type ComparisonMode = 'none' | '7d' | '30d' | 'custom';
+type SnapshotDetailCacheEntry =
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'ready'; detail: ProgramSnapshotDetail };
+
+const dateFormatter = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' });
+
+const findSnapshotByDaysAgo = (snapshots: ProgramSnapshotSummary[], daysAgo: number): ProgramSnapshotSummary | null => {
+  if (!snapshots.length) return null;
+  const targetDate = new Date();
+  targetDate.setDate(targetDate.getDate() - daysAgo);
+  const targetTime = targetDate.getTime();
+
+  let closest: ProgramSnapshotSummary | null = null;
+  let closestDiff = Infinity;
+
+  for (const snapshot of snapshots) {
+    const snapshotTime = new Date(snapshot.capturedAt).getTime();
+    const diff = Math.abs(snapshotTime - targetTime);
+    if (diff < closestDiff) {
+      closestDiff = diff;
+      closest = snapshot;
+    }
+  }
+  return closest;
+};
 
 interface InitiativesDashboardProps {
   initiatives: Initiative[];
@@ -273,6 +304,13 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
   const [selectedMeasurements, setSelectedMeasurements] = useState<MeasurementKey[]>(DEFAULT_MEASUREMENTS);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
+  // Comparison state
+  const [comparisonMode, setComparisonMode] = useState<ComparisonMode>('none');
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+  const [snapshots, setSnapshots] = useState<ProgramSnapshotSummary[]>([]);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [snapshotDetails, setSnapshotDetails] = useState<Record<string, SnapshotDetailCacheEntry>>({});
+
   const { periodSettings } = usePlanSettingsState();
   const { blueprint: financialBlueprint } = useFinancialsState();
   const fiscalStartMonth = financialBlueprint?.fiscalYear?.startMonth ?? DEFAULT_FISCAL_YEAR_START_MONTH;
@@ -290,6 +328,70 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
     () => buildStageGateDataset(scopedInitiatives as StageGateEntity[], scopedWorkstreams),
     [scopedInitiatives, scopedWorkstreams]
   );
+
+  // Load snapshots for comparison
+  const loadSnapshots = useCallback(async () => {
+    setSnapshotsLoading(true);
+    try {
+      const remote = await snapshotsApi.listProgramSnapshots({ limit: 90 });
+      setSnapshots(remote);
+    } catch (error) {
+      console.warn('Failed to load snapshots:', error);
+    } finally {
+      setSnapshotsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSnapshots();
+  }, [loadSnapshots]);
+
+  useEffect(() => {
+    if (!snapshots.length && comparisonMode !== 'none') {
+      setComparisonMode('none');
+    }
+    if (comparisonMode === 'custom') {
+      const existingIds = new Set(snapshots.map((entry) => entry.id));
+      if (!selectedSnapshotId || !existingIds.has(selectedSnapshotId)) {
+        setSelectedSnapshotId(snapshots[snapshots.length - 1]?.id ?? null);
+      }
+    }
+  }, [snapshots, comparisonMode, selectedSnapshotId]);
+
+  const comparisonSnapshot = useMemo(() => {
+    if (!snapshots.length || comparisonMode === 'none') return null;
+    if (comparisonMode === 'custom') {
+      return snapshots.find((s) => s.id === selectedSnapshotId) ?? null;
+    }
+    return findSnapshotByDaysAgo(snapshots, comparisonMode === '7d' ? 7 : 30);
+  }, [snapshots, comparisonMode, selectedSnapshotId]);
+
+  const activeComparisonDetail = comparisonSnapshot ? snapshotDetails[comparisonSnapshot.id] : undefined;
+
+  useEffect(() => {
+    if (!comparisonSnapshot || comparisonMode === 'none') return;
+    const snapshotId = comparisonSnapshot.id;
+    const existing = snapshotDetails[snapshotId];
+    if (existing && existing.status !== 'error') return;
+
+    setSnapshotDetails((prev) => ({ ...prev, [snapshotId]: { status: 'loading' } }));
+    void snapshotsApi
+      .getProgramSnapshot(snapshotId)
+      .then((detail) => {
+        setSnapshotDetails((prev) => ({ ...prev, [snapshotId]: { status: 'ready', detail } }));
+      })
+      .catch(() => {
+        setSnapshotDetails((prev) => ({ ...prev, [snapshotId]: { status: 'error' } }));
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparisonSnapshot?.id, comparisonMode]);
+
+  const comparisonDataset = useMemo(() => {
+    if (!comparisonSnapshot || !activeComparisonDetail || activeComparisonDetail.status !== 'ready') return null;
+    return buildStageGateDataset(activeComparisonDetail.detail.payload.initiatives as StageGateEntity[], workstreams);
+  }, [comparisonSnapshot?.id, activeComparisonDetail, workstreams]);
+
+  const comparisonLookup = comparisonDataset?.lookup ?? null;
 
   const stageFilteredInitiatives = useMemo(
     () => scopedInitiatives.filter((item) => stageFilter.has(item.activeStage)),
@@ -467,6 +569,13 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
     </div>
   );
 
+  const getDeltaTone = (delta: number | null, trend: 'up' | 'down' | 'neutral'): 'positive' | 'negative' | 'neutral' => {
+    if (delta === null || delta === 0) return 'neutral';
+    if (trend === 'neutral') return 'neutral';
+    const isGood = (trend === 'up' && delta > 0) || (trend === 'down' && delta < 0);
+    return isGood ? 'positive' : 'negative';
+  };
+
   const renderStageCells = (row: WorkstreamRow, columnKey: string, measurement: MeasurementKey) => {
     const meta = measurementDefinitions[measurement];
     const value = row.metrics[columnKey as StageColumnKey][measurement] ?? 0;
@@ -478,6 +587,18 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
       barClasses.push(stageStyles.barFillEmpty);
     }
     const formatted = meta.formatter(value);
+
+    // Calculate delta
+    const comparisonRow = comparisonLookup?.get(row.id);
+    const comparisonValue = comparisonRow?.metrics[columnKey as StageColumnKey][measurement] ?? null;
+    const delta = comparisonValue !== null ? value - comparisonValue : null;
+    const tone = getDeltaTone(delta, meta.desiredTrend);
+    const deltaClasses = [stageStyles.deltaBadge];
+    if (tone === 'positive') deltaClasses.push(stageStyles.deltaPositive);
+    else if (tone === 'negative') deltaClasses.push(stageStyles.deltaNegative);
+    else deltaClasses.push(stageStyles.deltaNeutral);
+    if (delta === null) deltaClasses.push(stageStyles.deltaPlaceholder);
+
     return (
       <Fragment key={`${row.id}-${columnKey}-${measurement}`}>
         <td className={stageStyles.valueCell}>
@@ -487,7 +608,9 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
           </div>
         </td>
         <td className={stageStyles.deltaCell}>
-          <span className={[stageStyles.deltaBadge, stageStyles.deltaNeutral, stageStyles.deltaPlaceholder].join(' ')}>--</span>
+          <span className={deltaClasses.join(' ')}>
+            {delta === null ? '--' : meta.deltaFormatter(delta)}
+          </span>
         </td>
       </Fragment>
     );
@@ -503,6 +626,18 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
       .filter(Boolean)
       .join(' ');
     const formatted = meta.formatter(value);
+
+    // Calculate delta
+    const comparisonRow = comparisonLookup?.get(row.id);
+    const comparisonValue = comparisonRow?.totals[measurement] ?? null;
+    const delta = comparisonValue !== null ? value - comparisonValue : null;
+    const tone = getDeltaTone(delta, meta.desiredTrend);
+    const deltaClasses = [stageStyles.deltaBadge, stageStyles.totalDeltaBadge];
+    if (tone === 'positive') deltaClasses.push(stageStyles.deltaPositive);
+    else if (tone === 'negative') deltaClasses.push(stageStyles.deltaNegative);
+    else deltaClasses.push(stageStyles.deltaNeutral);
+    if (delta === null) deltaClasses.push(stageStyles.deltaPlaceholder);
+
     return (
       <Fragment key={`${row.id}-total-${measurement}`}>
         <td className={[stageStyles.valueCell, stageStyles.totalValueCell].join(' ')}>
@@ -512,8 +647,8 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
           </div>
         </td>
         <td className={[stageStyles.deltaCell, stageStyles.totalDeltaCell].join(' ')}>
-          <span className={[stageStyles.deltaBadge, stageStyles.totalDeltaBadge, stageStyles.deltaNeutral, stageStyles.deltaPlaceholder].join(' ')}>
-            --
+          <span className={deltaClasses.join(' ')}>
+            {delta === null ? '--' : meta.deltaFormatter(delta)}
           </span>
         </td>
       </Fragment>
@@ -630,23 +765,49 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
     const hasInitiatives = stageGateDataset.totalRow.totals.initiatives > 0;
     return (
       <div className={dashboardStyles.card}>
-        <div className={dashboardStyles.metricSelector}>
-          {measurementKeyList.map((measurement) => {
-            const active = activeMeasurements.includes(measurement);
-            return (
-              <button
-                key={measurement}
-                type="button"
-                className={[stageStyles.metricChip, active ? stageStyles.metricChipActive : ''].join(' ')}
-                onClick={() => handleToggleMeasurement(measurement)}
-                aria-pressed={active}
-                title={measurementDefinitions[measurement].description}
+        <div className={dashboardStyles.pipelineControls}>
+          <div className={dashboardStyles.metricSelector}>
+            {measurementKeyList.map((measurement) => {
+              const active = activeMeasurements.includes(measurement);
+              return (
+                <button
+                  key={measurement}
+                  type="button"
+                  className={[stageStyles.metricChip, active ? stageStyles.metricChipActive : ''].join(' ')}
+                  onClick={() => handleToggleMeasurement(measurement)}
+                  aria-pressed={active}
+                  title={measurementDefinitions[measurement].description}
+                >
+                  {measurementDefinitions[measurement].label}
+                </button>
+              );
+            })}
+          </div>
+          <div className={dashboardStyles.comparisonControl}>
+            <label htmlFor="pipeline-comparison">Compare</label>
+            <select
+              id="pipeline-comparison"
+              value={comparisonMode}
+              onChange={(e) => setComparisonMode(e.target.value as ComparisonMode)}
+              className={dashboardStyles.comparisonSelect}
+            >
+              <option value="none">No comparison</option>
+              <option value="7d" disabled={!snapshots.length}>vs 7 days ago</option>
+              <option value="30d" disabled={!snapshots.length}>vs 30 days ago</option>
+              <option value="custom" disabled={!snapshots.length}>Custom snapshot</option>
+            </select>
+            {comparisonMode === 'custom' && snapshots.length > 0 && (
+              <select
+                value={selectedSnapshotId ?? ''}
+                onChange={(e) => setSelectedSnapshotId(e.target.value || null)}
+                className={dashboardStyles.comparisonSelect}
               >
-                {measurementDefinitions[measurement].label}
-              </button>
-            );
-          })}
-          <span className={dashboardStyles.helperText}>Tap to hide or show metrics to keep the grid compact.</span>
+                {snapshots.map((s) => (
+                  <option key={s.id} value={s.id}>{dateFormatter.format(new Date(s.capturedAt))}</option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
         <div className={stageStyles.tableWrapper}>
           <table className={stageStyles.table}>

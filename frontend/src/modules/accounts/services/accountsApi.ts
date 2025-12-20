@@ -1,5 +1,5 @@
 import { apiRequest } from '../../../shared/api/httpClient';
-import { AccountRecord, AccountRole, InterviewerSeniority } from '../../../shared/types/account';
+import { AccountRecord, AccountRole, InterviewerSeniority, UiPreferences } from '../../../shared/types/account';
 
 type AccountStatus = 'pending' | 'active';
 
@@ -147,5 +147,16 @@ export const accountsApi = {
         method: 'POST',
         body: { role }
       })
-    )
+    ),
+  getUiPreferences: async (id: string): Promise<UiPreferences> => {
+    const result = await apiRequest<unknown>(`/accounts/${id}/ui-preferences`);
+    return (result as UiPreferences) ?? {};
+  },
+  updateUiPreferences: async (id: string, preferences: UiPreferences): Promise<UiPreferences> => {
+    const result = await apiRequest<unknown>(`/accounts/${id}/ui-preferences`, {
+      method: 'PUT',
+      body: preferences
+    });
+    return (result as UiPreferences) ?? {};
+  }
 };

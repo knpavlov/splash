@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { accountsService } from './accounts.module.js';
 import { workstreamsService } from '../workstreams/workstreams.module.js';
 import type { WorkstreamRole } from '../workstreams/workstreams.types.js';
-import type { InterviewerSeniority } from './accounts.types.js';
+import type { InterviewerSeniority, UiPreferences } from './accounts.types.js';
 
 const router = Router();
 
@@ -154,6 +154,37 @@ router.put('/:id/workstream-roles', async (req, res) => {
       }
     }
     res.status(500).json({ code: 'unknown', message: 'Failed to save workstream roles.' });
+  }
+});
+
+router.get('/:id/ui-preferences', async (req, res) => {
+  try {
+    const preferences = await accountsService.getUiPreferences(req.params.id);
+    res.json(preferences);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'NOT_FOUND') {
+      res.status(404).json({ code: 'not-found', message: 'Account not found.' });
+      return;
+    }
+    res.status(500).json({ code: 'unknown', message: 'Failed to load UI preferences.' });
+  }
+});
+
+router.put('/:id/ui-preferences', async (req, res) => {
+  const preferences = req.body as UiPreferences;
+  if (!preferences || typeof preferences !== 'object') {
+    res.status(400).json({ code: 'invalid-input', message: 'Invalid preferences payload.' });
+    return;
+  }
+  try {
+    const updated = await accountsService.updateUiPreferences(req.params.id, preferences);
+    res.json(updated);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'NOT_FOUND') {
+      res.status(404).json({ code: 'not-found', message: 'Account not found.' });
+      return;
+    }
+    res.status(500).json({ code: 'unknown', message: 'Failed to update UI preferences.' });
   }
 });
 

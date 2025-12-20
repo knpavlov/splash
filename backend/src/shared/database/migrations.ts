@@ -1112,6 +1112,11 @@ const createTables = async () => {
 
   await postgresPool.query(`CREATE INDEX IF NOT EXISTS landing_inquiries_created_at_idx ON landing_inquiries (created_at DESC);`);
   await postgresPool.query(`CREATE INDEX IF NOT EXISTS landing_inquiries_email_idx ON landing_inquiries (contact_email);`);
+
+  await postgresPool.query(`
+    ALTER TABLE accounts
+      ADD COLUMN IF NOT EXISTS ui_preferences JSONB NOT NULL DEFAULT '{}'::jsonb;
+  `);
 };
 
 const syncSuperAdmin = async () => {
