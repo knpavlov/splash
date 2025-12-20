@@ -49,6 +49,7 @@ export type NavigationGroupKey = 'program' | 'dashboards' | 'settings';
 export interface NavigationItem {
   key: NavigationKey;
   label: string;
+  shortLabel?: string;
   roleAccess: AccountRole[];
   group?: NavigationGroupKey;
   disabled?: boolean;
@@ -63,16 +64,17 @@ export const navigationGroups: { id: NavigationGroupKey; label: string; collapse
 ];
 
 export const navigationItems: NavigationItem[] = [
-  { key: 'activity', label: "What's new", roleAccess: ['super-admin', 'admin', 'user'], icon: Activity },
-  { key: 'workstreams', label: 'Workstreams', roleAccess: ['super-admin', 'admin'], group: 'program', icon: Workflow },
-  { key: 'participants', label: 'Participants', roleAccess: ['super-admin', 'admin'], group: 'program', icon: Users },
-  { key: 'financials', label: 'Financials', roleAccess: ['super-admin', 'admin'], group: 'program', icon: DollarSign },
-  { key: 'kpis', label: 'KPIs', roleAccess: ['super-admin', 'admin'], group: 'program', disabled: true, icon: Target },
-  { key: 'initiatives', label: 'Initiatives', roleAccess: ['super-admin', 'admin'], icon: Layers },
-  { key: 'approvals', label: 'Approvals', roleAccess: ['super-admin', 'admin', 'user'], icon: CheckSquare },
+  { key: 'activity', label: "What's new", shortLabel: 'New', roleAccess: ['super-admin', 'admin', 'user'], icon: Activity },
+  { key: 'workstreams', label: 'Workstreams', shortLabel: 'Streams', roleAccess: ['super-admin', 'admin'], group: 'program', icon: Workflow },
+  { key: 'participants', label: 'Participants', shortLabel: 'Team', roleAccess: ['super-admin', 'admin'], group: 'program', icon: Users },
+  { key: 'financials', label: 'Financials', shortLabel: 'Finance', roleAccess: ['super-admin', 'admin'], group: 'program', icon: DollarSign },
+  { key: 'kpis', label: 'KPIs', shortLabel: 'KPIs', roleAccess: ['super-admin', 'admin'], group: 'program', disabled: true, icon: Target },
+  { key: 'initiatives', label: 'Initiatives', shortLabel: 'Projects', roleAccess: ['super-admin', 'admin'], icon: Layers },
+  { key: 'approvals', label: 'Approvals', shortLabel: 'Approve', roleAccess: ['super-admin', 'admin', 'user'], icon: CheckSquare },
   {
     key: 'stage-gate-dashboard',
     label: 'Stage-gate pipeline',
+    shortLabel: 'Pipeline',
     roleAccess: ['super-admin', 'admin'],
     group: 'dashboards',
     icon: LayoutDashboard
@@ -80,6 +82,7 @@ export const navigationItems: NavigationItem[] = [
   {
     key: 'financial-dynamics',
     label: 'P&L dynamics',
+    shortLabel: 'P&L',
     roleAccess: ['super-admin', 'admin'],
     group: 'dashboards',
     icon: TrendingUp
@@ -87,25 +90,27 @@ export const navigationItems: NavigationItem[] = [
   {
     key: 'portfolio-plan',
     label: 'Portfolio plan',
+    shortLabel: 'Plan',
     roleAccess: ['super-admin', 'admin'],
     group: 'dashboards',
     icon: Map
   },
-  { key: 'deadline-dashboard', label: 'Deadline radar', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Clock },
-  { key: 'capacity-heatmap', label: 'Capacity heatmap', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Grid },
-  { key: 'financial-tree', label: 'P&L tree', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Network },
-  { key: 'risk-dashboard', label: 'Risk matrix', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: ShieldAlert },
-  { key: 'accounts', label: 'Account management', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: UserCog },
-  { key: 'general-settings', label: 'General settings', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: Settings },
+  { key: 'deadline-dashboard', label: 'Deadline radar', shortLabel: 'Dates', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Clock },
+  { key: 'capacity-heatmap', label: 'Capacity heatmap', shortLabel: 'Load', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Grid },
+  { key: 'financial-tree', label: 'P&L tree', shortLabel: 'Tree', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Network },
+  { key: 'risk-dashboard', label: 'Risk matrix', shortLabel: 'Risks', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: ShieldAlert },
+  { key: 'accounts', label: 'Account management', shortLabel: 'Accounts', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: UserCog },
+  { key: 'general-settings', label: 'General settings', shortLabel: 'Settings', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: Settings },
   {
     key: 'snapshot-settings',
     label: 'Snapshot settings',
+    shortLabel: 'Snaps',
     roleAccess: ['super-admin', 'admin'],
     group: 'settings',
     hidden: true,
     icon: Camera
   },
-  { key: 'initiative-logs', label: 'Initiative log', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: FileText },
+  { key: 'initiative-logs', label: 'Initiative log', shortLabel: 'Logs', roleAccess: ['super-admin', 'admin'], group: 'settings', icon: FileText },
   { key: 'taiga', label: 'Taiga', roleAccess: ['super-admin', 'admin', 'user'], hidden: true },
   { key: 'laika', label: 'Laika', roleAccess: ['super-admin', 'admin', 'user'], hidden: true },
   { key: 'laiten', label: 'Laiten', roleAccess: ['super-admin', 'admin', 'user'], hidden: true }

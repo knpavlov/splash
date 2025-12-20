@@ -14,8 +14,8 @@
 }
 
 .sidebar.collapsed {
-  width: 72px;
-  padding: 16px 8px;
+  width: 80px;
+  padding: 16px 6px;
 }
 
 .logoArea {
@@ -107,18 +107,36 @@
 }
 
 .collapsedItem {
+  flex-direction: column;
   justify-content: center;
-  padding: 8px;
+  align-items: center;
+  padding: 6px 4px;
+  gap: 2px;
 }
 
 .itemIcon {
-  min-width: 18px;
+  min-width: 16px;
+}
+
+.collapsedItem .itemIcon {
+  min-width: unset;
 }
 
 .itemLabel {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.shortLabel {
+  font-size: 9px;
+  line-height: 1.1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  color: rgba(226, 232, 240, 0.85);
 }
 
 .menuItem:hover {
@@ -136,7 +154,7 @@
 }
 
 .collapsedItem.childItem {
-  padding-left: 8px;
+  padding: 6px 4px;
 }
 
 .disabledItem {

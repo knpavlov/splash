@@ -65,7 +65,10 @@ export const Sidebar = ({ navigationItems, activeItem, onNavigate, isCollapsed, 
         disabled={item.disabled}
         title={isCollapsed ? item.label : undefined}
       >
-        {Icon && <Icon size={18} className={styles.itemIcon} />}
+        {Icon && <Icon size={16} className={styles.itemIcon} />}
+        {isCollapsed && item.shortLabel && (
+          <span className={styles.shortLabel}>{item.shortLabel}</span>
+        )}
         {!isCollapsed && <span className={styles.itemLabel}>{item.label}</span>}
       </button>
     );
