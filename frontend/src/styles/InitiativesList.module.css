@@ -64,8 +64,7 @@
 }
 
 .table {
-  width: max-content;
-  min-width: 100%;
+  width: auto;
   border-collapse: collapse;
   font-size: 12px;
   table-layout: fixed;
@@ -79,6 +78,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .table th {
@@ -90,6 +90,9 @@
   align-items: center;
   gap: 8px;
   padding-right: 8px;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 .dragHandle {
@@ -111,9 +114,12 @@
 
 .cell {
   display: block;
+  width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .resizeHandle {
@@ -145,6 +151,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .sortIcon {

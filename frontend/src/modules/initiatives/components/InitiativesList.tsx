@@ -12,7 +12,7 @@ const formatCurrency = (value: number) => currency.format(value || 0);
 
 const formatDate = (value: string | null) => {
   if (!value) {
-    return '—';
+    return '\u2014';
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -43,16 +43,16 @@ interface ColumnDef {
 }
 
 const COLUMNS: ColumnDef[] = [
-  { key: 'name', label: 'Initiative name', defaultWidth: 200, minWidth: 120 },
-  { key: 'owner', label: 'Initiative owner', defaultWidth: 130, minWidth: 80 },
-  { key: 'stage', label: 'Stage gate', defaultWidth: 80, minWidth: 60 },
-  { key: 'recBenefits', label: 'Recurring benefits', defaultWidth: 110, minWidth: 80 },
-  { key: 'recCosts', label: 'Recurring costs', defaultWidth: 100, minWidth: 80 },
-  { key: 'recImpact', label: 'Recurring impact', defaultWidth: 110, minWidth: 80 },
-  { key: 'oneoffBenefits', label: 'One-off benefits', defaultWidth: 100, minWidth: 80 },
-  { key: 'oneoffCosts', label: 'One-off costs', defaultWidth: 90, minWidth: 80 },
-  { key: 'l4Date', label: 'L4 date', defaultWidth: 90, minWidth: 70 },
-  { key: 'status', label: 'Current status', defaultWidth: 100, minWidth: 70 }
+  { key: 'name', label: 'Initiative name', defaultWidth: 200, minWidth: 60 },
+  { key: 'owner', label: 'Initiative owner', defaultWidth: 130, minWidth: 40 },
+  { key: 'stage', label: 'Stage gate', defaultWidth: 80, minWidth: 40 },
+  { key: 'recBenefits', label: 'Recurring benefits', defaultWidth: 110, minWidth: 40 },
+  { key: 'recCosts', label: 'Recurring costs', defaultWidth: 100, minWidth: 40 },
+  { key: 'recImpact', label: 'Recurring impact', defaultWidth: 110, minWidth: 40 },
+  { key: 'oneoffBenefits', label: 'One-off benefits', defaultWidth: 100, minWidth: 40 },
+  { key: 'oneoffCosts', label: 'One-off costs', defaultWidth: 90, minWidth: 40 },
+  { key: 'l4Date', label: 'L4 date', defaultWidth: 90, minWidth: 40 },
+  { key: 'status', label: 'Current status', defaultWidth: 100, minWidth: 40 }
 ];
 
 const getDefaultColumnWidths = (): Record<string, number> =>
@@ -92,6 +92,18 @@ export const InitiativesList = ({
   const columnWidthsRef = useRef<Record<string, number>>(columnWidths);
   const columnOrderRef = useRef<SortKey[]>(columnOrder);
 
+  const resolveColumnWidth = useCallback(
+    (key: SortKey, source?: Record<string, number>) => {
+      const column = COLUMNS.find((entry) => entry.key === key);
+      const fallback = column?.defaultWidth ?? 100;
+      const minWidth = column?.minWidth ?? 50;
+      const value = source?.[key] ?? columnWidthsRef.current[key] ?? fallback;
+      const numeric = Number.isFinite(value) ? Math.round(Number(value)) : fallback;
+      return Math.max(minWidth, numeric);
+    },
+    []
+  );
+
   useEffect(() => {
     columnWidthsRef.current = columnWidths;
   }, [columnWidths]);
@@ -106,7 +118,12 @@ export const InitiativesList = ({
     accountsApi.getUiPreferences(session.accountId).then((prefs) => {
       const widthsValue = prefs[UI_PREFS_KEY];
       if (widthsValue && typeof widthsValue === 'object' && !Array.isArray(widthsValue)) {
-        setColumnWidths((prev) => ({ ...prev, ...(widthsValue as Record<string, number>) }));
+        const incoming = widthsValue as Record<string, number>;
+        const normalized = COLUMNS.reduce((acc, col) => {
+          acc[col.key] = resolveColumnWidth(col.key, incoming);
+          return acc;
+        }, {} as Record<string, number>);
+        setColumnWidths((prev) => ({ ...prev, ...normalized }));
       }
       const orderValue = prefs[UI_PREFS_ORDER_KEY];
       if (Array.isArray(orderValue)) {
@@ -118,7 +135,7 @@ export const InitiativesList = ({
         setColumnOrder([...normalized, ...missing]);
       }
     }).catch(() => {});
-  }, [session?.accountId]);
+  }, [resolveColumnWidth, session?.accountId]);
 
   const savePreferences = useCallback((patch?: { widths?: Record<string, number>; order?: SortKey[] }) => {
     if (!session?.accountId) return;
@@ -181,6 +198,11 @@ export const InitiativesList = ({
     return columnOrder.map((key) => byKey.get(key)).filter((col): col is ColumnDef => Boolean(col));
   }, [columnOrder]);
 
+  const tableWidthPx = useMemo(
+    () => orderedColumns.reduce((acc, col) => acc + resolveColumnWidth(col.key, columnWidths), 0),
+    [columnWidths, orderedColumns, resolveColumnWidth]
+  );
+
   const moveColumn = useCallback(
     (source: SortKey, target: SortKey) => {
       if (source === target) {
@@ -207,7 +229,7 @@ export const InitiativesList = ({
         return { value, content: value };
       }
       case 'owner': {
-        const value = initiative.ownerName || '—';
+        const value = initiative.ownerName || '\u2014';
         return { value, content: value };
       }
       case 'stage': {
@@ -239,7 +261,7 @@ export const InitiativesList = ({
         return { value, content: value };
       }
       case 'status': {
-        const value = initiative.currentStatus || '—';
+        const value = initiative.currentStatus || '\u2014';
         return { value, content: value };
       }
       default: {
@@ -370,13 +392,21 @@ export const InitiativesList = ({
             <p>Create the first initiative to start tracking this workstream.</p>
           </div>
         ) : (
-          <table className={styles.table}>
+          <table className={styles.table} style={{ width: `${Math.max(200, tableWidthPx)}px` }}>
+            <colgroup>
+              {orderedColumns.map((col) => {
+                const width = resolveColumnWidth(col.key, columnWidths);
+                return <col key={`col-${col.key}`} style={{ width: `${width}px` }} />;
+              })}
+            </colgroup>
             <thead>
               <tr>
-                {orderedColumns.map((col) => (
+                {orderedColumns.map((col) => {
+                  const width = resolveColumnWidth(col.key, columnWidths);
+                  return (
                   <th
                     key={col.key}
-                    style={{ width: columnWidths[col.key] }}
+                    style={{ width: `${width}px`, maxWidth: `${width}px` }}
                     onDragEnter={() => setDropTargetColumn(col.key)}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => {
@@ -407,7 +437,7 @@ export const InitiativesList = ({
                         }}
                         onMouseDown={(event) => event.stopPropagation()}
                       >
-                        ⋮⋮
+                        {'\u22EE\u22EE'}
                       </span>
                     </div>
                     <div
@@ -415,17 +445,21 @@ export const InitiativesList = ({
                       onMouseDown={(e) => handleResizeStart(col.key, e)}
                     />
                   </th>
-                ))}
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {sorted.map((initiative) => (
                 <tr key={initiative.id} onClick={() => onOpen(initiative.id)} className={styles.row}>
                   {orderedColumns.map((col) => {
+                    const width = resolveColumnWidth(col.key, columnWidths);
                     const { value, content } = renderCell(initiative, col.key);
                     return (
-                      <td key={`${initiative.id}:${col.key}`} style={{ width: columnWidths[col.key] }} title={value}>
-                        <span className={styles.cell}>{content}</span>
+                      <td key={`${initiative.id}:${col.key}`} style={{ width: `${width}px`, maxWidth: `${width}px` }}>
+                        <span className={styles.cell} title={value}>
+                          {content}
+                        </span>
                       </td>
                     );
                   })}

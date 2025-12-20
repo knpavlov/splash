@@ -6,7 +6,7 @@ import { AccountRole } from '../../shared/types/account';
 import { LoadDemoDataLink } from '../../modules/demo/components/LoadDemoDataLink';
 import { EraseDemoDataLink } from '../../modules/demo/components/EraseDemoDataLink';
 import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
-import laitenLogo from '../../assets/laiten-logo.svg';
+import laitenLogo from '../../assets/laiten-logo.png';
 
 interface SidebarProps {
   navigationItems: NavigationItem[];
