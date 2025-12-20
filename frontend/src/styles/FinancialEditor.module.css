@@ -256,6 +256,7 @@
   font-weight: 600;
   color: #94a3b8;
   pointer-events: none;
+  z-index: 3;
 }
 
 .chartValuePositive {
@@ -977,4 +978,3 @@
   color: #b91c1c;
   font-size: 13px;
 }
-

@@ -294,7 +294,7 @@ export const CombinedChart = ({
               {stat.negativeTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValueNegative}`}
-                  style={{ top: `${negativeLabelTopPx}px` }}
+                  style={{ top: `${negativeLabelTopPx}px`, bottom: 'auto' }}
                 >
                   {renderValue(stat.negativeTotal)}
                 </span>
@@ -1131,7 +1131,7 @@ export const PlanVsActualChart = ({
               {shouldShowPlanValue && plan.negativeTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValueNegative}`}
-                  style={{ top: `${planNegativeLabelTopPx}px`, left: planLabelLeft }}
+                  style={{ top: `${planNegativeLabelTopPx}px`, left: planLabelLeft, bottom: 'auto' }}
                 >
                   {renderValue(plan.negativeTotal)}
                 </span>
@@ -1147,7 +1147,7 @@ export const PlanVsActualChart = ({
               {shouldShowActualValue && actual.negativeTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValueNegative}`}
-                  style={{ top: `${actualNegativeLabelTopPx}px`, left: actualLabelLeft }}
+                  style={{ top: `${actualNegativeLabelTopPx}px`, left: actualLabelLeft, bottom: 'auto' }}
                 >
                   {renderValue(actual.negativeTotal)}
                 </span>

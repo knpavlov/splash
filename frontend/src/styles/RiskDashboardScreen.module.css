@@ -5,6 +5,19 @@
   padding: 20px 24px;
 }
 
+.matrixLayout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1040px) {
+  .matrixLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .header {
   display: flex;
   justify-content: space-between;
@@ -67,6 +80,7 @@
 .pill:focus-visible,
 .matrixCell:focus-visible,
 .sortableHeader button:focus-visible,
+.sortButton:focus-visible,
 .smallButton:focus-visible,
 .primaryButton:focus-visible {
   outline: 2px solid rgba(59, 130, 246, 0.65);
@@ -460,9 +474,9 @@
 }
 
 .table {
-  width: 100%;
+  width: auto;
   border-collapse: collapse;
-  min-width: 1500px;
+  table-layout: fixed;
 }
 
 .table th,
@@ -473,6 +487,8 @@
   vertical-align: top;
   font-size: 12px;
   color: #0f172a;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .table th {
@@ -487,6 +503,11 @@
   white-space: nowrap;
   user-select: none;
   z-index: 1;
+}
+
+.tableHeader {
+  position: sticky;
+  top: 0;
 }
 
 .table tbody tr:nth-child(even) td {
@@ -510,6 +531,87 @@
 
 .sortableHeader button:hover {
   color: #0f172a;
+}
+
+.headerContent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.sortButton {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.sortIcon {
+  font-size: 11px;
+}
+
+.dragHandle {
+  font-size: 14px;
+  line-height: 1;
+  color: rgba(100, 116, 139, 0.9);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.resizeHandle:hover,
+.resizeHandle.resizing,
+.resizing {
+  background: rgba(14, 165, 233, 0.4);
+}
+
+.dropTarget {
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.cell {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mutedCell {
+  color: #475569;
 }
 
 .scoreCell {
@@ -604,7 +706,7 @@
 }
 
 .commentsCell {
-  min-width: 360px;
+  min-width: 0;
 }
 
 .commentsHeader {

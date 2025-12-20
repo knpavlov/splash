@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import styles from '../../styles/RiskDashboardScreen.module.css';
 import { useInitiativesState, usePlanSettingsState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import type { Initiative, InitiativeRisk, InitiativeRiskComment } from '../../shared/types/initiative';
@@ -6,6 +6,7 @@ import type { ProgramSnapshotDetail, ProgramSnapshotSummary } from '../../shared
 import { snapshotsApi } from '../snapshots/services/snapshotsApi';
 import { initiativesApi } from '../initiatives/services/initiativesApi';
 import { useAuth } from '../auth/AuthContext';
+import { accountsApi } from '../accounts/services/accountsApi';
 
 type StageColumnKey =
   | 'l0'
@@ -110,6 +111,35 @@ type RiskSortKey =
   | 'mitigation'
   | 'comments';
 
+interface RiskTableColumnDef {
+  key: RiskSortKey;
+  label: string;
+  defaultWidth: number;
+  minWidth: number;
+}
+
+const RISK_TABLE_COLUMNS: RiskTableColumnDef[] = [
+  { key: 'score', label: 'Score', defaultWidth: 70, minWidth: 50 },
+  { key: 'risk', label: 'Risk', defaultWidth: 220, minWidth: 80 },
+  { key: 'description', label: 'Description', defaultWidth: 300, minWidth: 120 },
+  { key: 'type', label: 'Type', defaultWidth: 140, minWidth: 80 },
+  { key: 'initiative', label: 'Initiative', defaultWidth: 220, minWidth: 120 },
+  { key: 'workstream', label: 'Workstream', defaultWidth: 180, minWidth: 120 },
+  { key: 'owner', label: 'Owner', defaultWidth: 160, minWidth: 90 },
+  { key: 'stage', label: 'Stage', defaultWidth: 90, minWidth: 70 },
+  { key: 'movement', label: 'Movement', defaultWidth: 220, minWidth: 140 },
+  { key: 'severity', label: 'Sev', defaultWidth: 60, minWidth: 40 },
+  { key: 'likelihood', label: 'Likelihood', defaultWidth: 90, minWidth: 60 },
+  { key: 'mitigation', label: 'Mitigation', defaultWidth: 300, minWidth: 140 },
+  { key: 'comments', label: 'Comments', defaultWidth: 440, minWidth: 180 }
+];
+
+const getDefaultRiskColumnWidths = (): Record<string, number> =>
+  RISK_TABLE_COLUMNS.reduce((acc, col) => ({ ...acc, [col.key]: col.defaultWidth }), {});
+
+const RISK_UI_PREFS_KEY = 'riskDashboardTableColumns';
+const RISK_UI_PREFS_ORDER_KEY = 'riskDashboardTableColumnOrder';
+
 const defaultSortDirectionForKey = (key: RiskSortKey): 'asc' | 'desc' => {
   if (
     key === 'risk' ||
@@ -185,6 +215,16 @@ export const RiskDashboardScreen = () => {
   const [expandedCommentsKeys, setExpandedCommentsKeys] = useState<Set<string>>(() => new Set());
   const [composerKey, setComposerKey] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+
+  const [riskColumnWidths, setRiskColumnWidths] = useState<Record<string, number>>(getDefaultRiskColumnWidths);
+  const [riskColumnOrder, setRiskColumnOrder] = useState<RiskSortKey[]>(() => RISK_TABLE_COLUMNS.map((col) => col.key));
+  const [resizingRiskColumn, setResizingRiskColumn] = useState<RiskSortKey | null>(null);
+  const [dropTargetRiskColumn, setDropTargetRiskColumn] = useState<RiskSortKey | null>(null);
+  const resizeRiskStartXRef = useRef<number>(0);
+  const resizeRiskStartWidthRef = useRef<number>(0);
+  const riskSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const riskColumnWidthsRef = useRef<Record<string, number>>(riskColumnWidths);
+  const riskColumnOrderRef = useRef<RiskSortKey[]>(riskColumnOrder);
 
   const [sort, setSort] = useState<{ key: RiskSortKey; direction: 'asc' | 'desc' }>({
     key: 'score',
@@ -560,6 +600,143 @@ export const RiskDashboardScreen = () => {
     visibleInitiativeIds.forEach((initiativeId) => ensureRiskCommentsLoaded(initiativeId));
   }, [ensureRiskCommentsLoaded, visibleInitiativeIds]);
 
+  const resolveRiskColumnWidth = useCallback((key: RiskSortKey, source?: Record<string, number>) => {
+    const column = RISK_TABLE_COLUMNS.find((entry) => entry.key === key);
+    const fallback = column?.defaultWidth ?? 120;
+    const minWidth = column?.minWidth ?? 50;
+    const value = source?.[key] ?? riskColumnWidthsRef.current[key] ?? fallback;
+    const numeric = Number.isFinite(value) ? Math.round(Number(value)) : fallback;
+    return Math.max(minWidth, numeric);
+  }, []);
+
+  useEffect(() => {
+    riskColumnWidthsRef.current = riskColumnWidths;
+  }, [riskColumnWidths]);
+
+  useEffect(() => {
+    riskColumnOrderRef.current = riskColumnOrder;
+  }, [riskColumnOrder]);
+
+  useEffect(() => {
+    if (!session?.accountId) return;
+    accountsApi
+      .getUiPreferences(session.accountId)
+      .then((prefs) => {
+        const widthsValue = prefs[RISK_UI_PREFS_KEY];
+        if (widthsValue && typeof widthsValue === 'object' && !Array.isArray(widthsValue)) {
+          const incoming = widthsValue as Record<string, number>;
+          const normalized = RISK_TABLE_COLUMNS.reduce((acc, col) => {
+            acc[col.key] = resolveRiskColumnWidth(col.key, incoming);
+            return acc;
+          }, {} as Record<string, number>);
+          setRiskColumnWidths((prev) => ({ ...prev, ...normalized }));
+        }
+        const orderValue = prefs[RISK_UI_PREFS_ORDER_KEY];
+        if (Array.isArray(orderValue)) {
+          const allowed = new Set(RISK_TABLE_COLUMNS.map((col) => col.key));
+          const normalized = (orderValue as unknown[])
+            .filter((key): key is RiskSortKey => typeof key === 'string' && allowed.has(key as RiskSortKey))
+            .filter((key, index, arr) => arr.indexOf(key) === index);
+          const missing = RISK_TABLE_COLUMNS.map((col) => col.key).filter((key) => !normalized.includes(key));
+          setRiskColumnOrder([...normalized, ...missing]);
+        }
+      })
+      .catch(() => {});
+  }, [resolveRiskColumnWidth, session?.accountId]);
+
+  const saveRiskPreferences = useCallback(
+    (patch?: { widths?: Record<string, number>; order?: RiskSortKey[] }) => {
+      if (!session?.accountId) return;
+      if (riskSaveTimeoutRef.current) {
+        clearTimeout(riskSaveTimeoutRef.current);
+      }
+      riskSaveTimeoutRef.current = setTimeout(() => {
+        const widths = patch?.widths ?? riskColumnWidthsRef.current;
+        const order = patch?.order ?? riskColumnOrderRef.current;
+        accountsApi
+          .getUiPreferences(session.accountId)
+          .then((prefs) =>
+            accountsApi.updateUiPreferences(session.accountId, {
+              ...prefs,
+              [RISK_UI_PREFS_KEY]: widths,
+              [RISK_UI_PREFS_ORDER_KEY]: order
+            })
+          )
+          .catch(() => {});
+      }, 500);
+    },
+    [session?.accountId]
+  );
+
+  const handleRiskResizeStart = useCallback(
+    (colKey: RiskSortKey, e: ReactMouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setResizingRiskColumn(colKey);
+      resizeRiskStartXRef.current = e.clientX;
+      resizeRiskStartWidthRef.current = riskColumnWidths[colKey] ?? resolveRiskColumnWidth(colKey);
+    },
+    [resolveRiskColumnWidth, riskColumnWidths]
+  );
+
+  useEffect(() => {
+    if (!resizingRiskColumn) return;
+    const col = RISK_TABLE_COLUMNS.find((c) => c.key === resizingRiskColumn);
+    const minWidth = col?.minWidth ?? 50;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizeRiskStartXRef.current;
+      const newWidth = Math.max(minWidth, resizeRiskStartWidthRef.current + delta);
+      setRiskColumnWidths((prev) => ({ ...prev, [resizingRiskColumn]: newWidth }));
+    };
+
+    const handleMouseUp = () => {
+      setRiskColumnWidths((prev) => {
+        saveRiskPreferences({ widths: prev });
+        return prev;
+      });
+      setResizingRiskColumn(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingRiskColumn, saveRiskPreferences]);
+
+  const moveRiskColumn = useCallback(
+    (source: RiskSortKey, target: RiskSortKey) => {
+      if (source === target) return;
+      setRiskColumnOrder((prev) => {
+        const next = prev.filter((key) => key !== source);
+        const targetIndex = next.indexOf(target);
+        if (targetIndex === -1) {
+          return prev;
+        }
+        next.splice(targetIndex, 0, source);
+        saveRiskPreferences({ order: next });
+        return next;
+      });
+    },
+    [saveRiskPreferences]
+  );
+
+  const riskColumnsByKey = useMemo(() => new Map(RISK_TABLE_COLUMNS.map((col) => [col.key, col])), []);
+  const visibleRiskColumns = useMemo(() => {
+    const ordered = riskColumnOrder
+      .map((key) => riskColumnsByKey.get(key))
+      .filter((col): col is RiskTableColumnDef => Boolean(col));
+    const visible = fromSource === 'none' ? ordered.filter((col) => col.key !== 'movement') : ordered;
+    return visible.length ? visible : RISK_TABLE_COLUMNS.filter((col) => fromSource !== 'none' || col.key !== 'movement');
+  }, [fromSource, riskColumnOrder, riskColumnsByKey]);
+
+  const riskTableWidthPx = useMemo(
+    () => visibleRiskColumns.reduce((acc, col) => acc + resolveRiskColumnWidth(col.key, riskColumnWidths), 0),
+    [resolveRiskColumnWidth, riskColumnWidths, visibleRiskColumns]
+  );
+
   const toggleSort = useCallback((key: RiskSortKey) => {
     setSort((prev) => {
       if (prev.key === key) {
@@ -568,6 +745,18 @@ export const RiskDashboardScreen = () => {
       return { key, direction: defaultSortDirectionForKey(key) };
     });
   }, []);
+
+  const renderSortIcon = useCallback(
+    (key: RiskSortKey) => {
+      if (sort.key !== key) {
+        return null;
+      }
+      return <span className={styles.sortIcon}>{sort.direction === 'asc' ? '\u25B2' : '\u25BC'}</span>;
+    },
+    [sort.direction, sort.key]
+  );
+
+  const renderCellText = useCallback((value: string | null | undefined) => (value && value.trim() ? value : '\u2014'), []);
 
   const toggleExpandedComments = useCallback((key: string) => {
     setExpandedCommentsKeys((prev) => {
@@ -677,8 +866,8 @@ export const RiskDashboardScreen = () => {
       return { x, y };
     };
     return movementEdges.map((edge) => {
-      const startPos = resolveDotPosition(edge.key, 0);
-      const endPos = resolveDotPosition(edge.key, 3);
+      const startPos = { x: 0.5, y: 0.5 };
+      const endPos = { x: 0.5, y: 0.5 };
       const from = coord(edge.from.severity, edge.from.likelihood, startPos);
       const to = coord(edge.to.severity, edge.to.likelihood, endPos);
       const delta = edge.to.score - edge.from.score;
@@ -714,8 +903,9 @@ export const RiskDashboardScreen = () => {
         </div>
       </header>
 
-      <section className={styles.controlsCard}>
-        <div className={styles.controlsGrid}>
+      <div className={styles.matrixLayout}>
+        <section className={styles.controlsCard}>
+          <div className={styles.controlsGrid}>
           <div className={styles.fieldGroup}>
             <label>From (baseline)</label>
             <select value={fromSource} onChange={(e) => setFromSource(e.target.value as any)}>
@@ -760,9 +950,9 @@ export const RiskDashboardScreen = () => {
           <div className={styles.statusText}>
             {snapshotListError ? 'Snapshots unavailable' : snapshotListLoading ? 'Loading snapshots...' : ''}
           </div>
-        </div>
+          </div>
 
-        <div className={styles.controlsGrid}>
+          <div className={styles.controlsGrid}>
           <div className={styles.fieldGroup}>
             <label>Workstream</label>
             <select
@@ -817,17 +1007,17 @@ export const RiskDashboardScreen = () => {
               placeholder="Risk title, mitigation, initiative, owner..."
             />
           </div>
-        </div>
+          </div>
 
-        <div className={styles.pillHeader}>
+          <div className={styles.pillHeader}>
           <span>Risk type</span>
           {selectedCategories.size > 0 && (
             <button type="button" className={styles.inlineLink} onClick={clearCategories}>
               Clear
             </button>
           )}
-        </div>
-        <div className={styles.pillRow}>
+          </div>
+          <div className={styles.pillRow}>
           {allRiskCategories.map((category) => {
             const normalized = category.toLowerCase();
             const active = selectedCategories.has(normalized);
@@ -842,14 +1032,14 @@ export const RiskDashboardScreen = () => {
               </button>
             );
           })}
-        </div>
-      </section>
+          </div>
+        </section>
 
-      <section className={styles.card}>
+        <section className={styles.card}>
         <div className={styles.cardHeader}>
           <div>
             <h3 className={styles.cardTitle}>5x5 matrix</h3>
-            <p className={styles.helper}>Click a cell to filter the table. Each dot is a risk.</p>
+            <p className={styles.helper}>Click a cell to filter the table. Counts show total risks per cell.</p>
           </div>
           <div className={styles.legend}>
             <span className={styles.legendItem}>
@@ -913,7 +1103,6 @@ export const RiskDashboardScreen = () => {
                   const cellTone = getRiskTone(score);
                   const items = matrixRows.get(cellKey) ?? [];
                   const active = selectedCell?.severity === severity && selectedCell?.likelihood === likelihood;
-                  const rendered = items.slice(0, 9);
                   return (
                     <button
                       key={cellKey}
@@ -931,31 +1120,9 @@ export const RiskDashboardScreen = () => {
                       <span className={styles.matrixCellMeta}>
                         S{severity} x L{likelihood}
                       </span>
-                      {rendered.map((item, index) => {
-                        const pos = resolveDotPosition(item.key, index);
-                        return (
-                          <span
-                            key={item.key}
-                            className={`${styles.riskDot} ${
-                              item.tone === 'high'
-                                ? styles.riskDotHigh
-                                : item.tone === 'medium'
-                                  ? styles.riskDotMedium
-                                  : styles.riskDotLow
-                            }`}
-                            style={{ left: `${pos.x * 100}%`, top: `${pos.y * 100}%` }}
-                            title={`${item.risk.title}\n${item.initiativeName} - ${item.workstreamName}\nS${item.severity} x L${item.likelihood} = ${item.score}`}
-                          />
-                        );
-                      })}
                       {items.length > 0 && (
                         <span className={styles.cellCount} title={`${items.length} risks in this cell`}>
                           {items.length}
-                        </span>
-                      )}
-                      {items.length > rendered.length && (
-                        <span className={styles.moreBadge} title={`${items.length} risks in this cell`}>
-                          +{items.length - rendered.length}
                         </span>
                       )}
                     </button>
@@ -980,7 +1147,8 @@ export const RiskDashboardScreen = () => {
             ))}
           </div>
         </div>
-      </section>
+        </section>
+      </div>
 
       <section className={styles.card}>
         <div className={styles.cardHeader}>
@@ -998,76 +1166,61 @@ export const RiskDashboardScreen = () => {
           <div className={styles.emptyState}>No risks match the current filters.</div>
         ) : (
           <div className={styles.tableWrapper}>
-            <table className={styles.table}>
+            <table className={styles.table} style={{ width: `${Math.max(400, riskTableWidthPx)}px` }}>
+              <colgroup>
+                {visibleRiskColumns.map((col) => {
+                  const width = resolveRiskColumnWidth(col.key, riskColumnWidths);
+                  return <col key={`risk-col-${col.key}`} style={{ width: `${width}px` }} />;
+                })}
+              </colgroup>
               <thead>
                 <tr>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('score')}>
-                      {renderSortLabel('Score', 'score')}
-                    </button>
-                  </th>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('risk')}>
-                      {renderSortLabel('Risk', 'risk')}
-                    </button>
-                  </th>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('description')}>
-                      {renderSortLabel('Description', 'description')}
-                    </button>
-                  </th>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('type')}>
-                      {renderSortLabel('Type', 'type')}
-                    </button>
-                  </th>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('initiative')}>
-                      {renderSortLabel('Initiative', 'initiative')}
-                    </button>
-                  </th>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('workstream')}>
-                      {renderSortLabel('Workstream', 'workstream')}
-                    </button>
-                  </th>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('owner')}>
-                      {renderSortLabel('Owner', 'owner')}
-                    </button>
-                  </th>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('stage')}>
-                      {renderSortLabel('Stage', 'stage')}
-                    </button>
-                  </th>
-                  {fromSource !== 'none' && (
-                    <th className={styles.sortableHeader}>
-                      <button type="button" onClick={() => toggleSort('movement')}>
-                        {renderSortLabel('Movement', 'movement')}
-                      </button>
-                    </th>
-                  )}
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('severity')}>
-                      {renderSortLabel('Sev', 'severity')}
-                    </button>
-                  </th>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('likelihood')}>
-                      {renderSortLabel('Likelihood', 'likelihood')}
-                    </button>
-                  </th>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('mitigation')}>
-                      {renderSortLabel('Mitigation', 'mitigation')}
-                    </button>
-                  </th>
-                  <th className={styles.sortableHeader}>
-                    <button type="button" onClick={() => toggleSort('comments')}>
-                      {renderSortLabel('Comments', 'comments')}
-                    </button>
-                  </th>
+                  {visibleRiskColumns.map((col) => {
+                    const width = resolveRiskColumnWidth(col.key, riskColumnWidths);
+                    return (
+                      <th
+                        key={col.key}
+                        style={{ width: `${width}px`, maxWidth: `${width}px` }}
+                        onDragEnter={() => setDropTargetRiskColumn(col.key)}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const source = event.dataTransfer.getData('text/plain') as RiskSortKey;
+                          if (source) {
+                            moveRiskColumn(source, col.key);
+                          }
+                          setDropTargetRiskColumn(null);
+                        }}
+                        className={`${styles.tableHeader} ${dropTargetRiskColumn === col.key ? styles.dropTarget : ''}`}
+                      >
+                        <div className={styles.headerContent}>
+                          <button className={styles.sortButton} type="button" onClick={() => toggleSort(col.key)}>
+                            {col.label} {renderSortIcon(col.key)}
+                          </button>
+                          <span
+                            className={styles.dragHandle}
+                            title="Drag to reorder"
+                            draggable
+                            onDragStart={(event) => {
+                              event.dataTransfer.setData('text/plain', col.key);
+                              event.dataTransfer.effectAllowed = 'move';
+                              setDropTargetRiskColumn(null);
+                            }}
+                            onDragEnd={() => {
+                              setDropTargetRiskColumn(null);
+                            }}
+                            onMouseDown={(event) => event.stopPropagation()}
+                          >
+                            {'\u22EE\u22EE'}
+                          </span>
+                        </div>
+                        <div
+                          className={`${styles.resizeHandle} ${resizingRiskColumn === col.key ? styles.resizing : ''}`}
+                          onMouseDown={(e) => handleRiskResizeStart(col.key, e)}
+                        />
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -1084,127 +1237,202 @@ export const RiskDashboardScreen = () => {
 
                   return (
                     <tr key={row.key}>
-                      <td className={styles.scoreCell}>
-                        <span
-                          className={`${styles.scoreBadge} ${
-                            row.tone === 'high'
-                              ? styles.scoreHigh
-                              : row.tone === 'medium'
-                                ? styles.scoreMedium
-                                : styles.scoreLow
-                          }`}
-                        >
-                          {row.score}
-                        </span>
-                      </td>
-                      <td className={styles.riskTitleCell} title={row.risk.title}>
-                        {row.risk.title || '(Untitled)'}
-                      </td>
-                      <td className={styles.descriptionCell} title={row.risk.description}>
-                        {row.risk.description}
-                      </td>
-                      <td>{row.risk.category || 'Uncategorized'}</td>
-                      <td>
-                        <a className={styles.link} href={`#/initiatives/view/${row.initiativeId}`}>
-                          {row.initiativeName}
-                        </a>
-                      </td>
-                      <td>{row.workstreamName}</td>
-                      <td>{row.ownerName ?? '--'}</td>
-                      <td>{stageColumnLabel[row.stageColumn]}</td>
-                      {fromSource !== 'none' && (
-                        <td className={styles.movementCell}>
-                          {row.baseline
-                            ? `S${row.baseline.severity}xL${row.baseline.likelihood} -> S${row.severity}xL${row.likelihood}`
-                            : '--'}
-                        </td>
-                      )}
-                      <td>{row.severity}</td>
-                      <td>{row.likelihood}</td>
-                      <td className={styles.mitigationCell} title={row.risk.mitigation}>
-                        {row.risk.mitigation}
-                      </td>
-                      <td className={styles.commentsCell}>
-                        <div className={styles.commentsHeader}>
-                          <span className={styles.commentsMeta}>
-                            {openCount ? `${openCount} open` : riskComments.length ? 'All resolved' : 'No comments'}
-                          </span>
-                          {riskComments.length > 2 && (
-                            <button type="button" className={styles.inlineLink} onClick={() => toggleExpandedComments(row.key)}>
-                              {isExpanded ? 'Show less' : `Show all (${riskComments.length})`}
-                            </button>
-                          )}
-                        </div>
+                      {visibleRiskColumns.map((col) => {
+                        const width = resolveRiskColumnWidth(col.key, riskColumnWidths);
 
-                        {commentStatus === 'loading' ? (
-                          <div className={styles.commentHint}>Loading...</div>
-                        ) : commentStatus === 'error' ? (
-                          <div className={styles.commentHint}>Failed to load.</div>
-                        ) : visibleComments.length === 0 ? (
-                          <div className={styles.commentHint}>--</div>
-                        ) : (
-                          <div className={styles.commentList}>
-                            {visibleComments.map((comment) => (
-                              <div key={comment.id} className={styles.commentBubble}>
-                                <div className={styles.commentBody}>{comment.body}</div>
-                                <div className={styles.commentMetaRow}>
-                                  <span className={styles.commentMetaText}>
-                                    {(comment.authorName ?? 'Unknown') +
-                                      ' - ' +
-                                      new Date(comment.createdAt).toLocaleString('en-US', {
-                                        dateStyle: 'short',
-                                        timeStyle: 'short'
-                                      })}
-                                  </span>
+                        if (col.key === 'comments') {
+                          return (
+                            <td
+                              key={`${row.key}:${col.key}`}
+                              style={{ width: `${width}px`, maxWidth: `${width}px` }}
+                              className={styles.commentsCell}
+                            >
+                              <div className={styles.commentsHeader}>
+                                <span className={styles.commentsMeta}>
+                                  {openCount ? `${openCount} open` : riskComments.length ? 'All resolved' : 'No comments'}
+                                </span>
+                                {riskComments.length > 2 && (
                                   <button
                                     type="button"
                                     className={styles.inlineLink}
-                                    onClick={() => handleResolveRiskComment(row.initiativeId, comment.id, !comment.resolvedAt)}
+                                    onClick={() => toggleExpandedComments(row.key)}
                                   >
-                                    {comment.resolvedAt ? 'Reopen' : 'Resolve'}
+                                    {isExpanded ? 'Show less' : `Show all (${riskComments.length})`}
+                                  </button>
+                                )}
+                              </div>
+
+                              {commentStatus === 'loading' ? (
+                                <div className={styles.commentHint}>Loading...</div>
+                              ) : commentStatus === 'error' ? (
+                                <div className={styles.commentHint}>Failed to load.</div>
+                              ) : visibleComments.length === 0 ? (
+                                <div className={styles.commentHint}>{'\u2014'}</div>
+                              ) : (
+                                <div className={styles.commentList}>
+                                  {visibleComments.map((comment) => (
+                                    <div key={comment.id} className={styles.commentBubble}>
+                                      <div className={styles.commentBody}>{comment.body}</div>
+                                      <div className={styles.commentMetaRow}>
+                                        <span className={styles.commentMetaText}>
+                                          {(comment.authorName ?? 'Unknown') +
+                                            ' - ' +
+                                            new Date(comment.createdAt).toLocaleString('en-US', {
+                                              dateStyle: 'short',
+                                              timeStyle: 'short'
+                                            })}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          className={styles.inlineLink}
+                                          onClick={() =>
+                                            handleResolveRiskComment(row.initiativeId, comment.id, !comment.resolvedAt)
+                                          }
+                                        >
+                                          {comment.resolvedAt ? 'Reopen' : 'Resolve'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {session && (
+                                <div className={styles.commentActions}>
+                                  <button
+                                    type="button"
+                                    className={styles.smallButton}
+                                    onClick={() => {
+                                      setComposerKey((prev) => (prev === row.key ? null : row.key));
+                                      setCommentDraft('');
+                                    }}
+                                  >
+                                    {showComposer ? 'Cancel' : 'Add'}
                                   </button>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                              )}
 
-                        {session && (
-                          <div className={styles.commentActions}>
-                            <button
-                              type="button"
-                              className={styles.smallButton}
-                              onClick={() => {
-                                setComposerKey((prev) => (prev === row.key ? null : row.key));
-                                setCommentDraft('');
-                              }}
+                              {session && showComposer && (
+                                <div className={styles.composer}>
+                                  <textarea
+                                    rows={2}
+                                    value={commentDraft}
+                                    onChange={(e) => setCommentDraft(e.target.value)}
+                                    placeholder="Leave a review comment..."
+                                  />
+                                  <div className={styles.composerRow}>
+                                    <button
+                                      type="button"
+                                      className={styles.primaryButton}
+                                      onClick={() => void handleSubmitRiskComment(row)}
+                                      disabled={!commentDraft.trim()}
+                                    >
+                                      Post
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          );
+                        }
+
+                        if (col.key === 'score') {
+                          return (
+                            <td
+                              key={`${row.key}:${col.key}`}
+                              style={{ width: `${width}px`, maxWidth: `${width}px` }}
+                              className={styles.scoreCell}
                             >
-                              {showComposer ? 'Cancel' : 'Add'}
-                            </button>
-                          </div>
-                        )}
-
-                        {session && showComposer && (
-                          <div className={styles.composer}>
-                            <textarea
-                              rows={2}
-                              value={commentDraft}
-                              onChange={(e) => setCommentDraft(e.target.value)}
-                              placeholder="Leave a review comment..."
-                            />
-                            <div className={styles.composerRow}>
-                              <button
-                                type="button"
-                                className={styles.primaryButton}
-                                onClick={() => void handleSubmitRiskComment(row)}
-                                disabled={!commentDraft.trim()}
+                              <span
+                                className={`${styles.scoreBadge} ${
+                                  row.tone === 'high'
+                                    ? styles.scoreHigh
+                                    : row.tone === 'medium'
+                                      ? styles.scoreMedium
+                                      : styles.scoreLow
+                                }`}
+                                title={`${row.score}`}
                               >
-                                Post
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </td>
+                                {row.score}
+                              </span>
+                            </td>
+                          );
+                        }
+
+                        let title = '\u2014';
+                        let content: ReactNode = null;
+                        let cellClassName: string | undefined;
+
+                        switch (col.key) {
+                          case 'risk':
+                            title = row.risk.title || '(Untitled)';
+                            content = title;
+                            break;
+                          case 'description':
+                            title = renderCellText(row.risk.description);
+                            content = title;
+                            cellClassName = styles.mutedCell;
+                            break;
+                          case 'type':
+                            title = renderCellText(row.risk.category || 'Uncategorized');
+                            content = title;
+                            break;
+                          case 'initiative':
+                            title = renderCellText(row.initiativeName);
+                            content = (
+                              <a className={styles.link} href={`#/initiatives/view/${row.initiativeId}`} title={title}>
+                                {title}
+                              </a>
+                            );
+                            break;
+                          case 'workstream':
+                            title = renderCellText(row.workstreamName);
+                            content = title;
+                            break;
+                          case 'owner':
+                            title = renderCellText(row.ownerName ?? undefined);
+                            content = title;
+                            break;
+                          case 'stage':
+                            title = stageColumnLabel[row.stageColumn];
+                            content = title;
+                            break;
+                          case 'movement':
+                            title = row.baseline
+                              ? `S${row.baseline.severity}xL${row.baseline.likelihood} -> S${row.severity}xL${row.likelihood}`
+                              : '\u2014';
+                            content = title;
+                            cellClassName = styles.mutedCell;
+                            break;
+                          case 'severity':
+                            title = `${row.severity}`;
+                            content = title;
+                            break;
+                          case 'likelihood':
+                            title = `${row.likelihood}`;
+                            content = title;
+                            break;
+                          case 'mitigation':
+                            title = renderCellText(row.risk.mitigation);
+                            content = title;
+                            break;
+                          default:
+                            title = '\u2014';
+                            content = title;
+                        }
+
+                        return (
+                          <td
+                            key={`${row.key}:${col.key}`}
+                            style={{ width: `${width}px`, maxWidth: `${width}px` }}
+                            className={cellClassName}
+                          >
+                            <span className={styles.cell} title={title}>
+                              {content}
+                            </span>
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}
