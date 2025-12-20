@@ -6,6 +6,7 @@ import { AccountRole } from '../../shared/types/account';
 import { LoadDemoDataLink } from '../../modules/demo/components/LoadDemoDataLink';
 import { EraseDemoDataLink } from '../../modules/demo/components/EraseDemoDataLink';
 import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+import laitenLogo from '../../assets/laiten-logo.svg';
 
 interface SidebarProps {
   navigationItems: NavigationItem[];
@@ -76,23 +77,28 @@ export const Sidebar = ({ navigationItems, activeItem, onNavigate, isCollapsed, 
 
   return (
     <aside className={`${styles.sidebar} ${isCollapsed ? styles.collapsed : ''}`}>
-      <div className={styles.logoArea}>
-        <div className={styles.logoMark}>TM</div>
-        {!isCollapsed && (
-          <div className={styles.logoText}>
-            <span className={styles.companyName}>Transformation</span>
-            <span className={styles.version}>Management</span>
+      <div className={styles.sidebarHeader}>
+        <div className={styles.logoArea}>
+          <div className={styles.logoMark}>
+            <img className={styles.logoImage} src={laitenLogo} alt="Laiten" />
           </div>
-        )}
-      </div>
+          {!isCollapsed && (
+            <div className={styles.logoText}>
+              <span className={styles.companyName}>Laiten</span>
+            </div>
+          )}
+        </div>
 
-      <button
-        className={styles.collapseToggle}
-        onClick={onToggle}
-        title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-      </button>
+        <button
+          className={styles.collapseToggle}
+          onClick={onToggle}
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          type="button"
+        >
+          {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+      </div>
 
       <nav className={styles.menu}>
         {ungroupedItems.map((item) => renderButton(item))}

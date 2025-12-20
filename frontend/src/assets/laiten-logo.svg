@@ -1,0 +1,37 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="40" y1="0" x2="216" y2="256" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0b1220" />
+      <stop offset="1" stop-color="#1f2937" />
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="256" x2="256" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="rgba(148,163,184,0.18)" />
+      <stop offset="1" stop-color="rgba(226,232,240,0.35)" />
+    </linearGradient>
+    <linearGradient id="shine" x1="64" y1="256" x2="192" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="rgba(226,232,240,0.06)" />
+      <stop offset="1" stop-color="rgba(226,232,240,0)" />
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="256" height="256" fill="url(#bg)" />
+  <rect x="0.5" y="0.5" width="255" height="255" stroke="url(#edge)" />
+
+  <path
+    d="M28 228L168 28H236L96 228H28Z"
+    fill="#000000"
+    fill-opacity="0.92"
+    stroke="rgba(226,232,240,0.18)"
+    stroke-width="2"
+  />
+  <path
+    d="M132 228L206 128L248 228H132Z"
+    fill="#000000"
+    fill-opacity="0.92"
+    stroke="rgba(226,232,240,0.18)"
+    stroke-width="2"
+  />
+
+  <path d="M0 0H256V256H0V0Z" fill="url(#shine)" />
+</svg>
+
