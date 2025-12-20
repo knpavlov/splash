@@ -59,6 +59,7 @@ const getDefaultColumnWidths = (): Record<string, number> =>
   COLUMNS.reduce((acc, col) => ({ ...acc, [col.key]: col.defaultWidth }), {});
 
 const UI_PREFS_KEY = 'initiativesTableColumns';
+const UI_PREFS_ORDER_KEY = 'initiativesTableColumnOrder';
 
 interface InitiativesListProps {
   initiatives: Initiative[];
@@ -82,35 +83,63 @@ export const InitiativesList = ({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [initiativesCollapsed, setInitiativesCollapsed] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(getDefaultColumnWidths);
+  const [columnOrder, setColumnOrder] = useState<SortKey[]>(() => COLUMNS.map((col) => col.key));
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
+  const [dropTargetColumn, setDropTargetColumn] = useState<SortKey | null>(null);
   const resizeStartXRef = useRef<number>(0);
   const resizeStartWidthRef = useRef<number>(0);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const columnWidthsRef = useRef<Record<string, number>>(columnWidths);
+  const columnOrderRef = useRef<SortKey[]>(columnOrder);
+
+  useEffect(() => {
+    columnWidthsRef.current = columnWidths;
+  }, [columnWidths]);
+
+  useEffect(() => {
+    columnOrderRef.current = columnOrder;
+  }, [columnOrder]);
 
   // Load preferences on mount
   useEffect(() => {
     if (!session?.accountId) return;
     accountsApi.getUiPreferences(session.accountId).then((prefs) => {
-      if (prefs[UI_PREFS_KEY]) {
-        setColumnWidths((prev) => ({ ...prev, ...prefs[UI_PREFS_KEY] }));
+      const widthsValue = prefs[UI_PREFS_KEY];
+      if (widthsValue && typeof widthsValue === 'object' && !Array.isArray(widthsValue)) {
+        setColumnWidths((prev) => ({ ...prev, ...(widthsValue as Record<string, number>) }));
+      }
+      const orderValue = prefs[UI_PREFS_ORDER_KEY];
+      if (Array.isArray(orderValue)) {
+        const allowed = new Set(COLUMNS.map((col) => col.key));
+        const normalized = (orderValue as unknown[])
+          .filter((key): key is SortKey => typeof key === 'string' && allowed.has(key as SortKey))
+          .filter((key, index, arr) => arr.indexOf(key) === index);
+        const missing = COLUMNS.map((col) => col.key).filter((key) => !normalized.includes(key));
+        setColumnOrder([...normalized, ...missing]);
       }
     }).catch(() => {});
   }, [session?.accountId]);
 
-  const savePreferences = useCallback((widths: Record<string, number>) => {
+  const savePreferences = useCallback((patch?: { widths?: Record<string, number>; order?: SortKey[] }) => {
     if (!session?.accountId) return;
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(() => {
+      const widths = patch?.widths ?? columnWidthsRef.current;
+      const order = patch?.order ?? columnOrderRef.current;
       accountsApi.getUiPreferences(session.accountId).then((prefs) => {
         return accountsApi.updateUiPreferences(session.accountId, {
           ...prefs,
-          [UI_PREFS_KEY]: widths
+          [UI_PREFS_KEY]: widths,
+          [UI_PREFS_ORDER_KEY]: order
         });
       }).catch(() => {});
     }, 500);
   }, [session?.accountId]);
+
+  const saveWidthsPreferences = useCallback((widths: Record<string, number>) => savePreferences({ widths }), [savePreferences]);
+  const saveOrderPreferences = useCallback((order: SortKey[]) => savePreferences({ order }), [savePreferences]);
 
   const handleResizeStart = useCallback((colKey: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -133,7 +162,7 @@ export const InitiativesList = ({
 
     const handleMouseUp = () => {
       setColumnWidths((prev) => {
-        savePreferences(prev);
+        saveWidthsPreferences(prev);
         return prev;
       });
       setResizingColumn(null);
@@ -145,7 +174,79 @@ export const InitiativesList = ({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [resizingColumn, savePreferences]);
+  }, [resizingColumn, saveWidthsPreferences]);
+
+  const orderedColumns = useMemo(() => {
+    const byKey = new Map<SortKey, ColumnDef>(COLUMNS.map((col) => [col.key, col]));
+    return columnOrder.map((key) => byKey.get(key)).filter((col): col is ColumnDef => Boolean(col));
+  }, [columnOrder]);
+
+  const moveColumn = useCallback(
+    (source: SortKey, target: SortKey) => {
+      if (source === target) {
+        return;
+      }
+      setColumnOrder((prev) => {
+        const next = prev.filter((key) => key !== source);
+        const targetIndex = next.indexOf(target);
+        if (targetIndex === -1) {
+          return prev;
+        }
+        next.splice(targetIndex, 0, source);
+        saveOrderPreferences(next);
+        return next;
+      });
+    },
+    [saveOrderPreferences]
+  );
+
+  const renderCell = (initiative: Initiative, key: SortKey) => {
+    switch (key) {
+      case 'name': {
+        const value = initiative.name ?? '';
+        return { value, content: value };
+      }
+      case 'owner': {
+        const value = initiative.ownerName || '—';
+        return { value, content: value };
+      }
+      case 'stage': {
+        const value = stageLabel(initiative.activeStage);
+        return { value, content: value };
+      }
+      case 'recBenefits': {
+        const value = formatCurrency(initiative.totals.recurringBenefits);
+        return { value, content: value };
+      }
+      case 'recCosts': {
+        const value = formatCurrency(initiative.totals.recurringCosts);
+        return { value, content: value };
+      }
+      case 'recImpact': {
+        const value = formatCurrency(initiative.totals.recurringImpact);
+        return { value, content: <span className={styles.impact}>{value}</span> };
+      }
+      case 'oneoffBenefits': {
+        const value = formatCurrency(initiative.totals.oneoffBenefits);
+        return { value, content: value };
+      }
+      case 'oneoffCosts': {
+        const value = formatCurrency(initiative.totals.oneoffCosts);
+        return { value, content: value };
+      }
+      case 'l4Date': {
+        const value = formatDate(initiative.l4Date);
+        return { value, content: value };
+      }
+      case 'status': {
+        const value = initiative.currentStatus || '—';
+        return { value, content: value };
+      }
+      default: {
+        return { value: '', content: '' };
+      }
+    }
+  };
 
   const filtered = useMemo(() => {
     if (!selectedWorkstreamId) {
@@ -272,11 +373,43 @@ export const InitiativesList = ({
           <table className={styles.table}>
             <thead>
               <tr>
-                {COLUMNS.map((col) => (
-                  <th key={col.key} style={{ width: columnWidths[col.key] }}>
-                    <button className={styles.sortButton} onClick={() => handleSort(col.key)} type="button">
-                      {col.label} {renderSortIcon(col.key)}
-                    </button>
+                {orderedColumns.map((col) => (
+                  <th
+                    key={col.key}
+                    style={{ width: columnWidths[col.key] }}
+                    onDragEnter={() => setDropTargetColumn(col.key)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const source = event.dataTransfer.getData('text/plain') as SortKey;
+                      if (source) {
+                        moveColumn(source, col.key);
+                      }
+                      setDropTargetColumn(null);
+                    }}
+                    className={dropTargetColumn === col.key ? styles.dropTarget : undefined}
+                  >
+                    <div className={styles.headerContent}>
+                      <button className={styles.sortButton} onClick={() => handleSort(col.key)} type="button">
+                        {col.label} {renderSortIcon(col.key)}
+                      </button>
+                      <span
+                        className={styles.dragHandle}
+                        title="Drag to reorder"
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData('text/plain', col.key);
+                          event.dataTransfer.effectAllowed = 'move';
+                          setDropTargetColumn(null);
+                        }}
+                        onDragEnd={() => {
+                          setDropTargetColumn(null);
+                        }}
+                        onMouseDown={(event) => event.stopPropagation()}
+                      >
+                        ⋮⋮
+                      </span>
+                    </div>
                     <div
                       className={`${styles.resizeHandle} ${resizingColumn === col.key ? styles.resizing : ''}`}
                       onMouseDown={(e) => handleResizeStart(col.key, e)}
@@ -288,16 +421,14 @@ export const InitiativesList = ({
             <tbody>
               {sorted.map((initiative) => (
                 <tr key={initiative.id} onClick={() => onOpen(initiative.id)} className={styles.row}>
-                  <td style={{ width: columnWidths.name }}>{initiative.name}</td>
-                  <td style={{ width: columnWidths.owner }}>{initiative.ownerName || '—'}</td>
-                  <td style={{ width: columnWidths.stage }}>{stageLabel(initiative.activeStage)}</td>
-                  <td style={{ width: columnWidths.recBenefits }}>{formatCurrency(initiative.totals.recurringBenefits)}</td>
-                  <td style={{ width: columnWidths.recCosts }}>{formatCurrency(initiative.totals.recurringCosts)}</td>
-                  <td style={{ width: columnWidths.recImpact }} className={styles.impact}>{formatCurrency(initiative.totals.recurringImpact)}</td>
-                  <td style={{ width: columnWidths.oneoffBenefits }}>{formatCurrency(initiative.totals.oneoffBenefits)}</td>
-                  <td style={{ width: columnWidths.oneoffCosts }}>{formatCurrency(initiative.totals.oneoffCosts)}</td>
-                  <td style={{ width: columnWidths.l4Date }}>{formatDate(initiative.l4Date)}</td>
-                  <td style={{ width: columnWidths.status }}>{initiative.currentStatus || '—'}</td>
+                  {orderedColumns.map((col) => {
+                    const { value, content } = renderCell(initiative, col.key);
+                    return (
+                      <td key={`${initiative.id}:${col.key}`} style={{ width: columnWidths[col.key] }} title={value}>
+                        <span className={styles.cell}>{content}</span>
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

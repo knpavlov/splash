@@ -69,7 +69,7 @@ export const navigationItems: NavigationItem[] = [
   { key: 'participants', label: 'Participants', shortLabel: 'Team', roleAccess: ['super-admin', 'admin'], group: 'program', icon: Users },
   { key: 'financials', label: 'Financials', shortLabel: 'Finance', roleAccess: ['super-admin', 'admin'], group: 'program', icon: DollarSign },
   { key: 'kpis', label: 'KPIs', shortLabel: 'KPIs', roleAccess: ['super-admin', 'admin'], group: 'program', disabled: true, icon: Target },
-  { key: 'initiatives', label: 'Initiatives', shortLabel: 'Projects', roleAccess: ['super-admin', 'admin'], icon: Layers },
+  { key: 'initiatives', label: 'Initiatives', shortLabel: 'Init.', roleAccess: ['super-admin', 'admin'], icon: Layers },
   { key: 'approvals', label: 'Approvals', shortLabel: 'Approve', roleAccess: ['super-admin', 'admin', 'user'], icon: CheckSquare },
   {
     key: 'stage-gate-dashboard',

@@ -95,6 +95,7 @@ const countFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0
 const percentFormatter = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 });
 
 const formatCurrency = (value: number) => currencyFormatter.format(Math.round(value || 0));
+const formatUsdNumber = (value: number) => countFormatter.format(Math.round(value || 0));
 const formatPercent = (value: number | null) => (Number.isFinite(value) && value !== null ? percentFormatter.format(value) : '—');
 
 const shadeColor = (hex: string, amount: number) => {
@@ -903,6 +904,8 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
               gridTemplateColumns={gridTemplateColumns}
               data={outlookChartData}
               showPeriodLabels
+              legendLabel="Trend (USD)"
+              formatValue={formatUsdNumber}
               periodLabelFormatter={(month) => `${month.label} ${String(month.year).slice(-2)}`}
             />
             {!hasData && <p className={financialStyles.placeholder}>No timeline data for the selected stages yet.</p>}
@@ -992,6 +995,8 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
               showPlanAsLine={showPlanAsLine}
               planLineMode={planLineMode}
               anchorScope="initiatives.dashboard.actuals.chart"
+              legendLabel="Plan vs actuals (USD)"
+              formatValue={formatUsdNumber}
               showPeriodLabels
               showValueLabels
               periodLabelFormatter={(month) => `${month.label} ${String(month.year).slice(-2)}`}
@@ -1054,6 +1059,3 @@ export const InitiativesDashboard = ({ initiatives, workstreams, selectedWorkstr
     </section>
   );
 };
-
-
-

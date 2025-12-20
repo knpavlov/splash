@@ -207,7 +207,9 @@ export const CombinedChart = ({
   data,
   anchorScope,
   showPeriodLabels,
-  periodLabelFormatter
+  periodLabelFormatter,
+  legendLabel = 'Trend',
+  formatValue
 }: {
   months: MonthDescriptor[];
   gridTemplateColumns: string;
@@ -215,6 +217,8 @@ export const CombinedChart = ({
   anchorScope?: string;
   showPeriodLabels?: boolean;
   periodLabelFormatter?: (month: MonthDescriptor) => string;
+  legendLabel?: string;
+  formatValue?: (value: number) => string;
 }) => {
   const maxPositive = Math.max(0, ...data.map((stat) => stat.positiveTotal));
   const maxNegative = Math.max(0, ...data.map((stat) => stat.negativeTotal));
@@ -225,6 +229,13 @@ export const CombinedChart = ({
   const positiveScale = maxPositive || 1;
   const negativeScale = maxNegative || 1;
   const stackTopOffset = (positiveShare: number, ratio: number) => positiveShare * (1 - ratio);
+  const chartHeightPx = 210;
+  const valueLabelHeightPx = 14;
+  const positiveValueOffsetPx = 26;
+  const negativeValueOffsetPx = 8;
+  const zeroLinePx = positiveShare * chartHeightPx;
+  const positiveAreaPx = zeroLinePx;
+  const negativeAreaPx = chartHeightPx - zeroLinePx;
   const chartRef = useRef<HTMLDivElement | null>(null);
   const [tooltip, setTooltip] = useState<{
     label: string;
@@ -232,6 +243,7 @@ export const CombinedChart = ({
     left: number;
     top: number;
   } | null>(null);
+  const renderValue = formatValue ?? formatCurrency;
 
   const handleSegmentHover = (
     event: React.MouseEvent<HTMLDivElement>,
@@ -247,7 +259,7 @@ export const CombinedChart = ({
 
   return (
     <div className={styles.chartRow} style={{ gridTemplateColumns }} ref={chartRef}>
-      <div className={styles.chartLegend}>Trend</div>
+      <div className={styles.chartLegend}>{legendLabel}</div>
       {months.map((month, index) => {
         const stat = data[index] ?? {
           key: month.key,
@@ -258,9 +270,11 @@ export const CombinedChart = ({
         };
         const positiveRatio = positiveScale ? Math.min(1, stat.positiveTotal / positiveScale) : 0;
         const negativeRatio = negativeScale ? Math.min(1, stat.negativeTotal / negativeScale) : 0;
-        const positiveLabelTop = stackTopOffset(positiveShare, positiveRatio) * 100;
-        const negativeLabelTop =
-          positiveShare * 100 + negativeRatio * negativeShare * 100;
+        const positiveLabelTopPx = Math.max(0, zeroLinePx - positiveRatio * positiveAreaPx - positiveValueOffsetPx);
+        const negativeLabelTopPx = Math.min(
+          chartHeightPx - valueLabelHeightPx,
+          zeroLinePx + negativeRatio * negativeAreaPx + negativeValueOffsetPx
+        );
         const chartAnchor = createCommentAnchor(
           `${anchorScope ?? 'financial-chart'}.${month.key}`,
           `${month.label} ${month.year} totals`
@@ -272,17 +286,17 @@ export const CombinedChart = ({
               {stat.positiveTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValuePositive}`}
-                  style={{ top: `calc(${positiveLabelTop}% - 26px)` }}
+                  style={{ top: `${positiveLabelTopPx}px` }}
                 >
-                  {formatCurrency(stat.positiveTotal)}
+                  {renderValue(stat.positiveTotal)}
                 </span>
               )}
               {stat.negativeTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValueNegative}`}
-                  style={{ top: `calc(${negativeLabelTop}% + 18px)` }}
+                  style={{ top: `${negativeLabelTopPx}px` }}
                 >
-                  {formatCurrency(stat.negativeTotal)}
+                  {renderValue(stat.negativeTotal)}
                 </span>
               )}
               <div className={styles.stackWrapper}>
@@ -333,7 +347,7 @@ export const CombinedChart = ({
           style={{ left: tooltip.left, top: tooltip.top, position: 'fixed' }}
         >
           <strong>{tooltip.label || 'Line item'}</strong>
-          <span>{formatCurrency(Math.abs(tooltip.value))}</span>
+          <span>{renderValue(Math.abs(tooltip.value))}</span>
           <span className={styles.tooltipTag}>{tooltip.value >= 0 ? 'Benefit' : 'Cost'}</span>
         </div>
       )}
@@ -811,6 +825,9 @@ export const PlanVsActualChart = ({
     signed?: boolean;
   } | null>(null);
   const renderValue = formatValue ?? formatCurrency;
+  const valueLabelHeightPx = 14;
+  const positiveValueOffsetPx = 22;
+  const negativeValueOffsetPx = 8;
   const emptyStack: ChartMonthStack = {
     key: 'empty',
     positiveSegments: [],
@@ -971,10 +988,16 @@ export const PlanVsActualChart = ({
         const actualLabelLeft = hasBothBars ? '72%' : '50%';
         const shouldShowPlanValue = showValueLabels && !shouldHidePlanBars && hasPlanData;
         const shouldShowActualValue = showValueLabels && !hideActualBars && hasActualData;
-        const planPositiveLabelTop = positivePortion * (1 - positiveRatioPlan) * 100;
-        const planNegativeLabelTop = positivePortion * 100 + negativeRatioPlan * negativePortion * 100;
-        const actualPositiveLabelTop = positivePortion * (1 - positiveRatioActual) * 100;
-        const actualNegativeLabelTop = positivePortion * 100 + negativeRatioActual * negativePortion * 100;
+        const planPositiveLabelTopPx = Math.max(0, zeroLinePx - positiveRatioPlan * positiveAreaPx - positiveValueOffsetPx);
+        const actualPositiveLabelTopPx = Math.max(0, zeroLinePx - positiveRatioActual * positiveAreaPx - positiveValueOffsetPx);
+        const planNegativeLabelTopPx = Math.min(
+          chartHeightPx - valueLabelHeightPx,
+          zeroLinePx + negativeRatioPlan * negativeAreaPx + negativeValueOffsetPx
+        );
+        const actualNegativeLabelTopPx = Math.min(
+          chartHeightPx - valueLabelHeightPx,
+          zeroLinePx + negativeRatioActual * negativeAreaPx + negativeValueOffsetPx
+        );
         const periodLabel = periodLabelFormatter ? periodLabelFormatter(month) : `${month.label} ${month.year}`;
         return (
           <div
@@ -1100,7 +1123,7 @@ export const PlanVsActualChart = ({
               {shouldShowPlanValue && plan.positiveTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValuePositive}`}
-                  style={{ top: `calc(${planPositiveLabelTop}% - 22px)`, left: planLabelLeft }}
+                  style={{ top: `${planPositiveLabelTopPx}px`, left: planLabelLeft }}
                 >
                   {renderValue(plan.positiveTotal)}
                 </span>
@@ -1108,7 +1131,7 @@ export const PlanVsActualChart = ({
               {shouldShowPlanValue && plan.negativeTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValueNegative}`}
-                  style={{ top: `calc(${planNegativeLabelTop}% + 18px)`, left: planLabelLeft }}
+                  style={{ top: `${planNegativeLabelTopPx}px`, left: planLabelLeft }}
                 >
                   {renderValue(plan.negativeTotal)}
                 </span>
@@ -1116,7 +1139,7 @@ export const PlanVsActualChart = ({
               {shouldShowActualValue && actual.positiveTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValuePositive}`}
-                  style={{ top: `calc(${actualPositiveLabelTop}% - 22px)`, left: actualLabelLeft }}
+                  style={{ top: `${actualPositiveLabelTopPx}px`, left: actualLabelLeft }}
                 >
                   {renderValue(actual.positiveTotal)}
                 </span>
@@ -1124,7 +1147,7 @@ export const PlanVsActualChart = ({
               {shouldShowActualValue && actual.negativeTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValueNegative}`}
-                  style={{ top: `calc(${actualNegativeLabelTop}% + 18px)`, left: actualLabelLeft }}
+                  style={{ top: `${actualNegativeLabelTopPx}px`, left: actualLabelLeft }}
                 >
                   {renderValue(actual.negativeTotal)}
                 </span>
@@ -2043,5 +2066,3 @@ export const FinancialActuals = ({ stage, disabled, onChange, commentScope }: Fi
     </section>
   );
 };
-
-
