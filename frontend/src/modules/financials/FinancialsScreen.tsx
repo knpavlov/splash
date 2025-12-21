@@ -2,6 +2,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import styles from '../../styles/FinancialsScreen.module.css';
+import { StickyTopPanel } from '../../components/layout/StickyTopPanel';
 import {
   buildMonthColumns,
   createDefaultBlueprint,
@@ -930,44 +931,52 @@ export const FinancialsScreen = () => {
 
   if (loading && !blueprint) {
     return (
-      <section className={styles.screen}>
-        <p>Loading financial blueprint...</p>
-      </section>
+      <div className={styles.page}>
+        <section className={styles.screen}>
+          <p>Loading financial blueprint...</p>
+        </section>
+      </div>
     );
   }
 
   return (
-    <section className={styles.screen}>
-      <header className={styles.header}>
-        <div>
-          <h1>Financials</h1>
-          <p className={styles.subtitle}>
-            Define the hierarchy of the company P&L once, reuse it in initiatives, and keep Excel round-trips clean.
-          </p>
-        </div>
-        <div className={styles.headerActions}>
-          <button
-            className={styles.primaryButton}
-            onClick={handleSave}
-            disabled={saving || !dirty || version === null}
-          >
-            {saving ? 'Saving...' : dirty ? 'Save blueprint' : 'Saved'}
-          </button>
-          <button className={styles.secondaryButton} onClick={refresh} type="button" disabled={loading}>
-            Reload
-          </button>
-          <button className={styles.secondaryButton} onClick={exportWorkbook} type="button">
-            Export to Excel
-          </button>
-          <button className={styles.secondaryButton} onClick={downloadTemplateWorkbook} type="button">
-            Download template
-          </button>
-          <label className={styles.importButton}>
-            <input type="file" accept=".xlsx,.xls" onChange={handleImport} />
-            Import from Excel
-          </label>
-        </div>
-      </header>
+    <div className={styles.page}>
+      <StickyTopPanel
+        right={
+          <div className={styles.headerActions}>
+            <button
+              className={styles.primaryButton}
+              onClick={handleSave}
+              disabled={saving || !dirty || version === null}
+              type="button"
+            >
+              {saving ? 'Saving...' : dirty ? 'Save blueprint' : 'Saved'}
+            </button>
+            <button className={styles.secondaryButton} onClick={refresh} type="button" disabled={loading}>
+              Reload
+            </button>
+            <button className={styles.secondaryButton} onClick={exportWorkbook} type="button">
+              Export to Excel
+            </button>
+            <button className={styles.secondaryButton} onClick={downloadTemplateWorkbook} type="button">
+              Download template
+            </button>
+            <label className={styles.importButton}>
+              <input type="file" accept=".xlsx,.xls" onChange={handleImport} />
+              Import from Excel
+            </label>
+          </div>
+        }
+      />
+      <section className={styles.screen}>
+        <header className={styles.header}>
+          <div>
+            <h1>Financials</h1>
+            <p className={styles.subtitle}>
+              Define the hierarchy of the company P&L once, reuse it in initiatives, and keep Excel round-trips clean.
+            </p>
+          </div>
+        </header>
 
       {error && (
         <div className={styles.errorBanner}>
@@ -1392,5 +1401,6 @@ export const FinancialsScreen = () => {
         </aside>
       </div>
     </section>
+    </div>
   );
 };

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import styles from '../../styles/PortfolioPlanScreen.module.css';
+import { StickyTopPanel } from '../../components/layout/StickyTopPanel';
 import { Initiative, InitiativePlanModel, InitiativePlanTask } from '../../shared/types/initiative';
 import { useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { InitiativePlanModule } from '../initiatives/components/plan/InitiativePlanModule';
@@ -213,16 +214,20 @@ export const PortfolioPlanScreen = () => {
 
   if (!loaded) {
     return (
-      <div className={styles.wrapper}>
-        <p className={styles.loading}>Loading initiatives and plans...</p>
+      <div className={styles.page}>
+        <div className={styles.wrapper}>
+          <p className={styles.loading}>Loading initiatives and plans...</p>
+        </div>
       </div>
     );
   }
 
   if (!effectiveInitiatives.length) {
     return (
-      <div className={styles.wrapper}>
-        <div className={styles.empty}>No initiatives available yet. Create one to start planning.</div>
+      <div className={styles.page}>
+        <div className={styles.wrapper}>
+          <div className={styles.empty}>No initiatives available yet. Create one to start planning.</div>
+        </div>
       </div>
     );
   }
@@ -230,8 +235,36 @@ export const PortfolioPlanScreen = () => {
   const dirtyCount = Object.keys(drafts).length;
 
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.header}>
+    <div className={styles.page}>
+      <StickyTopPanel
+        right={
+          <div className={styles.actions}>
+            {dirtyCount > 0 && <span className={styles.statusPill}>{dirtyCount} initiative(s) changed</span>}
+            {status && (
+              <span
+                className={`${styles.statusPill} ${
+                  status.type === 'success' ? styles.statusSuccess : status.type === 'error' ? styles.statusError : ''
+                }`}
+              >
+                {status.text}
+              </span>
+            )}
+            <button
+              className={styles.ghostButton}
+              type="button"
+              onClick={handleResetChanges}
+              disabled={!dirtyCount || saving}
+            >
+              Reset changes
+            </button>
+            <button className={styles.primaryButton} type="button" onClick={handleSaveAll} disabled={saving || !dirtyCount}>
+              {saving ? 'Saving...' : 'Save all changes'}
+            </button>
+          </div>
+        }
+      />
+      <div className={styles.wrapper}>
+        <div className={styles.header}>
         <div className={styles.titleBlock}>
           <p className={styles.eyebrow}>Dashboards · Delivery</p>
           <h1 className={styles.title}>Portfolio plan</h1>
@@ -239,24 +272,6 @@ export const PortfolioPlanScreen = () => {
             One continuous plan view across every initiative. Edits here write back to the same plans used on initiative
             pages.
           </p>
-        </div>
-        <div className={styles.actions}>
-          {dirtyCount > 0 && <span className={styles.statusPill}>{dirtyCount} initiative(s) changed</span>}
-          {status && (
-            <span
-              className={`${styles.statusPill} ${
-                status.type === 'success' ? styles.statusSuccess : status.type === 'error' ? styles.statusError : ''
-              }`}
-            >
-              {status.text}
-            </span>
-          )}
-          <button className={styles.ghostButton} type="button" onClick={handleResetChanges} disabled={!dirtyCount || saving}>
-            Reset changes
-          </button>
-          <button className={styles.primaryButton} type="button" onClick={handleSaveAll} disabled={saving || !dirtyCount}>
-            {saving ? 'Saving...' : 'Save all changes'}
-          </button>
         </div>
       </div>
 
@@ -351,6 +366,7 @@ export const PortfolioPlanScreen = () => {
           />
         </div>
       )}
+      </div>
     </div>
   );
 };

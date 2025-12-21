@@ -4,9 +4,20 @@
   gap: 24px;
 }
 
-.profileWithComments {
-  flex-direction: row;
+.profileBody {
+  display: flex;
+  gap: 24px;
   align-items: flex-start;
+}
+
+.profileBodyWithComments {
+  align-items: flex-start;
+}
+
+@media (max-width: 960px) {
+  .profileBody {
+    flex-direction: column;
+  }
 }
 
 .profileContent {

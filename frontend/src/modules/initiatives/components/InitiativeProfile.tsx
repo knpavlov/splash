@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from '../../../styles/InitiativeProfile.module.css';
+import type { ReactNode } from 'react';
 import { ChevronIcon } from '../../../components/icons/ChevronIcon';
 import {
   Initiative,
@@ -42,6 +43,7 @@ import { StageKpiActuals } from './StageKpiActuals';
 import { snapshotsApi } from '../../snapshots/services/snapshotsApi';
 import { StageSupportingDocs } from './StageSupportingDocs';
 import { initiativeFormSettingsApi } from '../services/initiativeFormSettingsApi';
+import { StickyTopPanel } from '../../../components/layout/StickyTopPanel';
 import {
   createDefaultInitiativeFormSettingsMatrix,
   initiativeFormBlocks,
@@ -70,6 +72,9 @@ interface InitiativeProfileProps {
   dataLoaded?: boolean;
   initialCommentThreadId?: string | null;
   openComments?: boolean;
+  topPanelExtraLeft?: ReactNode;
+  topPanelExtraRight?: ReactNode;
+  topPanelMessage?: ReactNode;
 }
 
 type Banner = { type: 'info' | 'error'; text: string } | null;
@@ -684,7 +689,10 @@ export const InitiativeProfile = ({
   onPlanFocusClear,
   dataLoaded = true,
   initialCommentThreadId = null,
-  openComments = false
+  openComments = false,
+  topPanelExtraLeft,
+  topPanelExtraRight,
+  topPanelMessage
 }: InitiativeProfileProps) => {
   const { periodSettings, riskCategories } = usePlanSettingsState();
   const { listAssignmentsByWorkstream } = useWorkstreamsState();
@@ -1722,35 +1730,75 @@ export const InitiativeProfile = ({
     return byRisk;
   }, [riskReviewComments]);
 
+  const resolvedTopPanelMessage = banner || topPanelMessage ? (
+    <>
+      {banner && (
+        <div className={banner.type === 'info' ? styles.bannerInfo : styles.bannerError}>{banner.text}</div>
+      )}
+      {topPanelMessage}
+    </>
+  ) : null;
+
   return (
-    <section className={`${styles.profileWrapper} ${isCommentMode ? styles.profileWithComments : ''}`}>
-      <div className={profileContentClass} ref={contentRef}>
-        {isCommentMode && (
-          <CommentHighlights
-            containerRef={contentRef}
-            threads={commentThreads}
-            isVisible
-            activeThreadId={activeThreadId}
-            onSelect={setActiveThreadId}
-            anchors={commentAnchors}
-          />
-        )}
-        <div className={styles.topActions}>
-          {!hideBackLink && (
-            <button className={styles.backLink} onClick={() => onBack(draft.workstreamId)} type="button">
-              Back to initiatives
-            </button>
-          )}
-          <div className={styles.topActionsRight}>
+    <section className={styles.profileWrapper}>
+      <StickyTopPanel
+        left={
+          <>
+            {topPanelExtraLeft}
+            {!hideBackLink && (
+              <button className={styles.backLink} onClick={() => onBack(draft.workstreamId)} type="button">
+                Back to initiatives
+              </button>
+            )}
+          </>
+        }
+        right={
+          <>
             <button
               className={isCommentMode ? styles.commentButtonActive : styles.commentButton}
               type="button"
               onClick={handleCommentToggle}
+              disabled={!commentsAvailable}
             >
               {commentButtonLabel}
             </button>
-          </div>
-        </div>
+            {topPanelExtraRight}
+            {!isReadOnlyMode && (
+              <>
+                <button
+                  className={styles.secondaryButton}
+                  onClick={() => handleSaveClick(false)}
+                  disabled={isSaving}
+                  type="button"
+                >
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  className={styles.primaryButton}
+                  onClick={() => handleSaveClick(true)}
+                  disabled={isSaving}
+                  type="button"
+                >
+                  {isSaving ? 'Saving...' : 'Save and close'}
+                </button>
+              </>
+            )}
+          </>
+        }
+        message={resolvedTopPanelMessage}
+      />
+      <div className={`${styles.profileBody} ${isCommentMode ? styles.profileBodyWithComments : ''}`}>
+        <div className={profileContentClass} ref={contentRef}>
+          {isCommentMode && (
+            <CommentHighlights
+              containerRef={contentRef}
+              threads={commentThreads}
+              isVisible
+              activeThreadId={activeThreadId}
+              onSelect={setActiveThreadId}
+              anchors={commentAnchors}
+            />
+          )}
         <div className={styles.quickInfoCard}>
           <div className={styles.quickInfoGrid}>
             <div className={styles.quickInfoTop}>
@@ -2614,33 +2662,6 @@ export const InitiativeProfile = ({
             </button>
           )}
         </div>
-        <div className={styles.footerRight}>
-          {banner && (
-            <div className={`${styles.footerBanner} ${banner.type === 'info' ? styles.bannerInfo : styles.bannerError}`}>
-              {banner.text}
-            </div>
-          )}
-          {!isReadOnlyMode && (
-            <div className={styles.footerActions}>
-              <button
-                className={styles.secondaryButton}
-                onClick={() => handleSaveClick(false)}
-                disabled={isSaving}
-                type="button"
-              >
-                {isSaving ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                className={styles.primaryButton}
-                onClick={() => handleSaveClick(true)}
-                disabled={isSaving}
-                type="button"
-              >
-                {isSaving ? 'Saving...' : 'Save and close'}
-              </button>
-            </div>
-          )}
-        </div>
       </footer>
       {isSubmitConfirmOpen && (
         <div
@@ -2735,6 +2756,7 @@ export const InitiativeProfile = ({
         onScrollToElement={handleScrollToElement}
       />
     )}
+      </div>
   </section>
 );
 };

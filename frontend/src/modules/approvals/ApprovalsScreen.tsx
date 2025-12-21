@@ -103,6 +103,10 @@ export const ApprovalsScreen = () => {
     setHasLoadedProfile(false);
   };
 
+  const handleBackToInitiatives = () => {
+    window.location.hash = '/initiatives';
+  };
+
   const handleDecision = async (decision: ApprovalDecision) => {
     if (!selectedTask) {
       return;
@@ -182,10 +186,6 @@ export const ApprovalsScreen = () => {
           Refresh queue
         </button>
       </header>
-      {banner && (
-        <div className={banner.type === 'info' ? styles.infoBanner : styles.errorBanner}>{banner.text}</div>
-      )}
-      {profileError && <div className={styles.errorBanner}>{profileError}</div>}
       {isProfileLoading && !hasLoadedProfile && (
         <p className={styles.placeholder}>Loading initiative profile...</p>
       )}
@@ -203,48 +203,77 @@ export const ApprovalsScreen = () => {
             onSubmitStage={submitStage}
             readOnly
             hideBackLink
+            topPanelExtraLeft={
+              <>
+                <button className={styles.backButton} type="button" onClick={handleBackToQueue}>
+                  Back to queue
+                </button>
+                <button className={styles.backButton} type="button" onClick={handleBackToInitiatives}>
+                  Back to initiatives
+                </button>
+              </>
+            }
+            topPanelExtraRight={
+              <div className={styles.decisionToolbar}>
+                <textarea
+                  className={styles.decisionCommentCompact}
+                  placeholder="Decision comment (required for return/reject)"
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                  rows={1}
+                />
+                <div className={styles.decisionActions}>
+                  <button
+                    className={styles.secondaryButton}
+                    type="button"
+                    onClick={() => handleDecision('return')}
+                    disabled={isDeciding !== null}
+                  >
+                    {isDeciding === 'return' ? 'Sending...' : 'Return'}
+                  </button>
+                  <button
+                    className={styles.dangerButton}
+                    type="button"
+                    onClick={() => handleDecision('reject')}
+                    disabled={isDeciding !== null}
+                  >
+                    {isDeciding === 'reject' ? 'Rejecting...' : 'Reject'}
+                  </button>
+                  <button
+                    className={styles.primaryButton}
+                    type="button"
+                    onClick={() => handleDecision('approve')}
+                    disabled={isDeciding !== null}
+                  >
+                    {isDeciding === 'approve' ? 'Approving...' : 'Approve'}
+                  </button>
+                </div>
+              </div>
+            }
+            topPanelMessage={
+              <>
+                {selectedTask && (
+                  <div className={styles.taskMeta}>
+                    {selectedTask.workstreamName} - Round {selectedTask.roundIndex + 1} of {selectedTask.roundCount} -{' '}
+                    {selectedTask.rule === 'all'
+                      ? 'All approvers'
+                      : selectedTask.rule === 'majority'
+                        ? 'Majority'
+                        : 'Any one'}{' '}
+                    - {selectedTask.accountRole || selectedTask.role || 'No role set'}
+                  </div>
+                )}
+                {banner && (
+                  <div className={banner.type === 'info' ? styles.infoBanner : styles.errorBanner}>{banner.text}</div>
+                )}
+                {profileError && <div className={styles.errorBanner}>{profileError}</div>}
+              </>
+            }
           />
         </div>
       )}
-      <div className={styles.decisionPanel}>
-        <h3>Your decision</h3>
-        <textarea
-          className={styles.commentInput}
-          placeholder="Add a comment (required for return/reject)"
-          value={comment}
-          onChange={(event) => setComment(event.target.value)}
-          rows={4}
-        />
-        <div className={styles.decisionActions}>
-          <button
-            className={styles.secondaryButton}
-            type="button"
-            onClick={() => handleDecision('return')}
-            disabled={isDeciding === 'return'}
-          >
-            {isDeciding === 'return' ? 'Sending...' : 'Return'}
-          </button>
-          <button
-            className={styles.dangerButton}
-            type="button"
-            onClick={() => handleDecision('reject')}
-            disabled={isDeciding === 'reject'}
-          >
-            {isDeciding === 'reject' ? 'Rejecting...' : 'Reject'}
-          </button>
-          <button
-            className={styles.primaryButton}
-            type="button"
-            onClick={() => handleDecision('approve')}
-            disabled={isDeciding === 'approve'}
-          >
-            {isDeciding === 'approve' ? 'Approving...' : 'Approve'}
-          </button>
-        </div>
-      </div>
     </section>
   );
 
   return viewMode === 'queue' ? renderQueue() : renderProfile();
 };
-

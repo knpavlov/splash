@@ -4,6 +4,7 @@ import { Initiative, initiativeStageLabels } from '../../../shared/types/initiat
 import { Workstream } from '../../../shared/types/workstream';
 import { InitiativesDashboard } from './InitiativesDashboard';
 import { ChevronIcon } from '../../../components/icons/ChevronIcon';
+import { StickyTopPanel } from '../../../components/layout/StickyTopPanel';
 import { useAuth } from '../../auth/AuthContext';
 import { accountsApi } from '../../accounts/services/accountsApi';
 
@@ -342,14 +343,18 @@ export const InitiativesList = ({
 
   return (
     <section className={styles.wrapper}>
+      <StickyTopPanel
+        right={
+          <button className={styles.primaryButton} onClick={() => onCreate(selectedWorkstreamId)} type="button">
+            Create initiative
+          </button>
+        }
+      />
       <header className={styles.header}>
         <div>
           <h1>Initiatives</h1>
           <p className={styles.subtitle}>Track impact, owners, and stage-gate progress per workstream.</p>
         </div>
-        <button className={styles.primaryButton} onClick={() => onCreate(selectedWorkstreamId)}>
-          Create initiative
-        </button>
       </header>
 
       <div className={styles.tabs}>
