@@ -37,7 +37,10 @@ import {
   InitiativePlanModel,
   InitiativeRisk,
   InitiativeRiskComment,
-  InitiativeRiskCommentRow
+  InitiativeRiskCommentRow,
+  InitiativeRiskAssessmentDetail,
+  InitiativeRiskAssessmentRow,
+  InitiativeRiskAssessmentSummary
 } from './initiatives.types.js';
 import { normalizePlanModel } from './initiativePlan.helpers.js';
 import {
@@ -700,6 +703,22 @@ const mapRiskCommentRow = (row: InitiativeRiskCommentRow): InitiativeRiskComment
   resolvedByName: row.resolved_by_name ?? null
 });
 
+const mapRiskAssessmentSummaryRow = (row: InitiativeRiskAssessmentRow): InitiativeRiskAssessmentSummary => ({
+  id: row.id,
+  initiativeId: row.initiative_id,
+  sequence: row.sequence,
+  stageKey: normalizeStageKey(row.stage_key),
+  kind: row.kind,
+  actorAccountId: row.actor_account_id ?? null,
+  actorName: row.actor_name ?? null,
+  createdAt: toIsoString(row.created_at) ?? new Date().toISOString()
+});
+
+const mapRiskAssessmentDetailRow = (row: InitiativeRiskAssessmentRow): InitiativeRiskAssessmentDetail => ({
+  ...mapRiskAssessmentSummaryRow(row),
+  risks: sanitizeRisks(row.risks)
+});
+
 export class InitiativesService {
   constructor(
     private readonly repository: InitiativesRepository,
@@ -864,6 +883,7 @@ export class InitiativesService {
 
     const formSettings = await this.formSettingsRepository.getSettings();
     const stageMatrix = formSettings.stages?.[stageKey];
+    const shouldCaptureRiskAssessment = stageMatrix?.risks === 'required';
     if (stageMatrix) {
       const requiredBlocks = initiativeFormBlockKeys.filter((blockKey) => stageMatrix[blockKey] === 'required');
       const stagePayload = record.stages?.[stageKey];
@@ -906,6 +926,17 @@ export class InitiativesService {
     const gateKey = getGateKeyForStage(stageKey);
     const rounds = gateKey ? workstream.gates[gateKey] ?? [] : [];
     if (!rounds.length) {
+      if (shouldCaptureRiskAssessment) {
+        await this.repository.insertRiskAssessment({
+          id: randomUUID(),
+          initiativeId: record.id,
+          stageKey,
+          kind: 'stage-submit',
+          risks: record.risks ?? [],
+          actorAccountId: metadata?.actorAccountId ?? null,
+          actorName: metadata?.actorName ?? null
+        });
+      }
       const approvedRecord = await this.finalizeStage(record, stageKey, stageStateEntry.roundIndex);
       await this.recordEvents(record, approvedRecord, metadata, 'update');
       return toResponse(approvedRecord);
@@ -930,8 +961,83 @@ export class InitiativesService {
       }
         throw new Error('NOT_FOUND');
     }
+    if (shouldCaptureRiskAssessment) {
+      await this.repository.insertRiskAssessment({
+        id: randomUUID(),
+        initiativeId: record.id,
+        stageKey,
+        kind: 'stage-submit',
+        risks: record.risks ?? [],
+        actorAccountId: metadata?.actorAccountId ?? null,
+        actorName: metadata?.actorName ?? null
+      });
+    }
     await this.recordEvents(record, result, metadata, 'update');
     return toResponse(result);
+  }
+
+  async listRiskAssessments(initiativeId: string): Promise<InitiativeRiskAssessmentSummary[]> {
+    const record = await this.repository.findInitiative(initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    const rows = await this.repository.listRiskAssessments(initiativeId);
+    return rows.map((row) => mapRiskAssessmentSummaryRow(row));
+  }
+
+  async getRiskAssessment(initiativeId: string, assessmentId: string): Promise<InitiativeRiskAssessmentDetail> {
+    const record = await this.repository.findInitiative(initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+    const row = await this.repository.findRiskAssessment(initiativeId, assessmentId);
+    if (!row) {
+      throw new Error('NOT_FOUND');
+    }
+    return mapRiskAssessmentDetailRow(row);
+  }
+
+  async submitUpdatedRiskAssessment(
+    initiativeId: string,
+    input: { risks?: unknown } | undefined,
+    metadata?: InitiativeMutationMetadata
+  ): Promise<InitiativeRiskAssessmentDetail> {
+    const record = await this.repository.findInitiative(initiativeId);
+    if (!record) {
+      throw new Error('NOT_FOUND');
+    }
+
+    const formSettings = await this.formSettingsRepository.getSettings();
+    const hasSubmittedRiskStage = initiativeStageKeys.some((stageKey) => {
+      const stageMatrix = formSettings.stages?.[stageKey];
+      if (!stageMatrix || stageMatrix.risks !== 'required') {
+        return false;
+      }
+      return (record.stageState?.[stageKey]?.status ?? 'draft') !== 'draft';
+    });
+
+    if (!hasSubmittedRiskStage) {
+      throw new Error('FORM_LOCKED');
+    }
+
+    const overrideRisks = Array.isArray(input?.risks) ? sanitizeRisks(input?.risks) : null;
+    const risks = overrideRisks ?? (record.risks ?? []);
+
+    const created = await this.repository.insertRiskAssessment({
+      id: randomUUID(),
+      initiativeId: record.id,
+      stageKey: record.activeStage,
+      kind: 'update',
+      risks,
+      actorAccountId: metadata?.actorAccountId ?? null,
+      actorName: metadata?.actorName ?? null
+    });
+
+    if (!created) {
+      throw new Error('UNKNOWN');
+    }
+
+    return mapRiskAssessmentDetailRow(created);
   }
 
   async listApprovalTasks(filter: {

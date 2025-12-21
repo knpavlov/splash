@@ -346,6 +346,33 @@ export interface InitiativeRiskComment {
   resolvedByName: string | null;
 }
 
+export interface InitiativeRiskAssessmentRow extends Record<string, unknown> {
+  id: string;
+  initiative_id: string;
+  sequence: number;
+  stage_key: string;
+  kind: string;
+  risks: unknown;
+  actor_account_id: string | null;
+  actor_name: string | null;
+  created_at: Date;
+}
+
+export interface InitiativeRiskAssessmentSummary {
+  id: string;
+  initiativeId: string;
+  sequence: number;
+  stageKey: InitiativeStageKey;
+  kind: string;
+  actorAccountId: string | null;
+  actorName: string | null;
+  createdAt: string;
+}
+
+export interface InitiativeRiskAssessmentDetail extends InitiativeRiskAssessmentSummary {
+  risks: InitiativeRisk[];
+}
+
 export interface InitiativeBusinessCaseFile {
   id: string;
   fileName: string;

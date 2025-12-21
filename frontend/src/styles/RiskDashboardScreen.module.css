@@ -383,8 +383,9 @@
 
 .cellCount {
   position: absolute;
-  right: 8px;
-  top: 8px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   min-width: 22px;
   height: 20px;
   padding: 0 6px;
@@ -717,6 +718,12 @@
   margin-bottom: 6px;
 }
 
+.commentsHeaderRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .commentsMeta {
   font-size: 12px;
   color: #64748b;
@@ -742,6 +749,11 @@
   border-radius: 12px;
   background: #f8fafc;
   padding: 8px 10px;
+}
+
+.commentBubbleResolved {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.1);
 }
 
 .commentBody {

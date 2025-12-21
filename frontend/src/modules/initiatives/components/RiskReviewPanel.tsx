@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import styles from '../../../styles/RiskReviewPanel.module.css';
-import type { InitiativeRisk, InitiativeRiskComment } from '../../../shared/types/initiative';
+import type {
+  InitiativeRisk,
+  InitiativeRiskAssessmentDetail,
+  InitiativeRiskAssessmentSummary
+} from '../../../shared/types/initiative';
+import { generateId } from '../../../shared/ui/generateId';
 import { initiativesApi } from '../services/initiativesApi';
-import { snapshotsApi } from '../../snapshots/services/snapshotsApi';
-import type { ProgramSnapshotDetail, ProgramSnapshotSummary } from '../../../shared/types/snapshot';
 import type { InitiativeActorMetadata } from '../services/initiativesApi';
 
 const clampScore = (value: unknown) => {
@@ -16,10 +19,8 @@ const clampScore = (value: unknown) => {
 
 const scoreOf = (risk: InitiativeRisk) => clampScore(risk.severity) * clampScore(risk.likelihood);
 
-type SnapshotCacheEntry =
-  | { status: 'loading' }
-  | { status: 'error' }
-  | { status: 'ready'; detail: ProgramSnapshotDetail };
+const riskFormHasEmptyRow = (risks: InitiativeRisk[]) =>
+  risks.some((risk) => !(risk.title ?? '').trim() && !(risk.description ?? '').trim() && !(risk.mitigation ?? '').trim());
 
 export const RiskReviewPanel = ({
   initiativeId,
@@ -32,318 +33,367 @@ export const RiskReviewPanel = ({
   readOnly: boolean;
   actor?: InitiativeActorMetadata;
 }) => {
-  const [comments, setComments] = useState<InitiativeRiskComment[]>([]);
-  const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentsError, setCommentsError] = useState('');
-  const [expandedRiskIds, setExpandedRiskIds] = useState<Set<string>>(() => new Set());
+  const [assessments, setAssessments] = useState<InitiativeRiskAssessmentSummary[]>([]);
+  const [assessmentsLoading, setAssessmentsLoading] = useState(false);
+  const [assessmentsError, setAssessmentsError] = useState('');
+  const [selectedId, setSelectedId] = useState<string>('latest');
+  const [selectedDetail, setSelectedDetail] = useState<InitiativeRiskAssessmentDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedRisks, setEditedRisks] = useState<InitiativeRisk[]>([]);
 
-  const [snapshots, setSnapshots] = useState<ProgramSnapshotSummary[]>([]);
-  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
-  const [snapshotsError, setSnapshotsError] = useState('');
-  const [snapshotId, setSnapshotId] = useState<string>('none');
-  const [snapshotCache, setSnapshotCache] = useState<Record<string, SnapshotCacheEntry>>({});
-
-  const riskById = useMemo(() => new Map(risks.map((risk) => [risk.id, risk])), [risks]);
-
-  const refreshComments = useCallback(() => {
-    setCommentsLoading(true);
-    setCommentsError('');
+  const refresh = useCallback(() => {
+    setAssessmentsLoading(true);
+    setAssessmentsError('');
     void initiativesApi
-      .listRiskComments(initiativeId)
-      .then((list) => setComments(list))
-      .catch((error) => {
-        console.error('Failed to load risk comments', error);
-        setCommentsError('load_failed');
+      .listRiskAssessments(initiativeId)
+      .then((list) => {
+        const sorted = [...list].sort((a, b) => b.sequence - a.sequence);
+        setAssessments(sorted);
+        setSelectedId((current) => {
+          if (current !== 'latest' && sorted.some((entry) => entry.id === current)) {
+            return current;
+          }
+          return 'latest';
+        });
       })
-      .finally(() => setCommentsLoading(false));
+      .catch((error) => {
+        console.error('Failed to load risk assessments', error);
+        setAssessmentsError('load_failed');
+      })
+      .finally(() => setAssessmentsLoading(false));
   }, [initiativeId]);
 
   useEffect(() => {
-    refreshComments();
-  }, [refreshComments]);
+    refresh();
+  }, [refresh]);
+
+  const effectiveId = useMemo(() => {
+    if (selectedId !== 'latest') {
+      return selectedId;
+    }
+    return assessments[0]?.id ?? null;
+  }, [assessments, selectedId]);
 
   useEffect(() => {
-    if (snapshotsLoading || snapshots.length) {
+    if (!effectiveId) {
+      setSelectedDetail(null);
       return;
     }
-    setSnapshotsLoading(true);
-    setSnapshotsError('');
-    void snapshotsApi
-      .listProgramSnapshots({ limit: 45 })
-      .then((list) => setSnapshots(list))
+    setDetailLoading(true);
+    void initiativesApi
+      .getRiskAssessment(initiativeId, effectiveId)
+      .then((detail) => setSelectedDetail(detail))
       .catch((error) => {
-        console.error('Failed to load snapshots', error);
-        setSnapshotsError('load_failed');
+        console.error('Failed to load risk assessment', error);
+        setSelectedDetail(null);
       })
-      .finally(() => setSnapshotsLoading(false));
-  }, [snapshots.length, snapshotsLoading]);
+      .finally(() => setDetailLoading(false));
+  }, [effectiveId, initiativeId]);
 
-  useEffect(() => {
-    if (snapshotId === 'none') {
+  const canUnlock =
+    !readOnly &&
+    !submitLoading &&
+    !assessmentsLoading &&
+    selectedId === 'latest' &&
+    assessments.length > 0 &&
+    Boolean(selectedDetail);
+  const canSubmitUpdate = canUnlock && isEditing && !riskFormHasEmptyRow(editedRisks);
+
+  const beginEdit = useCallback(() => {
+    if (!canUnlock || !selectedDetail) {
       return;
     }
-    if (snapshotCache[snapshotId]) {
-      return;
-    }
-    setSnapshotCache((prev) => ({ ...prev, [snapshotId]: { status: 'loading' } }));
-    void snapshotsApi
-      .getProgramSnapshot(snapshotId)
-      .then((detail) => {
-        setSnapshotCache((prev) => ({ ...prev, [snapshotId]: { status: 'ready', detail } }));
-      })
-      .catch((error) => {
-        console.error('Failed to load snapshot', error);
-        setSnapshotCache((prev) => ({ ...prev, [snapshotId]: { status: 'error' } }));
-      });
-  }, [snapshotCache, snapshotId]);
+    setSubmitError('');
+    setIsEditing(true);
+    setEditedRisks((selectedDetail.risks ?? []).map((risk) => ({ ...risk })));
+  }, [canUnlock, selectedDetail]);
 
-  const snapshotDetail = useMemo(() => {
-    if (snapshotId === 'none') {
-      return null;
-    }
-    const entry = snapshotCache[snapshotId];
-    if (!entry || entry.status !== 'ready') {
-      return null;
-    }
-    return entry.detail;
-  }, [snapshotCache, snapshotId]);
-
-  const snapshotInitiative = useMemo(() => {
-    const payload = snapshotDetail?.payload;
-    if (!payload) {
-      return null;
-    }
-    const match = payload.initiatives?.find((initiative) => initiative.id === initiativeId) ?? null;
-    return match as unknown as { risks?: InitiativeRisk[] } | null;
-  }, [initiativeId, snapshotDetail]);
-
-  const snapshotRisks = useMemo(() => {
-    const list = snapshotInitiative?.risks ?? [];
-    const normalized = list.map((risk) => ({
-      ...risk,
-      severity: clampScore(risk.severity),
-      likelihood: clampScore(risk.likelihood)
-    }));
-    return normalized.sort((a, b) => scoreOf(b) - scoreOf(a) || a.title.localeCompare(b.title));
-  }, [snapshotInitiative]);
-
-  const openCommentCount = useMemo(() => comments.filter((comment) => !comment.resolvedAt).length, [comments]);
-
-  const groupedComments = useMemo(() => {
-    const byRisk = new Map<string, InitiativeRiskComment[]>();
-    comments.forEach((comment) => {
-      const list = byRisk.get(comment.riskId) ?? [];
-      list.push(comment);
-      byRisk.set(comment.riskId, list);
-    });
-    for (const list of byRisk.values()) {
-      list.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    }
-    return byRisk;
-  }, [comments]);
-
-  const riskScore = useCallback(
-    (riskId: string) => {
-      const risk = riskById.get(riskId);
-      return risk ? scoreOf(risk) : -1;
-    },
-    [riskById]
-  );
-
-  const toggleExpanded = useCallback((riskId: string) => {
-    setExpandedRiskIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(riskId)) {
-        next.delete(riskId);
-      } else {
-        next.add(riskId);
-      }
-      return next;
-    });
+  const cancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setEditedRisks([]);
+    setSubmitError('');
   }, []);
 
-  const handleResolve = useCallback(
-    async (comment: InitiativeRiskComment, resolved: boolean) => {
-      const updated = await initiativesApi.setRiskCommentResolution(comment.initiativeId, comment.id, resolved, actor);
-      setComments((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-    },
-    [actor]
+  const submitUpdated = useCallback(async () => {
+    if (!canSubmitUpdate) {
+      return;
+    }
+    setSubmitLoading(true);
+    setSubmitError('');
+    try {
+      const created = await initiativesApi.submitUpdatedRiskAssessment(initiativeId, editedRisks, actor);
+      await refresh();
+      setSelectedId(created.id);
+      setIsEditing(false);
+      setEditedRisks([]);
+    } catch (error) {
+      console.error('Failed to submit updated risk assessment', error);
+      setSubmitError('submit_failed');
+    } finally {
+      setSubmitLoading(false);
+    }
+  }, [actor, canSubmitUpdate, editedRisks, initiativeId, refresh]);
+
+  const displayRisks = useMemo(() => {
+    const list = selectedDetail?.risks ?? [];
+    return list
+      .map((risk) => ({
+        ...risk,
+        severity: clampScore(risk.severity),
+        likelihood: clampScore(risk.likelihood)
+      }))
+      .sort((a, b) => scoreOf(b) - scoreOf(a) || a.title.localeCompare(b.title));
+  }, [selectedDetail]);
+
+  const editRisks = useMemo(
+    () =>
+      editedRisks.map((risk) => ({
+        ...risk,
+        severity: clampScore(risk.severity),
+        likelihood: clampScore(risk.likelihood)
+      })),
+    [editedRisks]
   );
 
-  const snapshotLabel = useMemo(() => {
-    if (snapshotId === 'none') {
-      return null;
-    }
-    const match = snapshots.find((item) => item.id === snapshotId);
-    return match ? new Date(match.capturedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : null;
-  }, [snapshotId, snapshots]);
+  const updateEditedRisk = (id: string, field: keyof InitiativeRisk, value: string | number) => {
+    setEditedRisks((prev) =>
+      prev.map((risk) => {
+        if (risk.id !== id) {
+          return risk;
+        }
+        if (field === 'severity' || field === 'likelihood') {
+          return { ...risk, [field]: clampScore(value) };
+        }
+        return { ...risk, [field]: typeof value === 'string' ? value : String(value) };
+      })
+    );
+  };
+
+  const addEditedRisk = () => {
+    setEditedRisks((prev) => [
+      {
+        id: generateId(),
+        title: '',
+        description: '',
+        category: 'Uncategorized',
+        severity: 3,
+        likelihood: 3,
+        mitigation: ''
+      },
+      ...prev
+    ]);
+  };
+
+  const removeEditedRisk = (id: string) => {
+    setEditedRisks((prev) => prev.filter((risk) => risk.id !== id));
+  };
 
   return (
     <div className={styles.panel}>
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <div>
-            <h4>Risk review comments</h4>
-            <p>
-              {commentsLoading
-                ? 'Loading comments…'
-                : commentsError
-                  ? 'Failed to load comments.'
-                  : openCommentCount
-                    ? `${openCommentCount} open comments`
-                    : 'No open comments'}
-            </p>
+            <h4>Risk assessment submissions</h4>
+            <p>Review previously submitted versions and submit updates to the risk register without resubmitting the entire initiative.</p>
           </div>
-          <button type="button" className={styles.secondaryButton} onClick={refreshComments} disabled={commentsLoading}>
-            Refresh
-          </button>
-        </div>
-
-        {comments.length === 0 ? (
-          <div className={styles.hint}>No comments have been added from the risk dashboard yet.</div>
-        ) : (
-          <div className={styles.commentGroups}>
-            {Array.from(groupedComments.entries())
-              .sort((a, b) => riskScore(b[0]) - riskScore(a[0]) || a[0].localeCompare(b[0]))
-              .map(([riskId, list]) => {
-                const risk = riskById.get(riskId);
-                const title = risk?.title || `Risk ${riskId.slice(0, 8)}`;
-                const openCountForRisk = list.filter((comment) => !comment.resolvedAt).length;
-                const expanded = expandedRiskIds.has(riskId);
-                return (
-                  <div key={riskId} className={styles.commentGroup}>
-                    <button type="button" className={styles.groupToggle} onClick={() => toggleExpanded(riskId)}>
-                      <span className={styles.groupTitle}>{title}</span>
-                      <span className={styles.groupMeta}>
-                        {openCountForRisk ? `${openCountForRisk} open` : 'All resolved'} • {list.length} total
-                      </span>
-                    </button>
-                    {expanded && (
-                      <ul className={styles.commentList}>
-                        {list.map((comment) => (
-                          <li key={comment.id} className={styles.commentItem}>
-                            <div className={styles.commentBody}>{comment.body}</div>
-                            <div className={styles.commentMeta}>
-                              <span>
-                                {comment.authorName ?? 'Unknown'} •{' '}
-                                {new Date(comment.createdAt).toLocaleString('en-US', {
-                                  dateStyle: 'medium',
-                                  timeStyle: 'short'
-                                })}
-                              </span>
-                              {!readOnly && (
-                                <button
-                                  type="button"
-                                  className={styles.linkButton}
-                                  onClick={() => void handleResolve(comment, !comment.resolvedAt)}
-                                >
-                                  {comment.resolvedAt ? 'Reopen' : 'Resolve'}
-                                </button>
-                              )}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        )}
-      </div>
-
-      <div className={styles.section}>
-        <div className={styles.sectionHeader}>
-          <div>
-            <h4>Submitted risk snapshots</h4>
-            <p>Pick a program snapshot to review previous submitted versions of this risk register.</p>
+          <div className={styles.snapshotControls}>
+            {!isEditing ? (
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={beginEdit}
+                disabled={!canUnlock}
+                title={assessments.length === 0 ? 'Submit the initiative to a stage gate that requires risks first.' : undefined}
+              >
+                Unlock for update
+              </button>
+            ) : (
+              <>
+                <button type="button" className={styles.secondaryButton} onClick={cancelEdit} disabled={submitLoading}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={submitUpdated}
+                  disabled={!canSubmitUpdate}
+                  title={riskFormHasEmptyRow(editedRisks) ? 'Remove empty risks before submitting.' : undefined}
+                >
+                  {submitLoading ? 'Submitting...' : 'Submit updated risk assessment'}
+                </button>
+              </>
+            )}
+            {!readOnly && isEditing && (
+              <button type="button" className={styles.secondaryButton} onClick={addEditedRisk} disabled={submitLoading}>
+                Add risk
+              </button>
+            )}
+            <button type="button" className={styles.secondaryButton} onClick={refresh} disabled={assessmentsLoading}>
+              Refresh
+            </button>
           </div>
         </div>
 
         <div className={styles.snapshotControls}>
           <label className={styles.field}>
-            <span>Snapshot</span>
-            <select value={snapshotId} onChange={(e) => setSnapshotId(e.target.value)} disabled={snapshotsLoading || !!snapshotsError}>
-              <option value="none">None</option>
-              {snapshots
-                .slice()
-                .sort((a, b) => (a.capturedAt < b.capturedAt ? 1 : -1))
-                .map((snapshot) => (
-                  <option key={snapshot.id} value={snapshot.id}>
-                    {new Date(snapshot.capturedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
-                  </option>
-                ))}
+            <span>Submission</span>
+            <select
+              value={selectedId}
+              onChange={(event) => setSelectedId(event.target.value)}
+              disabled={isEditing || assessmentsLoading || assessmentsError === 'load_failed' || assessments.length === 0}
+            >
+              <option value="latest">Latest</option>
+              {assessments.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  #{entry.sequence} ·{' '}
+                  {new Date(entry.createdAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} ·{' '}
+                  {entry.kind}
+                </option>
+              ))}
             </select>
           </label>
-          {snapshotLabel && <div className={styles.snapshotLabel}>Showing: {snapshotLabel}</div>}
+          {assessmentsLoading && <span className={styles.snapshotLabel}>Loading...</span>}
+          {assessmentsError && <span className={styles.snapshotLabel}>Unavailable.</span>}
+          {submitError && <span className={styles.snapshotLabel}>Failed to submit.</span>}
         </div>
 
-        {snapshotId !== 'none' && !snapshotDetail && (
-          <div className={styles.hint}>
-            {snapshotCache[snapshotId]?.status === 'error' ? 'Failed to load snapshot.' : 'Loading snapshot…'}
+        {assessments.length === 0 ? (
+          <div className={styles.hint}>No submissions yet.</div>
+        ) : detailLoading ? (
+          <div className={styles.hint}>Loading submission...</div>
+        ) : isEditing ? (
+          editRisks.length === 0 ? (
+            <div className={styles.hint}>No risks to update yet. Add one above.</div>
+          ) : (
+            <div className={styles.snapshotTableWrapper}>
+              <table className={styles.snapshotTable}>
+                <thead>
+                  <tr>
+                    <th>Risk</th>
+                    <th>Description</th>
+                    <th>Category</th>
+                    <th>Severity</th>
+                    <th>Likelihood</th>
+                    <th>Score</th>
+                    <th>Mitigation</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {editRisks.map((risk) => (
+                    <tr key={risk.id}>
+                      <td>
+                        <input
+                          className={styles.editInput}
+                          value={risk.title}
+                          onChange={(e) => updateEditedRisk(risk.id, 'title', e.target.value)}
+                          placeholder="Name the risk"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className={styles.editInput}
+                          value={risk.description}
+                          onChange={(e) => updateEditedRisk(risk.id, 'description', e.target.value)}
+                          placeholder="Short description"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className={styles.editInput}
+                          value={risk.category}
+                          onChange={(e) => updateEditedRisk(risk.id, 'category', e.target.value)}
+                          placeholder="Category"
+                        />
+                      </td>
+                      <td>
+                        <select
+                          className={styles.editSelect}
+                          value={risk.severity}
+                          onChange={(e) => updateEditedRisk(risk.id, 'severity', Number(e.target.value))}
+                        >
+                          {[1, 2, 3, 4, 5].map((value) => (
+                            <option key={`sev-${value}`} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          className={styles.editSelect}
+                          value={risk.likelihood}
+                          onChange={(e) => updateEditedRisk(risk.id, 'likelihood', Number(e.target.value))}
+                        >
+                          {[1, 2, 3, 4, 5].map((value) => (
+                            <option key={`like-${value}`} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>{scoreOf(risk)}</td>
+                      <td>
+                        <textarea
+                          className={styles.editTextArea}
+                          rows={2}
+                          value={risk.mitigation}
+                          onChange={(e) => updateEditedRisk(risk.id, 'mitigation', e.target.value)}
+                          placeholder="Mitigation plan"
+                        />
+                      </td>
+                      <td>
+                        <button type="button" className={styles.linkButton} onClick={() => removeEditedRisk(risk.id)}>
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : displayRisks.length === 0 ? (
+          <div className={styles.hint}>No risks were captured in this submission.</div>
+        ) : (
+          <div className={styles.snapshotTableWrapper}>
+            <table className={styles.snapshotTable}>
+              <thead>
+                <tr>
+                  <th>Risk</th>
+                  <th>Category</th>
+                  <th>Severity</th>
+                  <th>Likelihood</th>
+                  <th>Score</th>
+                  <th>Mitigation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayRisks.map((risk) => (
+                  <tr key={risk.id}>
+                    <td>{risk.title}</td>
+                    <td>{risk.category}</td>
+                    <td>{risk.severity}</td>
+                    <td>{risk.likelihood}</td>
+                    <td>{scoreOf(risk)}</td>
+                    <td className={styles.snapshotMitigation} title={risk.mitigation}>
+                      {risk.mitigation}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
-        {snapshotDetail && (
-          <>
-            {!snapshotInitiative ? (
-              <div className={styles.hint}>This initiative was not present in the selected snapshot.</div>
-            ) : snapshotRisks.length === 0 ? (
-              <div className={styles.hint}>No risks captured in the selected snapshot.</div>
-            ) : (
-              <div className={styles.snapshotTableWrapper}>
-                <table className={styles.snapshotTable}>
-                  <thead>
-                    <tr>
-                      <th>Score</th>
-                      <th>Risk</th>
-                      <th>Type</th>
-                      <th>Severity</th>
-                      <th>Likelihood</th>
-                      <th>Mitigation</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {snapshotRisks.map((risk) => {
-                      const current = riskById.get(risk.id);
-                      const currentScore = current ? scoreOf(current) : null;
-                      const snapScore = scoreOf(risk);
-                      const changed =
-                        !current ||
-                        clampScore(current.severity) !== clampScore(risk.severity) ||
-                        clampScore(current.likelihood) !== clampScore(risk.likelihood) ||
-                        (current.mitigation ?? '') !== (risk.mitigation ?? '') ||
-                        (current.title ?? '') !== (risk.title ?? '');
-                      return (
-                        <tr key={risk.id} className={changed ? styles.snapshotChanged : ''}>
-                          <td>{snapScore}</td>
-                          <td title={risk.description || risk.title}>{risk.title || '(Untitled)'}</td>
-                          <td>{risk.category || 'Uncategorized'}</td>
-                          <td>{clampScore(risk.severity)}</td>
-                          <td>{clampScore(risk.likelihood)}</td>
-                          <td className={styles.snapshotMitigation} title={risk.mitigation}>
-                            {risk.mitigation}
-                          </td>
-                          <td>
-                            {!current
-                              ? 'Removed'
-                              : changed
-                                ? currentScore !== null
-                                  ? `Now ${currentScore}`
-                                  : 'Changed'
-                                : 'Unchanged'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
+        {!isEditing && assessments.length === 0 && risks.length > 0 && (
+          <div className={styles.hint}>Tip: risks will appear here after the first stage-gate submission that requires risks.</div>
         )}
       </div>
     </div>
   );
 };
+

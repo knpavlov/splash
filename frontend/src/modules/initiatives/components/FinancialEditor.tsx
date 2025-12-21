@@ -229,13 +229,16 @@ export const CombinedChart = ({
   const positiveScale = maxPositive || 1;
   const negativeScale = maxNegative || 1;
   const stackTopOffset = (positiveShare: number, ratio: number) => positiveShare * (1 - ratio);
-  const chartHeightPx = 210;
-  const valueLabelHeightPx = 14;
+  const plotHeightPx = 210;
+  const plotPaddingTopPx = 30;
+  const plotPaddingBottomPx = 26;
+  const chartHeightPx = plotHeightPx + plotPaddingTopPx + plotPaddingBottomPx;
   const positiveValueOffsetPx = 26;
-  const negativeValueOffsetPx = 8;
-  const zeroLinePx = positiveShare * chartHeightPx;
-  const positiveAreaPx = zeroLinePx;
-  const negativeAreaPx = chartHeightPx - zeroLinePx;
+  const negativeValueOffsetPx = 4;
+  const plotZeroLinePx = positiveShare * plotHeightPx;
+  const positiveAreaPx = plotZeroLinePx;
+  const negativeAreaPx = plotHeightPx - plotZeroLinePx;
+  const zeroLinePx = plotPaddingTopPx + plotZeroLinePx;
   const chartRef = useRef<HTMLDivElement | null>(null);
   const [tooltip, setTooltip] = useState<{
     label: string;
@@ -270,11 +273,8 @@ export const CombinedChart = ({
         };
         const positiveRatio = positiveScale ? Math.min(1, stat.positiveTotal / positiveScale) : 0;
         const negativeRatio = negativeScale ? Math.min(1, stat.negativeTotal / negativeScale) : 0;
-        const positiveLabelTopPx = Math.max(0, zeroLinePx - positiveRatio * positiveAreaPx - positiveValueOffsetPx);
-        const negativeLabelTopPx = Math.min(
-          chartHeightPx - valueLabelHeightPx,
-          zeroLinePx + negativeRatio * negativeAreaPx + negativeValueOffsetPx
-        );
+        const positiveLabelTopPx = zeroLinePx - positiveRatio * positiveAreaPx - positiveValueOffsetPx;
+        const negativeLabelTopPx = zeroLinePx + negativeRatio * negativeAreaPx + negativeValueOffsetPx;
         const chartAnchor = createCommentAnchor(
           `${anchorScope ?? 'financial-chart'}.${month.key}`,
           `${month.label} ${month.year} totals`
@@ -282,7 +282,16 @@ export const CombinedChart = ({
         const periodLabel = periodLabelFormatter ? periodLabelFormatter(month) : `${month.label} ${month.year}`;
         return (
           <div key={month.key} className={styles.chartCell} {...chartAnchor}>
-            <div className={styles.chartBarGroup}>
+            <div
+              className={styles.chartBarGroup}
+              style={
+                {
+                  height: `${chartHeightPx}px`,
+                  '--plot-top': `${plotPaddingTopPx}px`,
+                  '--plot-bottom': `${plotPaddingBottomPx}px`
+                } as React.CSSProperties
+              }
+            >
               {stat.positiveTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValuePositive}`}
@@ -335,7 +344,7 @@ export const CombinedChart = ({
                   </div>
                 </div>
               </div>
-              <div className={styles.chartZeroLine} style={{ top: `${positiveShare * 100}%` }} />
+              <div className={styles.chartZeroLine} style={{ top: `${zeroLinePx}px` }} />
             </div>
             {showPeriodLabels && <div className={styles.chartPeriodLabel}>{periodLabel}</div>}
           </div>
@@ -812,9 +821,13 @@ export const PlanVsActualChart = ({
 
   const lineViewportWidth = Math.max(1, lineLayout.width || chartWidth - lineLayout.left);
   const fallbackColumnWidth = lineViewportWidth / Math.max(months.length, 1);
-  const zeroLinePx = positivePortion * chartHeightPx;
-  const positiveAreaPx = zeroLinePx;
-  const negativeAreaPx = chartHeightPx - zeroLinePx;
+  const plotPaddingTopPx = 30;
+  const plotPaddingBottomPx = 26;
+  const barGroupHeightPx = chartHeightPx + plotPaddingTopPx + plotPaddingBottomPx;
+  const plotZeroLinePx = positivePortion * chartHeightPx;
+  const positiveAreaPx = plotZeroLinePx;
+  const negativeAreaPx = chartHeightPx - plotZeroLinePx;
+  const labelZeroLinePx = plotPaddingTopPx + plotZeroLinePx;
   const chartRef = useRef<HTMLDivElement | null>(null);
   const [tooltip, setTooltip] = useState<{
     label: string;
@@ -825,9 +838,8 @@ export const PlanVsActualChart = ({
     signed?: boolean;
   } | null>(null);
   const renderValue = formatValue ?? formatCurrency;
-  const valueLabelHeightPx = 14;
   const positiveValueOffsetPx = 22;
-  const negativeValueOffsetPx = 8;
+  const negativeValueOffsetPx = 4;
   const emptyStack: ChartMonthStack = {
     key: 'empty',
     positiveSegments: [],
@@ -873,10 +885,10 @@ export const PlanVsActualChart = ({
           const scale = isPositive ? positiveScale : negativeScale;
           const area = isPositive ? positiveAreaPx : negativeAreaPx;
           const ratio = scale ? Math.min(1, Math.abs(net) / scale) : 0;
-          const y = isPositive ? zeroLinePx - ratio * area : zeroLinePx + ratio * area;
+          const y = isPositive ? plotZeroLinePx - ratio * area : plotZeroLinePx + ratio * area;
           return {
             x: (lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2) - lineLayout.left,
-            y: Number.isFinite(y) ? y : zeroLinePx,
+            y: Number.isFinite(y) ? y : plotZeroLinePx,
             value: net,
             label: `${months[index].label} ${months[index].year}`,
             tag: lineLabel
@@ -904,10 +916,10 @@ export const PlanVsActualChart = ({
     }
     const benefits = lineSeries.map((month, index) => {
       const ratio = positiveScale ? Math.min(1, month.positiveTotal / positiveScale) : 0;
-      const y = zeroLinePx - ratio * positiveAreaPx;
+      const y = plotZeroLinePx - ratio * positiveAreaPx;
       return {
         x: (lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2) - lineLayout.left,
-        y: Number.isFinite(y) ? y : zeroLinePx,
+        y: Number.isFinite(y) ? y : plotZeroLinePx,
         value: month.positiveTotal,
         label: `${months[index].label} ${months[index].year}`,
         tag: `${lineLabel} benefits`
@@ -915,10 +927,10 @@ export const PlanVsActualChart = ({
     });
     const costs = lineSeries.map((month, index) => {
       const ratio = negativeScale ? Math.min(1, month.negativeTotal / negativeScale) : 0;
-      const y = zeroLinePx + ratio * negativeAreaPx;
+      const y = plotZeroLinePx + ratio * negativeAreaPx;
       return {
         x: (lineLayout.xs[index] ?? index * fallbackColumnWidth + fallbackColumnWidth / 2) - lineLayout.left,
-        y: Number.isFinite(y) ? y : zeroLinePx,
+        y: Number.isFinite(y) ? y : plotZeroLinePx,
         value: -month.negativeTotal,
         label: `${months[index].label} ${months[index].year}`,
         tag: `${lineLabel} costs`
@@ -942,7 +954,7 @@ export const PlanVsActualChart = ({
   return (
     <div
       className={`${styles.chartRow} ${styles.comparisonChart} ${className ?? ''}`}
-      style={{ gridTemplateColumns, minHeight: chartHeightPx, ...style }}
+      style={{ gridTemplateColumns, minHeight: barGroupHeightPx, ...style }}
       ref={chartRef}
     >
       {hasLegend && (
@@ -988,16 +1000,10 @@ export const PlanVsActualChart = ({
         const actualLabelLeft = hasBothBars ? '72%' : '50%';
         const shouldShowPlanValue = showValueLabels && !shouldHidePlanBars && hasPlanData;
         const shouldShowActualValue = showValueLabels && !hideActualBars && hasActualData;
-        const planPositiveLabelTopPx = Math.max(0, zeroLinePx - positiveRatioPlan * positiveAreaPx - positiveValueOffsetPx);
-        const actualPositiveLabelTopPx = Math.max(0, zeroLinePx - positiveRatioActual * positiveAreaPx - positiveValueOffsetPx);
-        const planNegativeLabelTopPx = Math.min(
-          chartHeightPx - valueLabelHeightPx,
-          zeroLinePx + negativeRatioPlan * negativeAreaPx + negativeValueOffsetPx
-        );
-        const actualNegativeLabelTopPx = Math.min(
-          chartHeightPx - valueLabelHeightPx,
-          zeroLinePx + negativeRatioActual * negativeAreaPx + negativeValueOffsetPx
-        );
+        const planPositiveLabelTopPx = labelZeroLinePx - positiveRatioPlan * positiveAreaPx - positiveValueOffsetPx;
+        const actualPositiveLabelTopPx = labelZeroLinePx - positiveRatioActual * positiveAreaPx - positiveValueOffsetPx;
+        const planNegativeLabelTopPx = labelZeroLinePx + negativeRatioPlan * negativeAreaPx + negativeValueOffsetPx;
+        const actualNegativeLabelTopPx = labelZeroLinePx + negativeRatioActual * negativeAreaPx + negativeValueOffsetPx;
         const periodLabel = periodLabelFormatter ? periodLabelFormatter(month) : `${month.label} ${month.year}`;
         return (
           <div
@@ -1007,7 +1013,16 @@ export const PlanVsActualChart = ({
             data-month-index={index}
             {...chartAnchor}
           >
-            <div className={styles.chartBarGroup} style={{ height: chartHeightPx }}>
+            <div
+              className={styles.chartBarGroup}
+              style={
+                {
+                  height: `${barGroupHeightPx}px`,
+                  '--plot-top': `${plotPaddingTopPx}px`,
+                  '--plot-bottom': `${plotPaddingBottomPx}px`
+                } as React.CSSProperties
+              }
+            >
               <div className={styles.dualStackWrapper}>
                 <div className={styles.dualPositive} style={{ height: `${positivePortion * 100}%` }}>
                   <div className={styles.dualBarRow}>
@@ -1119,7 +1134,7 @@ export const PlanVsActualChart = ({
                   )}
                 </div>
               </div>
-              <div className={styles.chartZeroLine} style={{ top: `${positivePortion * 100}%` }} />
+              <div className={styles.chartZeroLine} style={{ top: `${labelZeroLinePx}px` }} />
               {shouldShowPlanValue && plan.positiveTotal > 0 && (
                 <span
                   className={`${styles.chartValue} ${styles.chartValuePositive}`}
@@ -1163,7 +1178,8 @@ export const PlanVsActualChart = ({
           style={{
             left: `${lineLayout.left}px`,
             width: `${lineViewportWidth}px`,
-            height: `${chartHeightPx}px`
+            height: `${chartHeightPx}px`,
+            top: `${12 + plotPaddingTopPx}px`
           }}
         >
           <svg
@@ -1210,7 +1226,8 @@ export const PlanVsActualChart = ({
             style={{
               left: `${lineLayout.left}px`,
               width: `${lineViewportWidth}px`,
-              height: `${chartHeightPx}px`
+              height: `${chartHeightPx}px`,
+              top: `${12 + plotPaddingTopPx}px`
             }}
           >
             <svg

@@ -1251,15 +1251,29 @@ export const RiskDashboardScreen = () => {
                                 <span className={styles.commentsMeta}>
                                   {openCount ? `${openCount} open` : riskComments.length ? 'All resolved' : 'No comments'}
                                 </span>
-                                {riskComments.length > 2 && (
-                                  <button
-                                    type="button"
-                                    className={styles.inlineLink}
-                                    onClick={() => toggleExpandedComments(row.key)}
-                                  >
-                                    {isExpanded ? 'Show less' : `Show all (${riskComments.length})`}
-                                  </button>
-                                )}
+                                <div className={styles.commentsHeaderRight}>
+                                  {riskComments.length > 2 && (
+                                    <button
+                                      type="button"
+                                      className={styles.inlineLink}
+                                      onClick={() => toggleExpandedComments(row.key)}
+                                    >
+                                      {isExpanded ? 'Show less' : `Show all (${riskComments.length})`}
+                                    </button>
+                                  )}
+                                  {session && (
+                                    <button
+                                      type="button"
+                                      className={styles.smallButton}
+                                      onClick={() => {
+                                        setComposerKey((prev) => (prev === row.key ? null : row.key));
+                                        setCommentDraft('');
+                                      }}
+                                    >
+                                      {showComposer ? 'Cancel' : 'Add'}
+                                    </button>
+                                  )}
+                                </div>
                               </div>
 
                               {commentStatus === 'loading' ? (
@@ -1271,17 +1285,22 @@ export const RiskDashboardScreen = () => {
                               ) : (
                                 <div className={styles.commentList}>
                                   {visibleComments.map((comment) => (
-                                    <div key={comment.id} className={styles.commentBubble}>
+                                    <div
+                                      key={comment.id}
+                                      className={`${styles.commentBubble} ${comment.resolvedAt ? styles.commentBubbleResolved : ''}`}
+                                    >
                                       <div className={styles.commentBody}>{comment.body}</div>
                                       <div className={styles.commentMetaRow}>
-                                        <span className={styles.commentMetaText}>
-                                          {(comment.authorName ?? 'Unknown') +
-                                            ' - ' +
-                                            new Date(comment.createdAt).toLocaleString('en-US', {
-                                              dateStyle: 'short',
-                                              timeStyle: 'short'
-                                            })}
-                                        </span>
+                                        {!comment.resolvedAt && (
+                                          <span className={styles.commentMetaText}>
+                                            {(comment.authorName ?? 'Unknown') +
+                                              ' - ' +
+                                              new Date(comment.createdAt).toLocaleString('en-US', {
+                                                dateStyle: 'short',
+                                                timeStyle: 'short'
+                                              })}
+                                          </span>
+                                        )}
                                         <button
                                           type="button"
                                           className={styles.inlineLink}
@@ -1294,21 +1313,6 @@ export const RiskDashboardScreen = () => {
                                       </div>
                                     </div>
                                   ))}
-                                </div>
-                              )}
-
-                              {session && (
-                                <div className={styles.commentActions}>
-                                  <button
-                                    type="button"
-                                    className={styles.smallButton}
-                                    onClick={() => {
-                                      setComposerKey((prev) => (prev === row.key ? null : row.key));
-                                      setCommentDraft('');
-                                    }}
-                                  >
-                                    {showComposer ? 'Cancel' : 'Add'}
-                                  </button>
                                 </div>
                               )}
 

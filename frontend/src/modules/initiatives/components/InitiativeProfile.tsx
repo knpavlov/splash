@@ -13,7 +13,8 @@ import {
   InitiativePlanActualsModel,
   InitiativePlanModel,
   InitiativePlanTask,
-  InitiativeRisk
+  InitiativeRisk,
+  InitiativeRiskComment
 } from '../../../shared/types/initiative';
 import { Workstream, WorkstreamGateKey, WorkstreamRoleAssignment } from '../../../shared/types/workstream';
 import { AccountRecord } from '../../../shared/types/account';
@@ -1289,6 +1290,13 @@ export const InitiativeProfile = ({
     key: 'score',
     direction: 'desc'
   });
+  const [riskReviewComments, setRiskReviewComments] = useState<InitiativeRiskComment[]>([]);
+  const [riskReviewCommentsLoading, setRiskReviewCommentsLoading] = useState(false);
+  const [riskReviewCommentsError, setRiskReviewCommentsError] = useState<string>('');
+  const [expandedRiskReviewComments, setExpandedRiskReviewComments] = useState<Set<string>>(new Set());
+  const [riskReviewComposerRiskId, setRiskReviewComposerRiskId] = useState<string | null>(null);
+  const [riskReviewCommentDraft, setRiskReviewCommentDraft] = useState('');
+  const [riskReviewCommentSaving, setRiskReviewCommentSaving] = useState(false);
 
   const handleRiskChange = (id: string, field: keyof InitiativeRisk, value: string | number) => {
     setDraft((prev) => {
@@ -1647,6 +1655,96 @@ export const InitiativeProfile = ({
   const changeLogCollapsed = collapsedSections['change-log'] ?? false;
   const risksCollapsed = collapsedSections['risks'] ?? false;
   const stageTitle = initiativeStageLabels[selectedStage].replace(/\s+Gate$/i, '');
+
+  const refreshRiskReviewComments = useCallback(() => {
+    if (!draft.id) {
+      return;
+    }
+    setRiskReviewCommentsLoading(true);
+    setRiskReviewCommentsError('');
+    void initiativesApi
+      .listRiskComments(draft.id)
+      .then((list) => setRiskReviewComments(list))
+      .catch((error) => {
+        console.error('Failed to load risk review comments', error);
+        setRiskReviewCommentsError('load_failed');
+      })
+      .finally(() => setRiskReviewCommentsLoading(false));
+  }, [draft.id]);
+
+  useEffect(() => {
+    if (risksCollapsed) {
+      return;
+    }
+    if (!draft.id) {
+      return;
+    }
+    refreshRiskReviewComments();
+  }, [draft.id, refreshRiskReviewComments, risksCollapsed]);
+
+  const toggleExpandedRiskReviewComments = (riskId: string) => {
+    setExpandedRiskReviewComments((prev) => {
+      const next = new Set(prev);
+      if (next.has(riskId)) {
+        next.delete(riskId);
+      } else {
+        next.add(riskId);
+      }
+      return next;
+    });
+  };
+
+  const toggleRiskReviewComposer = (riskId: string) => {
+    setRiskReviewComposerRiskId((prev) => (prev === riskId ? null : riskId));
+    setRiskReviewCommentDraft('');
+  };
+
+  const handlePostRiskReviewComment = async (riskId: string) => {
+    const body = riskReviewCommentDraft.trim();
+    if (!body || !draft.id || !session) {
+      return;
+    }
+    setRiskReviewCommentSaving(true);
+    try {
+      const actor = session ? { accountId: session.accountId, name: session.email } : undefined;
+      const created = await initiativesApi.createRiskComment(draft.id, { riskId, body }, actor);
+      setRiskReviewComments((prev) => [created, ...prev]);
+      setRiskReviewComposerRiskId(null);
+      setRiskReviewCommentDraft('');
+    } catch (error) {
+      console.error('Failed to post risk review comment', error);
+      setBanner({ type: 'error', text: 'Failed to post risk review comment.' });
+    } finally {
+      setRiskReviewCommentSaving(false);
+    }
+  };
+
+  const handleResolveRiskReviewComment = async (commentId: string, resolved: boolean) => {
+    if (!draft.id || !session) {
+      return;
+    }
+    try {
+      const actor = session ? { accountId: session.accountId, name: session.email } : undefined;
+      const updated = await initiativesApi.setRiskCommentResolution(draft.id, commentId, resolved, actor);
+      setRiskReviewComments((prev) => prev.map((comment) => (comment.id === updated.id ? updated : comment)));
+    } catch (error) {
+      console.error('Failed to update risk review comment status', error);
+      setBanner({ type: 'error', text: 'Failed to update comment status.' });
+    }
+  };
+
+  const riskReviewCommentsByRiskId = useMemo(() => {
+    const byRisk = new Map<string, InitiativeRiskComment[]>();
+    riskReviewComments.forEach((comment) => {
+      const list = byRisk.get(comment.riskId) ?? [];
+      list.push(comment);
+      byRisk.set(comment.riskId, list);
+    });
+    for (const list of byRisk.values()) {
+      list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    }
+    return byRisk;
+  }, [riskReviewComments]);
 
   return (
     <section className={`${styles.profileWrapper} ${isCommentMode ? styles.profileWithComments : ''}`}>
@@ -2244,8 +2342,9 @@ export const InitiativeProfile = ({
                     { key: 'severity' as const, label: 'Severity' },
                     { key: 'likelihood' as const, label: 'Likelihood' },
                     { key: 'score' as const, label: 'Score' },
-                    { key: 'mitigation' as const, label: 'Mitigation', sortable: false }
-                  ] as Array<{ key: RiskSortKey | 'mitigation'; label: string; sortable?: boolean }>
+                    { key: 'mitigation' as const, label: 'Mitigation', sortable: false },
+                    { key: 'review-comments' as const, label: 'Review comments', sortable: false }
+                  ] as Array<{ key: RiskSortKey | 'mitigation' | 'review-comments'; label: string; sortable?: boolean }>
                 ).map((column) => {
                   const sortable = column.sortable !== false && column.key !== 'mitigation';
                   return (
@@ -2350,6 +2449,118 @@ export const InitiativeProfile = ({
                       placeholder="Mitigation plan"
                       disabled={isReadOnlyMode}
                     />
+                    <div className={styles.riskCommentsCell}>
+                      {(() => {
+                        const comments = riskReviewCommentsByRiskId.get(risk.id) ?? [];
+                        const openCount = comments.filter((comment) => !comment.resolvedAt).length;
+                        const isExpanded = expandedRiskReviewComments.has(risk.id);
+                        const visible = isExpanded ? comments : comments.slice(0, 1);
+                        const status = riskReviewCommentsLoading
+                          ? 'loading'
+                          : riskReviewCommentsError
+                            ? 'error'
+                            : 'ready';
+                        const showComposer = riskReviewComposerRiskId === risk.id;
+                        return (
+                          <>
+                            <div className={styles.riskCommentsHeader}>
+                              <span className={styles.riskCommentsMeta}>
+                                {status === 'loading'
+                                  ? 'Loading...'
+                                  : status === 'error'
+                                    ? 'Failed to load.'
+                                    : openCount
+                                      ? `${openCount} open`
+                                      : comments.length
+                                        ? 'All resolved'
+                                        : 'No comments'}
+                              </span>
+                              <div className={styles.riskCommentsHeaderRight}>
+                                {comments.length > 1 && (
+                                  <button
+                                    type="button"
+                                    className={styles.riskInlineLink}
+                                    onClick={() => toggleExpandedRiskReviewComments(risk.id)}
+                                  >
+                                    {isExpanded ? 'Show less' : `Show all (${comments.length})`}
+                                  </button>
+                                )}
+                                {session && (
+                                  <button
+                                    type="button"
+                                    className={styles.riskSmallButton}
+                                    onClick={() => toggleRiskReviewComposer(risk.id)}
+                                    disabled={isReadOnlyMode}
+                                  >
+                                    {showComposer ? 'Cancel' : 'Add'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {status === 'ready' && visible.length > 0 && (
+                              <div className={styles.riskCommentList}>
+                                {visible.map((comment) => (
+                                  <div
+                                    key={comment.id}
+                                    className={`${styles.riskCommentBubble} ${
+                                      comment.resolvedAt ? styles.riskCommentBubbleResolved : ''
+                                    }`}
+                                  >
+                                    <div className={styles.riskCommentBody} title={comment.body}>
+                                      {comment.body}
+                                    </div>
+                                    <div className={styles.riskCommentMetaRow}>
+                                      {!comment.resolvedAt && (
+                                        <span className={styles.riskCommentMetaText}>
+                                          {(comment.authorName ?? 'Unknown') +
+                                            ' - ' +
+                                            new Date(comment.createdAt).toLocaleString('en-AU', {
+                                              dateStyle: 'medium',
+                                              timeStyle: 'short'
+                                            })}
+                                        </span>
+                                      )}
+                                      {session && (
+                                        <button
+                                          type="button"
+                                          className={styles.riskInlineLink}
+                                          onClick={() => handleResolveRiskReviewComment(comment.id, !comment.resolvedAt)}
+                                          disabled={isReadOnlyMode}
+                                        >
+                                          {comment.resolvedAt ? 'Reopen' : 'Resolve'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {session && showComposer && !isReadOnlyMode && (
+                              <div className={styles.riskCommentComposer}>
+                                <textarea
+                                  rows={2}
+                                  value={riskReviewCommentDraft}
+                                  onChange={(event) => setRiskReviewCommentDraft(event.target.value)}
+                                  placeholder="Leave a review comment..."
+                                />
+                                <div className={styles.riskCommentComposerRow}>
+                                  <button
+                                    type="button"
+                                    className={styles.primaryButton}
+                                    onClick={() => void handlePostRiskReviewComment(risk.id)}
+                                    disabled={!riskReviewCommentDraft.trim() || riskReviewCommentSaving}
+                                  >
+                                    Post
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                     <div className={styles.riskActions}>
                       <button
                         type="button"

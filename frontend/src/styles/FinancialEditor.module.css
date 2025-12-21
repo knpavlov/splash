@@ -198,11 +198,13 @@
   flex-direction: column;
   align-items: center;
   position: relative;
-  padding: 0 0 32px;
+  padding: 0 0 46px;
   box-sizing: border-box;
 }
 
 .chartBarGroup {
+  --plot-top: 0px;
+  --plot-bottom: 0px;
   width: 100%;
   height: 210px;
   position: relative;
@@ -211,7 +213,10 @@
 
 .stackWrapper {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: var(--plot-top);
+  bottom: var(--plot-bottom);
   display: flex;
   flex-direction: column;
 }
@@ -282,7 +287,7 @@
 }
 
 .chartPeriodLabel {
-  margin-top: 20px;
+  margin-top: 30px;
   font-size: 10px;
   color: #475569;
   writing-mode: vertical-rl;
@@ -424,7 +429,10 @@
 
 .dualStackWrapper {
   position: absolute;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: var(--plot-top);
+  bottom: var(--plot-bottom);
   display: flex;
   flex-direction: column;
 }

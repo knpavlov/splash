@@ -17,6 +17,8 @@ import {
   InitiativeCommentMessage,
   InitiativeCommentThread,
   InitiativeRiskComment,
+  InitiativeRiskAssessmentDetail,
+  InitiativeRiskAssessmentSummary,
   InitiativeStatusReport,
   InitiativeStatusReportEntry,
   InitiativeStatusReportSource,
@@ -697,6 +699,59 @@ const ensureRiskCommentList = (value: unknown): InitiativeRiskComment[] => {
   return value.map((entry) => normalizeRiskComment(entry)).filter((entry): entry is InitiativeRiskComment => Boolean(entry));
 };
 
+const normalizeRiskAssessmentSummary = (value: unknown): InitiativeRiskAssessmentSummary | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  const id = typeof payload.id === 'string' ? payload.id : null;
+  const initiativeId = typeof payload.initiativeId === 'string' ? payload.initiativeId : null;
+  const stageKey = typeof payload.stageKey === 'string' ? payload.stageKey.toLowerCase() : null;
+  const sequence = typeof payload.sequence === 'number' && Number.isFinite(payload.sequence) ? payload.sequence : null;
+  if (!id || !initiativeId || !stageKey || !initiativeStageKeys.includes(stageKey as InitiativeStageKey) || sequence === null) {
+    return null;
+  }
+  return {
+    id,
+    initiativeId,
+    sequence,
+    stageKey: stageKey as InitiativeStageKey,
+    kind: typeof payload.kind === 'string' ? payload.kind : 'unknown',
+    actorAccountId: typeof payload.actorAccountId === 'string' ? payload.actorAccountId : null,
+    actorName: typeof payload.actorName === 'string' ? payload.actorName : null,
+    createdAt: toIsoString(payload.createdAt) ?? new Date().toISOString()
+  };
+};
+
+const ensureRiskAssessmentSummaryList = (value: unknown): InitiativeRiskAssessmentSummary[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((entry) => normalizeRiskAssessmentSummary(entry))
+    .filter((entry): entry is InitiativeRiskAssessmentSummary => Boolean(entry));
+};
+
+const normalizeRiskAssessmentDetail = (value: unknown): InitiativeRiskAssessmentDetail | null => {
+  const summary = normalizeRiskAssessmentSummary(value);
+  if (!summary || !value || typeof value !== 'object') {
+    return null;
+  }
+  const payload = value as Record<string, unknown>;
+  return {
+    ...summary,
+    risks: normalizeRiskList(payload.risks)
+  };
+};
+
+const ensureRiskAssessmentDetail = (value: unknown): InitiativeRiskAssessmentDetail => {
+  const detail = normalizeRiskAssessmentDetail(value);
+  if (!detail) {
+    throw new Error('Failed to parse risk assessment payload.');
+  }
+  return detail;
+};
+
 export interface InitiativeCommentInput {
   targetId: string;
   targetLabel?: string | null;
@@ -1006,6 +1061,17 @@ export const initiativesApi = {
       await apiRequest<unknown>(`/initiatives/${id}/risk-comments/${commentId}/status`, {
         method: 'PATCH',
         body: withActor({ resolved }, actor)
+      })
+    ),
+  listRiskAssessments: async (id: string) =>
+    ensureRiskAssessmentSummaryList(await apiRequest<unknown>(`/initiatives/${id}/risk-assessments`)),
+  getRiskAssessment: async (id: string, assessmentId: string) =>
+    ensureRiskAssessmentDetail(await apiRequest<unknown>(`/initiatives/${id}/risk-assessments/${assessmentId}`)),
+  submitUpdatedRiskAssessment: async (id: string, risks?: InitiativeRisk[], actor?: InitiativeActorMetadata) =>
+    ensureRiskAssessmentDetail(
+      await apiRequest<unknown>(`/initiatives/${id}/risk-assessments`, {
+        method: 'POST',
+        body: withActor({ risks }, actor)
       })
     )
 };

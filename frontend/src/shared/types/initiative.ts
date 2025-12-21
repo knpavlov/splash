@@ -225,6 +225,21 @@ export interface InitiativeRiskComment {
   resolvedByName: string | null;
 }
 
+export interface InitiativeRiskAssessmentSummary {
+  id: string;
+  initiativeId: string;
+  sequence: number;
+  stageKey: InitiativeStageKey;
+  kind: string;
+  actorAccountId: string | null;
+  actorName: string | null;
+  createdAt: string;
+}
+
+export interface InitiativeRiskAssessmentDetail extends InitiativeRiskAssessmentSummary {
+  risks: InitiativeRisk[];
+}
+
 export interface InitiativeTotals {
   recurringBenefits: number;
   recurringCosts: number;

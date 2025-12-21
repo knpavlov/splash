@@ -63,6 +63,12 @@ const handleError = (error: unknown, res: Response) => {
     case 'FORBIDDEN':
       res.status(403).json({ code: 'forbidden', message: 'You cannot act on this approval.' });
       return;
+    case 'FORM_LOCKED':
+      res.status(409).json({
+        code: 'form-locked',
+        message: 'Risk assessment updates are locked until the first stage submission that requires risks.'
+      });
+      return;
     default:
       res.status(500).json({ code: 'unknown', message: 'Failed to process the request.' });
   }
@@ -326,6 +332,34 @@ router.patch('/:id/risk-comments/:commentId/status', async (req, res) => {
       normalizeActor(actor)
     );
     res.json(updated);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.get('/:id/risk-assessments', async (req, res) => {
+  try {
+    const list = await initiativesService.listRiskAssessments(req.params.id);
+    res.json(list);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.get('/:id/risk-assessments/:assessmentId', async (req, res) => {
+  try {
+    const detail = await initiativesService.getRiskAssessment(req.params.id, req.params.assessmentId);
+    res.json(detail);
+  } catch (error) {
+    handleError(error, res);
+  }
+});
+
+router.post('/:id/risk-assessments', async (req, res) => {
+  const { actor, risks } = req.body as { actor?: unknown; risks?: unknown };
+  try {
+    const created = await initiativesService.submitUpdatedRiskAssessment(req.params.id, { risks }, normalizeActor(actor));
+    res.status(201).json(created);
   } catch (error) {
     handleError(error, res);
   }

@@ -205,3 +205,24 @@
   background: rgba(255, 194, 71, 0.08);
 }
 
+.editInput,
+.editSelect,
+.editTextArea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.92);
+  padding: 8px 10px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.editSelect {
+  padding-right: 28px;
+}
+
+.editTextArea {
+  resize: vertical;
+  min-height: 54px;
+}

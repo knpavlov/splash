@@ -17,6 +17,7 @@ import {
   InitiativeWriteModel,
   InitiativeRisk,
   InitiativeRiskCommentRow,
+  InitiativeRiskAssessmentRow,
   InitiativeApprovalRow,
   InitiativeApprovalRecord,
   InitiativeEventRecord,
@@ -1226,6 +1227,61 @@ export class InitiativesRepository {
         resolved ? new Date() : null,
         resolved ? actorAccountId ?? null : null,
         resolved ? actorName ?? null : null
+      ]
+    );
+    return result.rows?.[0] ?? null;
+  }
+
+  async listRiskAssessments(initiativeId: string): Promise<InitiativeRiskAssessmentRow[]> {
+    const result = await postgresPool.query<InitiativeRiskAssessmentRow>(
+      `SELECT *
+         FROM initiative_risk_assessments
+        WHERE initiative_id = $1
+        ORDER BY sequence DESC, created_at DESC;`,
+      [initiativeId]
+    );
+    return result.rows ?? [];
+  }
+
+  async findRiskAssessment(initiativeId: string, assessmentId: string): Promise<InitiativeRiskAssessmentRow | null> {
+    const result = await postgresPool.query<InitiativeRiskAssessmentRow>(
+      `SELECT *
+         FROM initiative_risk_assessments
+        WHERE initiative_id = $1 AND id = $2
+        LIMIT 1;`,
+      [initiativeId, assessmentId]
+    );
+    return result.rows?.[0] ?? null;
+  }
+
+  async insertRiskAssessment(payload: {
+    id: string;
+    initiativeId: string;
+    stageKey: string;
+    kind: string;
+    risks: InitiativeRisk[];
+    actorAccountId?: string | null;
+    actorName?: string | null;
+  }): Promise<InitiativeRiskAssessmentRow | null> {
+    const result = await postgresPool.query<InitiativeRiskAssessmentRow>(
+      `WITH next_seq AS (
+         SELECT COALESCE(MAX(sequence), 0) + 1 AS seq
+           FROM initiative_risk_assessments
+          WHERE initiative_id = $2
+       )
+       INSERT INTO initiative_risk_assessments
+         (id, initiative_id, sequence, stage_key, kind, risks, actor_account_id, actor_name)
+       SELECT $1, $2, next_seq.seq, $3, $4, $5::jsonb, $6, $7
+         FROM next_seq
+       RETURNING *;`,
+      [
+        payload.id,
+        payload.initiativeId,
+        payload.stageKey,
+        payload.kind,
+        JSON.stringify(payload.risks ?? []),
+        payload.actorAccountId ?? null,
+        payload.actorName ?? null
       ]
     );
     return result.rows?.[0] ?? null;
