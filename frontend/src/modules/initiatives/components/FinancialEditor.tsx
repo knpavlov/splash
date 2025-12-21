@@ -903,7 +903,7 @@ export const PlanVsActualChart = ({
       negativeScale,
       positiveAreaPx,
       negativeAreaPx,
-      zeroLinePx,
+      plotZeroLinePx,
       lineLayout.xs,
       fallbackColumnWidth,
       lineLabel
@@ -945,7 +945,7 @@ export const PlanVsActualChart = ({
     negativeScale,
     positiveAreaPx,
     negativeAreaPx,
-    zeroLinePx,
+    plotZeroLinePx,
     lineLayout.xs,
     fallbackColumnWidth,
     lineLabel
