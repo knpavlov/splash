@@ -41,7 +41,6 @@ import { StageKpiEditor } from './StageKpiEditor';
 import { StageKpiActuals } from './StageKpiActuals';
 import { snapshotsApi } from '../../snapshots/services/snapshotsApi';
 import { StageSupportingDocs } from './StageSupportingDocs';
-import { RiskReviewPanel } from './RiskReviewPanel';
 import { initiativeFormSettingsApi } from '../services/initiativeFormSettingsApi';
 import {
   createDefaultInitiativeFormSettingsMatrix,
@@ -272,11 +271,19 @@ const formatRoi = (value: number | null) =>
         maximumFractionDigits: 1
       }).format(value);
 
-const clampRiskValue = (value: number) =>
-  Math.min(5, Math.max(1, Math.round(Number.isFinite(value) ? value : Number(value) || 1)));
+const clampRiskValue = (value: number) => {
+  const numeric = Number.isFinite(value) ? value : Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0;
+  }
+  return Math.min(5, Math.max(1, Math.round(numeric)));
+};
 
 const getRiskTone = (severity: number, likelihood: number) => {
   const score = clampRiskValue(severity) * clampRiskValue(likelihood);
+  if (score <= 0) {
+    return 'unset';
+  }
   if (score >= 16) {
     return 'high';
   }
@@ -1294,9 +1301,6 @@ export const InitiativeProfile = ({
   const [riskReviewCommentsLoading, setRiskReviewCommentsLoading] = useState(false);
   const [riskReviewCommentsError, setRiskReviewCommentsError] = useState<string>('');
   const [expandedRiskReviewComments, setExpandedRiskReviewComments] = useState<Set<string>>(new Set());
-  const [riskReviewComposerRiskId, setRiskReviewComposerRiskId] = useState<string | null>(null);
-  const [riskReviewCommentDraft, setRiskReviewCommentDraft] = useState('');
-  const [riskReviewCommentSaving, setRiskReviewCommentSaving] = useState(false);
 
   const handleRiskChange = (id: string, field: keyof InitiativeRisk, value: string | number) => {
     setDraft((prev) => {
@@ -1315,17 +1319,16 @@ export const InitiativeProfile = ({
   };
 
   const handleAddRisk = () => {
-    const defaultCategory = riskCategories[0] ?? 'Uncategorized';
     setDraft((prev) => ({
       ...prev,
       risks: [
         {
           id: generateId(),
           title: '',
-          category: defaultCategory,
+          category: '',
           description: '',
-          severity: 3,
-          likelihood: 3,
+          severity: 0,
+          likelihood: 0,
           mitigation: ''
         },
         ...(prev.risks ?? [])
@@ -1413,7 +1416,8 @@ export const InitiativeProfile = ({
     const normalizedPlan = sanitizePlanModel(mergePlanDependencies(draft.plan, draft.plan));
     const normalizedDraft: Initiative = {
       ...draft,
-      plan: normalizedPlan
+      plan: normalizedPlan,
+      risks: stripIncompleteRisks(draft.risks)
     };
     const result = await onSave(normalizedDraft, { closeAfterSave });
     setIsSaving(false);
@@ -1694,44 +1698,16 @@ export const InitiativeProfile = ({
     });
   };
 
-  const toggleRiskReviewComposer = (riskId: string) => {
-    setRiskReviewComposerRiskId((prev) => (prev === riskId ? null : riskId));
-    setRiskReviewCommentDraft('');
-  };
-
-  const handlePostRiskReviewComment = async (riskId: string) => {
-    const body = riskReviewCommentDraft.trim();
-    if (!body || !draft.id || !session) {
-      return;
-    }
-    setRiskReviewCommentSaving(true);
-    try {
-      const actor = session ? { accountId: session.accountId, name: session.email } : undefined;
-      const created = await initiativesApi.createRiskComment(draft.id, { riskId, body }, actor);
-      setRiskReviewComments((prev) => [created, ...prev]);
-      setRiskReviewComposerRiskId(null);
-      setRiskReviewCommentDraft('');
-    } catch (error) {
-      console.error('Failed to post risk review comment', error);
-      setBanner({ type: 'error', text: 'Failed to post risk review comment.' });
-    } finally {
-      setRiskReviewCommentSaving(false);
-    }
-  };
-
-  const handleResolveRiskReviewComment = async (commentId: string, resolved: boolean) => {
-    if (!draft.id || !session) {
-      return;
-    }
-    try {
-      const actor = session ? { accountId: session.accountId, name: session.email } : undefined;
-      const updated = await initiativesApi.setRiskCommentResolution(draft.id, commentId, resolved, actor);
-      setRiskReviewComments((prev) => prev.map((comment) => (comment.id === updated.id ? updated : comment)));
-    } catch (error) {
-      console.error('Failed to update risk review comment status', error);
-      setBanner({ type: 'error', text: 'Failed to update comment status.' });
-    }
-  };
+  const stripIncompleteRisks = useCallback((risks: InitiativeRisk[] | undefined | null) => {
+    const list = Array.isArray(risks) ? risks : [];
+    return list.filter((risk) => {
+      const titleOk = Boolean((risk.title ?? '').trim());
+      const categoryOk = Boolean((risk.category ?? '').trim());
+      const severityOk = clampRiskValue(risk.severity) > 0;
+      const likelihoodOk = clampRiskValue(risk.likelihood) > 0;
+      return titleOk && categoryOk && severityOk && likelihoodOk;
+    });
+  }, []);
 
   const riskReviewCommentsByRiskId = useMemo(() => {
     const byRisk = new Map<string, InitiativeRiskComment[]>();
@@ -2378,7 +2354,13 @@ export const InitiativeProfile = ({
                 const score = severity * likelihood;
                 const tone = getRiskTone(severity, likelihood);
                 const toneClass =
-                  tone === 'high' ? styles.riskToneHigh : tone === 'medium' ? styles.riskToneMedium : styles.riskToneLow;
+                  tone === 'unset'
+                    ? styles.riskToneUnset
+                    : tone === 'high'
+                      ? styles.riskToneHigh
+                      : tone === 'medium'
+                        ? styles.riskToneMedium
+                        : styles.riskToneLow;
                 return (
                   <div key={risk.id} className={`${styles.riskRow} ${toneClass}`}>
                     <input
@@ -2388,8 +2370,9 @@ export const InitiativeProfile = ({
                       onChange={(event) => handleRiskChange(risk.id, 'title', event.target.value)}
                       disabled={isReadOnlyMode}
                     />
-                    <input
-                      className={styles.riskDescriptionInput}
+                    <textarea
+                      className={styles.riskDescriptionArea}
+                      rows={2}
                       value={risk.description}
                       placeholder="Short description"
                       onChange={(event) => handleRiskChange(risk.id, 'description', event.target.value)}
@@ -2401,6 +2384,7 @@ export const InitiativeProfile = ({
                       onChange={(event) => handleRiskChange(risk.id, 'category', event.target.value)}
                       disabled={isReadOnlyMode}
                     >
+                      <option value="">{'\u2014'}</option>
                       {riskCategoryOptions.map((option) => (
                         <option key={option} value={option}>
                           {option}
@@ -2418,6 +2402,7 @@ export const InitiativeProfile = ({
                       disabled={isReadOnlyMode}
                       title="1 = Minimal impact, 5 = Critical impact"
                     >
+                      <option value={0}>{'\u2014'}</option>
                       {[1, 2, 3, 4, 5].map((option) => (
                         <option key={`sev-${option}`} value={option}>
                           {option} - {severityScaleLabels[option - 1]}
@@ -2431,15 +2416,17 @@ export const InitiativeProfile = ({
                       disabled={isReadOnlyMode}
                       title="1 = Rare, 5 = Almost certain"
                     >
+                      <option value={0}>{'\u2014'}</option>
                       {[1, 2, 3, 4, 5].map((option) => (
                         <option key={`like-${option}`} value={option}>
                           {option} - {likelihoodScaleLabels[option - 1]}
                         </option>
                       ))}
                     </select>
-                    <div className={styles.riskScoreBadge}>
-                      <strong>{score}</strong>
-                      <span>{tone === 'high' ? 'High' : tone === 'medium' ? 'Medium' : 'Low'}</span>
+                    <div className={`${styles.riskScoreBadge} ${score <= 0 ? styles.riskScoreBadgeUnset : ''}`}>
+                      <span className={styles.riskScoreText}>
+                        {score <= 0 ? '\u2014' : `${score} ${tone === 'high' ? 'High' : tone === 'medium' ? 'Medium' : 'Low'}`}
+                      </span>
                     </div>
                     <textarea
                       className={styles.riskTextArea}
@@ -2460,7 +2447,6 @@ export const InitiativeProfile = ({
                           : riskReviewCommentsError
                             ? 'error'
                             : 'ready';
-                        const showComposer = riskReviewComposerRiskId === risk.id;
                         return (
                           <>
                             <div className={styles.riskCommentsHeader}>
@@ -2485,16 +2471,6 @@ export const InitiativeProfile = ({
                                     {isExpanded ? 'Show less' : `Show all (${comments.length})`}
                                   </button>
                                 )}
-                                {session && (
-                                  <button
-                                    type="button"
-                                    className={styles.riskSmallButton}
-                                    onClick={() => toggleRiskReviewComposer(risk.id)}
-                                    disabled={isReadOnlyMode}
-                                  >
-                                    {showComposer ? 'Cancel' : 'Add'}
-                                  </button>
-                                )}
                               </div>
                             </div>
 
@@ -2510,8 +2486,8 @@ export const InitiativeProfile = ({
                                     <div className={styles.riskCommentBody} title={comment.body}>
                                       {comment.body}
                                     </div>
-                                    <div className={styles.riskCommentMetaRow}>
-                                      {!comment.resolvedAt && (
+                                    {!comment.resolvedAt && (
+                                      <div className={styles.riskCommentMetaRow}>
                                         <span className={styles.riskCommentMetaText}>
                                           {(comment.authorName ?? 'Unknown') +
                                             ' - ' +
@@ -2520,41 +2496,10 @@ export const InitiativeProfile = ({
                                               timeStyle: 'short'
                                             })}
                                         </span>
-                                      )}
-                                      {session && (
-                                        <button
-                                          type="button"
-                                          className={styles.riskInlineLink}
-                                          onClick={() => handleResolveRiskReviewComment(comment.id, !comment.resolvedAt)}
-                                          disabled={isReadOnlyMode}
-                                        >
-                                          {comment.resolvedAt ? 'Reopen' : 'Resolve'}
-                                        </button>
-                                      )}
-                                    </div>
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
-                              </div>
-                            )}
-
-                            {session && showComposer && !isReadOnlyMode && (
-                              <div className={styles.riskCommentComposer}>
-                                <textarea
-                                  rows={2}
-                                  value={riskReviewCommentDraft}
-                                  onChange={(event) => setRiskReviewCommentDraft(event.target.value)}
-                                  placeholder="Leave a review comment..."
-                                />
-                                <div className={styles.riskCommentComposerRow}>
-                                  <button
-                                    type="button"
-                                    className={styles.primaryButton}
-                                    onClick={() => void handlePostRiskReviewComment(risk.id)}
-                                    disabled={!riskReviewCommentDraft.trim() || riskReviewCommentSaving}
-                                  >
-                                    Post
-                                  </button>
-                                </div>
                               </div>
                             )}
                           </>
@@ -2578,14 +2523,7 @@ export const InitiativeProfile = ({
             </div>
           ))}
 
-        {!risksCollapsed && (
-          <RiskReviewPanel
-            initiativeId={draft.id}
-            risks={draft.risks ?? []}
-            readOnly={isReadOnlyMode}
-            actor={session ? { accountId: session.accountId, name: session.email } : undefined}
-          />
-        )}
+
       </section>
       )}
 

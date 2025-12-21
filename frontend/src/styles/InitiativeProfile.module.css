@@ -884,27 +884,27 @@
 .riskTable {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .riskHeaderRow,
 .riskRow {
   display: grid;
-  grid-template-columns: 1.1fr 1.1fr 0.9fr 0.8fr 0.8fr 0.6fr 1.1fr 1.1fr 70px;
-  gap: 8px;
+  grid-template-columns: 1fr 1.1fr 0.85fr 0.72fr 0.72fr 0.75fr 1.6fr 1.6fr 60px;
+  gap: 6px;
   align-items: center;
 }
 
 .riskHeaderRow {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: #475569;
   border-bottom: 1px solid rgba(148, 163, 184, 0.35);
-  padding-bottom: 6px;
+  padding-bottom: 4px;
 }
 
 .riskHeaderPlaceholder {
-  width: 70px;
+  width: 60px;
 }
 
 .riskSortButton {
@@ -932,9 +932,13 @@
 .riskRow {
   background: #f8fafc;
   border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 14px;
-  padding: 10px;
+  border-radius: 12px;
+  padding: 8px;
   align-items: flex-start;
+}
+
+.riskToneUnset {
+  border-left: 4px solid rgba(148, 163, 184, 0.85);
 }
 
 .riskToneLow {
@@ -950,23 +954,26 @@
 }
 
 .riskTitleInput,
-.riskDescriptionInput,
+.riskDescriptionArea,
 .riskSelect,
 .riskTextArea {
   width: 100%;
   border: 1px solid rgba(148, 163, 184, 0.5);
   border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 14px;
+  padding: 6px 8px;
+  font-size: 13px;
   background: #fff;
+  box-sizing: border-box;
 }
 
 .riskTitleInput {
   font-weight: 700;
 }
 
-.riskDescriptionInput {
+.riskDescriptionArea {
   color: #0f172a;
+  resize: vertical;
+  min-height: 46px;
 }
 
 .riskSelect {
@@ -974,7 +981,7 @@
 }
 
 .riskTextArea {
-  min-height: 56px;
+  min-height: 54px;
   resize: vertical;
 }
 
@@ -1111,21 +1118,24 @@
   background: #0f172a;
   color: #fff;
   border-radius: 10px;
-  padding: 6px 8px;
+  padding: 6px 10px;
   display: inline-flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 2px;
-  min-width: 64px;
+  justify-content: center;
+  gap: 6px;
+  min-width: 76px;
+  white-space: nowrap;
 }
 
-.riskScoreBadge strong {
-  font-size: 16px;
+.riskScoreBadgeUnset {
+  background: rgba(148, 163, 184, 0.22);
+  color: #475569;
 }
 
-.riskScoreBadge span {
-  font-size: 12px;
-  color: #cbd5f5;
+.riskScoreText {
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .riskActions {
