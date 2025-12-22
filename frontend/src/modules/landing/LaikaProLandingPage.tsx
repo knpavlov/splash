@@ -230,7 +230,7 @@ export const LaikaProLandingPage = () => {
     const lightCtx = lightCanvas.getContext('2d');
     if (!lightCtx) return;
 
-    let animationId: number;
+    let animationId = 0;
     const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false;
     const pointer = pointerRef.current;
 
@@ -250,6 +250,10 @@ export const LaikaProLandingPage = () => {
     let canvasRect = canvas.getBoundingClientRect();
     let baseGradient: CanvasGradient | null = null;
     let maxDist = 1;
+    let rayCount = 0;
+    let rayCos: number[] = [];
+    let raySin: number[] = [];
+    let rayPoints: Point[] = [];
 
     const addPolySegments = (poly: Point[], kind: Segment['kind']) => {
       for (let i = 0; i < poly.length; i += 1) {
@@ -298,6 +302,21 @@ export const LaikaProLandingPage = () => {
       occluders.forEach((o) => addPolySegments(o.points, 'occluder'));
     };
 
+    const updateRayCache = () => {
+      const target = width < 720 ? 420 : 560;
+      rayCount = Math.max(240, Math.round(target));
+      const step = (Math.PI * 2) / rayCount;
+      rayCos = new Array(rayCount);
+      raySin = new Array(rayCount);
+      rayPoints = new Array(rayCount);
+      for (let i = 0; i < rayCount; i += 1) {
+        const angle = i * step;
+        rayCos[i] = Math.cos(angle);
+        raySin[i] = Math.sin(angle);
+        rayPoints[i] = { x: 0, y: 0 };
+      }
+    };
+
     const resize = () => {
       canvasRect = canvas.getBoundingClientRect();
       width = Math.max(1, Math.floor(canvasRect.width));
@@ -322,17 +341,15 @@ export const LaikaProLandingPage = () => {
       ctx.globalAlpha = 1;
       maxDist = Math.sqrt(width * width + height * height);
       buildOccluders();
+      updateRayCache();
       refreshTitleMetrics();
 
       if (!pointer.x && !pointer.y) {
         let initX = width * 0.27;
         let initY = height * 0.34;
-        if (titleEl) {
-          const tRect = titleEl.getBoundingClientRect();
-          const cx = tRect.left - canvasRect.left + tRect.width / 2;
-          const cy = tRect.top - canvasRect.top + tRect.height / 2;
-          initX = Math.max(0, Math.min(width, cx - width * 0.18));
-          initY = Math.max(0, Math.min(height, cy - height * 0.22));
+        if (titleCenter) {
+          initX = Math.max(0, Math.min(width, titleCenter.x - width * 0.18));
+          initY = Math.max(0, Math.min(height, titleCenter.y - height * 0.22));
         }
 
         pointer.x = initX;
@@ -349,6 +366,10 @@ export const LaikaProLandingPage = () => {
     let titleFont = '800 72px Inter, system-ui, -apple-system, sans-serif';
     let titleLetterSpacingPx = 0;
     let titleLineHeightPx = 72;
+    let titleRect: { x: number; y: number; w: number; h: number } | null = null;
+    let titleCenter: Point | null = null;
+    type TitleLineLayout = { text: string; chars: string[]; offsets: number[] };
+    let titleLayouts: TitleLineLayout[] = [];
 
     const parseCssPx = (raw: string, base = 16) => {
       const v = raw.trim();
@@ -371,35 +392,44 @@ export const LaikaProLandingPage = () => {
       titleLineHeightPx = lhRaw === 'normal' ? fontSize * 1.05 : parseCssPx(lhRaw, fontSize) || fontSize * 1.05;
       const text = (titleEl.innerText || '').trim();
       titleLines = text ? text.split('\n').map((s) => s.trim()).filter(Boolean) : [];
+      titleLayouts = [];
+      if (titleLines.length) {
+        ctx.save();
+        ctx.font = titleFont;
+        titleLayouts = titleLines.map((line) => {
+          const chars = Array.from(line);
+          const widths = chars.map((ch) => ctx.measureText(ch).width);
+          const total = widths.reduce((sum, w) => sum + w, 0) + titleLetterSpacingPx * (chars.length - 1);
+          let cursorX = -total / 2;
+          const offsets = widths.map((w) => {
+            const offset = cursorX + w / 2;
+            cursorX += w + titleLetterSpacingPx;
+            return offset;
+          });
+          return { text: line, chars, offsets };
+        });
+        ctx.restore();
+      }
+      canvasRect = canvas.getBoundingClientRect();
+      const rect = titleEl.getBoundingClientRect();
+      titleRect = { x: rect.left - canvasRect.left, y: rect.top - canvasRect.top, w: rect.width, h: rect.height };
+      titleCenter = { x: titleRect.x + titleRect.w / 2, y: titleRect.y + titleRect.h / 2 };
     };
 
-    const getTitleCenterInCanvas = (): Point | null => {
-      if (!titleEl) return null;
-      const tRect = titleEl.getBoundingClientRect();
-      const cRect = canvas.getBoundingClientRect();
-      return { x: tRect.left - cRect.left + tRect.width / 2, y: tRect.top - cRect.top + tRect.height / 2 };
-    };
+    const getTitleCenterInCanvas = (): Point | null => titleCenter;
 
-    const fillTextWithLetterSpacing = (
+    const drawTitleLine = (
       drawCtx: CanvasRenderingContext2D,
-      text: string,
+      layout: TitleLineLayout,
       x: number,
-      y: number,
-      spacingPx: number
+      y: number
     ) => {
-      if (!spacingPx) {
-        drawCtx.fillText(text, x, y);
+      if (!titleLetterSpacingPx) {
+        drawCtx.fillText(layout.text, x, y);
         return;
       }
-
-      const chars = Array.from(text);
-      const widths = chars.map((ch) => drawCtx.measureText(ch).width);
-      const total = widths.reduce((sum, w) => sum + w, 0) + spacingPx * (chars.length - 1);
-
-      let cursorX = x - total / 2;
-      for (let i = 0; i < chars.length; i += 1) {
-        drawCtx.fillText(chars[i], cursorX + widths[i] / 2, y);
-        cursorX += widths[i] + spacingPx;
+      for (let i = 0; i < layout.chars.length; i += 1) {
+        drawCtx.fillText(layout.chars[i], x + layout.offsets[i], y);
       }
     };
 
@@ -411,33 +441,31 @@ export const LaikaProLandingPage = () => {
       opts: { mode: TitleShadowMode; strength: number; bloom: boolean }
     ) => {
       if (!titleEl) return;
-      if (!titleLines.length) refreshTitleMetrics();
-      if (!titleLines.length) return;
+      if (!titleLayouts.length || !titleRect) refreshTitleMetrics();
+      if (!titleLayouts.length || !titleRect) return;
 
-      const rect = titleEl.getBoundingClientRect();
-      const cRect = canvas.getBoundingClientRect();
-      const x = rect.left - cRect.left;
-      const y = rect.top - cRect.top;
-      const w = rect.width;
-      const h = rect.height;
-
+      const { x, y, w, h } = titleRect;
       const cx = x + w / 2;
-      const cy = y + h / 2;
-      const dx = cx - origin.x;
-      const dy = cy - origin.y;
-      const dist = Math.max(1, Math.hypot(dx, dy));
-      const dirX = dx / dist;
-      const dirY = dy / dist;
 
       const minDim = Math.min(width, height);
       const lenBase = opts.mode === 'destination-out' ? minDim * 0.82 : minDim * 0.44;
-      const len = Math.max(minDim * 0.12, Math.min(lenBase, dist * (opts.mode === 'destination-out' ? 0.95 : 0.58)));
       const steps = width < 720 ? (opts.mode === 'destination-out' ? 22 : 18) : opts.mode === 'destination-out' ? 34 : 26;
       const strength = Math.max(0, Math.min(1.35, opts.strength));
 
       const lineHeight = Math.max(1, titleLineHeightPx);
-      const textBlockH = (titleLines.length - 1) * lineHeight;
+      const textBlockH = (titleLayouts.length - 1) * lineHeight;
       const startY = y + h / 2 - textBlockH / 2;
+
+      const lineData = titleLayouts.map((layout, index) => {
+        const lineY = startY + index * lineHeight;
+        const dx = cx - origin.x;
+        const dy = lineY - origin.y;
+        const dist = Math.max(1, Math.hypot(dx, dy));
+        const dirX = dx / dist;
+        const dirY = dy / dist;
+        const len = Math.max(minDim * 0.12, Math.min(lenBase, dist * (opts.mode === 'destination-out' ? 0.95 : 0.58)));
+        return { layout, lineY, dirX, dirY, len };
+      });
 
       drawCtx.save();
       drawCtx.font = titleFont;
@@ -451,12 +479,11 @@ export const LaikaProLandingPage = () => {
         drawCtx.filter = 'blur(14px)';
         drawCtx.globalAlpha = 0.085 * strength;
         drawCtx.fillStyle = 'rgba(255,255,255,1)';
-        const hx = -dirX * Math.min(22, len * 0.12);
-        const hy = -dirY * Math.min(22, len * 0.12);
-        for (let i = 0; i < titleLines.length; i += 1) {
-          const ly = startY + i * lineHeight;
-          fillTextWithLetterSpacing(drawCtx, titleLines[i], cx + hx, ly + hy, titleLetterSpacingPx);
-        }
+        lineData.forEach((line) => {
+          const hx = -line.dirX * Math.min(22, line.len * 0.12);
+          const hy = -line.dirY * Math.min(22, line.len * 0.12);
+          drawTitleLine(drawCtx, line.layout, cx + hx, line.lineY + hy);
+        });
         drawCtx.restore();
       }
 
@@ -467,12 +494,11 @@ export const LaikaProLandingPage = () => {
       drawCtx.filter = opts.mode === 'destination-out' ? 'blur(22px)' : 'blur(18px)';
       drawCtx.globalAlpha = (opts.mode === 'destination-out' ? 0.68 : 0.14) * strength;
       drawCtx.fillStyle = 'rgba(0,0,0,1)';
-      const px = dirX * (len * 0.56);
-      const py = dirY * (len * 0.56);
-      for (let i = 0; i < titleLines.length; i += 1) {
-        const ly = startY + i * lineHeight;
-        fillTextWithLetterSpacing(drawCtx, titleLines[i], cx + px, ly + py, titleLetterSpacingPx);
-      }
+      lineData.forEach((line) => {
+        const px = line.dirX * (line.len * 0.56);
+        const py = line.dirY * (line.len * 0.56);
+        drawTitleLine(drawCtx, line.layout, cx + px, line.lineY + py);
+      });
       drawCtx.restore();
 
       // Crisp extrusion (stronger for light cutout so the shadow reads instantly)
@@ -482,12 +508,11 @@ export const LaikaProLandingPage = () => {
         const t = s / steps;
         const falloff = (1 - t) * (1 - t);
         drawCtx.globalAlpha = (opts.mode === 'destination-out' ? 0.22 : 0.18) * falloff * strength;
-        const ox = dirX * (len * t);
-        const oy = dirY * (len * t);
-        for (let i = 0; i < titleLines.length; i += 1) {
-          const ly = startY + i * lineHeight;
-          fillTextWithLetterSpacing(drawCtx, titleLines[i], cx + ox, ly + oy, titleLetterSpacingPx);
-        }
+        lineData.forEach((line) => {
+          const ox = line.dirX * (line.len * t);
+          const oy = line.dirY * (line.len * t);
+          drawTitleLine(drawCtx, line.layout, cx + ox, line.lineY + oy);
+        });
       }
 
       drawCtx.restore();
@@ -524,11 +549,11 @@ export const LaikaProLandingPage = () => {
     window.addEventListener('pointerup', handlePointerUp, { passive: true });
     window.addEventListener('pointercancel', handlePointerUp, { passive: true });
 
-    const intersectRaySegment = (origin: Point, dir: Point, seg: Segment) => {
+    const intersectRaySegment = (origin: Point, dirX: number, dirY: number, seg: Segment) => {
       const r_px = origin.x;
       const r_py = origin.y;
-      const r_dx = dir.x;
-      const r_dy = dir.y;
+      const r_dx = dirX;
+      const r_dy = dirY;
 
       const s_px = seg.a.x;
       const s_py = seg.a.y;
@@ -545,13 +570,12 @@ export const LaikaProLandingPage = () => {
       return { t, x: r_px + t * r_dx, y: r_py + t * r_dy };
     };
 
-    const castRay = (origin: Point, angle: number) => {
-      const dir = { x: Math.cos(angle), y: Math.sin(angle) };
+    const castRay = (origin: Point, dirX: number, dirY: number) => {
       let bestT = Infinity;
-      let hit: Point = { x: origin.x + dir.x * maxDist, y: origin.y + dir.y * maxDist };
+      let hit: Point = { x: origin.x + dirX * maxDist, y: origin.y + dirY * maxDist };
 
       for (let i = 0; i < segments.length; i += 1) {
-        const res = intersectRaySegment(origin, dir, segments[i]);
+        const res = intersectRaySegment(origin, dirX, dirY, segments[i]);
         if (!res) continue;
         if (res.t < bestT) {
           bestT = res.t;
@@ -559,7 +583,7 @@ export const LaikaProLandingPage = () => {
         }
       }
 
-      return { hit, dist: bestT };
+      return hit;
     };
 
     const drawStatic = () => {
@@ -570,13 +594,17 @@ export const LaikaProLandingPage = () => {
       const origin = { x: width * 0.27, y: height * 0.34 };
 
       const drawBeams = (hue: number, angleOffset: number, alpha: number) => {
-        const rayCount = 560;
-        const step = (Math.PI * 2) / rayCount;
+        const localRayCount = rayCount || 560;
+        const step = (Math.PI * 2) / localRayCount;
         const points: Point[] = [];
+        const cosOffset = Math.cos(angleOffset);
+        const sinOffset = Math.sin(angleOffset);
 
-        for (let i = 0; i < rayCount; i += 1) {
-          const a = i * step + angleOffset;
-          points.push(castRay(origin, a).hit);
+        for (let i = 0; i < localRayCount; i += 1) {
+          const a = i * step;
+          const dirX = Math.cos(a) * cosOffset - Math.sin(a) * sinOffset;
+          const dirY = Math.sin(a) * cosOffset + Math.cos(a) * sinOffset;
+          points.push(castRay(origin, dirX, dirY));
         }
 
         const grad = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, maxDist * 0.9);
@@ -616,7 +644,6 @@ export const LaikaProLandingPage = () => {
     };
 
     resize();
-    refreshTitleMetrics();
 
     if (prefersReducedMotion) {
       drawStatic();
@@ -637,11 +664,20 @@ export const LaikaProLandingPage = () => {
     const ro = 'ResizeObserver' in window ? new ResizeObserver(() => resize()) : null;
     ro?.observe(canvas);
     window.addEventListener('resize', resize);
-    window.addEventListener('resize', refreshTitleMetrics);
+    const titleRo = 'ResizeObserver' in window && titleEl ? new ResizeObserver(() => refreshTitleMetrics()) : null;
+    titleRo?.observe(titleEl);
+    if (document.fonts?.ready) {
+      void document.fonts.ready.then(() => refreshTitleMetrics());
+    }
 
     let lastFrame = performance.now();
+    let isAnimating = false;
+    let isHeroVisible = true;
 
     const animate = (now: number) => {
+      if (!isAnimating) {
+        return;
+      }
       const dt = now - lastFrame;
       if (dt < 1000 / 48) {
         animationId = requestAnimationFrame(animate);
@@ -683,25 +719,28 @@ export const LaikaProLandingPage = () => {
 
       const intensity = (pointer.down ? 0.26 : 0.18) + pulseBoost * 0.06;
       const sparkle = Math.min(1, 0.45 + pulseBoost * 0.35);
-      const rayCount = width < 720 ? 520 : 720;
-      const step = (Math.PI * 2) / rayCount;
-
       const drawChannel = (hue: number, angleOffset: number, alpha: number, lineEvery: number) => {
+        if (rayCount < 3) {
+          return;
+        }
         const grad = lightCtx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, maxDist * 0.95);
         grad.addColorStop(0, `hsla(${hue}, 100%, 74%, ${alpha})`);
         grad.addColorStop(0.22, `hsla(${hue + 30}, 100%, 66%, ${alpha * 0.55})`);
         grad.addColorStop(1, 'transparent');
-
-        const points: Point[] = [];
+        const cosOffset = Math.cos(angleOffset);
+        const sinOffset = Math.sin(angleOffset);
         for (let i = 0; i < rayCount; i += 1) {
-          const a = i * step + angleOffset;
-          points.push(castRay(origin, a).hit);
+          const dirX = rayCos[i] * cosOffset - raySin[i] * sinOffset;
+          const dirY = raySin[i] * cosOffset + rayCos[i] * sinOffset;
+          const hit = castRay(origin, dirX, dirY);
+          rayPoints[i].x = hit.x;
+          rayPoints[i].y = hit.y;
         }
 
         lightCtx.fillStyle = grad;
-        for (let i = 0; i < points.length; i += 1) {
-          const p1 = points[i];
-          const p2 = points[(i + 1) % points.length];
+        for (let i = 0; i < rayCount; i += 1) {
+          const p1 = rayPoints[i];
+          const p2 = rayPoints[(i + 1) % rayCount];
           lightCtx.beginPath();
           lightCtx.moveTo(origin.x, origin.y);
           lightCtx.lineTo(p1.x, p1.y);
@@ -713,8 +752,8 @@ export const LaikaProLandingPage = () => {
         lightCtx.lineCap = 'round';
         lightCtx.strokeStyle = `hsla(${hue}, 100%, 72%, ${Math.min(0.085, alpha * 0.55)})`;
         lightCtx.lineWidth = 1;
-        for (let i = 0; i < points.length; i += lineEvery) {
-          const pt = points[i];
+        for (let i = 0; i < rayCount; i += lineEvery) {
+          const pt = rayPoints[i];
           lightCtx.beginPath();
           lightCtx.moveTo(origin.x, origin.y);
           lightCtx.lineTo(pt.x, pt.y);
@@ -722,8 +761,8 @@ export const LaikaProLandingPage = () => {
         }
 
         lightCtx.fillStyle = `hsla(${hue + 25}, 100%, 70%, ${0.06 * sparkle})`;
-        for (let i = 0; i < points.length; i += 18) {
-          const pt = points[i];
+        for (let i = 0; i < rayCount; i += 18) {
+          const pt = rayPoints[i];
           lightCtx.beginPath();
           lightCtx.arc(pt.x, pt.y, 1.2, 0, Math.PI * 2);
           lightCtx.fill();
@@ -804,13 +843,57 @@ export const LaikaProLandingPage = () => {
       animationId = requestAnimationFrame(animate);
     };
 
-    animationId = requestAnimationFrame(animate);
+    const startAnimation = () => {
+      if (isAnimating) return;
+      isAnimating = true;
+      lastFrame = performance.now();
+      animationId = requestAnimationFrame(animate);
+    };
+
+    const stopAnimation = () => {
+      if (!isAnimating) return;
+      isAnimating = false;
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = 0;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopAnimation();
+        return;
+      }
+      if (isHeroVisible) {
+        startAnimation();
+      }
+    };
+
+    const heroObserver =
+      'IntersectionObserver' in window
+        ? new IntersectionObserver(
+            ([entry]) => {
+              isHeroVisible = Boolean(entry?.isIntersecting);
+              if (!isHeroVisible || document.hidden) {
+                stopAnimation();
+              } else {
+                startAnimation();
+              }
+            },
+            { rootMargin: '200px 0px', threshold: 0.15 }
+          )
+        : null;
+    heroObserver?.observe(host);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    startAnimation();
 
     return () => {
-      cancelAnimationFrame(animationId);
+      stopAnimation();
+      heroObserver?.disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       ro?.disconnect();
+      titleRo?.disconnect();
       window.removeEventListener('resize', resize);
-      window.removeEventListener('resize', refreshTitleMetrics);
       host.removeEventListener('pointermove', handlePointerMove);
       host.removeEventListener('pointerenter', handlePointerEnter);
       host.removeEventListener('pointerleave', handlePointerLeave);

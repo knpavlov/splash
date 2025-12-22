@@ -266,7 +266,7 @@
 .heroTitle {
   font-size: clamp(3rem, 8vw, 6rem);
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.05;
   letter-spacing: -0.04em;
   margin-bottom: 1.5rem;
   opacity: 0;
@@ -280,6 +280,7 @@
   -webkit-text-fill-color: transparent;
   display: inline-block;
   will-change: transform;
+  padding-bottom: 0.08em;
 }
 
 .heroSubtitle {
