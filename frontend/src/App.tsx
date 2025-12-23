@@ -14,6 +14,7 @@ import { CapacityHeatmapScreen } from './modules/dashboards/CapacityHeatmapScree
 import { FinancialTreeScreen } from './modules/dashboards/FinancialTreeScreen';
 import { StageGateDashboardScreen } from './modules/dashboards/StageGateDashboardScreen';
 import { DeadlineDashboardScreen } from './modules/dashboards/DeadlineDashboardScreen';
+import { TaskStatusHistoryScreen } from './modules/dashboards/TaskStatusHistoryScreen';
 import { PortfolioPlanScreen } from './modules/dashboards/PortfolioPlanScreen';
 import { FinancialDynamicsScreen } from './modules/dashboards/FinancialDynamicsScreen';
 import { RiskDashboardScreen } from './modules/dashboards/RiskDashboardScreen';
@@ -330,6 +331,8 @@ const AppContent = () => {
         return <PortfolioPlanScreen />;
       case 'deadline-dashboard':
         return <DeadlineDashboardScreen />;
+      case 'task-status-history':
+        return <TaskStatusHistoryScreen />;
       case 'financial-dynamics':
         return <FinancialDynamicsScreen />;
       case 'risk-dashboard':

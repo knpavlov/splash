@@ -18,6 +18,7 @@ import {
   Settings,
   Camera,
   FileText,
+  History,
   LucideIcon
 } from 'lucide-react';
 
@@ -31,6 +32,7 @@ export type NavigationKey =
   | 'stage-gate-dashboard'
   | 'capacity-heatmap'
   | 'deadline-dashboard'
+  | 'task-status-history'
   | 'financial-tree'
   | 'portfolio-plan'
   | 'financial-dynamics'
@@ -96,6 +98,7 @@ export const navigationItems: NavigationItem[] = [
     icon: Map
   },
   { key: 'deadline-dashboard', label: 'Deadline radar', shortLabel: 'Dates', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Clock },
+  { key: 'task-status-history', label: 'Task history', shortLabel: 'History', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: History },
   { key: 'capacity-heatmap', label: 'Capacity heatmap', shortLabel: 'Load', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Grid },
   { key: 'financial-tree', label: 'P&L tree', shortLabel: 'Tree', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: Network },
   { key: 'risk-dashboard', label: 'Risk matrix', shortLabel: 'Risks', roleAccess: ['super-admin', 'admin'], group: 'dashboards', icon: ShieldAlert },
