@@ -665,7 +665,9 @@ export const LaikaProLandingPage = () => {
     ro?.observe(canvas);
     window.addEventListener('resize', resize);
     const titleRo = 'ResizeObserver' in window && titleEl ? new ResizeObserver(() => refreshTitleMetrics()) : null;
-    titleRo?.observe(titleEl);
+    if (titleEl && titleRo) {
+      titleRo.observe(titleEl);
+    }
     if (document.fonts?.ready) {
       void document.fonts.ready.then(() => refreshTitleMetrics());
     }
