@@ -151,21 +151,37 @@
   flex-direction: column;
 }
 
-.taskItem {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 20px;
+.taskRow {
+  display: grid;
+  grid-template-columns: 320px 1fr;
   border-bottom: 1px solid #f1f5f9;
-  transition: background 0.15s ease;
 }
 
-.taskItem:last-child {
+.taskRow:last-child {
   border-bottom: none;
 }
 
-.taskItem:hover {
-  background: #fafbfc;
+.taskInfoColumn {
+  padding: 16px;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+}
+
+.taskTimelineColumn {
+  padding: 8px 0;
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+}
+
+.emptyTimeline {
+  position: relative;
+  height: 60px;
+  background: linear-gradient(180deg, #fafbfc 0%, #f8fafc 100%);
+  border-radius: 4px;
 }
 
 .taskHeader {
@@ -180,15 +196,18 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex: 1;
-  min-width: 200px;
 }
 
 .taskName {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: #0f172a;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .taskMeta {
@@ -213,21 +232,21 @@
 
 .taskDates {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
-  flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .dateTag {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 12px;
+  gap: 1px;
+  padding: 4px 8px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  min-width: 80px;
+  border-radius: 6px;
+  min-width: 70px;
 }
 
 .dateLabel {
@@ -262,65 +281,152 @@
   color: #d97706;
 }
 
-.timelineContainer {
+.timelineSection {
   position: relative;
-  padding: 12px 0;
 }
 
-.timelineWrapper {
-  position: relative;
-  height: 100px;
-  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
+.timelineGrid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
-.timelineAxis {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 28px;
-  background: #f1f5f9;
-  border-top: 1px solid #e2e8f0;
+.taskInfoHeader {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  border-right: 1px solid #e2e8f0;
   display: flex;
   align-items: center;
-  padding: 0 12px;
 }
 
-.timelineTicks {
+.taskRows {
   display: flex;
-  justify-content: space-between;
-  width: 100%;
-  position: relative;
+  flex-direction: column;
 }
 
-.timelineTick {
-  font-size: 10px;
-  color: #64748b;
-  text-align: center;
-  position: relative;
+.taskRowWrapper {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.15s ease;
 }
 
-.timelineTick::before {
-  content: '';
+.taskRowWrapper:hover {
+  background: #fafbfc;
+}
+
+.taskRowWrapper:last-child {
+  border-bottom: none;
+}
+
+.timelineScrollWrapper {
+  overflow-x: auto;
+  overflow-y: visible;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.timelineScrollWrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.timelineScrollWrapper::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.timelineScrollWrapper::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+  border-radius: 4px;
+}
+
+.timelineScrollWrapper::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+}
+
+.taskTimelineScrollWrapper {
+  /* Used for JavaScript scroll sync targeting */
+}
+
+.timelineAxisHeader {
+  position: sticky;
+  top: 0;
+  height: 36px;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 1px solid #e2e8f0;
+  z-index: 10;
+}
+
+.axisTick {
   position: absolute;
-  top: -8px;
-  left: 50%;
+  top: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   transform: translateX(-50%);
+}
+
+.axisTickLine {
   width: 1px;
-  height: 6px;
+  height: 10px;
   background: #cbd5e1;
 }
 
-.timelineContent {
+.axisTickLabel {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  margin-top: 4px;
+}
+
+.todayMarkerHeader {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, #2563eb 0%, #3b82f6 100%);
+  z-index: 5;
+  transform: translateX(-50%);
+}
+
+.todayMarkerHeader::before {
+  content: 'Today';
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+}
+
+.taskTimelineRow {
+  position: relative;
+  height: 60px;
+  min-height: 60px;
+}
+
+.taskTimelineContent {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  bottom: 28px;
-  padding: 8px 12px;
+  bottom: 0;
 }
 
 .taskDurationBar {

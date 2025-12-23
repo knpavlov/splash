@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Calendar, User, Folder, Info, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { User, Info, ChevronDown, ChevronUp, X } from 'lucide-react';
 import styles from '../../styles/TaskStatusHistoryScreen.module.css';
 import { useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
-import { InitiativePlanTask, InitiativeStatusReport, InitiativeStatusReportEntry } from '../../shared/types/initiative';
+import { InitiativeStatusReport } from '../../shared/types/initiative';
 import { initiativesApi } from '../initiatives/services/initiativesApi';
 
 interface TaskStatusPoint {
@@ -23,6 +23,12 @@ interface TaskWithHistory {
   endDate: Date | null;
   progress: number;
   statusPoints: TaskStatusPoint[];
+}
+
+interface GlobalTimelineRange {
+  start: Date;
+  end: Date;
+  totalDays: number;
 }
 
 const parseDate = (value: string | null): Date | null => {
@@ -58,6 +64,9 @@ const clampProgress = (value: number | null | undefined): number => {
 
 const WARNING_DAYS = 7;
 
+const PIXELS_PER_DAY = 12;
+const MIN_TIMELINE_WIDTH = 800;
+
 export const TaskStatusHistoryScreen = () => {
   const { list: initiatives, loaded } = useInitiativesState();
   const { list: workstreams } = useWorkstreamsState();
@@ -67,6 +76,7 @@ export const TaskStatusHistoryScreen = () => {
   const [loadingReports, setLoadingReports] = useState(false);
   const [activePoint, setActivePoint] = useState<{ taskId: string; pointId: string } | null>(null);
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const today = useMemo(() => {
     const now = new Date();
@@ -172,6 +182,93 @@ export const TaskStatusHistoryScreen = () => {
     [tasksWithHistory]
   );
 
+  const globalTimelineRange = useMemo<GlobalTimelineRange>(() => {
+    if (tasksWithHistory.length === 0) {
+      const defaultStart = addDays(today, -30);
+      const defaultEnd = addDays(today, 30);
+      return { start: defaultStart, end: defaultEnd, totalDays: 60 };
+    }
+
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
+
+    tasksWithHistory.forEach((task) => {
+      if (task.startDate) {
+        if (!minDate || task.startDate < minDate) minDate = task.startDate;
+      }
+      if (task.endDate) {
+        if (!maxDate || task.endDate > maxDate) maxDate = task.endDate;
+      }
+      task.statusPoints.forEach((point) => {
+        if (!minDate || point.date < minDate) minDate = point.date;
+        if (!maxDate || point.date > maxDate) maxDate = point.date;
+      });
+    });
+
+    if (!minDate) minDate = addDays(today, -30);
+    if (!maxDate) maxDate = addDays(today, 30);
+
+    if (today < minDate) minDate = today;
+    if (today > maxDate) maxDate = today;
+
+    const paddedStart = addDays(minDate, -14);
+    const paddedEnd = addDays(maxDate, 21);
+
+    const totalDays = Math.max(diffInDays(paddedEnd, paddedStart), 60);
+
+    return { start: paddedStart, end: paddedEnd, totalDays };
+  }, [tasksWithHistory, today]);
+
+  const timelineWidth = useMemo(() => {
+    return Math.max(MIN_TIMELINE_WIDTH, globalTimelineRange.totalDays * PIXELS_PER_DAY);
+  }, [globalTimelineRange.totalDays]);
+
+  const getPosition = useCallback(
+    (date: Date): number => {
+      const dayOffset = diffInDays(date, globalTimelineRange.start);
+      return Math.max(0, Math.min(100, (dayOffset / globalTimelineRange.totalDays) * 100));
+    },
+    [globalTimelineRange]
+  );
+
+  const timelineTicks = useMemo(() => {
+    const ticks: { date: Date; label: string; position: number }[] = [];
+    const tickInterval = Math.max(7, Math.floor(globalTimelineRange.totalDays / 12));
+    let tickDate = new Date(globalTimelineRange.start);
+
+    while (tickDate <= globalTimelineRange.end) {
+      ticks.push({
+        date: new Date(tickDate),
+        label: formatShortDate(tickDate),
+        position: getPosition(tickDate)
+      });
+      tickDate = addDays(tickDate, tickInterval);
+    }
+
+    return ticks;
+  }, [globalTimelineRange, getPosition]);
+
+  const todayPosition = useMemo(() => getPosition(today), [getPosition, today]);
+
+  useEffect(() => {
+    if (scrollContainerRef.current && todayPosition > 0 && tasksWithHistory.length > 0) {
+      const containerWidth = scrollContainerRef.current.clientWidth;
+      const scrollTarget = (todayPosition / 100) * timelineWidth - containerWidth / 2;
+      const scrollValue = Math.max(0, scrollTarget);
+
+      scrollContainerRef.current.scrollLeft = scrollValue;
+
+      setTimeout(() => {
+        const scrollWrappers = document.querySelectorAll(`.${styles.taskTimelineScrollWrapper}`);
+        scrollWrappers.forEach((wrapper) => {
+          if (wrapper instanceof HTMLElement) {
+            wrapper.scrollLeft = scrollValue;
+          }
+        });
+      }, 100);
+    }
+  }, [todayPosition, timelineWidth, tasksWithHistory.length]);
+
   const stats = useMemo(() => {
     const totalTasks = tasksWithHistory.length;
     const tasksWithUpdates = tasksWithReports.length;
@@ -216,223 +313,195 @@ export const TaskStatusHistoryScreen = () => {
     setActivePoint(null);
   }, []);
 
-  const renderTimeline = (task: TaskWithHistory) => {
-    const timelineStart = task.startDate
-      ? addDays(task.startDate, -14)
-      : task.statusPoints.length > 0
-        ? addDays(task.statusPoints[0].date, -7)
-        : addDays(today, -30);
-
-    const timelineEnd = task.endDate
-      ? addDays(task.endDate, 21)
-      : task.statusPoints.length > 0
-        ? addDays(task.statusPoints[task.statusPoints.length - 1].date, 14)
-        : addDays(today, 30);
-
-    const totalDays = Math.max(diffInDays(timelineEnd, timelineStart), 30);
-
-    const getPosition = (date: Date): number => {
-      const dayOffset = diffInDays(date, timelineStart);
-      return Math.max(0, Math.min(100, (dayOffset / totalDays) * 100));
-    };
-
+  const renderTaskTimeline = (task: TaskWithHistory) => {
     const taskStartPos = task.startDate ? getPosition(task.startDate) : null;
     const taskEndPos = task.endDate ? getPosition(task.endDate) : null;
-    const todayPos = getPosition(today);
 
     const warningStartDate = task.endDate ? addDays(task.endDate, -WARNING_DAYS) : null;
     const warningStartPos = warningStartDate ? getPosition(warningStartDate) : null;
 
-    const ticks: { date: Date; label: string }[] = [];
-    const tickInterval = Math.max(7, Math.floor(totalDays / 6));
-    let tickDate = new Date(timelineStart);
-    while (tickDate <= timelineEnd) {
-      ticks.push({ date: new Date(tickDate), label: formatShortDate(tickDate) });
-      tickDate = addDays(tickDate, tickInterval);
-    }
-
     return (
-      <div className={styles.timelineContainer}>
-        <div className={styles.timelineWrapper}>
-          <div className={styles.timelineContent}>
-            {taskStartPos !== null && taskEndPos !== null && (
-              <div
-                className={styles.taskDurationBar}
-                style={{
-                  left: `${taskStartPos}%`,
-                  width: `${Math.max(taskEndPos - taskStartPos, 2)}%`
-                }}
-              >
-                {task.progress}%
-              </div>
-            )}
+      <div className={styles.taskTimelineRow} style={{ width: `${timelineWidth}px` }}>
+        <div className={styles.taskTimelineContent}>
+          {taskStartPos !== null && taskEndPos !== null && (
+            <div
+              className={styles.taskDurationBar}
+              style={{
+                left: `${taskStartPos}%`,
+                width: `${Math.max(taskEndPos - taskStartPos, 0.5)}%`
+              }}
+            >
+              {task.progress}%
+            </div>
+          )}
 
-            <div className={styles.statusZones}>
-              {warningStartPos !== null && taskEndPos !== null && task.progress < 100 && (
-                <>
+          <div className={styles.statusZones}>
+            {warningStartPos !== null && taskEndPos !== null && task.progress < 100 && (
+              <>
+                <div
+                  className={styles.zoneWarning}
+                  style={{
+                    position: 'absolute',
+                    left: `${Math.max(warningStartPos, 0)}%`,
+                    width: `${Math.max(0, Math.min(taskEndPos - warningStartPos, 100 - warningStartPos))}%`
+                  }}
+                />
+                {task.endDate && task.endDate < today && (
                   <div
-                    className={styles.zoneWarning}
+                    className={styles.zoneOverdue}
                     style={{
                       position: 'absolute',
-                      left: `${Math.max(warningStartPos, 0)}%`,
-                      width: `${Math.min(taskEndPos - warningStartPos, 100 - warningStartPos)}%`
+                      left: `${taskEndPos}%`,
+                      width: `${Math.max(0, Math.min(todayPosition - taskEndPos, 100 - taskEndPos))}%`
                     }}
                   />
-                  {task.endDate && task.endDate < today && (
-                    <div
-                      className={styles.zoneOverdue}
-                      style={{
-                        position: 'absolute',
-                        left: `${taskEndPos}%`,
-                        width: `${Math.min(todayPos - taskEndPos, 100 - taskEndPos)}%`
-                      }}
-                    />
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className={styles.statusPoints}>
-              {task.statusPoints.map((point) => {
-                const pos = getPosition(point.date);
-                const isActive = activePoint?.taskId === task.id && activePoint?.pointId === point.id;
-
-                return (
-                  <div
-                    key={point.id}
-                    className={`${styles.statusPoint} ${styles[point.dueStatus]} ${isActive ? styles.active : ''}`}
-                    style={{ left: `${pos}%` }}
-                    onClick={() => handlePointClick(task.id, point.id)}
-                    title={`${formatDate(point.date)}: ${point.comment.slice(0, 50)}...`}
-                  >
-                    {isActive && (
-                      <div className={styles.commentPopup} onClick={(e) => e.stopPropagation()}>
-                        <button className={styles.closePopup} onClick={closePopup}>
-                          <X size={14} />
-                        </button>
-                        <div className={styles.commentHeader}>
-                          <span className={styles.commentDate}>{formatDate(point.date)}</span>
-                          <span className={`${styles.commentStatus} ${styles[point.dueStatus]}`}>
-                            {point.dueStatus === 'overdue'
-                              ? 'Overdue'
-                              : point.dueStatus === 'warning'
-                                ? 'At risk'
-                                : 'On track'}
-                          </span>
-                        </div>
-                        <p className={styles.commentText}>{point.comment}</p>
-                        {point.author && <div className={styles.commentAuthor}>by {point.author}</div>}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {todayPos >= 0 && todayPos <= 100 && (
-              <div className={styles.todayMarker} style={{ left: `${todayPos}%` }} />
+                )}
+              </>
             )}
           </div>
 
-          <div className={styles.timelineAxis}>
-            <div className={styles.timelineTicks}>
-              {ticks.map((tick, index) => (
-                <span key={index} className={styles.timelineTick}>
-                  {tick.label}
-                </span>
-              ))}
-            </div>
+          <div className={styles.statusPoints}>
+            {task.statusPoints.map((point) => {
+              const pos = getPosition(point.date);
+              const isActive = activePoint?.taskId === task.id && activePoint?.pointId === point.id;
+
+              return (
+                <div
+                  key={point.id}
+                  className={`${styles.statusPoint} ${styles[point.dueStatus]} ${isActive ? styles.active : ''}`}
+                  style={{ left: `${pos}%` }}
+                  onClick={() => handlePointClick(task.id, point.id)}
+                  title={`${formatDate(point.date)}: ${point.comment.slice(0, 50)}...`}
+                >
+                  {isActive && (
+                    <div className={styles.commentPopup} onClick={(e) => e.stopPropagation()}>
+                      <button className={styles.closePopup} onClick={closePopup}>
+                        <X size={14} />
+                      </button>
+                      <div className={styles.commentHeader}>
+                        <span className={styles.commentDate}>{formatDate(point.date)}</span>
+                        <span className={`${styles.commentStatus} ${styles[point.dueStatus]}`}>
+                          {point.dueStatus === 'overdue'
+                            ? 'Overdue'
+                            : point.dueStatus === 'warning'
+                              ? 'At risk'
+                              : 'On track'}
+                        </span>
+                      </div>
+                      <p className={styles.commentText}>{point.comment}</p>
+                      {point.author && <div className={styles.commentAuthor}>by {point.author}</div>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
+
+          <div className={styles.todayMarker} style={{ left: `${todayPosition}%` }} />
         </div>
       </div>
     );
   };
 
-  const renderTaskItem = (task: TaskWithHistory) => {
+  const renderTaskInfoColumn = (task: TaskWithHistory) => {
     const dateStatus = getTaskDateStatus(task);
     const isExpanded = expandedTasks.has(task.id);
     const hasReports = task.statusPoints.length > 0;
 
     return (
-      <div key={task.id} className={styles.taskItem}>
-        <div className={styles.taskHeader}>
-          <div className={styles.taskInfo}>
-            <h4 className={styles.taskName}>{task.name}</h4>
-            <div className={styles.taskMeta}>
-              {task.responsible && (
-                <span className={styles.taskMetaItem}>
-                  <User size={14} />
-                  {task.responsible}
-                </span>
-              )}
-              <span className={`${styles.progressBadge} ${task.progress >= 100 ? styles.complete : ''}`}>
-                <div className={styles.progressBar}>
-                  <div className={styles.progressFill} style={{ width: `${task.progress}%` }} />
-                </div>
-                {task.progress}%
+      <div className={styles.taskInfoColumn}>
+        <div className={styles.taskInfo}>
+          <h4 className={styles.taskName}>{task.name}</h4>
+          <div className={styles.taskMeta}>
+            {task.responsible && (
+              <span className={styles.taskMetaItem}>
+                <User size={14} />
+                {task.responsible}
               </span>
-            </div>
-          </div>
-          <div className={styles.taskDates}>
-            <div className={styles.dateTag}>
-              <span className={styles.dateLabel}>Start</span>
-              <span className={styles.dateValue}>{formatDate(task.startDate)}</span>
-            </div>
-            <div className={`${styles.dateTag} ${dateStatus !== 'normal' ? styles[dateStatus] : ''}`}>
-              <span className={styles.dateLabel}>End</span>
-              <span className={styles.dateValue}>{formatDate(task.endDate)}</span>
-            </div>
+            )}
+            <span className={`${styles.progressBadge} ${task.progress >= 100 ? styles.complete : ''}`}>
+              <div className={styles.progressBar}>
+                <div className={styles.progressFill} style={{ width: `${task.progress}%` }} />
+              </div>
+              {task.progress}%
+            </span>
           </div>
         </div>
-
-        {hasReports ? (
-          <>
-            {renderTimeline(task)}
-
-            {task.statusPoints.length > 2 && (
-              <button className={styles.expandButton} onClick={() => toggleTaskExpanded(task.id)}>
-                {isExpanded ? (
-                  <>
-                    <ChevronUp size={14} />
-                    Hide all {task.statusPoints.length} status reports
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown size={14} />
-                    Show all {task.statusPoints.length} status reports
-                  </>
-                )}
-              </button>
-            )}
-
-            {isExpanded && (
-              <div className={styles.reportsList}>
-                <h5 className={styles.reportsTitle}>All status reports</h5>
-                {task.statusPoints.map((point) => (
-                  <div
-                    key={point.id}
-                    className={`${styles.reportItem} ${activePoint?.pointId === point.id ? styles.active : ''}`}
-                    onClick={() => handlePointClick(task.id, point.id)}
-                  >
-                    <span className={styles.reportItemDate}>{formatDate(point.date)}</span>
-                    <span className={styles.reportItemComment}>{point.comment}</span>
-                    <span className={`${styles.reportStatusBadge} ${styles[point.dueStatus]}`}>
-                      {point.dueStatus === 'overdue' ? 'Overdue' : point.dueStatus === 'warning' ? 'At risk' : 'On track'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        ) : (
+        <div className={styles.taskDates}>
+          <div className={styles.dateTag}>
+            <span className={styles.dateLabel}>Start</span>
+            <span className={styles.dateValue}>{formatDate(task.startDate)}</span>
+          </div>
+          <div className={`${styles.dateTag} ${dateStatus !== 'normal' ? styles[dateStatus] : ''}`}>
+            <span className={styles.dateLabel}>End</span>
+            <span className={styles.dateValue}>{formatDate(task.endDate)}</span>
+          </div>
+        </div>
+        {!hasReports && (
           <div className={styles.noReportsHint}>
             <Info size={16} />
-            No status reports submitted for this task yet
+            No status reports yet
+          </div>
+        )}
+        {hasReports && task.statusPoints.length > 2 && (
+          <button className={styles.expandButton} onClick={() => toggleTaskExpanded(task.id)}>
+            {isExpanded ? (
+              <>
+                <ChevronUp size={14} />
+                Hide reports
+              </>
+            ) : (
+              <>
+                <ChevronDown size={14} />
+                Show {task.statusPoints.length} reports
+              </>
+            )}
+          </button>
+        )}
+        {isExpanded && (
+          <div className={styles.reportsList}>
+            <h5 className={styles.reportsTitle}>All status reports</h5>
+            {task.statusPoints.map((point) => (
+              <div
+                key={point.id}
+                className={`${styles.reportItem} ${activePoint?.pointId === point.id ? styles.active : ''}`}
+                onClick={() => handlePointClick(task.id, point.id)}
+              >
+                <span className={styles.reportItemDate}>{formatDate(point.date)}</span>
+                <span className={styles.reportItemComment}>{point.comment}</span>
+                <span className={`${styles.reportStatusBadge} ${styles[point.dueStatus]}`}>
+                  {point.dueStatus === 'overdue' ? 'Overdue' : point.dueStatus === 'warning' ? 'At risk' : 'On track'}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>
     );
   };
+
+  const handleHeaderScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const scrollLeft = e.currentTarget.scrollLeft;
+    const scrollWrappers = document.querySelectorAll(`.${styles.taskTimelineScrollWrapper}`);
+    scrollWrappers.forEach((wrapper) => {
+      if (wrapper instanceof HTMLElement) {
+        wrapper.scrollLeft = scrollLeft;
+      }
+    });
+  }, []);
+
+  const handleRowScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const scrollLeft = e.currentTarget.scrollLeft;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = scrollLeft;
+    }
+    const scrollWrappers = document.querySelectorAll(`.${styles.taskTimelineScrollWrapper}`);
+    scrollWrappers.forEach((wrapper) => {
+      if (wrapper instanceof HTMLElement && wrapper !== e.currentTarget) {
+        wrapper.scrollLeft = scrollLeft;
+      }
+    });
+  }, []);
 
   if (!loaded) {
     return (
@@ -554,16 +623,59 @@ export const TaskStatusHistoryScreen = () => {
                 {tasksWithReports.length} of {tasksWithHistory.length} tasks have status reports
               </span>
             </div>
-            <div className={styles.taskList}>
-              {tasksWithHistory.length === 0 ? (
-                <div className={styles.empty}>
-                  <h3 className={styles.emptyTitle}>No tasks found</h3>
-                  <p className={styles.emptyText}>This initiative doesn't have any tasks in its plan yet.</p>
+
+            {tasksWithHistory.length === 0 ? (
+              <div className={styles.empty}>
+                <h3 className={styles.emptyTitle}>No tasks found</h3>
+                <p className={styles.emptyText}>This initiative doesn't have any tasks in its plan yet.</p>
+              </div>
+            ) : (
+              <div className={styles.timelineSection}>
+                <div className={styles.timelineGrid}>
+                  <div className={styles.taskInfoHeader}>Task</div>
+                  <div
+                    className={styles.timelineScrollWrapper}
+                    ref={scrollContainerRef}
+                    onScroll={handleHeaderScroll}
+                  >
+                    <div className={styles.timelineAxisHeader} style={{ width: `${timelineWidth}px` }}>
+                      <div className={styles.todayMarkerHeader} style={{ left: `${todayPosition}%` }} />
+                      {timelineTicks.map((tick, index) => (
+                        <div
+                          key={index}
+                          className={styles.axisTick}
+                          style={{ left: `${tick.position}%` }}
+                        >
+                          <div className={styles.axisTickLine} />
+                          <span className={styles.axisTickLabel}>{tick.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                tasksWithHistory.map((task) => renderTaskItem(task))
-              )}
-            </div>
+                <div className={styles.taskRows}>
+                  {tasksWithHistory.map((task) => (
+                    <div key={task.id} className={styles.taskRowWrapper}>
+                      {renderTaskInfoColumn(task)}
+                      <div
+                        className={`${styles.timelineScrollWrapper} ${styles.taskTimelineScrollWrapper}`}
+                        onScroll={handleRowScroll}
+                      >
+                        <div className={styles.taskTimelineColumn}>
+                          {task.statusPoints.length > 0 ? (
+                            renderTaskTimeline(task)
+                          ) : (
+                            <div className={styles.emptyTimeline} style={{ width: `${timelineWidth}px` }}>
+                              <div className={styles.todayMarker} style={{ left: `${todayPosition}%` }} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
