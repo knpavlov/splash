@@ -10,6 +10,15 @@
   backdrop-filter: blur(10px);
 }
 
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -39,5 +48,28 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.compact {
+  margin: -32px -32px 12px;
+  padding: 4px 32px;
+}
+
+.compact .topRow {
+  margin-bottom: 4px;
+  gap: 8px;
+}
+
+.compact .row {
+  gap: 8px;
+}
+
+.compact .left,
+.compact .right {
+  gap: 8px;
+}
+
+.compact .message {
+  margin-top: 4px;
 }
 

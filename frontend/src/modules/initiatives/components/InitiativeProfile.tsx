@@ -84,6 +84,11 @@ type ValidationErrors = {
   stageName?: boolean;
   stageDescription?: boolean;
 };
+type ProfileSection = {
+  key: string;
+  label: string;
+  visible: boolean;
+};
 
 const VALUE_STEP_LABEL = 'Value Step';
 
@@ -759,6 +764,11 @@ export const InitiativeProfile = ({
   const [pendingSelection, setPendingSelection] = useState<CommentSelectionDraft | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const topPanelRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
+  const sectionElementsRef = useRef<HTMLElement[]>([]);
+  const activeSectionRef = useRef('overview');
+  const [activeProfileSection, setActiveProfileSection] = useState('overview');
   const sidebarRef = useRef<HTMLDivElement>(null);
   const tooltipHostRef = useRef<HTMLDivElement>(null);
   const [valueStepTooltip, setValueStepTooltip] = useState<{ visible: boolean; x: number; y: number }>({
@@ -1667,6 +1677,137 @@ export const InitiativeProfile = ({
   const changeLogCollapsed = collapsedSections['change-log'] ?? false;
   const risksCollapsed = collapsedSections['risks'] ?? false;
   const stageTitle = initiativeStageLabels[selectedStage].replace(/\s+Gate$/i, '');
+  const stageDetailsLabel = `${stageTitle} details`;
+
+  const buildProfileSectionAttributes = (key: string, label: string) => ({
+    'data-profile-section': key,
+    'data-profile-label': label
+  });
+
+  const profileSections = useMemo<ProfileSection[]>(() => {
+    const isVisible = (blockKey: InitiativeFormBlockKey) => selectedStageFormSettings[blockKey] !== 'hidden';
+    const sections: ProfileSection[] = [
+      { key: 'overview', label: 'Overview', visible: true },
+      { key: 'stage-progression', label: 'Stage progression', visible: true },
+      { key: 'stage-details', label: stageDetailsLabel, visible: true },
+      { key: 'financial-outlook', label: 'Financial outlook', visible: isVisible('financial-outlook') },
+      { key: 'pnl-actuals', label: 'P&L actuals', visible: isVisible('pnl-actuals') },
+      { key: 'kpis', label: 'KPIs', visible: isVisible('kpis') },
+      { key: 'kpi-actuals', label: 'KPI actuals', visible: isVisible('kpi-actuals') },
+      { key: 'supporting-docs', label: 'Supporting documentation', visible: isVisible('supporting-docs') },
+      { key: 'implementation-plan', label: 'Implementation plan', visible: isVisible('implementation-plan') },
+      { key: 'implementation-plan-actuals', label: 'Implementation plan actuals', visible: isVisible('implementation-plan-actuals') },
+      { key: 'risks', label: 'Risks', visible: isVisible('risks') },
+      { key: 'change-log', label: 'Change log', visible: true }
+    ];
+    return sections.filter((section) => section.visible);
+  }, [selectedStageFormSettings, stageDetailsLabel]);
+
+  useEffect(() => {
+    activeSectionRef.current = activeProfileSection;
+  }, [activeProfileSection]);
+
+  const updateSectionElements = useCallback(() => {
+    const container = contentRef.current;
+    if (!container) {
+      sectionElementsRef.current = [];
+      return;
+    }
+    sectionElementsRef.current = Array.from(container.querySelectorAll<HTMLElement>('[data-profile-section]'));
+  }, []);
+
+  const updateActiveSection = useCallback(() => {
+    const scrollContainer = scrollContainerRef.current ?? contentRef.current;
+    if (!scrollContainer || sectionElementsRef.current.length === 0) {
+      return;
+    }
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const scrollTop = scrollContainer.scrollTop;
+    const offset = (topPanelRef.current?.offsetHeight ?? 72) + 8;
+    const anchorLine = scrollTop + offset;
+    let nextKey = sectionElementsRef.current[0]?.dataset.profileSection ?? activeSectionRef.current;
+    for (const element of sectionElementsRef.current) {
+      const rect = element.getBoundingClientRect();
+      const elementTop = rect.top - containerRect.top + scrollTop;
+      if (elementTop <= anchorLine) {
+        nextKey = element.dataset.profileSection ?? nextKey;
+      } else {
+        break;
+      }
+    }
+    if (nextKey && nextKey !== activeSectionRef.current) {
+      activeSectionRef.current = nextKey;
+      setActiveProfileSection(nextKey);
+    }
+  }, []);
+
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) {
+      return;
+    }
+    scrollContainerRef.current = (container.closest('main') as HTMLElement | null) ?? container;
+    updateSectionElements();
+    updateActiveSection();
+  }, [updateActiveSection, updateSectionElements, profileSections]);
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current ?? contentRef.current;
+    if (!scrollContainer) {
+      return;
+    }
+    let rafId = 0;
+    const handleScroll = () => {
+      if (rafId) {
+        return;
+      }
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0;
+        updateActiveSection();
+      });
+    };
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll);
+    handleScroll();
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [updateActiveSection]);
+
+  useEffect(() => {
+    if (profileSections.some((section) => section.key === activeProfileSection)) {
+      return;
+    }
+    const fallback = profileSections[0]?.key ?? 'overview';
+    activeSectionRef.current = fallback;
+    setActiveProfileSection(fallback);
+  }, [activeProfileSection, profileSections]);
+
+  const handleSectionJump = useCallback(
+    (key: string) => {
+      const container = contentRef.current;
+      const scrollContainer = scrollContainerRef.current ?? container;
+      if (!container || !scrollContainer) {
+        return;
+      }
+      const target = container.querySelector<HTMLElement>(`[data-profile-section="${key}"]`);
+      if (!target) {
+        return;
+      }
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const offset = (topPanelRef.current?.offsetHeight ?? 72) + 8;
+      const scrollTarget = targetRect.top - containerRect.top + scrollContainer.scrollTop - offset;
+      scrollContainer.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
+      activeSectionRef.current = key;
+      setActiveProfileSection(key);
+    },
+    []
+  );
 
   const refreshRiskReviewComments = useCallback(() => {
     if (!draft.id) {
@@ -1738,10 +1879,43 @@ export const InitiativeProfile = ({
       {topPanelMessage}
     </>
   ) : null;
+  const activeSectionLabel =
+    profileSections.find((section) => section.key === activeProfileSection)?.label ?? 'Overview';
+  const sectionMenu = (
+    <div className={styles.sectionMenu} role="navigation" aria-label="Initiative sections">
+      <span className={styles.sectionMenuLabel}>Section</span>
+      <div className={styles.sectionMenuTrigger}>
+        <button className={styles.sectionMenuButton} type="button" aria-haspopup="listbox">
+          <span>{activeSectionLabel}</span>
+          <ChevronIcon direction="down" size={14} />
+        </button>
+        <div className={styles.sectionMenuList} role="listbox">
+          {profileSections.map((section) => {
+            const isActive = section.key === activeProfileSection;
+            return (
+              <button
+                key={section.key}
+                type="button"
+                role="option"
+                aria-selected={isActive}
+                className={`${styles.sectionMenuItem}${isActive ? ` ${styles.sectionMenuItemActive}` : ''}`}
+                onClick={() => handleSectionJump(section.key)}
+              >
+                {section.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <section className={styles.profileWrapper}>
       <StickyTopPanel
+        ref={topPanelRef}
+        top={sectionMenu}
+        density="compact"
         left={
           <>
             {topPanelExtraLeft}
@@ -1799,7 +1973,10 @@ export const InitiativeProfile = ({
               anchors={commentAnchors}
             />
           )}
-        <div className={styles.quickInfoCard}>
+        <div
+          className={`${styles.quickInfoCard} ${styles.profileSectionAnchor}`}
+          {...buildProfileSectionAttributes('overview', 'Overview')}
+        >
           <div className={styles.quickInfoGrid}>
             <div className={styles.quickInfoTop}>
               <div className={styles.initiativeSummary}>
@@ -1901,7 +2078,11 @@ export const InitiativeProfile = ({
           </div>
         </div>
 
-      <section className={styles.cardSection} {...buildProfileAnchor('stage-gates', 'Stage progression')}>
+      <section
+        className={`${styles.cardSection} ${styles.profileSectionAnchor}`}
+        {...buildProfileAnchor('stage-gates', 'Stage progression')}
+        {...buildProfileSectionAttributes('stage-progression', 'Stage progression')}
+      >
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
             <button
@@ -1968,7 +2149,10 @@ export const InitiativeProfile = ({
         )}
       </section>
 
-      <div className={styles.stagePanel}>
+      <div
+        className={`${styles.stagePanel} ${styles.profileSectionAnchor}`}
+        {...buildProfileSectionAttributes('stage-details', stageDetailsLabel)}
+      >
         <header className={styles.stageHeader}>
           <div className={styles.stageHeaderLeft}>
             <button
@@ -2129,7 +2313,11 @@ export const InitiativeProfile = ({
       </div>
 
       {isBlockVisibleForSelectedStage('financial-outlook') && (
-      <section className={`${styles.cardSection} ${styles.financialCard}`} {...buildProfileAnchor('financial-outlook', 'Financial outlook')}>
+      <section
+        className={`${styles.cardSection} ${styles.financialCard} ${styles.profileSectionAnchor}`}
+        {...buildProfileAnchor('financial-outlook', 'Financial outlook')}
+        {...buildProfileSectionAttributes('financial-outlook', 'Financial outlook')}
+      >
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
             <button
@@ -2165,8 +2353,9 @@ export const InitiativeProfile = ({
 
       {isBlockVisibleForSelectedStage('pnl-actuals') && (
       <section
-        className={`${styles.cardSection} ${styles.financialCard}`}
+        className={`${styles.cardSection} ${styles.financialCard} ${styles.profileSectionAnchor}`}
         {...buildProfileAnchor('pnl-actuals', 'P&L actuals')}
+        {...buildProfileSectionAttributes('pnl-actuals', 'P&L actuals')}
       >
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
@@ -2200,7 +2389,11 @@ export const InitiativeProfile = ({
       )}
 
       {isBlockVisibleForSelectedStage('kpis') && (
-      <section className={styles.cardSection} {...buildProfileAnchor('kpis', 'KPIs')}>
+      <section
+        className={`${styles.cardSection} ${styles.profileSectionAnchor}`}
+        {...buildProfileAnchor('kpis', 'KPIs')}
+        {...buildProfileSectionAttributes('kpis', 'KPIs')}
+      >
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
             <button
@@ -2234,7 +2427,11 @@ export const InitiativeProfile = ({
       )}
 
       {isBlockVisibleForSelectedStage('kpi-actuals') && (
-      <section className={styles.cardSection} {...buildProfileAnchor('kpi-actuals', 'KPI actuals')}>
+      <section
+        className={`${styles.cardSection} ${styles.profileSectionAnchor}`}
+        {...buildProfileAnchor('kpi-actuals', 'KPI actuals')}
+        {...buildProfileSectionAttributes('kpi-actuals', 'KPI actuals')}
+      >
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
             <button
@@ -2267,7 +2464,11 @@ export const InitiativeProfile = ({
       )}
 
       {isBlockVisibleForSelectedStage('supporting-docs') && (
-      <section className={`${styles.cardSection} ${styles.supportingCard}`} {...buildProfileAnchor('supporting-docs', 'Supporting documentation')}>
+      <section
+        className={`${styles.cardSection} ${styles.supportingCard} ${styles.profileSectionAnchor}`}
+        {...buildProfileAnchor('supporting-docs', 'Supporting documentation')}
+        {...buildProfileSectionAttributes('supporting-docs', 'Supporting documentation')}
+      >
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
             <div>
@@ -2290,7 +2491,10 @@ export const InitiativeProfile = ({
       )}
 
       {isBlockVisibleForSelectedStage('implementation-plan') && (
-        <div className={styles.formBlockWrapper}>
+        <div
+          className={`${styles.formBlockWrapper} ${styles.profileSectionAnchor}`}
+          {...buildProfileSectionAttributes('implementation-plan', 'Implementation plan')}
+        >
           {isBlockRequiredForSelectedStage('implementation-plan') && (
             <div className={styles.requiredNotice}>Required for submission</div>
           )}
@@ -2308,7 +2512,10 @@ export const InitiativeProfile = ({
       )}
 
       {isBlockVisibleForSelectedStage('implementation-plan-actuals') && (
-        <div className={styles.formBlockWrapper}>
+        <div
+          className={`${styles.formBlockWrapper} ${styles.profileSectionAnchor}`}
+          {...buildProfileSectionAttributes('implementation-plan-actuals', 'Implementation plan actuals')}
+        >
           {isBlockRequiredForSelectedStage('implementation-plan-actuals') && (
             <div className={styles.requiredNotice}>Required for submission</div>
           )}
@@ -2327,7 +2534,11 @@ export const InitiativeProfile = ({
       )}
 
       {isBlockVisibleForSelectedStage('risks') && (
-      <section className={`${styles.cardSection} ${styles.riskSection}`} {...buildProfileAnchor('risks', 'Risks')}>
+      <section
+        className={`${styles.cardSection} ${styles.riskSection} ${styles.profileSectionAnchor}`}
+        {...buildProfileAnchor('risks', 'Risks')}
+        {...buildProfileSectionAttributes('risks', 'Risks')}
+      >
         <header className={styles.cardHeader}>
           <div className={styles.cardHeaderTitle}>
             <button
@@ -2575,7 +2786,11 @@ export const InitiativeProfile = ({
       </section>
       )}
 
-      <section className={styles.changeLogSection} {...buildProfileAnchor('change-log', 'Change log')}>
+      <section
+        className={`${styles.changeLogSection} ${styles.profileSectionAnchor}`}
+        {...buildProfileAnchor('change-log', 'Change log')}
+        {...buildProfileSectionAttributes('change-log', 'Change log')}
+      >
         <header className={styles.changeLogHeader}>
           <button
             className={styles.sectionToggle}

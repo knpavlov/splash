@@ -29,6 +29,10 @@
   min-width: 0;
 }
 
+.profileSectionAnchor {
+  scroll-margin-top: 120px;
+}
+
 .profileContentNoBack .backLink {
   display: none;
 }
@@ -53,6 +57,107 @@
   margin-left: auto;
   display: flex;
   align-items: center;
+}
+
+.sectionMenu {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sectionMenuLabel {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.sectionMenuTrigger {
+  position: relative;
+}
+
+.sectionMenuButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sectionMenuButton:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.sectionMenuList {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.15);
+  padding: 6px;
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 20;
+}
+
+.sectionMenuTrigger:hover .sectionMenuList,
+.sectionMenuTrigger:focus-within .sectionMenuList {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.sectionMenuItem {
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.sectionMenuItem:hover {
+  background: rgba(148, 163, 184, 0.18);
+}
+
+.sectionMenuItemActive {
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+}
+
+@media (max-width: 640px) {
+  .sectionMenu {
+    width: 100%;
+  }
+
+  .sectionMenuButton {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .sectionMenuList {
+    left: 0;
+    right: 0;
+    min-width: 100%;
+  }
 }
 
 .quickInfoCard {
