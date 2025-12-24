@@ -1,6 +1,6 @@
 .panel {
   position: sticky;
-  top: 0;
+  top: -32px;
   z-index: 5000;
   margin: -32px -32px 16px;
   padding: 6px 32px;
