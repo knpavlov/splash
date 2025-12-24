@@ -92,8 +92,6 @@ export const TaskStatusHistoryScreen = () => {
   const [modalState, setModalState] = useState<ModalState | null>(null);
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('all');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const taskRowsContainerRef = useRef<HTMLDivElement>(null);
-  const isSyncingScroll = useRef(false);
 
   const today = useMemo(() => {
     const now = new Date();
@@ -294,47 +292,9 @@ export const TaskStatusHistoryScreen = () => {
     if (scrollContainerRef.current && todayPosition > 0 && filteredTasks.length > 0) {
       const containerWidth = scrollContainerRef.current.clientWidth;
       const scrollTarget = (todayPosition / 100) * timelineWidth - containerWidth / 3;
-      const targetScroll = Math.max(0, scrollTarget);
-      scrollContainerRef.current.scrollLeft = targetScroll;
-      // Also sync task rows
-      const taskTimelines = taskRowsContainerRef.current?.querySelectorAll('[data-timeline-scroll]');
-      taskTimelines?.forEach((el) => {
-        (el as HTMLElement).scrollLeft = targetScroll;
-      });
+      scrollContainerRef.current.scrollLeft = Math.max(0, scrollTarget);
     }
   }, [todayPosition, timelineWidth, filteredTasks.length]);
-
-  // Sync scroll between header and all task rows
-  const handleHeaderScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (isSyncingScroll.current) return;
-    isSyncingScroll.current = true;
-    const scrollLeft = e.currentTarget.scrollLeft;
-    const taskTimelines = taskRowsContainerRef.current?.querySelectorAll('[data-timeline-scroll]');
-    taskTimelines?.forEach((el) => {
-      (el as HTMLElement).scrollLeft = scrollLeft;
-    });
-    requestAnimationFrame(() => {
-      isSyncingScroll.current = false;
-    });
-  }, []);
-
-  const handleTaskTimelineScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (isSyncingScroll.current) return;
-    isSyncingScroll.current = true;
-    const scrollLeft = e.currentTarget.scrollLeft;
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollLeft = scrollLeft;
-    }
-    const taskTimelines = taskRowsContainerRef.current?.querySelectorAll('[data-timeline-scroll]');
-    taskTimelines?.forEach((el) => {
-      if (el !== e.currentTarget) {
-        (el as HTMLElement).scrollLeft = scrollLeft;
-      }
-    });
-    requestAnimationFrame(() => {
-      isSyncingScroll.current = false;
-    });
-  }, []);
 
   const stats = useMemo(() => {
     const totalTasks = tasksWithHistory.length;
@@ -399,61 +359,59 @@ export const TaskStatusHistoryScreen = () => {
     const warningStartPos = warningStartDate ? getPosition(warningStartDate) : null;
 
     return (
-      <div className={styles.taskTimelineRow} style={{ width: `${timelineWidth}px` }}>
-        <div className={styles.taskTimelineContent}>
-          {taskStartPos !== null && taskEndPos !== null && (
-            <div
-              className={`${styles.taskDurationBar} ${task.isCompleted ? styles.completed : ''}`}
-              style={{
-                left: `${taskStartPos}%`,
-                width: `${Math.max(taskEndPos - taskStartPos, 0.5)}%`
-              }}
-            >
-              {task.progress}%
-            </div>
-          )}
+      <div className={styles.taskTimelineContent}>
+        {taskStartPos !== null && taskEndPos !== null && (
+          <div
+            className={`${styles.taskDurationBar} ${task.isCompleted ? styles.completed : ''}`}
+            style={{
+              left: `${taskStartPos}%`,
+              width: `${Math.max(taskEndPos - taskStartPos, 0.5)}%`
+            }}
+          >
+            {task.progress}%
+          </div>
+        )}
 
-          <div className={styles.statusZones}>
-            {warningStartPos !== null && taskEndPos !== null && !task.isCompleted && (
-              <>
+        <div className={styles.statusZones}>
+          {warningStartPos !== null && taskEndPos !== null && !task.isCompleted && (
+            <>
+              <div
+                className={styles.zoneWarning}
+                style={{
+                  position: 'absolute',
+                  left: `${Math.max(warningStartPos, 0)}%`,
+                  width: `${Math.max(0, Math.min(taskEndPos - warningStartPos, 100 - warningStartPos))}%`
+                }}
+              />
+              {task.endDate && task.endDate < today && (
                 <div
-                  className={styles.zoneWarning}
+                  className={styles.zoneOverdue}
                   style={{
                     position: 'absolute',
-                    left: `${Math.max(warningStartPos, 0)}%`,
-                    width: `${Math.max(0, Math.min(taskEndPos - warningStartPos, 100 - warningStartPos))}%`
+                    left: `${taskEndPos}%`,
+                    width: `${Math.max(0, Math.min(todayPosition - taskEndPos, 100 - taskEndPos))}%`
                   }}
                 />
-                {task.endDate && task.endDate < today && (
-                  <div
-                    className={styles.zoneOverdue}
-                    style={{
-                      position: 'absolute',
-                      left: `${taskEndPos}%`,
-                      width: `${Math.max(0, Math.min(todayPosition - taskEndPos, 100 - taskEndPos))}%`
-                    }}
-                  />
-                )}
-              </>
-            )}
-          </div>
+              )}
+            </>
+          )}
+        </div>
 
-          <div className={styles.statusPoints}>
-            {task.statusPoints.map((point) => {
-              const pos = getPosition(point.date);
-              const isActive = popupState?.taskId === task.id && popupState?.pointId === point.id;
+        <div className={styles.statusPoints}>
+          {task.statusPoints.map((point) => {
+            const pos = getPosition(point.date);
+            const isActive = popupState?.taskId === task.id && popupState?.pointId === point.id;
 
-              return (
-                <div
-                  key={point.id}
-                  className={`${styles.statusPoint} ${styles[point.dueStatus]} ${isActive ? styles.active : ''}`}
-                  style={{ left: `${pos}%` }}
-                  onClick={(e) => handlePointClick(e, task.id, point.id)}
-                  title={`${formatDate(point.date)}`}
-                />
-              );
-            })}
-          </div>
+            return (
+              <div
+                key={point.id}
+                className={`${styles.statusPoint} ${styles[point.dueStatus]} ${isActive ? styles.active : ''}`}
+                style={{ left: `${pos}%` }}
+                onClick={(e) => handlePointClick(e, task.id, point.id)}
+                title={`${formatDate(point.date)}`}
+              />
+            );
+          })}
         </div>
       </div>
     );
@@ -736,11 +694,20 @@ export const TaskStatusHistoryScreen = () => {
               </div>
             ) : (
               <div className={styles.timelineSection}>
-                <div className={styles.timelineGrid}>
+                <div className={styles.fixedColumn}>
                   <div className={styles.taskInfoHeader}>Task</div>
-                  <div className={styles.timelineHeaderWrapper} ref={scrollContainerRef} onScroll={handleHeaderScroll}>
-                    <div className={styles.timelineAxisHeader} style={{ width: `${timelineWidth}px` }}>
-                      <div className={styles.todayMarkerHeader} style={{ left: `${todayPosition}%` }} />
+                  {filteredTasks.map((task) => (
+                    <div key={task.id} className={styles.taskInfoRow}>
+                      {renderTaskInfoColumn(task)}
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.scrollableTimeline} ref={scrollContainerRef}>
+                  <div className={styles.timelineContent} style={{ width: `${timelineWidth}px` }}>
+                    <div className={styles.todayMarkerFull} style={{ left: `${todayPosition}%` }}>
+                      <span className={styles.todayLabel}>Today</span>
+                    </div>
+                    <div className={styles.timelineAxisHeader}>
                       {timelineTicks.map((tick, index) => (
                         <div
                           key={index}
@@ -752,23 +719,14 @@ export const TaskStatusHistoryScreen = () => {
                         </div>
                       ))}
                     </div>
-                  </div>
-                </div>
-                <div className={styles.taskRows} ref={taskRowsContainerRef}>
-                  {filteredTasks.map((task) => (
-                    <div key={task.id} className={styles.taskRowWrapper}>
-                      {renderTaskInfoColumn(task)}
-                      <div
-                        className={styles.taskTimelineWrapper}
-                        data-timeline-scroll
-                        onScroll={handleTaskTimelineScroll}
-                      >
-                        <div className={styles.taskTimelineColumn}>
+                    <div className={styles.taskTimelineRows}>
+                      {filteredTasks.map((task) => (
+                        <div key={task.id} className={styles.taskTimelineRow}>
                           {renderTaskTimeline(task)}
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
               </div>
             )}
