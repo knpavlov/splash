@@ -15,9 +15,9 @@ export const StickyTopPanel = forwardRef<HTMLDivElement, StickyTopPanelProps>(
     const densityClass = density === 'compact' ? ` ${styles.compact}` : '';
     return (
       <div ref={ref} className={`${styles.panel}${densityClass}${className ? ` ${className}` : ''}`}>
-        {top ? <div className={styles.topRow}>{top}</div> : null}
         <div className={styles.row}>
           <div className={styles.left}>{left}</div>
+          {top ? <div className={styles.center}>{top}</div> : null}
           <div className={styles.right}>{right}</div>
         </div>
         {message ? <div className={styles.message}>{message}</div> : null}
