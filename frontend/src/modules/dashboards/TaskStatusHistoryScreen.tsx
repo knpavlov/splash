@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { User, Info, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { User, Info, X, ExternalLink, Filter } from 'lucide-react';
 import styles from '../../styles/TaskStatusHistoryScreen.module.css';
 import { useInitiativesState, useWorkstreamsState } from '../../app/state/AppStateContext';
 import { InitiativeStatusReport } from '../../shared/types/initiative';
@@ -23,12 +24,24 @@ interface TaskWithHistory {
   endDate: Date | null;
   progress: number;
   statusPoints: TaskStatusPoint[];
+  isCompleted: boolean;
 }
 
 interface GlobalTimelineRange {
   start: Date;
   end: Date;
   totalDays: number;
+}
+
+interface PopupState {
+  taskId: string;
+  pointId: string;
+  x: number;
+  y: number;
+}
+
+interface ModalState {
+  task: TaskWithHistory;
 }
 
 const parseDate = (value: string | null): Date | null => {
@@ -63,9 +76,10 @@ const clampProgress = (value: number | null | undefined): number => {
 };
 
 const WARNING_DAYS = 7;
+const PIXELS_PER_DAY = 14;
+const MIN_TIMELINE_WIDTH = 1000;
 
-const PIXELS_PER_DAY = 12;
-const MIN_TIMELINE_WIDTH = 800;
+type TaskFilter = 'all' | 'incomplete' | 'completed' | 'overdue' | 'with-reports';
 
 export const TaskStatusHistoryScreen = () => {
   const { list: initiatives, loaded } = useInitiativesState();
@@ -74,9 +88,12 @@ export const TaskStatusHistoryScreen = () => {
   const [initiativeFilter, setInitiativeFilter] = useState<string>('all');
   const [statusReports, setStatusReports] = useState<InitiativeStatusReport[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
-  const [activePoint, setActivePoint] = useState<{ taskId: string; pointId: string } | null>(null);
-  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const [popupState, setPopupState] = useState<PopupState | null>(null);
+  const [modalState, setModalState] = useState<ModalState | null>(null);
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>('all');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const taskRowsContainerRef = useRef<HTMLDivElement>(null);
+  const isSyncingScroll = useRef(false);
 
   const today = useMemo(() => {
     const now = new Date();
@@ -133,12 +150,15 @@ export const TaskStatusHistoryScreen = () => {
     }
   }, [workstreamFilter, initiativeFilter, initiatives]);
 
+  // Use actuals plan if available, otherwise fall back to regular plan
   const tasksWithHistory = useMemo<TaskWithHistory[]>(() => {
     if (!selectedInitiative) return [];
 
-    const tasks = selectedInitiative.plan.tasks.filter((task) => !task.archived);
+    const actualsModel = selectedInitiative.plan.actuals;
+    const tasks = actualsModel?.tasks ?? selectedInitiative.plan.tasks;
+    const filteredTasks = tasks.filter((task) => !task.archived);
 
-    return tasks.map((task) => {
+    return filteredTasks.map((task) => {
       const statusPoints: TaskStatusPoint[] = [];
 
       statusReports.forEach((report) => {
@@ -163,6 +183,7 @@ export const TaskStatusHistoryScreen = () => {
       });
 
       statusPoints.sort((a, b) => a.date.getTime() - b.date.getTime());
+      const progress = clampProgress(task.progress);
 
       return {
         id: task.id,
@@ -171,11 +192,30 @@ export const TaskStatusHistoryScreen = () => {
         responsible: task.responsible,
         startDate: parseDate(task.startDate),
         endDate: parseDate(task.endDate),
-        progress: clampProgress(task.progress),
-        statusPoints
+        progress,
+        statusPoints,
+        isCompleted: progress >= 100
       };
     });
   }, [selectedInitiative, statusReports]);
+
+  // Apply task filters
+  const filteredTasks = useMemo(() => {
+    return tasksWithHistory.filter((task) => {
+      switch (taskFilter) {
+        case 'incomplete':
+          return !task.isCompleted;
+        case 'completed':
+          return task.isCompleted;
+        case 'overdue':
+          return task.endDate && task.endDate < today && !task.isCompleted;
+        case 'with-reports':
+          return task.statusPoints.length > 0;
+        default:
+          return true;
+      }
+    });
+  }, [tasksWithHistory, taskFilter, today]);
 
   const tasksWithReports = useMemo(
     () => tasksWithHistory.filter((task) => task.statusPoints.length > 0),
@@ -183,7 +223,7 @@ export const TaskStatusHistoryScreen = () => {
   );
 
   const globalTimelineRange = useMemo<GlobalTimelineRange>(() => {
-    if (tasksWithHistory.length === 0) {
+    if (filteredTasks.length === 0) {
       const defaultStart = addDays(today, -30);
       const defaultEnd = addDays(today, 30);
       return { start: defaultStart, end: defaultEnd, totalDays: 60 };
@@ -192,7 +232,7 @@ export const TaskStatusHistoryScreen = () => {
     let minDate: Date | null = null;
     let maxDate: Date | null = null;
 
-    tasksWithHistory.forEach((task) => {
+    filteredTasks.forEach((task) => {
       if (task.startDate) {
         if (!minDate || task.startDate < minDate) minDate = task.startDate;
       }
@@ -217,7 +257,7 @@ export const TaskStatusHistoryScreen = () => {
     const totalDays = Math.max(diffInDays(paddedEnd, paddedStart), 60);
 
     return { start: paddedStart, end: paddedEnd, totalDays };
-  }, [tasksWithHistory, today]);
+  }, [filteredTasks, today]);
 
   const timelineWidth = useMemo(() => {
     return Math.max(MIN_TIMELINE_WIDTH, globalTimelineRange.totalDays * PIXELS_PER_DAY);
@@ -233,7 +273,7 @@ export const TaskStatusHistoryScreen = () => {
 
   const timelineTicks = useMemo(() => {
     const ticks: { date: Date; label: string; position: number }[] = [];
-    const tickInterval = Math.max(7, Math.floor(globalTimelineRange.totalDays / 12));
+    const tickInterval = Math.max(7, Math.floor(globalTimelineRange.totalDays / 14));
     let tickDate = new Date(globalTimelineRange.start);
 
     while (tickDate <= globalTimelineRange.end) {
@@ -251,39 +291,67 @@ export const TaskStatusHistoryScreen = () => {
   const todayPosition = useMemo(() => getPosition(today), [getPosition, today]);
 
   useEffect(() => {
-    if (scrollContainerRef.current && todayPosition > 0 && tasksWithHistory.length > 0) {
+    if (scrollContainerRef.current && todayPosition > 0 && filteredTasks.length > 0) {
       const containerWidth = scrollContainerRef.current.clientWidth;
-      const scrollTarget = (todayPosition / 100) * timelineWidth - containerWidth / 2;
-      const scrollValue = Math.max(0, scrollTarget);
-
-      scrollContainerRef.current.scrollLeft = scrollValue;
-
-      setTimeout(() => {
-        const scrollWrappers = document.querySelectorAll(`.${styles.taskTimelineScrollWrapper}`);
-        scrollWrappers.forEach((wrapper) => {
-          if (wrapper instanceof HTMLElement) {
-            wrapper.scrollLeft = scrollValue;
-          }
-        });
-      }, 100);
+      const scrollTarget = (todayPosition / 100) * timelineWidth - containerWidth / 3;
+      const targetScroll = Math.max(0, scrollTarget);
+      scrollContainerRef.current.scrollLeft = targetScroll;
+      // Also sync task rows
+      const taskTimelines = taskRowsContainerRef.current?.querySelectorAll('[data-timeline-scroll]');
+      taskTimelines?.forEach((el) => {
+        (el as HTMLElement).scrollLeft = targetScroll;
+      });
     }
-  }, [todayPosition, timelineWidth, tasksWithHistory.length]);
+  }, [todayPosition, timelineWidth, filteredTasks.length]);
+
+  // Sync scroll between header and all task rows
+  const handleHeaderScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    const scrollLeft = e.currentTarget.scrollLeft;
+    const taskTimelines = taskRowsContainerRef.current?.querySelectorAll('[data-timeline-scroll]');
+    taskTimelines?.forEach((el) => {
+      (el as HTMLElement).scrollLeft = scrollLeft;
+    });
+    requestAnimationFrame(() => {
+      isSyncingScroll.current = false;
+    });
+  }, []);
+
+  const handleTaskTimelineScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    const scrollLeft = e.currentTarget.scrollLeft;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = scrollLeft;
+    }
+    const taskTimelines = taskRowsContainerRef.current?.querySelectorAll('[data-timeline-scroll]');
+    taskTimelines?.forEach((el) => {
+      if (el !== e.currentTarget) {
+        (el as HTMLElement).scrollLeft = scrollLeft;
+      }
+    });
+    requestAnimationFrame(() => {
+      isSyncingScroll.current = false;
+    });
+  }, []);
 
   const stats = useMemo(() => {
     const totalTasks = tasksWithHistory.length;
     const tasksWithUpdates = tasksWithReports.length;
     const totalReports = statusReports.length;
     const overdueTasks = tasksWithHistory.filter(
-      (task) => task.endDate && task.endDate < today && task.progress < 100
+      (task) => task.endDate && task.endDate < today && !task.isCompleted
     ).length;
+    const completedTasks = tasksWithHistory.filter((task) => task.isCompleted).length;
 
-    return { totalTasks, tasksWithUpdates, totalReports, overdueTasks };
+    return { totalTasks, tasksWithUpdates, totalReports, overdueTasks, completedTasks };
   }, [tasksWithHistory, tasksWithReports, statusReports, today]);
 
   const getTaskDateStatus = useCallback(
     (task: TaskWithHistory): 'normal' | 'warning' | 'overdue' => {
       if (!task.endDate) return 'normal';
-      if (task.progress >= 100) return 'normal';
+      if (task.isCompleted) return 'normal';
 
       const daysUntilDue = diffInDays(task.endDate, today);
       if (daysUntilDue < 0) return 'overdue';
@@ -293,25 +361,35 @@ export const TaskStatusHistoryScreen = () => {
     [today]
   );
 
-  const toggleTaskExpanded = useCallback((taskId: string) => {
-    setExpandedTasks((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
-      return next;
+  const handlePointClick = useCallback((e: React.MouseEvent, taskId: string, pointId: string) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPopupState({
+      taskId,
+      pointId,
+      x: rect.left + rect.width / 2,
+      y: rect.bottom + 8
     });
   }, []);
 
-  const handlePointClick = useCallback((taskId: string, pointId: string) => {
-    setActivePoint((prev) => (prev?.taskId === taskId && prev?.pointId === pointId ? null : { taskId, pointId }));
+  const closePopup = useCallback(() => {
+    setPopupState(null);
   }, []);
 
-  const closePopup = useCallback(() => {
-    setActivePoint(null);
+  const openTaskModal = useCallback((task: TaskWithHistory) => {
+    setModalState({ task });
   }, []);
+
+  const closeModal = useCallback(() => {
+    setModalState(null);
+  }, []);
+
+  const getActivePoint = useCallback(() => {
+    if (!popupState) return null;
+    const task = filteredTasks.find((t) => t.id === popupState.taskId);
+    if (!task) return null;
+    return task.statusPoints.find((p) => p.id === popupState.pointId) ?? null;
+  }, [popupState, filteredTasks]);
 
   const renderTaskTimeline = (task: TaskWithHistory) => {
     const taskStartPos = task.startDate ? getPosition(task.startDate) : null;
@@ -325,7 +403,7 @@ export const TaskStatusHistoryScreen = () => {
         <div className={styles.taskTimelineContent}>
           {taskStartPos !== null && taskEndPos !== null && (
             <div
-              className={styles.taskDurationBar}
+              className={`${styles.taskDurationBar} ${task.isCompleted ? styles.completed : ''}`}
               style={{
                 left: `${taskStartPos}%`,
                 width: `${Math.max(taskEndPos - taskStartPos, 0.5)}%`
@@ -336,7 +414,7 @@ export const TaskStatusHistoryScreen = () => {
           )}
 
           <div className={styles.statusZones}>
-            {warningStartPos !== null && taskEndPos !== null && task.progress < 100 && (
+            {warningStartPos !== null && taskEndPos !== null && !task.isCompleted && (
               <>
                 <div
                   className={styles.zoneWarning}
@@ -363,41 +441,19 @@ export const TaskStatusHistoryScreen = () => {
           <div className={styles.statusPoints}>
             {task.statusPoints.map((point) => {
               const pos = getPosition(point.date);
-              const isActive = activePoint?.taskId === task.id && activePoint?.pointId === point.id;
+              const isActive = popupState?.taskId === task.id && popupState?.pointId === point.id;
 
               return (
                 <div
                   key={point.id}
                   className={`${styles.statusPoint} ${styles[point.dueStatus]} ${isActive ? styles.active : ''}`}
                   style={{ left: `${pos}%` }}
-                  onClick={() => handlePointClick(task.id, point.id)}
-                  title={`${formatDate(point.date)}: ${point.comment.slice(0, 50)}...`}
-                >
-                  {isActive && (
-                    <div className={styles.commentPopup} onClick={(e) => e.stopPropagation()}>
-                      <button className={styles.closePopup} onClick={closePopup}>
-                        <X size={14} />
-                      </button>
-                      <div className={styles.commentHeader}>
-                        <span className={styles.commentDate}>{formatDate(point.date)}</span>
-                        <span className={`${styles.commentStatus} ${styles[point.dueStatus]}`}>
-                          {point.dueStatus === 'overdue'
-                            ? 'Overdue'
-                            : point.dueStatus === 'warning'
-                              ? 'At risk'
-                              : 'On track'}
-                        </span>
-                      </div>
-                      <p className={styles.commentText}>{point.comment}</p>
-                      {point.author && <div className={styles.commentAuthor}>by {point.author}</div>}
-                    </div>
-                  )}
-                </div>
+                  onClick={(e) => handlePointClick(e, task.id, point.id)}
+                  title={`${formatDate(point.date)}`}
+                />
               );
             })}
           </div>
-
-          <div className={styles.todayMarker} style={{ left: `${todayPosition}%` }} />
         </div>
       </div>
     );
@@ -405,103 +461,138 @@ export const TaskStatusHistoryScreen = () => {
 
   const renderTaskInfoColumn = (task: TaskWithHistory) => {
     const dateStatus = getTaskDateStatus(task);
-    const isExpanded = expandedTasks.has(task.id);
     const hasReports = task.statusPoints.length > 0;
 
     return (
       <div className={styles.taskInfoColumn}>
-        <div className={styles.taskInfo}>
-          <h4 className={styles.taskName}>{task.name}</h4>
-          <div className={styles.taskMeta}>
-            {task.responsible && (
-              <span className={styles.taskMetaItem}>
-                <User size={14} />
-                {task.responsible}
-              </span>
-            )}
-            <span className={`${styles.progressBadge} ${task.progress >= 100 ? styles.complete : ''}`}>
-              <div className={styles.progressBar}>
-                <div className={styles.progressFill} style={{ width: `${task.progress}%` }} />
-              </div>
-              {task.progress}%
-            </span>
+        <div className={styles.taskInfoTop}>
+          <div className={styles.taskInfo}>
+            <h4 className={styles.taskName}>{task.name}</h4>
+            <div className={styles.taskMeta}>
+              {task.responsible && (
+                <span className={styles.taskMetaItem}>
+                  <User size={12} />
+                  {task.responsible}
+                </span>
+              )}
+            </div>
           </div>
+          {hasReports && (
+            <button
+              className={styles.viewReportsBtn}
+              onClick={() => openTaskModal(task)}
+              title="View all status reports"
+            >
+              <ExternalLink size={14} />
+            </button>
+          )}
         </div>
-        <div className={styles.taskDates}>
-          <div className={styles.dateTag}>
-            <span className={styles.dateLabel}>Start</span>
-            <span className={styles.dateValue}>{formatDate(task.startDate)}</span>
+        <div className={styles.taskBottomRow}>
+          <div className={styles.taskDates}>
+            <div className={styles.dateTag}>
+              <span className={styles.dateLabel}>Start</span>
+              <span className={styles.dateValue}>{formatDate(task.startDate)}</span>
+            </div>
+            <div className={`${styles.dateTag} ${dateStatus !== 'normal' ? styles[dateStatus] : ''}`}>
+              <span className={styles.dateLabel}>End</span>
+              <span className={styles.dateValue}>{formatDate(task.endDate)}</span>
+            </div>
           </div>
-          <div className={`${styles.dateTag} ${dateStatus !== 'normal' ? styles[dateStatus] : ''}`}>
-            <span className={styles.dateLabel}>End</span>
-            <span className={styles.dateValue}>{formatDate(task.endDate)}</span>
-          </div>
+          <span className={`${styles.progressBadge} ${task.isCompleted ? styles.complete : ''}`}>
+            {task.progress}%
+          </span>
         </div>
         {!hasReports && (
           <div className={styles.noReportsHint}>
-            <Info size={16} />
-            No status reports yet
-          </div>
-        )}
-        {hasReports && task.statusPoints.length > 2 && (
-          <button className={styles.expandButton} onClick={() => toggleTaskExpanded(task.id)}>
-            {isExpanded ? (
-              <>
-                <ChevronUp size={14} />
-                Hide reports
-              </>
-            ) : (
-              <>
-                <ChevronDown size={14} />
-                Show {task.statusPoints.length} reports
-              </>
-            )}
-          </button>
-        )}
-        {isExpanded && (
-          <div className={styles.reportsList}>
-            <h5 className={styles.reportsTitle}>All status reports</h5>
-            {task.statusPoints.map((point) => (
-              <div
-                key={point.id}
-                className={`${styles.reportItem} ${activePoint?.pointId === point.id ? styles.active : ''}`}
-                onClick={() => handlePointClick(task.id, point.id)}
-              >
-                <span className={styles.reportItemDate}>{formatDate(point.date)}</span>
-                <span className={styles.reportItemComment}>{point.comment}</span>
-                <span className={`${styles.reportStatusBadge} ${styles[point.dueStatus]}`}>
-                  {point.dueStatus === 'overdue' ? 'Overdue' : point.dueStatus === 'warning' ? 'At risk' : 'On track'}
-                </span>
-              </div>
-            ))}
+            <Info size={14} />
+            No reports
           </div>
         )}
       </div>
     );
   };
 
-  const handleHeaderScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const scrollLeft = e.currentTarget.scrollLeft;
-    const scrollWrappers = document.querySelectorAll(`.${styles.taskTimelineScrollWrapper}`);
-    scrollWrappers.forEach((wrapper) => {
-      if (wrapper instanceof HTMLElement) {
-        wrapper.scrollLeft = scrollLeft;
-      }
-    });
-  }, []);
+  // Popup Portal Component
+  const renderPopup = () => {
+    const point = getActivePoint();
+    if (!popupState || !point) return null;
 
-  const handleRowScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const scrollLeft = e.currentTarget.scrollLeft;
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollLeft = scrollLeft;
-    }
-    const scrollWrappers = document.querySelectorAll(`.${styles.taskTimelineScrollWrapper}`);
-    scrollWrappers.forEach((wrapper) => {
-      if (wrapper instanceof HTMLElement && wrapper !== e.currentTarget) {
-        wrapper.scrollLeft = scrollLeft;
-      }
-    });
-  }, []);
+    return createPortal(
+      <div className={styles.popupOverlay} onClick={closePopup}>
+        <div
+          className={styles.popupContainer}
+          style={{
+            left: `${popupState.x}px`,
+            top: `${popupState.y}px`
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button className={styles.closePopup} onClick={closePopup}>
+            <X size={14} />
+          </button>
+          <div className={styles.popupHeader}>
+            <span className={styles.popupDate}>{formatDate(point.date)}</span>
+            <span className={`${styles.popupStatus} ${styles[point.dueStatus]}`}>
+              {point.dueStatus === 'overdue'
+                ? 'Overdue'
+                : point.dueStatus === 'warning'
+                  ? 'At risk'
+                  : 'On track'}
+            </span>
+          </div>
+          <p className={styles.popupText}>{point.comment}</p>
+          {point.author && <div className={styles.popupAuthor}>by {point.author}</div>}
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
+  // Modal Portal Component for all reports
+  const renderModal = () => {
+    if (!modalState) return null;
+    const { task } = modalState;
+
+    return createPortal(
+      <div className={styles.modalOverlay} onClick={closeModal}>
+        <div className={styles.modalContainer} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.modalHeader}>
+            <div>
+              <h2 className={styles.modalTitle}>{task.name}</h2>
+              <p className={styles.modalSubtitle}>
+                {task.statusPoints.length} status report{task.statusPoints.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <button className={styles.modalCloseBtn} onClick={closeModal}>
+              <X size={20} />
+            </button>
+          </div>
+          <div className={styles.modalContent}>
+            <div className={styles.reportsTimeline}>
+              {task.statusPoints.map((point, index) => (
+                <div key={point.id} className={styles.reportCard}>
+                  <div className={styles.reportCardHeader}>
+                    <span className={styles.reportCardDate}>{formatDate(point.date)}</span>
+                    <span className={`${styles.reportCardStatus} ${styles[point.dueStatus]}`}>
+                      {point.dueStatus === 'overdue'
+                        ? 'Overdue'
+                        : point.dueStatus === 'warning'
+                          ? 'At risk'
+                          : 'On track'}
+                    </span>
+                  </div>
+                  <p className={styles.reportCardText}>{point.comment}</p>
+                  {point.author && <div className={styles.reportCardAuthor}>by {point.author}</div>}
+                  {index < task.statusPoints.length - 1 && <div className={styles.reportCardConnector} />}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
 
   if (!loaded) {
     return (
@@ -520,8 +611,8 @@ export const TaskStatusHistoryScreen = () => {
         <div className={styles.titleBlock}>
           <h1 className={styles.title}>Task Status History</h1>
           <p className={styles.subtitle}>
-            Track the history of status reports for each task over time. Select an initiative to see timelines with
-            status report points, warning periods, and overdue indicators.
+            Track status report history for tasks based on the Implementation Plan (Actuals).
+            Click on timeline points to view comments, or use the button to see all reports.
           </p>
         </div>
       </div>
@@ -549,14 +640,28 @@ export const TaskStatusHistoryScreen = () => {
             ))}
           </select>
         </div>
+        {initiativeFilter !== 'all' && (
+          <div className={styles.filterGroup}>
+            <label>
+              <Filter size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+              Task filter
+            </label>
+            <select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value as TaskFilter)}>
+              <option value="all">All tasks ({tasksWithHistory.length})</option>
+              <option value="incomplete">Incomplete ({tasksWithHistory.filter((t) => !t.isCompleted).length})</option>
+              <option value="completed">Completed ({stats.completedTasks})</option>
+              <option value="overdue">Overdue ({stats.overdueTasks})</option>
+              <option value="with-reports">With reports ({stats.tasksWithUpdates})</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {initiativeFilter === 'all' ? (
         <div className={styles.empty}>
           <h3 className={styles.emptyTitle}>Select an initiative to view task history</h3>
           <p className={styles.emptyText}>
-            Choose an initiative from the dropdown above to see the timeline of status reports for each task, including
-            warning and overdue periods.
+            Choose an initiative from the dropdown above to see the timeline of status reports for each task.
           </p>
         </div>
       ) : loadingReports ? (
@@ -572,47 +677,47 @@ export const TaskStatusHistoryScreen = () => {
               <span className={styles.statLabel}>Total tasks</span>
             </div>
             <div className={styles.statCard}>
-              <span className={styles.statValue}>{stats.tasksWithUpdates}</span>
-              <span className={styles.statLabel}>Tasks with reports</span>
+              <span className={styles.statValue}>{stats.completedTasks}</span>
+              <span className={styles.statLabel}>Completed</span>
             </div>
             <div className={styles.statCard}>
-              <span className={styles.statValue}>{stats.totalReports}</span>
-              <span className={styles.statLabel}>Status reports</span>
+              <span className={styles.statValue}>{stats.tasksWithUpdates}</span>
+              <span className={styles.statLabel}>With reports</span>
             </div>
             <div className={styles.statCard}>
               <span className={styles.statValue}>{stats.overdueTasks}</span>
-              <span className={styles.statLabel}>Overdue tasks</span>
+              <span className={styles.statLabel}>Overdue</span>
             </div>
           </div>
 
           <div className={styles.legend}>
             <div className={styles.legendItem}>
               <div className={`${styles.legendDot} ${styles.report}`} />
-              Status report (on track)
+              On track
             </div>
             <div className={styles.legendItem}>
               <div className={`${styles.legendDot} ${styles.warning}`} />
-              Status report (at risk)
+              At risk
             </div>
             <div className={styles.legendItem}>
               <div className={`${styles.legendDot} ${styles.overdue}`} />
-              Status report (overdue)
+              Overdue
             </div>
             <div className={styles.legendItem}>
-              <div className={`${styles.legendLine} ${styles.taskBar}`} />
-              Task duration
+              <div className={`${styles.legendLine} ${styles.taskBarLegend}`} />
+              In progress
+            </div>
+            <div className={styles.legendItem}>
+              <div className={`${styles.legendLine} ${styles.taskBarCompletedLegend}`} />
+              Completed
             </div>
             <div className={styles.legendItem}>
               <div className={`${styles.legendLine} ${styles.warningZone}`} />
-              Warning zone (7 days)
+              Warning (7d)
             </div>
             <div className={styles.legendItem}>
               <div className={`${styles.legendLine} ${styles.overdueZone}`} />
-              Overdue zone
-            </div>
-            <div className={styles.legendItem}>
-              <div className={`${styles.legendLine} ${styles.today}`} />
-              Today
+              Overdue period
             </div>
           </div>
 
@@ -620,24 +725,20 @@ export const TaskStatusHistoryScreen = () => {
             <div className={styles.taskListHeader}>
               <h3 className={styles.taskListTitle}>Tasks in {selectedInitiative?.name || 'this initiative'}</h3>
               <span className={styles.taskCount}>
-                {tasksWithReports.length} of {tasksWithHistory.length} tasks have status reports
+                Showing {filteredTasks.length} of {tasksWithHistory.length} tasks
               </span>
             </div>
 
-            {tasksWithHistory.length === 0 ? (
+            {filteredTasks.length === 0 ? (
               <div className={styles.empty}>
-                <h3 className={styles.emptyTitle}>No tasks found</h3>
-                <p className={styles.emptyText}>This initiative doesn't have any tasks in its plan yet.</p>
+                <h3 className={styles.emptyTitle}>No tasks match the filter</h3>
+                <p className={styles.emptyText}>Try changing the filter or select a different initiative.</p>
               </div>
             ) : (
               <div className={styles.timelineSection}>
                 <div className={styles.timelineGrid}>
                   <div className={styles.taskInfoHeader}>Task</div>
-                  <div
-                    className={styles.timelineScrollWrapper}
-                    ref={scrollContainerRef}
-                    onScroll={handleHeaderScroll}
-                  >
+                  <div className={styles.timelineHeaderWrapper} ref={scrollContainerRef} onScroll={handleHeaderScroll}>
                     <div className={styles.timelineAxisHeader} style={{ width: `${timelineWidth}px` }}>
                       <div className={styles.todayMarkerHeader} style={{ left: `${todayPosition}%` }} />
                       {timelineTicks.map((tick, index) => (
@@ -653,22 +754,17 @@ export const TaskStatusHistoryScreen = () => {
                     </div>
                   </div>
                 </div>
-                <div className={styles.taskRows}>
-                  {tasksWithHistory.map((task) => (
+                <div className={styles.taskRows} ref={taskRowsContainerRef}>
+                  {filteredTasks.map((task) => (
                     <div key={task.id} className={styles.taskRowWrapper}>
                       {renderTaskInfoColumn(task)}
                       <div
-                        className={`${styles.timelineScrollWrapper} ${styles.taskTimelineScrollWrapper}`}
-                        onScroll={handleRowScroll}
+                        className={styles.taskTimelineWrapper}
+                        data-timeline-scroll
+                        onScroll={handleTaskTimelineScroll}
                       >
                         <div className={styles.taskTimelineColumn}>
-                          {task.statusPoints.length > 0 ? (
-                            renderTaskTimeline(task)
-                          ) : (
-                            <div className={styles.emptyTimeline} style={{ width: `${timelineWidth}px` }}>
-                              <div className={styles.todayMarker} style={{ left: `${todayPosition}%` }} />
-                            </div>
-                          )}
+                          {renderTaskTimeline(task)}
                         </div>
                       </div>
                     </div>
@@ -679,6 +775,9 @@ export const TaskStatusHistoryScreen = () => {
           </div>
         </>
       )}
+
+      {renderPopup()}
+      {renderModal()}
     </div>
   );
 };
