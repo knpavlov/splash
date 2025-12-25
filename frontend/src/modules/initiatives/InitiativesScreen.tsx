@@ -120,20 +120,17 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
 
   const [remoteInitiative, setRemoteInitiative] = useState<Initiative | null>(null);
   const [isRemoteLoading, setIsRemoteLoading] = useState(false);
-  const [remoteLoadAttempted, setRemoteLoadAttempted] = useState(false);
 
   useEffect(() => {
     if (view.mode !== 'view' || !view.initiativeId) {
       setRemoteInitiative(null);
       setIsRemoteLoading(false);
-      setRemoteLoadAttempted(false);
       return;
     }
     const existing = findInitiative(list, view.initiativeId);
     if (existing) {
       setRemoteInitiative(null);
       setIsRemoteLoading(false);
-      setRemoteLoadAttempted(true);
       return;
     }
     let cancelled = false;
@@ -152,7 +149,6 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
       } finally {
         if (!cancelled) {
           setIsRemoteLoading(false);
-          setRemoteLoadAttempted(true);
         }
       }
     };
@@ -164,7 +160,7 @@ export const InitiativesScreen = ({ view, onViewChange }: InitiativesScreenProps
 
   if (view.mode === 'view') {
     const initiative = findInitiative(list, view.initiativeId) ?? remoteInitiative;
-    const dataLoadedFlag = Boolean(initiative) || (initiativesLoaded && remoteLoadAttempted && !isRemoteLoading);
+    const dataLoadedFlag = Boolean(initiative) || (initiativesLoaded && !isRemoteLoading);
     return (
       <InitiativeProfile
         mode="view"
