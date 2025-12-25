@@ -52,7 +52,7 @@
 
 .compact {
   margin: -32px -32px 12px;
-  padding: 4px 32px;
+  padding: 2px 32px;
 }
 
 .compact .topRow {
@@ -72,4 +72,3 @@
 .compact .message {
   margin-top: 4px;
 }
-

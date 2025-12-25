@@ -1914,8 +1914,8 @@ export const InitiativeProfile = ({
     <section className={styles.profileWrapper}>
       <StickyTopPanel
         ref={topPanelRef}
-        top={sectionMenu}
         density="compact"
+        className={styles.topPanelCompact}
         left={
           <>
             {topPanelExtraLeft}
@@ -1924,11 +1924,7 @@ export const InitiativeProfile = ({
                 Back to initiatives
               </button>
             )}
-            {!isReadOnlyMode && mode === 'view' && (
-              <button className={styles.dangerButtonSmall} onClick={handleDeleteClick} disabled={isDeleting} type="button">
-                {isDeleting ? 'Deleting...' : 'Delete'}
-              </button>
-            )}
+            {sectionMenu}
           </>
         }
         right={
@@ -1942,6 +1938,11 @@ export const InitiativeProfile = ({
               {commentButtonLabel}
             </button>
             {topPanelExtraRight}
+            {!isReadOnlyMode && mode === 'view' && (
+              <button className={styles.dangerButtonSmall} onClick={handleDeleteClick} disabled={isDeleting} type="button">
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            )}
             {!isReadOnlyMode && (
               <>
                 <button

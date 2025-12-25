@@ -98,7 +98,7 @@
 
 .sectionMenuList {
   position: absolute;
-  top: calc(100% + 6px);
+  top: 100%;
   left: 0;
   min-width: 220px;
   max-height: 320px;
@@ -109,19 +109,10 @@
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.15);
   padding: 6px;
   opacity: 0;
-  transform: translateY(6px);
+  transform: translateY(4px);
   pointer-events: none;
   transition: opacity 0.15s ease, transform 0.15s ease;
   z-index: 20;
-}
-
-.sectionMenuList::before {
-  content: '';
-  position: absolute;
-  top: -10px;
-  left: 0;
-  right: 0;
-  height: 10px;
 }
 
 .sectionMenuTrigger:hover .sectionMenuList,
@@ -150,6 +141,37 @@
 .sectionMenuItemActive {
   background: rgba(37, 99, 235, 0.12);
   color: #1d4ed8;
+}
+
+.topPanelCompact .sectionMenuLabel {
+  font-size: 10px;
+}
+
+.topPanelCompact .sectionMenuButton {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.topPanelCompact .commentButton,
+.topPanelCompact .commentButtonActive {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.topPanelCompact .secondaryButton,
+.topPanelCompact .primaryButton {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.topPanelCompact .dangerButtonSmall {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.topPanelCompact .backLink {
+  font-size: 12px;
 }
 
 @media (max-width: 640px) {
