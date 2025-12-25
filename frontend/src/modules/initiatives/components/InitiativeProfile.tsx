@@ -765,8 +765,10 @@ export const InitiativeProfile = ({
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const topPanelRef = useRef<HTMLDivElement>(null);
+  const topPanelHeightRef = useRef(0);
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   const sectionElementsRef = useRef<HTMLElement[]>([]);
+  const sectionOffsetsRef = useRef<{ key: string; top: number }[]>([]);
   const activeSectionRef = useRef('overview');
   const [activeProfileSection, setActiveProfileSection] = useState('overview');
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -852,17 +854,6 @@ export const InitiativeProfile = ({
   useEffect(() => {
     setLogVisibleCount((count) => Math.min(20, changeLog.length || count));
   }, [changeLog]);
-
-  useEffect(() => {
-    if (!planCacheKey) {
-      return;
-    }
-    try {
-      sessionStorage.setItem(planCacheKey, JSON.stringify(draft.plan));
-    } catch (error) {
-      console.warn('Failed to persist plan cache', error);
-    }
-  }, [draft.plan, planCacheKey]);
 
   useEffect(() => {
     if (!planCacheKey) {
@@ -1691,28 +1682,37 @@ export const InitiativeProfile = ({
 
   const updateSectionElements = useCallback(() => {
     const container = contentRef.current;
-    if (!container) {
+    const scrollContainer = scrollContainerRef.current ?? container;
+    if (!container || !scrollContainer) {
       sectionElementsRef.current = [];
+      sectionOffsetsRef.current = [];
       return;
     }
-    sectionElementsRef.current = Array.from(container.querySelectorAll<HTMLElement>('[data-profile-section]'));
+    const elements = Array.from(container.querySelectorAll<HTMLElement>('[data-profile-section]'));
+    sectionElementsRef.current = elements;
+    const scrollRect = scrollContainer.getBoundingClientRect();
+    const scrollTop = scrollContainer.scrollTop;
+    sectionOffsetsRef.current = elements
+      .map((element) => {
+        const key = element.dataset.profileSection ?? '';
+        const rect = element.getBoundingClientRect();
+        return { key, top: rect.top - scrollRect.top + scrollTop };
+      })
+      .filter((entry) => entry.key);
   }, []);
 
   const updateActiveSection = useCallback(() => {
     const scrollContainer = scrollContainerRef.current ?? contentRef.current;
-    if (!scrollContainer || sectionElementsRef.current.length === 0) {
+    if (!scrollContainer || sectionOffsetsRef.current.length === 0) {
       return;
     }
-    const containerRect = scrollContainer.getBoundingClientRect();
     const scrollTop = scrollContainer.scrollTop;
-    const offset = (topPanelRef.current?.offsetHeight ?? 72) + 8;
+    const offset = (topPanelHeightRef.current || 72) + 8;
     const anchorLine = scrollTop + offset;
-    let nextKey = sectionElementsRef.current[0]?.dataset.profileSection ?? activeSectionRef.current;
-    for (const element of sectionElementsRef.current) {
-      const rect = element.getBoundingClientRect();
-      const elementTop = rect.top - containerRect.top + scrollTop;
-      if (elementTop <= anchorLine) {
-        nextKey = element.dataset.profileSection ?? nextKey;
+    let nextKey = sectionOffsetsRef.current[0]?.key ?? activeSectionRef.current;
+    for (const entry of sectionOffsetsRef.current) {
+      if (entry.top <= anchorLine) {
+        nextKey = entry.key || nextKey;
       } else {
         break;
       }
@@ -1731,7 +1731,25 @@ export const InitiativeProfile = ({
     scrollContainerRef.current = (container.closest('main') as HTMLElement | null) ?? container;
     updateSectionElements();
     updateActiveSection();
-  }, [updateActiveSection, updateSectionElements, profileSections]);
+  }, [updateActiveSection, updateSectionElements, profileSections, collapsedSections, selectedStage]);
+
+  useEffect(() => {
+    const panel = topPanelRef.current;
+    if (!panel) {
+      return;
+    }
+    const updateHeight = () => {
+      topPanelHeightRef.current = panel.offsetHeight;
+    };
+    updateHeight();
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateHeight);
+      observer.observe(panel);
+      return () => observer.disconnect();
+    }
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
 
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current ?? contentRef.current;
@@ -1748,17 +1766,21 @@ export const InitiativeProfile = ({
         updateActiveSection();
       });
     };
+    const handleResize = () => {
+      updateSectionElements();
+      handleScroll();
+    };
     scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleScroll);
+    window.addEventListener('resize', handleResize);
     handleScroll();
     return () => {
       scrollContainer.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleScroll);
+      window.removeEventListener('resize', handleResize);
       if (rafId) {
         window.cancelAnimationFrame(rafId);
       }
     };
-  }, [updateActiveSection]);
+  }, [updateActiveSection, updateSectionElements]);
 
   useEffect(() => {
     if (profileSections.some((section) => section.key === activeProfileSection)) {
