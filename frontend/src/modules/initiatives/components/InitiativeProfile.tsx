@@ -1647,24 +1647,6 @@ export const InitiativeProfile = ({
     setValueStepTooltip((prev) => ({ ...prev, visible: false }));
   };
 
-  if (mode === 'view' && !initiative) {
-    if (!dataLoaded) {
-      return (
-        <section className={styles.placeholder}>
-          <p>Loading initiative details...</p>
-        </section>
-      );
-    }
-    return (
-      <section className={styles.placeholder}>
-        <h2>Initiative not found</h2>
-        <p>The initiative may have been deleted. Refresh the list and try again.</p>
-        <button className={styles.secondaryButton} onClick={() => onBack()} type="button">
-          Back to list
-        </button>
-      </section>
-    );
-  }
   const roiValue = draft.financialSummary?.roi ?? calculateFinancialSummary(draft.totals).roi;
   const commentButtonLabel = isLoadingComments ? 'Loading comments...' : `Comments${commentThreads.length ? ` (${commentThreads.length})` : ''}`;
   const profileContentClass = `${styles.profileContent}${hideBackLink ? ` ${styles.profileContentNoBack}` : ''}`;
@@ -1909,6 +1891,25 @@ export const InitiativeProfile = ({
       </div>
     </div>
   );
+
+  if (mode === 'view' && !initiative) {
+    if (!dataLoaded) {
+      return (
+        <section className={styles.placeholder}>
+          <p>Loading initiative details...</p>
+        </section>
+      );
+    }
+    return (
+      <section className={styles.placeholder}>
+        <h2>Initiative not found</h2>
+        <p>The initiative may have been deleted. Refresh the list and try again.</p>
+        <button className={styles.secondaryButton} onClick={() => onBack()} type="button">
+          Back to list
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className={styles.profileWrapper}>
