@@ -1924,6 +1924,11 @@ export const InitiativeProfile = ({
                 Back to initiatives
               </button>
             )}
+            {!isReadOnlyMode && mode === 'view' && (
+              <button className={styles.dangerButton} onClick={handleDeleteClick} disabled={isDeleting} type="button">
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            )}
           </>
         }
         right={
@@ -2866,18 +2871,6 @@ export const InitiativeProfile = ({
           ))}
       </section>
 
-      <footer className={styles.footer}>
-        <div className={styles.footerLeft}>
-          <button className={styles.secondaryButton} onClick={() => onBack(draft.workstreamId)} type="button">
-            {isReadOnlyMode ? 'Close' : 'Cancel'}
-          </button>
-          {!isReadOnlyMode && mode === 'view' && (
-            <button className={styles.dangerButton} onClick={handleDeleteClick} disabled={isDeleting} type="button">
-              {isDeleting ? 'Deleting...' : 'Delete'}
-            </button>
-          )}
-        </div>
-      </footer>
       {isSubmitConfirmOpen && (
         <div
           className={styles.submitOverlay}

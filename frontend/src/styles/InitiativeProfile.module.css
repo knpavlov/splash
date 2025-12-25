@@ -115,6 +115,15 @@
   z-index: 20;
 }
 
+.sectionMenuList::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 0;
+  right: 0;
+  height: 10px;
+}
+
 .sectionMenuTrigger:hover .sectionMenuList,
 .sectionMenuTrigger:focus-within .sectionMenuList {
   opacity: 1;
