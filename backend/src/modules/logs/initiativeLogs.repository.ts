@@ -39,15 +39,50 @@ export interface InitiativeLogEntry {
   read: boolean;
 }
 
+export type EventCategory =
+  | 'created'
+  | 'approvals'
+  | 'financials'
+  | 'timeline'
+  | 'ownership'
+  | 'content'
+  | 'documents'
+  | 'risks';
+
+export const EVENT_CATEGORIES: Record<EventCategory, { label: string; patterns: string[] }> = {
+  created: { label: 'Created', patterns: ['created'] },
+  approvals: { label: 'Approvals & Status', patterns: ['status', 'stageState.'] },
+  financials: { label: 'Financials', patterns: ['recurringImpact', '.financials.', '.calcLogic'] },
+  timeline: { label: 'Timeline & Schedule', patterns: ['l4Date', '.period', 'plan.timeline', 'plan.actuals', 'activeStage'] },
+  ownership: { label: 'Ownership', patterns: ['owner', 'workstream'] },
+  content: { label: 'Content & Details', patterns: ['name', 'description', '.commentary', '.kpis', '.valueStep'] },
+  documents: { label: 'Documents', patterns: ['.businessCase', '.supportingDocs'] },
+  risks: { label: 'Risks', patterns: ['risks'] }
+};
+
+export const ALL_EVENT_CATEGORIES = Object.keys(EVENT_CATEGORIES) as EventCategory[];
+
 export interface InitiativeLogFilters {
   limit?: number;
   before?: Date | null;
   after?: Date | null;
   workstreamIds?: string[];
   initiativeIds?: string[];
+  eventCategories?: EventCategory[];
 }
 
 export class InitiativeLogsRepository {
+  private buildFieldPatterns(categories: EventCategory[]): string[] {
+    const patterns: string[] = [];
+    for (const category of categories) {
+      const definition = EVENT_CATEGORIES[category];
+      if (definition) {
+        patterns.push(...definition.patterns);
+      }
+    }
+    return patterns;
+  }
+
   async listEntries(accountId: string, filters: InitiativeLogFilters): Promise<InitiativeLogEntry[]> {
     const whereClauses: string[] = [];
     const values: unknown[] = [];
@@ -72,6 +107,17 @@ export class InitiativeLogsRepository {
       whereClauses.push(`initiatives.id = ANY($${idx}::uuid[])`);
       values.push(filters.initiativeIds);
       idx += 1;
+    }
+    if (filters.eventCategories && filters.eventCategories.length) {
+      const patterns = this.buildFieldPatterns(filters.eventCategories);
+      if (patterns.length) {
+        const patternConditions = patterns.map((pattern, patternIdx) => {
+          values.push(`%${pattern}%`);
+          return `events.field LIKE $${idx + patternIdx}`;
+        });
+        whereClauses.push(`(${patternConditions.join(' OR ')})`);
+        idx += patterns.length;
+      }
     }
     const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
     const limit = Math.max(1, Math.min(filters.limit ?? 100, 500));

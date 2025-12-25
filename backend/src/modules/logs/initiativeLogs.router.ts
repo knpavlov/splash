@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { initiativeLogsService } from './initiativeLogs.module.js';
+import { ALL_EVENT_CATEGORIES, EventCategory, EVENT_CATEGORIES } from './initiativeLogs.repository.js';
 
 const router = Router();
 
@@ -10,6 +11,22 @@ const parseDate = (value: unknown): Date | null => {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
+
+const parseEventCategories = (value: unknown): EventCategory[] | undefined => {
+  if (typeof value !== 'string' || !value.trim()) {
+    return undefined;
+  }
+  const categories = value.split(',').map((cat) => cat.trim()).filter(Boolean) as EventCategory[];
+  return categories.filter((cat) => ALL_EVENT_CATEGORIES.includes(cat));
+};
+
+router.get('/categories', (_req, res) => {
+  const categories = ALL_EVENT_CATEGORIES.map((key) => ({
+    key,
+    label: EVENT_CATEGORIES[key].label
+  }));
+  res.json(categories);
+});
 
 router.get('/', async (req, res) => {
   const accountId = req.headers['x-account-id'];
@@ -28,7 +45,8 @@ router.get('/', async (req, res) => {
     initiativeIds:
       typeof req.query.initiatives === 'string'
         ? req.query.initiatives.split(',').map((id) => id.trim()).filter(Boolean)
-        : undefined
+        : undefined,
+    eventCategories: parseEventCategories(req.query.categories)
   };
   try {
     const logs = await initiativeLogsService.listLogs(accountId, filters);

@@ -141,3 +141,62 @@
   color: #b91c1c;
   font-weight: 600;
 }
+
+.filterGroupWide {
+  grid-column: 1 / -1;
+}
+
+.categoryChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.categoryChip {
+  border: 1px solid #cbd5f5;
+  background: #fff;
+  color: #475569;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.categoryChip:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.categoryChipActive {
+  background: #111d4a;
+  color: #fff;
+  border-color: #111d4a;
+}
+
+.categoryChipActive:hover {
+  background: #1e3a5f;
+  border-color: #1e3a5f;
+}
+
+.clearChips {
+  border: none;
+  background: transparent;
+  color: #6366f1;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 10px;
+}
+
+.clearChips:hover {
+  text-decoration: underline;
+}
+
+.filterHint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #94a3b8;
+}

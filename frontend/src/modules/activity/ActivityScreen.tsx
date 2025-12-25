@@ -13,7 +13,7 @@ import { workstreamsApi } from '../workstreams/services/workstreamsApi';
 import { initiativesApi } from '../initiatives/services/initiativesApi';
 import { Workstream } from '../../shared/types/workstream';
 import { Initiative, initiativeStageLabels } from '../../shared/types/initiative';
-import { initiativeLogsApi } from '../logs/services/initiativeLogsApi';
+import { initiativeLogsApi, EventCategory, EventCategoryOption } from '../logs/services/initiativeLogsApi';
 import { InitiativeLogEntry } from '../../shared/types/initiativeLog';
 
 const currencyFormatter = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 });
@@ -96,6 +96,14 @@ export const ActivityScreen = () => {
   const [updateSort, setUpdateSort] = useState<'desc' | 'asc'>('desc');
   const [updateGroupCollapsed, setUpdateGroupCollapsed] = useState<Record<string, boolean>>({});
   const [followedSearch, setFollowedSearch] = useState('');
+  const [eventCategories, setEventCategories] = useState<EventCategoryOption[]>([]);
+  const [selectedEventCategories, setSelectedEventCategories] = useState<EventCategory[]>([]);
+  const [filtersExpanded, setFiltersExpanded] = useState<Record<string, boolean>>({
+    workstreams: true,
+    initiatives: false,
+    metrics: false,
+    eventTypes: false
+  });
   const markVisitRef = useRef(false);
 
   const accountId = session?.accountId ?? null;
@@ -116,10 +124,11 @@ export const ActivityScreen = () => {
     }
     setLoading(true);
     try {
-      const [preferencesBundle, wsList, initiativesList] = await Promise.all([
+      const [preferencesBundle, wsList, initiativesList, categoriesList] = await Promise.all([
         activityApi.getPreferences(accountId),
         workstreamsApi.list(),
-        initiativesApi.list()
+        initiativesApi.list(),
+        initiativeLogsApi.getCategories()
       ]);
       setBundle(preferencesBundle);
       setSelectedWorkstreams(preferencesBundle.preferences.workstreamIds);
@@ -128,6 +137,7 @@ export const ActivityScreen = () => {
       setTimeframeKey(preferencesBundle.preferences.defaultTimeframe);
       setWorkstreams(wsList);
       setInitiatives(initiativesList);
+      setEventCategories(categoriesList);
       setError(null);
       setReady(true);
     } catch (err) {
@@ -139,7 +149,7 @@ export const ActivityScreen = () => {
   }, [accountId]);
 
   const loadSignals = useCallback(
-    async (input: { timeframe: ActivityTimeframeKey; workstreamIds: string[]; metricKeys: string[]; initiativeIds: string[] }) => {
+    async (input: { timeframe: ActivityTimeframeKey; workstreamIds: string[]; metricKeys: string[]; initiativeIds: string[]; eventCategories: EventCategory[] }) => {
       if (!accountId) {
         return;
       }
@@ -164,6 +174,7 @@ export const ActivityScreen = () => {
           after: summaryResponse.timeframe.start,
           workstreamIds: input.workstreamIds.length ? input.workstreamIds : undefined,
           initiativeIds: input.initiativeIds.length ? input.initiativeIds : undefined,
+          eventCategories: input.eventCategories.length ? input.eventCategories : undefined,
           limit: 60
         });
         setUpdates(logs);
@@ -196,9 +207,10 @@ export const ActivityScreen = () => {
       timeframe: timeframeKey,
       workstreamIds: selectedWorkstreams,
       metricKeys: selectedMetrics,
-      initiativeIds: followedInitiatives
+      initiativeIds: followedInitiatives,
+      eventCategories: selectedEventCategories
     });
-  }, [ready, accountId, timeframeKey, selectedWorkstreams, selectedMetrics, followedInitiatives, loadSignals]);
+  }, [ready, accountId, timeframeKey, selectedWorkstreams, selectedMetrics, followedInitiatives, selectedEventCategories, loadSignals]);
 
   useEffect(() => {
     if (!status) {
@@ -235,6 +247,16 @@ export const ActivityScreen = () => {
       copy.splice(nextIndex, 0, item);
       return copy;
     });
+  };
+
+  const handleEventCategoryToggle = (key: EventCategory) => {
+    setSelectedEventCategories((current) =>
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
+    );
+  };
+
+  const toggleFilterSection = (section: string) => {
+    setFiltersExpanded((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
   const handleSavePreferences = async () => {
@@ -389,114 +411,198 @@ export const ActivityScreen = () => {
     <section className={styles.layout}>
       <aside className={styles.filtersColumn}>
         <div className={styles.filtersCard}>
-          {panelBusy && <div className={styles.overlay}>Refreshing data…</div>}
+          {panelBusy && <div className={styles.overlay}>Refreshing…</div>}
           {error && <p className={styles.error}>{error}</p>}
           {status && <p className={styles.status}>{status}</p>}
-          <div className={styles.controlGroup}>
-            <p className={styles.controlLabel}>Workstreams</p>
-            <select
-              multiple
-              className={styles.multiSelect}
-              value={selectedWorkstreams}
-              onChange={(event) => setSelectedWorkstreams(Array.from(event.target.selectedOptions, (option) => option.value))}
+
+          <div className={styles.filterSection}>
+            <button
+              type="button"
+              className={styles.sectionToggle}
+              onClick={() => toggleFilterSection('workstreams')}
+              aria-expanded={filtersExpanded.workstreams}
             >
-              {sortedWorkstreams.map((workstream) => (
-                <option key={workstream.id} value={workstream.id}>
-                  {workstream.name}
-                </option>
-              ))}
-            </select>
-            <div className={styles.selectActions}>
-              <button type="button" onClick={() => setSelectedWorkstreams(sortedWorkstreams.map((ws) => ws.id))}>
-                Select all
-              </button>
-              <button type="button" onClick={() => setSelectedWorkstreams([])}>
-                Clear
-              </button>
-            </div>
-          </div>
-          <div className={styles.controlGroup}>
-            <p className={styles.controlLabel}>Followed initiatives</p>
-            <input
-              type="search"
-              className={styles.searchInput}
-              value={followedSearch}
-              onChange={(event) => setFollowedSearch(event.target.value)}
-              placeholder="Search initiatives…"
-            />
-            <select
-              multiple
-              className={styles.multiSelect}
-              value={followedInitiatives}
-              onChange={(event) => setFollowedInitiatives(Array.from(event.target.selectedOptions, (option) => option.value))}
-            >
-              {initiativesByWorkstream.length === 0 && <option disabled>No matches</option>}
-              {initiativesByWorkstream.map((group) => (
-                <optgroup key={group.workstreamId || group.workstreamName} label={group.workstreamName}>
-                  {group.initiatives.map((initiative) => (
-                    <option key={initiative.id} value={initiative.id}>
-                      {initiative.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            <div className={styles.selectActions}>
-              <button type="button" onClick={() => setFollowedInitiatives(sortedInitiatives.map((initiative) => initiative.id))}>
-                Follow all
-              </button>
-              <button type="button" onClick={() => setFollowedInitiatives([])}>
-                Clear
-              </button>
-            </div>
-          </div>
-          <div className={styles.controlGroup}>
-            <p className={styles.controlLabel}>Metric library</p>
-              <div className={styles.metricLibrary}>
-                {bundle?.metricCatalog?.map((definition) => {
-                const index = selectedMetrics.indexOf(definition.key);
-                const isActive = index !== -1;
-                const disableUp = !isActive || index === 0;
-                const disableDown = !isActive || index === selectedMetrics.length - 1;
-                return (
-                  <div key={definition.key} className={styles.metricOption}>
-                    <label>
-                      <input type="checkbox" checked={isActive} onChange={() => handleMetricToggle(definition.key)} />
-                      <span>
-                        <strong>{definition.label}</strong>
-                      </span>
+              <span className={styles.sectionTitle}>Workstreams</span>
+              <span className={styles.sectionBadge}>{selectedWorkstreams.length}/{sortedWorkstreams.length}</span>
+              <span className={styles.toggleIcon}>{filtersExpanded.workstreams ? '−' : '+'}</span>
+            </button>
+            {filtersExpanded.workstreams && (
+              <div className={styles.sectionContent}>
+                <div className={styles.checkboxList}>
+                  {sortedWorkstreams.map((workstream) => (
+                    <label key={workstream.id} className={styles.checkboxItem}>
+                      <input
+                        type="checkbox"
+                        checked={selectedWorkstreams.includes(workstream.id)}
+                        onChange={() => setSelectedWorkstreams((current) =>
+                          current.includes(workstream.id)
+                            ? current.filter((id) => id !== workstream.id)
+                            : [...current, workstream.id]
+                        )}
+                      />
+                      <span>{workstream.name}</span>
                     </label>
-                    <div className={styles.metricReorder}>
-                      <button
-                        type="button"
-                        className={styles.reorderButton}
-                        disabled={disableUp}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleMoveMetric(definition.key, 'up');
-                        }}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.reorderButton}
-                        disabled={disableDown}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleMoveMetric(definition.key, 'down');
-                        }}
-                      >
-                        ↓
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+                <div className={styles.sectionActions}>
+                  <button type="button" onClick={() => setSelectedWorkstreams(sortedWorkstreams.map((ws) => ws.id))}>
+                    All
+                  </button>
+                  <button type="button" onClick={() => setSelectedWorkstreams([])}>
+                    None
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
+
+          <div className={styles.filterSection}>
+            <button
+              type="button"
+              className={styles.sectionToggle}
+              onClick={() => toggleFilterSection('initiatives')}
+              aria-expanded={filtersExpanded.initiatives}
+            >
+              <span className={styles.sectionTitle}>Followed initiatives</span>
+              <span className={styles.sectionBadge}>{followedInitiatives.length}</span>
+              <span className={styles.toggleIcon}>{filtersExpanded.initiatives ? '−' : '+'}</span>
+            </button>
+            {filtersExpanded.initiatives && (
+              <div className={styles.sectionContent}>
+                <input
+                  type="search"
+                  className={styles.searchInput}
+                  value={followedSearch}
+                  onChange={(event) => setFollowedSearch(event.target.value)}
+                  placeholder="Search…"
+                />
+                <div className={styles.checkboxList}>
+                  {initiativesByWorkstream.length === 0 && <p className={styles.noResults}>No matches</p>}
+                  {initiativesByWorkstream.map((group) => (
+                    <div key={group.workstreamId || group.workstreamName} className={styles.checkboxGroup}>
+                      <p className={styles.checkboxGroupLabel}>{group.workstreamName}</p>
+                      {group.initiatives.map((initiative) => (
+                        <label key={initiative.id} className={styles.checkboxItem}>
+                          <input
+                            type="checkbox"
+                            checked={followedInitiatives.includes(initiative.id)}
+                            onChange={() => setFollowedInitiatives((current) =>
+                              current.includes(initiative.id)
+                                ? current.filter((id) => id !== initiative.id)
+                                : [...current, initiative.id]
+                            )}
+                          />
+                          <span>{initiative.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.sectionActions}>
+                  <button type="button" onClick={() => setFollowedInitiatives(sortedInitiatives.map((i) => i.id))}>
+                    All
+                  </button>
+                  <button type="button" onClick={() => setFollowedInitiatives([])}>
+                    None
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className={styles.filterSection}>
+            <button
+              type="button"
+              className={styles.sectionToggle}
+              onClick={() => toggleFilterSection('eventTypes')}
+              aria-expanded={filtersExpanded.eventTypes}
+            >
+              <span className={styles.sectionTitle}>Event types</span>
+              <span className={styles.sectionBadge}>
+                {selectedEventCategories.length === 0 ? 'All' : selectedEventCategories.length}
+              </span>
+              <span className={styles.toggleIcon}>{filtersExpanded.eventTypes ? '−' : '+'}</span>
+            </button>
+            {filtersExpanded.eventTypes && (
+              <div className={styles.sectionContent}>
+                <div className={styles.chipGrid}>
+                  {eventCategories.map((category) => (
+                    <button
+                      key={category.key}
+                      type="button"
+                      className={`${styles.filterChip} ${selectedEventCategories.includes(category.key) ? styles.filterChipActive : ''}`}
+                      onClick={() => handleEventCategoryToggle(category.key)}
+                    >
+                      {category.label}
+                    </button>
+                  ))}
+                </div>
+                {selectedEventCategories.length > 0 && (
+                  <button
+                    type="button"
+                    className={styles.clearLink}
+                    onClick={() => setSelectedEventCategories([])}
+                  >
+                    Clear filter
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className={styles.filterSection}>
+            <button
+              type="button"
+              className={styles.sectionToggle}
+              onClick={() => toggleFilterSection('metrics')}
+              aria-expanded={filtersExpanded.metrics}
+            >
+              <span className={styles.sectionTitle}>Metrics</span>
+              <span className={styles.sectionBadge}>{selectedMetrics.length}</span>
+              <span className={styles.toggleIcon}>{filtersExpanded.metrics ? '−' : '+'}</span>
+            </button>
+            {filtersExpanded.metrics && (
+              <div className={styles.sectionContent}>
+                <div className={styles.metricList}>
+                  {bundle?.metricCatalog?.map((definition) => {
+                    const index = selectedMetrics.indexOf(definition.key);
+                    const isActive = index !== -1;
+                    const disableUp = !isActive || index === 0;
+                    const disableDown = !isActive || index === selectedMetrics.length - 1;
+                    return (
+                      <div key={definition.key} className={`${styles.metricItem} ${isActive ? styles.metricItemActive : ''}`}>
+                        <label className={styles.metricLabel}>
+                          <input type="checkbox" checked={isActive} onChange={() => handleMetricToggle(definition.key)} />
+                          <span>{definition.label}</span>
+                        </label>
+                        {isActive && (
+                          <div className={styles.metricOrder}>
+                            <button
+                              type="button"
+                              disabled={disableUp}
+                              onClick={(e) => { e.stopPropagation(); handleMoveMetric(definition.key, 'up'); }}
+                              title="Move up"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              disabled={disableDown}
+                              onClick={(e) => { e.stopPropagation(); handleMoveMetric(definition.key, 'down'); }}
+                              title="Move down"
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className={styles.preferenceActions}>
             <button type="button" className={styles.saveButton} onClick={handleSavePreferences} disabled={panelBusy}>
               Save preferences

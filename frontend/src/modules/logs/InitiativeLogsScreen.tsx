@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import styles from '../../styles/InitiativeLogsScreen.module.css';
 import { workstreamsApi } from '../workstreams/services/workstreamsApi';
-import { initiativeLogsApi, InitiativeLogFilters } from './services/initiativeLogsApi';
+import { initiativeLogsApi, InitiativeLogFilters, EventCategory, EventCategoryOption } from './services/initiativeLogsApi';
 import { InitiativeLogEntry } from '../../shared/types/initiativeLog';
 import { Workstream } from '../../shared/types/workstream';
 import { initiativesApi } from '../initiatives/services/initiativesApi';
@@ -17,9 +17,11 @@ export const InitiativeLogsScreen = () => {
   const { session } = useAuth();
   const [workstreams, setWorkstreams] = useState<Workstream[]>([]);
   const [initiatives, setInitiatives] = useState<Initiative[]>([]);
+  const [eventCategories, setEventCategories] = useState<EventCategoryOption[]>([]);
   const [entries, setEntries] = useState<InitiativeLogEntry[]>([]);
   const [selectedWorkstreams, setSelectedWorkstreams] = useState<string[]>([]);
   const [selectedInitiatives, setSelectedInitiatives] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<EventCategory[]>([]);
   const [after, setAfter] = useState<string | null>(DEFAULT_AFTER);
   const [before, setBefore] = useState<string | null>(null);
   const [showRead, setShowRead] = useState(true);
@@ -39,6 +41,10 @@ export const InitiativeLogsScreen = () => {
       .list()
       .then((list) => setInitiatives(list))
       .catch((err) => console.error('Failed to load initiatives', err));
+    initiativeLogsApi
+      .getCategories()
+      .then((list) => setEventCategories(list))
+      .catch((err) => console.error('Failed to load event categories', err));
   }, []);
 
   const filters = useMemo<InitiativeLogFilters>(
@@ -47,10 +53,17 @@ export const InitiativeLogsScreen = () => {
       after: after || undefined,
       before: before || undefined,
       workstreamIds: selectedWorkstreams.length ? selectedWorkstreams : undefined,
-      initiativeIds: selectedInitiatives.length ? selectedInitiatives : undefined
+      initiativeIds: selectedInitiatives.length ? selectedInitiatives : undefined,
+      eventCategories: selectedCategories.length ? selectedCategories : undefined
     }),
-    [after, before, selectedWorkstreams, selectedInitiatives]
+    [after, before, selectedWorkstreams, selectedInitiatives, selectedCategories]
   );
+
+  const toggleCategory = (key: EventCategory) => {
+    setSelectedCategories((current) =>
+      current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
+    );
+  };
 
   const loadEntries = () => {
     if (!session?.accountId) {
@@ -178,6 +191,33 @@ export const InitiativeLogsScreen = () => {
         <div className={styles.filterGroup}>
           <label>To</label>
           <input type="date" value={before ?? ''} onChange={(event) => setBefore(event.target.value || null)} />
+        </div>
+        <div className={`${styles.filterGroup} ${styles.filterGroupWide}`}>
+          <label>Event types</label>
+          <div className={styles.categoryChips}>
+            {eventCategories.map((category) => (
+              <button
+                key={category.key}
+                type="button"
+                className={`${styles.categoryChip} ${selectedCategories.includes(category.key) ? styles.categoryChipActive : ''}`}
+                onClick={() => toggleCategory(category.key)}
+              >
+                {category.label}
+              </button>
+            ))}
+            {selectedCategories.length > 0 && (
+              <button
+                type="button"
+                className={styles.clearChips}
+                onClick={() => setSelectedCategories([])}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <p className={styles.filterHint}>
+            {selectedCategories.length === 0 ? 'Showing all event types' : `Filtering by ${selectedCategories.length} type(s)`}
+          </p>
         </div>
       </section>
 

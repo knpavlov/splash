@@ -12,127 +12,346 @@
 
 .filtersCard {
   background: #fff;
-  border: 1px solid #e0e6f5;
-  border-radius: 24px;
-  padding: 1.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
   position: relative;
+  overflow: hidden;
 }
 
 .status {
   margin: 0;
+  padding: 0.75rem 1rem;
   color: #0a8f5e;
-  font-weight: 600;
+  font-weight: 500;
+  font-size: 0.85rem;
+  background: #ecfdf5;
+  border-bottom: 1px solid #d1fae5;
 }
 
 .error {
   margin: 0;
-  color: #b00020;
-  font-weight: 600;
+  padding: 0.75rem 1rem;
+  color: #b91c1c;
+  font-weight: 500;
+  font-size: 0.85rem;
+  background: #fef2f2;
+  border-bottom: 1px solid #fecaca;
 }
 
-.controlGroup {
+.filterSection {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.filterSection:last-of-type {
+  border-bottom: none;
+}
+
+.sectionToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.sectionToggle:hover {
+  background: #f8fafc;
+}
+
+.sectionTitle {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #1e293b;
+}
+
+.sectionBadge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+}
+
+.toggleIcon {
+  font-size: 1rem;
+  color: #94a3b8;
+  font-weight: 300;
+  width: 1.25rem;
+  text-align: center;
+}
+
+.sectionContent {
+  padding: 0 1rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.controlLabel {
-  font-weight: 600;
-  margin: 0;
-}
-
-.multiSelect {
-  min-height: 160px;
-  border-radius: 14px;
-  border: 1px solid #cfd4e5;
-  padding: 0.4rem;
-  font-size: 0.9rem;
-}
-
-.selectActions {
-  display: flex;
-  gap: 0.6rem;
-  font-size: 0.8rem;
-}
-
-.metricLibrary {
-  border: 1px solid #dfe3f1;
-  border-radius: 16px;
-  padding: 0.6rem;
+.checkboxList {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  max-height: 360px;
-  min-height: 260px;
+  gap: 0.125rem;
+  max-height: 200px;
   overflow-y: auto;
 }
 
-.metricOption {
+.checkboxItem {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.5rem;
-  border-radius: 12px;
-  background: #f8f9fd;
-  padding: 0.4rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #475569;
+  transition: background 0.1s ease;
 }
 
-.metricOption label {
-  display: flex;
-  gap: 0.5rem;
-  flex: 1;
+.checkboxItem:hover {
+  background: #f8fafc;
 }
 
-.metricOption input {
+.checkboxItem input {
+  accent-color: #111d4a;
+}
+
+.checkboxGroup {
   margin-top: 0.25rem;
 }
 
-.metricReorder {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+.checkboxGroupLabel {
+  margin: 0 0 0.25rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #94a3b8;
 }
 
-.reorderButton {
-  border: 1px solid #cfd4e5;
-  background: #fff;
-  border-radius: 6px;
-  width: 28px;
-  height: 24px;
+.sectionActions {
+  display: flex;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.sectionActions button {
+  flex: 1;
+  padding: 0.375rem 0.75rem;
   font-size: 0.75rem;
+  font-weight: 500;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sectionActions button:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  transition: all 0.15s ease;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: #94a3b8;
+  background: #fff;
+}
+
+.searchInput::placeholder {
+  color: #94a3b8;
+}
+
+.noResults {
+  margin: 0;
+  padding: 0.75rem 0.5rem;
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.chipGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.filterChip {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filterChip:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.filterChipActive {
+  background: #111d4a;
+  color: #fff;
+  border-color: #111d4a;
+}
+
+.filterChipActive:hover {
+  background: #1e3a5f;
+  border-color: #1e3a5f;
+}
+
+.clearLink {
+  align-self: flex-start;
+  padding: 0.25rem 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6366f1;
+  background: transparent;
+  border: none;
   cursor: pointer;
 }
 
-.reorderButton:disabled {
-  opacity: 0.4;
+.clearLink:hover {
+  text-decoration: underline;
+}
+
+.metricList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.metricItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.375rem 0.5rem;
+  border-radius: 6px;
+  transition: background 0.1s ease;
+}
+
+.metricItem:hover {
+  background: #f8fafc;
+}
+
+.metricItemActive {
+  background: #f0f9ff;
+}
+
+.metricItemActive:hover {
+  background: #e0f2fe;
+}
+
+.metricLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  font-size: 0.85rem;
+  color: #475569;
+  cursor: pointer;
+}
+
+.metricLabel input {
+  accent-color: #111d4a;
+}
+
+.metricOrder {
+  display: flex;
+  gap: 0.125rem;
+}
+
+.metricOrder button {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: #64748b;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.metricOrder button:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.metricOrder button:disabled {
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
 .preferenceActions {
-  display: flex;
-  justify-content: flex-end;
+  padding: 1rem;
+  border-top: 1px solid #f1f5f9;
 }
 
 .saveButton {
+  width: 100%;
   background: #111d4a;
   color: #fff;
   border: none;
-  padding: 0.65rem 1.6rem;
-  border-radius: 999px;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.875rem;
   cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.saveButton:hover {
+  background: #1e3a5f;
+}
+
+.saveButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .overlay {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  padding: 0.3rem 0.8rem;
-  background: rgba(15, 23, 42, 0.08);
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.25rem 0.625rem;
+  background: #111d4a;
+  color: #fff;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  z-index: 10;
 }
 
 .contentColumn {
