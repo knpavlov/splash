@@ -10,6 +10,15 @@
   backdrop-filter: blur(10px);
 }
 
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -22,13 +31,6 @@
   gap: 10px;
   flex-wrap: wrap;
   min-width: 0;
-}
-
-.center {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
 }
 
 .right {
@@ -53,12 +55,16 @@
   padding: 4px 32px;
 }
 
+.compact .topRow {
+  margin-bottom: 2px;
+  gap: 8px;
+}
+
 .compact .row {
   gap: 8px;
 }
 
 .compact .left,
-.compact .center,
 .compact .right {
   gap: 8px;
 }

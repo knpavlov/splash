@@ -985,6 +985,26 @@
   color: #b91c1c;
 }
 
+.dangerButtonSmall {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  background: rgba(248, 113, 113, 0.2);
+  color: #b91c1c;
+}
+
+.dangerButtonSmall:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dangerButtonSmall:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.35);
+}
+
 .primaryButton {
   background: linear-gradient(135deg, #10b981, #14b8a6);
   color: #fff;
