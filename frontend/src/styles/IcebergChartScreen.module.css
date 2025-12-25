@@ -1,0 +1,328 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 22px 28px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.header p {
+  margin: 0;
+  color: #475569;
+}
+
+.metaRow {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.metaBadge {
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.filtersRow {
+  gap: 8px;
+}
+
+.controlGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px;
+  flex: 0 1 180px;
+}
+
+.controlLabel {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.controlGroup select,
+.controlGroup input[type='number'],
+.dropdownTrigger {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  font-size: 13px;
+  width: 100%;
+}
+
+.segmentedControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  color: #e5ecf5;
+  flex: 0 1 auto;
+  white-space: nowrap;
+}
+
+.segmentedLabel {
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #cbd5f5;
+  font-weight: 700;
+}
+
+.segmentedGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.segmentedButton {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #cbd5f5;
+  padding: 6px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.segmentedButton:hover {
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.segmentedButtonActive {
+  background: rgba(59, 130, 246, 0.22);
+  color: #f8fafc;
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
+}
+
+.dropdown {
+  position: relative;
+}
+
+.dropdownTrigger {
+  width: 100%;
+  min-width: 180px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dropdownPanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  width: 100%;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
+  padding: 8px;
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.placeholder {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.chartContainer {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fff;
+  padding: 20px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+  overflow-x: auto;
+}
+
+.chartWrapper {
+  position: relative;
+  min-width: 600px;
+  min-height: 400px;
+}
+
+.chartSvg {
+  display: block;
+  width: 100%;
+  height: 400px;
+}
+
+.chartTitle {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.legendDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.legendLine {
+  width: 20px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.tooltip {
+  position: fixed;
+  background: #0f172a;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
+  max-width: 240px;
+}
+
+.tooltipTitle {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.tooltipRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tooltipLabel {
+  color: #94a3b8;
+}
+
+.tooltipValue {
+  font-weight: 600;
+}
+
+.zeroLine {
+  stroke: #94a3b8;
+  stroke-width: 1;
+  stroke-dasharray: 4 2;
+}
+
+.planLine {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.planLineDot {
+  stroke-width: 2;
+}
+
+.barSegment {
+  transition: opacity 0.15s ease;
+}
+
+.barSegment:hover {
+  opacity: 0.85;
+}
+
+.axisLabel {
+  font-size: 11px;
+  fill: #64748b;
+}
+
+.axisLabelYear {
+  font-size: 10px;
+  fill: #94a3b8;
+}
+
+.stageLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.periodRangeRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.periodInput {
+  width: 100px;
+}
+
+.stageColors {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.stageColorChip {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}

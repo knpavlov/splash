@@ -17,6 +17,7 @@ import { DeadlineDashboardScreen } from './modules/dashboards/DeadlineDashboardS
 import { TaskStatusHistoryScreen } from './modules/dashboards/TaskStatusHistoryScreen';
 import { PortfolioPlanScreen } from './modules/dashboards/PortfolioPlanScreen';
 import { FinancialDynamicsScreen } from './modules/dashboards/FinancialDynamicsScreen';
+import { IcebergChartScreen } from './modules/dashboards/IcebergChartScreen';
 import { RiskDashboardScreen } from './modules/dashboards/RiskDashboardScreen';
 import { FinancialsScreen } from './modules/financials/FinancialsScreen';
 import { GeneralSettingsScreen } from './modules/settings/GeneralSettingsScreen';
@@ -335,6 +336,8 @@ const AppContent = () => {
         return <TaskStatusHistoryScreen />;
       case 'financial-dynamics':
         return <FinancialDynamicsScreen />;
+      case 'iceberg-dashboard':
+        return <IcebergChartScreen />;
       case 'risk-dashboard':
         return <RiskDashboardScreen />;
       case 'accounts':

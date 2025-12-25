@@ -19,6 +19,7 @@ import {
   Camera,
   FileText,
   History,
+  Anchor,
   LucideIcon
 } from 'lucide-react';
 
@@ -36,6 +37,7 @@ export type NavigationKey =
   | 'financial-tree'
   | 'portfolio-plan'
   | 'financial-dynamics'
+  | 'iceberg-dashboard'
   | 'risk-dashboard'
   | 'financials'
   | 'kpis'
@@ -88,6 +90,14 @@ export const navigationItems: NavigationItem[] = [
     roleAccess: ['super-admin', 'admin'],
     group: 'dashboards',
     icon: TrendingUp
+  },
+  {
+    key: 'iceberg-dashboard',
+    label: 'Iceberg chart',
+    shortLabel: 'Iceberg',
+    roleAccess: ['super-admin', 'admin'],
+    group: 'dashboards',
+    icon: Anchor
   },
   {
     key: 'portfolio-plan',
