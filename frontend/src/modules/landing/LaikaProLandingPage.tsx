@@ -1083,7 +1083,7 @@ export const LaikaProLandingPage = () => {
       <div id="features" style={{ position: 'relative', top: '-80px' }} />
 
       {/* Feature 1: Stage Gate Management - Interactive Demo Style */}
-      <section id="feature-1" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo}`}>
+      <section id="feature-1" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo} ${styles.featureSectionLift}`}>
         <div className={styles.interactiveDemoLayout}>
           {/* Left - Content */}
           <div className={`${styles.demoContent} ${visibleSections['feature-1'] ? styles.visible : ''}`}>
@@ -1412,8 +1412,32 @@ export const LaikaProLandingPage = () => {
         </div>
 
         <div className={`${styles.pricingCard} ${visibleSections['pricing'] ? styles.visible : ''}`}>
-                  <div className={styles.pricingCardHeader}>
+          <div className={styles.pricingCardHeader}>
           <h3 className={styles.pricingPlanName}>One plan. Priced by seats.</h3>
+
+          <div className={styles.pricingTable}>
+            <div className={styles.pricingTableHeader}>
+              <span>Price per seat / month</span>
+              <span>Number of licenses</span>
+            </div>
+            {pricingTiers.map((tier) => {
+              const discountedPerSeat = Number((tier.monthlyPerSeat * (1 - annualDiscount)).toFixed(2));
+              const displayPrice = isAnnualBilling ? discountedPerSeat : tier.monthlyPerSeat;
+              const priceOptions = displayPrice % 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : {};
+
+              return (
+                <div className={styles.pricingTableRow} key={tier.id}>
+                  <div className={styles.pricingTablePrice}>
+                    {isAnnualBilling && (
+                      <span className={styles.pricingTablePriceOld}>{formatUsd(tier.monthlyPerSeat)}</span>
+                    )}
+                    <span className={styles.pricingTablePriceNew}>{formatUsd(displayPrice, priceOptions)}</span>
+                  </div>
+                  <div className={styles.pricingTableRange}>{tier.rangeLabel}</div>
+                </div>
+              );
+            })}
+          </div>
 
           <div className={styles.pricingSeats}>
             <div className={styles.pricingSeatsRow}>
@@ -1435,7 +1459,7 @@ export const LaikaProLandingPage = () => {
             />
 
             <div className={styles.pricingSeatsHint}>
-              Minimum 5 seats. Slider shows up to 1,000.
+              Slider shows up to 1,000. For more seats, contact the sales team.
             </div>
 
             <div className={styles.pricingBilling}>
@@ -1483,41 +1507,14 @@ export const LaikaProLandingPage = () => {
                 ? "Annual billing applies a 20% discount to list prices."
                 : "Monthly billing selected. Switch to annual to save 20%."}
             </span>
-            <span className={styles.pricingMetaSecondary}>
-              Total {formatUsd(totalMonthly)} per month / {formatUsd(totalAnnual)} per year
-            </span>
           </div>
 
-          <div className={styles.pricingTable}>
-            <div className={styles.pricingTableHeader}>
-              <span>Price per seat / month</span>
-              <span>Number of licenses</span>
-            </div>
-            {pricingTiers.map((tier) => {
-              const discountedPerSeat = Number((tier.monthlyPerSeat * (1 - annualDiscount)).toFixed(2));
-              const displayPrice = isAnnualBilling ? discountedPerSeat : tier.monthlyPerSeat;
-              const priceOptions = displayPrice % 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : {};
-
-              return (
-                <div className={styles.pricingTableRow} key={tier.id}>
-                  <div className={styles.pricingTablePrice}>
-                    {isAnnualBilling && (
-                      <span className={styles.pricingTablePriceOld}>{formatUsd(tier.monthlyPerSeat)}</span>
-                    )}
-                    <span className={styles.pricingTablePriceNew}>{formatUsd(displayPrice, priceOptions)}</span>
-                  </div>
-                  <div className={styles.pricingTableRange}>{tier.rangeLabel}</div>
-                </div>
-              );
-            })}
-          </div>
-          <div className={styles.pricingTierNote}>
-            Each price applies only to the next block of seats beyond the previous tier. The large number above is the effective
-            average price across all seats.
-          </div>
           <p className={styles.pricingNote}>
             Pay by card instantly, or work with Sales for invoicing and procurement.
           </p>
+          <div className={styles.pricingTierNote}>
+            Minimum purchase is 5 seats. Each price applies only to the next block of seats beyond the previous tier.
+          </div>
         </div>
 
         <div className={styles.pricingFeatures}>

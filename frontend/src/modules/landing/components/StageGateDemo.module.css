@@ -17,6 +17,7 @@
   border-radius: 16px;
   overflow: hidden;
   width: 100%;
+  position: relative;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.1),
     0 24px 50px -20px rgba(0, 0, 0, 0.55),
@@ -26,19 +27,20 @@
 /* Hint Overlay */
 .hintOverlay {
   position: absolute;
-  top: -18px;
-  right: -18px;
-  left: auto;
+  top: -48px;
+  left: 50%;
+  right: auto;
   bottom: auto;
   z-index: 100;
   display: flex;
   align-items: flex-start;
-  justify-content: flex-end;
+  justify-content: center;
   padding: 0;
   background: none;
   backdrop-filter: none;
   pointer-events: none;
   animation: fadeIn 0.25s ease;
+  transform: translateX(-50%);
 }
 
 .hintOverlay.pulse .hintContent {
@@ -49,26 +51,26 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 10px;
-  padding: 16px 18px;
+  gap: 8px;
+  padding: 12px 14px;
   background: rgba(10, 14, 22, 0.95);
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 14px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   text-align: left;
-  max-width: 360px;
+  max-width: 320px;
   pointer-events: auto;
   backdrop-filter: blur(6px);
 }
 
 .hintIcon {
-  width: 46px;
-  height: 46px;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(59, 130, 246, 0.18);
-  border-radius: 10px;
+  border-radius: 8px;
   color: #bfdbfe;
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
@@ -76,7 +78,7 @@
 .hintText {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .hintRole {
@@ -88,32 +90,32 @@
 }
 
 .hintTitle {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 700;
   color: #fff;
 }
 
 .hintDesc {
-  font-size: 13px;
+  font-size: 12px;
   color: #94a3b8;
   line-height: 1.5;
 }
 
 .hintAction {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #60a5fa;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .hintDismiss {
-  margin-top: 8px;
-  padding: 8px 20px;
+  margin-top: 4px;
+  padding: 6px 12px;
   background: rgba(59, 130, 246, 0.14);
   border: 1px solid rgba(59, 130, 246, 0.25);
   border-radius: 8px;
   color: #60a5fa;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -239,32 +241,51 @@
 }
 
 .windowLocked {
-  opacity: 0.72;
+  opacity: 1;
 }
 
 .windowLocked .appContent {
   pointer-events: none;
-  filter: saturate(0.8);
+  filter: blur(1.6px) saturate(0.7);
+  opacity: 0.55;
 }
 
-.lockBanner {
+.windowLocked .windowChrome {
+  filter: blur(1.1px) saturate(0.7);
+  opacity: 0.6;
+}
+
+.windowLockOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.windowLockContent {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(15, 23, 42, 0.65);
+  padding: 16px 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(10, 14, 22, 0.92);
+  text-align: center;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  max-width: 320px;
 }
 
-.lockTitle {
-  font-size: 11px;
+.windowLockTitle {
+  font-size: 14px;
   font-weight: 700;
   color: #e2e8f0;
 }
 
-.lockDesc {
-  font-size: 11px;
+.windowLockDesc {
+  font-size: 12px;
   color: #94a3b8;
   line-height: 1.4;
 }
@@ -953,8 +974,10 @@
 /* Responsive */
 @media (max-width: 900px) {
   .hintOverlay {
-    top: 12px;
-    right: 12px;
+    top: 8px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
   }
 
   .tableHeader,

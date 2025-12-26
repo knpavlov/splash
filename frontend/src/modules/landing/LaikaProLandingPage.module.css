@@ -1005,6 +1005,10 @@
   align-items: center;
 }
 
+.featureSectionLift .interactiveDemoLayout {
+  align-items: flex-start;
+}
+
 .interactiveDemoLayoutReverse {
   grid-template-columns: 1fr 380px;
   grid-template-areas: "demo content";
@@ -2682,7 +2686,9 @@
 
 .marqueeRow {
   display: flex;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
+  padding: 6px 0;
 }
 
 .marqueeTrack {

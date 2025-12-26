@@ -610,13 +610,16 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
             <div className={styles.chromeSpacer} />
           </div>
 
-          <div className={styles.appContent}>
-            {isApproverLocked && (
-              <div className={styles.lockBanner}>
-                <span className={styles.lockTitle}>Awaiting owner submission</span>
-                <span className={styles.lockDesc}>Submit the initiative above to start the approval workflow.</span>
+          {isApproverLocked && (
+            <div className={styles.windowLockOverlay}>
+              <div className={styles.windowLockContent}>
+                <span className={styles.windowLockTitle}>Awaiting owner submission</span>
+                <span className={styles.windowLockDesc}>Submit the initiative above to start the approval workflow.</span>
               </div>
-            )}
+            </div>
+          )}
+
+          <div className={styles.appContent}>
             {renderInitiativeHeader(approverStatus)}
             {renderStageGate()}
             {renderFinancialSection('approver')}
@@ -665,6 +668,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
     </div>
   );
 };
+
 
 
 
