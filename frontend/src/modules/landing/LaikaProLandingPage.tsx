@@ -450,8 +450,7 @@ export const LaikaProLandingPage = () => {
 
       const minDim = Math.min(width, height);
       const lenBase = opts.mode === 'destination-out' ? minDim * 0.82 : minDim * 0.44;
-      // Reduced steps for better performance (was 22-34)
-      const steps = width < 720 ? (opts.mode === 'destination-out' ? 12 : 10) : opts.mode === 'destination-out' ? 18 : 14;
+      const steps = width < 720 ? (opts.mode === 'destination-out' ? 22 : 18) : opts.mode === 'destination-out' ? 34 : 26;
       const strength = Math.max(0, Math.min(1.35, opts.strength));
 
       const lineHeight = Math.max(1, titleLineHeightPx);
@@ -1630,8 +1629,15 @@ export const LaikaProLandingPage = () => {
       {/* Contact Section */}
       <section id="contact" data-animate className={styles.contactSection}>
         <div className={styles.contactBackground}>
-          <div className={styles.contactOrb1} />
-          <div className={styles.contactOrb2} />
+          {/* Light source glow */}
+          <div className={styles.contactLightSource} />
+          {/* Geometric occluders with shadows */}
+          <div className={styles.contactPrism1} />
+          <div className={styles.contactPrism2} />
+          <div className={styles.contactShard1} />
+          <div className={styles.contactShard2} />
+          {/* Light rays */}
+          <div className={styles.contactRays} />
         </div>
 
         <div className={`${styles.contactContent} ${visibleSections['contact'] ? styles.visible : ''}`}>

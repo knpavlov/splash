@@ -1836,35 +1836,168 @@
   justify-content: center;
   padding: 6rem 2rem;
   position: relative;
-  overflow: hidden;
+  /* Use clip instead of hidden to avoid hard edges while preventing scrollbars */
+  overflow: clip;
 }
 
 .contactBackground {
   position: absolute;
-  inset: 0;
-  overflow: hidden;
+  inset: -50px;
+  overflow: visible;
+  pointer-events: none;
+  /* Soft fade at edges to prevent hard clipping */
+  mask-image: radial-gradient(
+    ellipse 90% 85% at 50% 50%,
+    black 60%,
+    transparent 100%
+  );
+  -webkit-mask-image: radial-gradient(
+    ellipse 90% 85% at 50% 50%,
+    black 60%,
+    transparent 100%
+  );
 }
 
-.contactOrb1 {
+/* Light source - mimics the hero light origin */
+.contactLightSource {
   position: absolute;
-  width: 600px;
-  height: 600px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%);
+  width: 800px;
+  height: 800px;
   top: -200px;
-  right: -200px;
-  animation: float 20s ease-in-out infinite;
+  left: 10%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(139, 92, 246, 0.15) 0%,
+    rgba(59, 130, 246, 0.08) 30%,
+    rgba(34, 211, 238, 0.04) 50%,
+    transparent 70%
+  );
+  filter: blur(40px);
 }
 
-.contactOrb2 {
+/* Light rays emanating from source */
+.contactRays {
   position: absolute;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.15) 0%, transparent 70%);
-  bottom: -150px;
-  left: -150px;
-  animation: float 15s ease-in-out infinite reverse;
+  inset: 0;
+  background:
+    linear-gradient(
+      135deg,
+      transparent 0%,
+      transparent 30%,
+      rgba(139, 92, 246, 0.03) 45%,
+      transparent 50%,
+      transparent 100%
+    ),
+    linear-gradient(
+      125deg,
+      transparent 0%,
+      transparent 35%,
+      rgba(59, 130, 246, 0.025) 48%,
+      transparent 52%,
+      transparent 100%
+    ),
+    linear-gradient(
+      145deg,
+      transparent 0%,
+      transparent 40%,
+      rgba(34, 211, 238, 0.02) 52%,
+      transparent 56%,
+      transparent 100%
+    );
+  opacity: 0.8;
+}
+
+/* Geometric prism 1 - larger, top right */
+.contactPrism1 {
+  position: absolute;
+  width: 280px;
+  height: 200px;
+  top: 5%;
+  right: 8%;
+  background: rgba(2, 6, 23, 0.5);
+  clip-path: polygon(20% 0%, 100% 15%, 80% 100%, 0% 85%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow:
+    120px 80px 100px rgba(0, 0, 0, 0.4),
+    inset 0 0 30px rgba(139, 92, 246, 0.05);
+}
+
+/* Shadow cast by prism 1 */
+.contactPrism1::after {
+  content: '';
+  position: absolute;
+  width: 400px;
+  height: 300px;
+  top: 100%;
+  left: 50%;
+  background: linear-gradient(
+    145deg,
+    rgba(0, 0, 0, 0.3) 0%,
+    rgba(0, 0, 0, 0.15) 40%,
+    transparent 80%
+  );
+  clip-path: polygon(0% 0%, 70% 0%, 100% 100%, 20% 80%);
+  filter: blur(20px);
+  transform: translateX(-30%);
+}
+
+/* Geometric prism 2 - bottom left */
+.contactPrism2 {
+  position: absolute;
+  width: 220px;
+  height: 160px;
+  bottom: 15%;
+  left: 5%;
+  background: rgba(2, 6, 23, 0.45);
+  clip-path: polygon(15% 10%, 100% 0%, 85% 90%, 0% 100%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow:
+    80px 60px 80px rgba(0, 0, 0, 0.35),
+    inset 0 0 20px rgba(236, 72, 153, 0.04);
+}
+
+/* Shadow cast by prism 2 */
+.contactPrism2::after {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 200px;
+  top: 80%;
+  left: 60%;
+  background: linear-gradient(
+    155deg,
+    rgba(0, 0, 0, 0.25) 0%,
+    rgba(0, 0, 0, 0.1) 50%,
+    transparent 80%
+  );
+  clip-path: polygon(0% 0%, 60% 10%, 100% 100%, 30% 90%);
+  filter: blur(15px);
+}
+
+/* Small shard 1 - top area */
+.contactShard1 {
+  position: absolute;
+  width: 120px;
+  height: 80px;
+  top: 20%;
+  left: 15%;
+  background: rgba(2, 6, 23, 0.4);
+  clip-path: polygon(25% 0%, 100% 20%, 75% 100%, 0% 80%);
+  border: 1px solid rgba(255, 255, 255, 0.035);
+  box-shadow: 60px 40px 50px rgba(0, 0, 0, 0.25);
+}
+
+/* Small shard 2 - bottom right */
+.contactShard2 {
+  position: absolute;
+  width: 140px;
+  height: 90px;
+  bottom: 25%;
+  right: 12%;
+  background: rgba(2, 6, 23, 0.38);
+  clip-path: polygon(20% 5%, 100% 0%, 80% 95%, 0% 100%);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  box-shadow: 50px 35px 45px rgba(0, 0, 0, 0.22);
 }
 
 .contactContent {
