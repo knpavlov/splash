@@ -450,7 +450,9 @@ export const LaikaProLandingPage = () => {
 
       const minDim = Math.min(width, height);
       const lenBase = opts.mode === 'destination-out' ? minDim * 0.82 : minDim * 0.44;
-      const steps = width < 720 ? (opts.mode === 'destination-out' ? 22 : 18) : opts.mode === 'destination-out' ? 34 : 26;
+      const baseSteps = width < 720 ? (opts.mode === 'destination-out' ? 22 : 18) : opts.mode === 'destination-out' ? 34 : 26;
+      // Extra sampling for smoother title shadows; slightly gentler on small screens to keep costs down.
+      const steps = Math.round(baseSteps * (width < 720 ? 1.2 : 1.3));
       const strength = Math.max(0, Math.min(1.35, opts.strength));
 
       const lineHeight = Math.max(1, titleLineHeightPx);
