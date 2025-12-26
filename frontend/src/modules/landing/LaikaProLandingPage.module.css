@@ -1265,6 +1265,24 @@
 .pricingSection {
   padding: 8rem 2rem;
   position: relative;
+  isolation: isolate;
+}
+
+.pricingSection::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 180px;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(180deg, rgba(3, 7, 18, 0) 0%, rgba(3, 7, 18, 0.75) 55%, rgba(3, 7, 18, 1) 100%);
+}
+
+.pricingSection > * {
+  position: relative;
+  z-index: 1;
 }
 
 .pricingHeader {
@@ -1850,16 +1868,16 @@
   left: 0;
   right: 0;
   top: 0;
-  height: 180px;
-  z-index: 0;
+  height: 240px;
+  z-index: 1;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(3, 7, 18, 1) 0%, rgba(3, 7, 18, 0.8) 45%, rgba(3, 7, 18, 0) 100%);
+  background: linear-gradient(180deg, rgba(3, 7, 18, 1) 0%, rgba(3, 7, 18, 0.9) 40%, rgba(3, 7, 18, 0) 100%);
 }
 
 .contactBackground {
   position: absolute;
   inset: -70px;
-  z-index: 1;
+  z-index: 0;
   overflow: visible;
   pointer-events: none;
   /* Soft fade at edges to prevent hard clipping */
