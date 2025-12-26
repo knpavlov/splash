@@ -303,8 +303,9 @@ export const LaikaProLandingPage = () => {
     };
 
     const updateRayCache = () => {
-      const target = width < 720 ? 420 : 560;
-      rayCount = Math.max(240, Math.round(target));
+      // Reduced ray count for better performance (was 420-560)
+      const target = width < 720 ? 180 : 280;
+      rayCount = Math.max(120, Math.round(target));
       const step = (Math.PI * 2) / rayCount;
       rayCos = new Array(rayCount);
       raySin = new Array(rayCount);
@@ -449,7 +450,8 @@ export const LaikaProLandingPage = () => {
 
       const minDim = Math.min(width, height);
       const lenBase = opts.mode === 'destination-out' ? minDim * 0.82 : minDim * 0.44;
-      const steps = width < 720 ? (opts.mode === 'destination-out' ? 22 : 18) : opts.mode === 'destination-out' ? 34 : 26;
+      // Reduced steps for better performance (was 22-34)
+      const steps = width < 720 ? (opts.mode === 'destination-out' ? 12 : 10) : opts.mode === 'destination-out' ? 18 : 14;
       const strength = Math.max(0, Math.min(1.35, opts.strength));
 
       const lineHeight = Math.max(1, titleLineHeightPx);
@@ -593,20 +595,16 @@ export const LaikaProLandingPage = () => {
 
       const origin = { x: width * 0.27, y: height * 0.34 };
 
-      const drawBeams = (hue: number, angleOffset: number, alpha: number) => {
-        const localRayCount = rayCount || 560;
-        const step = (Math.PI * 2) / localRayCount;
-        const points: Point[] = [];
-        const cosOffset = Math.cos(angleOffset);
-        const sinOffset = Math.sin(angleOffset);
+      // OPTIMIZATION: Do ray casting once for static render
+      const localRayCount = rayCount || 280;
+      const step = (Math.PI * 2) / localRayCount;
+      const points: Point[] = [];
+      for (let i = 0; i < localRayCount; i += 1) {
+        const a = i * step;
+        points.push(castRay(origin, Math.cos(a), Math.sin(a)));
+      }
 
-        for (let i = 0; i < localRayCount; i += 1) {
-          const a = i * step;
-          const dirX = Math.cos(a) * cosOffset - Math.sin(a) * sinOffset;
-          const dirY = Math.sin(a) * cosOffset + Math.cos(a) * sinOffset;
-          points.push(castRay(origin, dirX, dirY));
-        }
-
+      const drawBeams = (hue: number, alpha: number) => {
         const grad = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, maxDist * 0.9);
         grad.addColorStop(0, `hsla(${hue}, 100%, 72%, ${alpha})`);
         grad.addColorStop(0.18, `hsla(${hue + 30}, 100%, 66%, ${alpha * 0.55})`);
@@ -626,9 +624,9 @@ export const LaikaProLandingPage = () => {
       };
 
       ctx.globalCompositeOperation = 'lighter';
-      drawBeams(195, -0.0024, 0.12);
-      drawBeams(255, 0.0, 0.11);
-      drawBeams(325, 0.0024, 0.09);
+      drawBeams(195, 0.12);
+      drawBeams(255, 0.11);
+      drawBeams(325, 0.09);
 
       ctx.globalCompositeOperation = 'source-over';
       occluders.forEach((o) => {
@@ -681,7 +679,8 @@ export const LaikaProLandingPage = () => {
         return;
       }
       const dt = now - lastFrame;
-      if (dt < 1000 / 48) {
+      // Reduced from 48 FPS to 30 FPS for better performance
+      if (dt < 1000 / 30) {
         animationId = requestAnimationFrame(animate);
         return;
       }
@@ -721,7 +720,18 @@ export const LaikaProLandingPage = () => {
 
       const intensity = (pointer.down ? 0.26 : 0.18) + pulseBoost * 0.06;
       const sparkle = Math.min(1, 0.45 + pulseBoost * 0.35);
-      const drawChannel = (hue: number, angleOffset: number, alpha: number, lineEvery: number) => {
+
+      // OPTIMIZATION: Do ray casting once instead of 3 times (was inside drawChannel)
+      if (rayCount >= 3) {
+        for (let i = 0; i < rayCount; i += 1) {
+          const hit = castRay(origin, rayCos[i], raySin[i]);
+          rayPoints[i].x = hit.x;
+          rayPoints[i].y = hit.y;
+        }
+      }
+
+      // Now drawChannel just renders using pre-computed rayPoints
+      const drawChannel = (hue: number, alpha: number, lineEvery: number) => {
         if (rayCount < 3) {
           return;
         }
@@ -729,15 +739,6 @@ export const LaikaProLandingPage = () => {
         grad.addColorStop(0, `hsla(${hue}, 100%, 74%, ${alpha})`);
         grad.addColorStop(0.22, `hsla(${hue + 30}, 100%, 66%, ${alpha * 0.55})`);
         grad.addColorStop(1, 'transparent');
-        const cosOffset = Math.cos(angleOffset);
-        const sinOffset = Math.sin(angleOffset);
-        for (let i = 0; i < rayCount; i += 1) {
-          const dirX = rayCos[i] * cosOffset - raySin[i] * sinOffset;
-          const dirY = raySin[i] * cosOffset + rayCos[i] * sinOffset;
-          const hit = castRay(origin, dirX, dirY);
-          rayPoints[i].x = hit.x;
-          rayPoints[i].y = hit.y;
-        }
 
         lightCtx.fillStyle = grad;
         for (let i = 0; i < rayCount; i += 1) {
@@ -785,10 +786,10 @@ export const LaikaProLandingPage = () => {
       lightCtx.arc(origin.x, origin.y, Math.min(maxDist * 0.18, 320), 0, Math.PI * 2);
       lightCtx.fill();
 
-      // Chromatic dispersion (small angular offsets).
-      drawChannel(195, -0.0028, intensity * 0.62, 10);
-      drawChannel(255, 0.0, intensity * 0.58, 12);
-      drawChannel(325, 0.0028, intensity * 0.50, 14);
+      // Chromatic dispersion (using shared ray casting results)
+      drawChannel(195, intensity * 0.62, 10);
+      drawChannel(255, intensity * 0.58, 12);
+      drawChannel(325, intensity * 0.50, 14);
 
       // Light ripple rings
       for (let i = pulses.length - 1; i >= 0; i -= 1) {
