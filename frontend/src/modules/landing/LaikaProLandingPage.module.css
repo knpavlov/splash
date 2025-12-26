@@ -1364,7 +1364,7 @@
 .pricingSeats {
   max-width: 520px;
   margin: 1.25rem auto 1.5rem;
-  padding: 1rem 1rem 0.9rem;
+  padding: 1rem 1rem 1rem;
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.02);
@@ -1427,6 +1427,59 @@
   cursor: pointer;
 }
 
+.pricingSeatsHint {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+}
+
+.pricingBilling {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.85rem;
+}
+
+.pricingBillingLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.pricingBillingToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pricingBillingOption {
+  border: none;
+  background: transparent;
+  color: var(--color-text-subtle);
+  font-size: 0.8rem;
+  font-weight: 650;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pricingBillingActive {
+  background: rgba(139, 92, 246, 0.25);
+  color: #fff;
+}
+
+.pricingBillingSave {
+  margin-left: 0.45rem;
+  font-size: 0.75rem;
+  color: rgba(34, 211, 238, 0.9);
+}
+
 .pricingTierNote {
   margin-top: 0.65rem;
   font-size: 0.85rem;
@@ -1437,14 +1490,15 @@
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: 0.25rem;
+  gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
 
-.pricingCurrency {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
+.pricingAmountStrike {
+  font-size: 1.6rem;
+  font-weight: 650;
+  color: var(--color-text-subtle);
+  text-decoration: line-through;
 }
 
 .pricingAmount {
@@ -1475,6 +1529,64 @@
 .pricingMetaSecondary {
   font-size: 0.9rem;
   color: var(--color-text-subtle);
+}
+
+.pricingTable {
+  margin-top: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pricingTableHeader,
+.pricingTableRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+}
+
+.pricingTableHeader {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.pricingTableRow {
+  font-size: 0.95rem;
+  color: var(--color-text);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pricingTableRow:last-child {
+  border-bottom: none;
+}
+
+.pricingTablePrice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+}
+
+.pricingTablePriceOld {
+  color: var(--color-text-subtle);
+  text-decoration: line-through;
+}
+
+.pricingTablePriceNew {
+  color: #fff;
+}
+
+.pricingTableRange {
+  font-weight: 650;
+  color: #c7d2fe;
+  text-align: right;
 }
 
 .pricingNote {
@@ -1658,6 +1770,12 @@
   font-size: 0.95rem;
   color: rgba(230, 237, 243, 0.95);
   text-align: right;
+}
+
+.modalSummaryFootnote {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
 }
 
 .modalSeatsControls {
@@ -2325,6 +2443,20 @@
   .pricingFeatures {
     grid-template-columns: 1fr;
     gap: 2rem;
+  }
+
+  .pricingBilling {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pricingTableHeader,
+  .pricingTableRow {
+    grid-template-columns: 1fr;
+  }
+
+  .pricingTableRange {
+    text-align: left;
   }
 
   .footerContent {

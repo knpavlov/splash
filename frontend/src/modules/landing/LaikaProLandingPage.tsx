@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import styles from './LaikaProLandingPage.module.css';
 import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Users, BarChart3, Calendar, X } from 'lucide-react';
 import { InteractivePlanDemo, DemoTask, INITIAL_TASKS } from './components/InteractivePlanDemo';
@@ -11,7 +11,7 @@ import { ImplementationMonitoringDemo } from './components/ImplementationMonitor
 import { apiRequest, ApiError } from '../../shared/api/httpClient';
 
 /* ---------------------------------------------------------------------------
-   PREVIOUS HERO (2D rays) pointer state — kept here for easy rollback.
+   PREVIOUS HERO (2D rays) pointer state - kept here for easy rollback.
 type HeroPointer = {
   x: number;
   y: number;
@@ -31,6 +31,17 @@ type HeroPointer = {
   down: boolean;
 };
 
+const MIN_SEATS = 5;
+const MAX_SEATS = 1000;
+const annualDiscount = 0.2;
+const pricingTiers = [
+  { id: 'tier-1', rangeLabel: '1-20', seats: 20, monthlyPerSeat: 69 },
+  { id: 'tier-2', rangeLabel: '21-50', seats: 30, monthlyPerSeat: 59 },
+  { id: 'tier-3', rangeLabel: '51-100', seats: 50, monthlyPerSeat: 49 },
+  { id: 'tier-4', rangeLabel: '101-200', seats: 100, monthlyPerSeat: 39 },
+  { id: 'tier-5', rangeLabel: '201+', seats: Number.POSITIVE_INFINITY, monthlyPerSeat: 29 }
+] as const;
+
 export const LaikaProLandingPage = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const heroRef = useRef<HTMLElement>(null);
@@ -38,12 +49,13 @@ export const LaikaProLandingPage = () => {
   const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>({});
   const [activeNav, setActiveNav] = useState('hero');
   const [scrollProgress, setScrollProgress] = useState(0);
-  // PREVIOUS HERO (2D rays) pointer ref — kept for easy rollback.
+  // PREVIOUS HERO (2D rays) pointer ref - kept for easy rollback.
   const pointerRef = useRef<HeroPointer>({ x: 0, y: 0, targetX: 0, targetY: 0, active: false, down: false });
   // Shared state for interactive demos
   const [demoTasks, setDemoTasks] = useState<DemoTask[]>(INITIAL_TASKS);
   const [activeReportingView, setActiveReportingView] = useState<DemoView>('pnl-tree');
   const [pricingSeats, setPricingSeats] = useState(150);
+  const [pricingBilling, setPricingBilling] = useState<'monthly' | 'annual'>('annual');
   const [pricingContactOpen, setPricingContactOpen] = useState<null | 'sales' | 'card'>(null);
   const [pricingContactStatus, setPricingContactStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [pricingContactError, setPricingContactError] = useState<string>('');
@@ -60,22 +72,33 @@ export const LaikaProLandingPage = () => {
     message: ''
   });
 
-  const pricingTiers = [
-    { minSeats: 50, maxSeats: 200, monthlyPerSeat: 50 },
-    { minSeats: 250, maxSeats: 500, monthlyPerSeat: 45 },
-    { minSeats: 550, maxSeats: 1000, monthlyPerSeat: 40 },
-    { minSeats: 1050, maxSeats: 2000, monthlyPerSeat: 35 }
-  ] as const;
+  const normalizedSeats = Math.max(MIN_SEATS, Math.min(MAX_SEATS, pricingSeats));
+  const isAnnualBilling = pricingBilling === 'annual';
+  const pricingBreakdown = useMemo(() => {
+    let remaining = normalizedSeats;
+    return pricingTiers.map((tier) => {
+      const tierSeats = tier.seats === Number.POSITIVE_INFINITY ? remaining : Math.min(remaining, tier.seats);
+      remaining = Math.max(0, remaining - tierSeats);
+      const discountedMonthlyPerSeat = Number((tier.monthlyPerSeat * (1 - annualDiscount)).toFixed(2));
+      return { ...tier, tierSeats, discountedMonthlyPerSeat };
+    });
+  }, [normalizedSeats, annualDiscount]);
 
-  const annualDiscount = 0.2;
-  const activePricingTier = pricingTiers.find((t) => pricingSeats >= t.minSeats && pricingSeats <= t.maxSeats) ?? pricingTiers[0];
-  const monthlyPerSeat = activePricingTier.monthlyPerSeat;
-  const annualPerSeatMonthly = Math.round(monthlyPerSeat * (1 - annualDiscount));
-  const estimatedMonthly = annualPerSeatMonthly * pricingSeats;
-  const estimatedAnnual = estimatedMonthly * 12;
+  const totalMonthlyBase = pricingBreakdown.reduce(
+    (sum, tier) => sum + tier.tierSeats * tier.monthlyPerSeat,
+    0
+  );
+  const totalMonthlyDiscounted = pricingBreakdown.reduce(
+    (sum, tier) => sum + tier.tierSeats * tier.discountedMonthlyPerSeat,
+    0
+  );
+  const totalMonthly = isAnnualBilling ? totalMonthlyDiscounted : totalMonthlyBase;
+  const totalAnnual = totalMonthly * 12;
+  const effectiveMonthlyPerSeat = normalizedSeats ? totalMonthly / normalizedSeats : 0;
+  const effectiveMonthlyPerSeatBase = normalizedSeats ? totalMonthlyBase / normalizedSeats : 0;
 
-  const formatUsd = (value: number) => {
-    return `$${value.toLocaleString('en-US')}`;
+  const formatUsd = (value: number, options: Intl.NumberFormatOptions = {}) => {
+    return `$${value.toLocaleString('en-US', options)}`;
   };
 
   useEffect(() => {
@@ -113,13 +136,21 @@ export const LaikaProLandingPage = () => {
 
     const payload = {
       intent: pricingContactOpen ?? 'sales',
-      seats: pricingSeats,
-      annualBilling: true,
-      annualDiscountPercent: Math.round(annualDiscount * 100),
+      seats: normalizedSeats,
+      annualBilling: isAnnualBilling,
+      annualDiscountPercent: isAnnualBilling ? Math.round(annualDiscount * 100) : 0,
       pricing: {
-        tier: { minSeats: activePricingTier.minSeats, maxSeats: activePricingTier.maxSeats },
-        monthlyPerSeat,
-        annualPerSeatMonthly
+        billing: pricingBilling,
+        effectiveMonthlyPerSeat,
+        effectiveMonthlyPerSeatBase,
+        totalMonthly,
+        totalAnnual,
+        tiers: pricingBreakdown.map((tier) => ({
+          range: tier.rangeLabel,
+          monthlyPerSeat: tier.monthlyPerSeat,
+          discountedMonthlyPerSeat: tier.discountedMonthlyPerSeat,
+          seats: tier.tierSeats
+        }))
       },
       contact: {
         name: pricingContactForm.name.trim(),
@@ -148,17 +179,20 @@ export const LaikaProLandingPage = () => {
       setPricingContactStatus('error');
     }
   }, [
-    activePricingTier.maxSeats,
-    activePricingTier.minSeats,
     annualDiscount,
-    annualPerSeatMonthly,
-    monthlyPerSeat,
+    effectiveMonthlyPerSeat,
+    effectiveMonthlyPerSeatBase,
+    isAnnualBilling,
     pricingContactForm.company,
     pricingContactForm.email,
     pricingContactForm.message,
     pricingContactForm.name,
     pricingContactOpen,
-    pricingSeats
+    pricingBilling,
+    pricingBreakdown,
+    normalizedSeats,
+    totalAnnual,
+    totalMonthly
   ]);
 
   // Intersection Observer for animations
@@ -1373,53 +1407,120 @@ export const LaikaProLandingPage = () => {
         <div className={styles.pricingHeader}>
           <h2 className={styles.sectionTitle}>Simple, Transparent Pricing</h2>
           <p className={styles.sectionSubtitle}>
-            One subscription. Pricing is determined by seat count - volume discounts apply automatically.
+            One subscription. Pricing is tiered by seat ranges - volume discounts apply automatically.
           </p>
         </div>
 
         <div className={`${styles.pricingCard} ${visibleSections['pricing'] ? styles.visible : ''}`}>
-          <div className={styles.pricingCardHeader}>
-            <h3 className={styles.pricingPlanName}>One plan. Priced by seats.</h3>
+                  <div className={styles.pricingCardHeader}>
+          <h3 className={styles.pricingPlanName}>One plan. Priced by seats.</h3>
 
-            <div className={styles.pricingSeats}>
-              <div className={styles.pricingSeatsRow}>
-                <div className={styles.pricingSeatsLabel}>Seats</div>
-                <div className={styles.pricingSeatsControls}>
-                  <div className={styles.pricingSeatsValue}>{pricingSeats.toLocaleString('en-US')}</div>
-                </div>
-              </div>
-
-              <input
-                className={styles.pricingSeatSlider}
-                type="range"
-                min={50}
-                max={2000}
-                step={50}
-                value={pricingSeats}
-                onChange={(e) => setPricingSeats(Number(e.target.value))}
-                aria-label="Seat count"
-              />
-
-              <div className={styles.pricingTierNote}>
-                Tier: {activePricingTier.minSeats.toLocaleString('en-US')}-{activePricingTier.maxSeats.toLocaleString('en-US')} seats ·{' '}
-                {formatUsd(annualPerSeatMonthly)} / seat / month billed annually
+          <div className={styles.pricingSeats}>
+            <div className={styles.pricingSeatsRow}>
+              <div className={styles.pricingSeatsLabel}>Seats</div>
+              <div className={styles.pricingSeatsControls}>
+                <div className={styles.pricingSeatsValue}>{normalizedSeats.toLocaleString("en-US")}</div>
               </div>
             </div>
 
-            <div className={styles.pricingPrice}>
-              <span className={styles.pricingCurrency}>$</span>
-              <span className={styles.pricingAmount}>{annualPerSeatMonthly}</span>
-              <span className={styles.pricingPeriod}>/ seat / month</span>
+            <input
+              className={styles.pricingSeatSlider}
+              type="range"
+              min={MIN_SEATS}
+              max={MAX_SEATS}
+              step={1}
+              value={normalizedSeats}
+              onChange={(e) => setPricingSeats(Math.max(MIN_SEATS, Math.min(MAX_SEATS, Number(e.target.value))))}
+              aria-label="Seat count"
+            />
+
+            <div className={styles.pricingSeatsHint}>
+              Minimum 5 seats. Slider shows up to 1,000.
             </div>
-            <div className={styles.pricingMeta}>
-              <span className={styles.pricingMetaPrimary}>Billed annually · Save {Math.round(annualDiscount * 100)}%</span>
+
+            <div className={styles.pricingBilling}>
+              <span className={styles.pricingBillingLabel}>Billing</span>
+              <div className={styles.pricingBillingToggle}>
+                <button
+                  type="button"
+                  className={`${styles.pricingBillingOption} ${!isAnnualBilling ? styles.pricingBillingActive : ''}`}
+                  onClick={() => setPricingBilling("monthly")}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.pricingBillingOption} ${isAnnualBilling ? styles.pricingBillingActive : ''}`}
+                  onClick={() => setPricingBilling("annual")}
+                >
+                  Annual
+                  <span className={styles.pricingBillingSave}>Save {Math.round(annualDiscount * 100)}%</span>
+                </button>
+              </div>
             </div>
-            <p className={styles.pricingNote}>
-              Pay by card instantly, or work with Sales for invoicing and procurement.
-            </p>
           </div>
 
-          <div className={styles.pricingFeatures}>
+          <div className={styles.pricingPrice}>
+            {isAnnualBilling && (
+              <span className={styles.pricingAmountStrike}>
+                {formatUsd(effectiveMonthlyPerSeatBase, {
+                  minimumFractionDigits: effectiveMonthlyPerSeatBase % 1 ? 2 : 0,
+                  maximumFractionDigits: 2
+                })}
+              </span>
+            )}
+            <span className={styles.pricingAmount}>
+              {formatUsd(effectiveMonthlyPerSeat, {
+                minimumFractionDigits: effectiveMonthlyPerSeat % 1 ? 2 : 0,
+                maximumFractionDigits: 2
+              })}
+            </span>
+            <span className={styles.pricingPeriod}>/ seat / month (effective average)</span>
+          </div>
+          <div className={styles.pricingMeta}>
+            <span className={styles.pricingMetaPrimary}>
+              {isAnnualBilling
+                ? "Annual billing applies a 20% discount to list prices."
+                : "Monthly billing selected. Switch to annual to save 20%."}
+            </span>
+            <span className={styles.pricingMetaSecondary}>
+              Total {formatUsd(totalMonthly)} per month / {formatUsd(totalAnnual)} per year
+            </span>
+          </div>
+
+          <div className={styles.pricingTable}>
+            <div className={styles.pricingTableHeader}>
+              <span>Price per seat / month</span>
+              <span>Number of licenses</span>
+            </div>
+            {pricingTiers.map((tier) => {
+              const discountedPerSeat = Number((tier.monthlyPerSeat * (1 - annualDiscount)).toFixed(2));
+              const displayPrice = isAnnualBilling ? discountedPerSeat : tier.monthlyPerSeat;
+              const priceOptions = displayPrice % 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : {};
+
+              return (
+                <div className={styles.pricingTableRow} key={tier.id}>
+                  <div className={styles.pricingTablePrice}>
+                    {isAnnualBilling && (
+                      <span className={styles.pricingTablePriceOld}>{formatUsd(tier.monthlyPerSeat)}</span>
+                    )}
+                    <span className={styles.pricingTablePriceNew}>{formatUsd(displayPrice, priceOptions)}</span>
+                  </div>
+                  <div className={styles.pricingTableRange}>{tier.rangeLabel}</div>
+                </div>
+              );
+            })}
+          </div>
+          <div className={styles.pricingTierNote}>
+            Each price applies only to the next block of seats beyond the previous tier. The large number above is the effective
+            average price across all seats.
+          </div>
+          <p className={styles.pricingNote}>
+            Pay by card instantly, or work with Sales for invoicing and procurement.
+          </p>
+        </div>
+
+        <div className={styles.pricingFeatures}>
             <div className={styles.pricingFeatureGroup}>
               <h4>Platform Features</h4>
               <div className={styles.pricingFeature}>
@@ -1511,30 +1612,46 @@ export const LaikaProLandingPage = () => {
             </div>
 
             <div className={styles.modalBody}>
-              <div className={styles.modalSummary}>
-                <div className={styles.modalSummaryRow}>
-                  <span className={styles.modalSummaryLabel}>Seats</span>
-                  <div className={styles.modalSeatsControls}>
-                    <span className={styles.modalSeatsValue}>{pricingSeats.toLocaleString('en-US')}</span>
-                  </div>
-                </div>
-                <input
-                  className={styles.modalSeatSlider}
-                  type="range"
-                  min={50}
-                  max={2000}
-                  step={50}
-                  value={pricingSeats}
-                  onChange={(e) => setPricingSeats(Number(e.target.value))}
-                  aria-label="Seat count"
-                />
-                <div className={styles.modalSummaryRow}>
-                  <span className={styles.modalSummaryLabel}>Price</span>
-                  <span className={styles.modalSummaryValue}>
-                    {formatUsd(annualPerSeatMonthly)} / seat / month · billed annually ({Math.round(annualDiscount * 100)}% off)
-                  </span>
+                          <div className={styles.modalSummary}>
+              <div className={styles.modalSummaryRow}>
+                <span className={styles.modalSummaryLabel}>Seats</span>
+                <div className={styles.modalSeatsControls}>
+                  <span className={styles.modalSeatsValue}>{normalizedSeats.toLocaleString("en-US")}</span>
                 </div>
               </div>
+              <input
+                className={styles.modalSeatSlider}
+                type="range"
+                min={MIN_SEATS}
+                max={MAX_SEATS}
+                step={1}
+                value={normalizedSeats}
+                onChange={(e) => setPricingSeats(Math.max(MIN_SEATS, Math.min(MAX_SEATS, Number(e.target.value))))}
+                aria-label="Seat count"
+              />
+              <div className={styles.modalSummaryRow}>
+                <span className={styles.modalSummaryLabel}>Billing</span>
+                <span className={styles.modalSummaryValue}>
+                  {isAnnualBilling ? `Annual (${Math.round(annualDiscount * 100)}% off)` : "Monthly"}
+                </span>
+              </div>
+              <div className={styles.modalSummaryRow}>
+                <span className={styles.modalSummaryLabel}>Effective price</span>
+                <span className={styles.modalSummaryValue}>
+                  {formatUsd(effectiveMonthlyPerSeat, {
+                    minimumFractionDigits: effectiveMonthlyPerSeat % 1 ? 2 : 0,
+                    maximumFractionDigits: 2
+                  })} / seat / month
+                </span>
+              </div>
+              <div className={styles.modalSummaryRow}>
+                <span className={styles.modalSummaryLabel}>Total</span>
+                <span className={styles.modalSummaryValue}>
+                  {formatUsd(totalMonthly)} / month / {formatUsd(totalAnnual)} / year
+                </span>
+              </div>
+              <div className={styles.modalSummaryFootnote}>Minimum purchase: 5 seats.</div>
+            </div>
 
               <form
                 className={styles.modalForm}
@@ -1717,3 +1834,6 @@ export const LaikaProLandingPage = () => {
     </div>
   );
 };
+
+
+
