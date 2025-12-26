@@ -4,6 +4,8 @@ import styles from './StageGateDemo.module.css';
 // Types
 type DemoStep = 'owner-edit' | 'owner-submit' | 'approver-review' | 'approver-action' | 'complete';
 type ApprovalAction = 'approved' | 'returned' | 'rejected' | null;
+type InteractionMode = 'owner' | 'approver';
+type StatusTone = 'draft' | 'submitted' | 'review' | 'locked' | 'approved' | 'returned' | 'rejected';
 
 interface FinancialLine {
   id: string;
@@ -102,6 +104,8 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   // Computed values
   const isOwnerPhase = currentStep === 'owner-edit' || currentStep === 'owner-submit';
   const isApproverPhase = currentStep === 'approver-review' || currentStep === 'approver-action';
+  const hasSubmission = currentStep === 'approver-review' || currentStep === 'approver-action' || currentStep === 'complete';
+  const isApproverLocked = !hasSubmission;
 
   const totals = useMemo(() => {
     const benefitTotals = DEMO_MONTHS.map((_, i) =>
@@ -119,17 +123,23 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   const totalNet = totalBenefits - totalCosts;
 
   // Handlers
-  const handleCellClick = useCallback((type: 'benefit' | 'cost', lineId: string, monthIndex: number) => {
+  const handleCellClick = useCallback((mode: InteractionMode, type: 'benefit' | 'cost', lineId: string, monthIndex: number) => {
     const cellId = `${type}-${lineId}-${monthIndex}`;
 
-    if (isOwnerPhase) {
+    if (mode === 'owner') {
+      if (!isOwnerPhase) {
+        return;
+      }
       const lines = type === 'benefit' ? financials.benefits : financials.costs;
       const line = lines.find(l => l.id === lineId);
       if (line) {
         setEditingCell(cellId);
         setEditValue(String(line.values[monthIndex]));
       }
-    } else if (isApproverPhase) {
+    } else {
+      if (!isApproverPhase) {
+        return;
+      }
       setSelectedCell(cellId);
       setCommentText('');
     }
@@ -212,6 +222,41 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
 
   const hint = STEP_HINTS[currentStep];
 
+  const resolveStatus = (view: InteractionMode): { label: string; tone: StatusTone } => {
+    if (currentStep === 'complete') {
+      if (approvalAction === 'approved') return { label: 'Approved', tone: 'approved' };
+      if (approvalAction === 'returned') return { label: 'Returned', tone: 'returned' };
+      return { label: 'Rejected', tone: 'rejected' };
+    }
+
+    if (view === 'owner') {
+      return isOwnerPhase ? { label: 'Draft', tone: 'draft' } : { label: 'Submitted', tone: 'submitted' };
+    }
+
+    if (isApproverLocked) {
+      return { label: 'Awaiting submission', tone: 'locked' };
+    }
+
+    if (currentStep === 'approver-action') {
+      return { label: 'Decision pending', tone: 'review' };
+    }
+
+    return { label: 'In review', tone: 'review' };
+  };
+
+  const statusClassMap: Record<StatusTone, string> = {
+    draft: styles.toneDraft,
+    submitted: styles.toneSubmitted,
+    review: styles.toneReview,
+    locked: styles.toneLocked,
+    approved: styles.toneApproved,
+    returned: styles.toneReturned,
+    rejected: styles.toneRejected
+  };
+
+  const ownerStatus = resolveStatus('owner');
+  const approverStatus = resolveStatus('approver');
+
   // Render stage gate progress
   const renderStageGate = () => (
     <div className={styles.stageGate}>
@@ -229,7 +274,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
               {isActive && (
                 <span className={styles.stageStatus}>
                   {currentStep === 'complete'
-                    ? approvalAction === 'approved' ? 'âœ“' : approvalAction === 'returned' ? 'â†©' : 'âœ—'
+                    ? approvalAction === 'approved' ? 'òÜÓ' : approvalAction === 'returned' ? 'òÆé' : 'òÜ×'
                     : 'In Review'}
                 </span>
               )}
@@ -237,7 +282,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
             {index < STAGES.length - 1 && (
               <div className={`${styles.gateConnector} ${isPast ? styles.passed : ''}`}>
                 <div className={styles.gateDiamond}>
-                  {isPast && <span>âœ“</span>}
+                  {isPast && <span>òÜÓ</span>}
                 </div>
               </div>
             )}
@@ -248,135 +293,139 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   );
 
   // Render financial table
-  const renderFinancialTable = () => (
-    <div className={styles.financialTable}>
-      {/* Header */}
-      <div className={styles.tableHeader}>
-        <div className={styles.labelCell}>Line Item</div>
-        {DEMO_MONTHS.map((month, i) => (
-          <div key={i} className={styles.monthCell}>{month}</div>
-        ))}
-        <div className={styles.totalCell}>Total</div>
-      </div>
+  const renderFinancialTable = (mode: InteractionMode) => {
+    const isInteractive = mode === 'owner' ? isOwnerPhase : isApproverPhase;
 
-      {/* Benefits section */}
-      <div className={styles.sectionLabel}>
-        <span className={styles.benefitDot} />
-        Benefits
-      </div>
-      {financials.benefits.map(line => (
-        <div key={line.id} className={styles.tableRow}>
-          <div className={styles.labelCell}>{line.label}</div>
-          {line.values.map((value, i) => {
-            const cellId = `benefit-${line.id}-${i}`;
-            const isEditing = editingCell === cellId;
-            const comment = getCommentForCell(cellId);
-            const isSelected = selectedCell === cellId;
-
-            return (
-              <div
-                key={i}
-                className={`${styles.valueCell} ${styles.benefitCell} ${comment ? styles.hasComment : ''} ${isSelected ? styles.selected : ''}`}
-                onClick={() => handleCellClick('benefit', line.id, i)}
-              >
-                {isEditing ? (
-                  <input
-                    type="number"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={handleCellBlur}
-                    onKeyDown={(e) => e.key === 'Enter' && handleCellBlur()}
-                    autoFocus
-                    className={styles.cellInput}
-                  />
-                ) : (
-                  <>
-                    {formatCurrency(value)}
-                    {comment && <span className={styles.commentBadge}>{comments.indexOf(comment) + 1}</span>}
-                  </>
-                )}
-              </div>
-            );
-          })}
-          <div className={styles.totalCell}>
-            {formatCurrency(line.values.reduce((a, b) => a + b, 0))}
-          </div>
+    return (
+      <div className={styles.financialTable}>
+        {/* Header */}
+        <div className={styles.tableHeader}>
+          <div className={styles.labelCell}>Line Item</div>
+          {DEMO_MONTHS.map((month, i) => (
+            <div key={i} className={styles.monthCell}>{month}</div>
+          ))}
+          <div className={styles.totalCell}>Total</div>
         </div>
-      ))}
-      <div className={styles.subtotalRow}>
-        <div className={styles.labelCell}>Total Benefits</div>
-        {totals.benefits.map((val, i) => (
-          <div key={i} className={`${styles.valueCell} ${styles.benefitCell}`}>{formatCurrency(val)}</div>
-        ))}
-        <div className={styles.totalCell}>{formatCurrency(totalBenefits)}</div>
-      </div>
 
-      {/* Costs section */}
-      <div className={styles.sectionLabel}>
-        <span className={styles.costDot} />
-        Costs
-      </div>
-      {financials.costs.map(line => (
-        <div key={line.id} className={styles.tableRow}>
-          <div className={styles.labelCell}>{line.label}</div>
-          {line.values.map((value, i) => {
-            const cellId = `cost-${line.id}-${i}`;
-            const isEditing = editingCell === cellId;
-            const comment = getCommentForCell(cellId);
-            const isSelected = selectedCell === cellId;
-
-            return (
-              <div
-                key={i}
-                className={`${styles.valueCell} ${styles.costCell} ${comment ? styles.hasComment : ''} ${isSelected ? styles.selected : ''}`}
-                onClick={() => handleCellClick('cost', line.id, i)}
-              >
-                {isEditing ? (
-                  <input
-                    type="number"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={handleCellBlur}
-                    onKeyDown={(e) => e.key === 'Enter' && handleCellBlur()}
-                    autoFocus
-                    className={styles.cellInput}
-                  />
-                ) : (
-                  <>
-                    {formatCurrency(value)}
-                    {comment && <span className={styles.commentBadge}>{comments.indexOf(comment) + 1}</span>}
-                  </>
-                )}
-              </div>
-            );
-          })}
-          <div className={styles.totalCell}>
-            {formatCurrency(line.values.reduce((a, b) => a + b, 0))}
-          </div>
+        {/* Benefits section */}
+        <div className={styles.sectionLabel}>
+          <span className={styles.benefitDot} />
+          Benefits
         </div>
-      ))}
-      <div className={styles.subtotalRow}>
-        <div className={styles.labelCell}>Total Costs</div>
-        {totals.costs.map((val, i) => (
-          <div key={i} className={`${styles.valueCell} ${styles.costCell}`}>{formatCurrency(val)}</div>
-        ))}
-        <div className={styles.totalCell}>{formatCurrency(totalCosts)}</div>
-      </div>
+        {financials.benefits.map(line => (
+          <div key={line.id} className={styles.tableRow}>
+            <div className={styles.labelCell}>{line.label}</div>
+            {line.values.map((value, i) => {
+              const cellId = `benefit-${line.id}-${i}`;
+              const isEditing = mode === 'owner' && isOwnerPhase && editingCell === cellId;
+              const comment = getCommentForCell(cellId);
+              const isSelected = mode === 'approver' && isApproverPhase && selectedCell === cellId;
 
-      {/* Net impact */}
-      <div className={`${styles.subtotalRow} ${styles.netRow}`}>
-        <div className={styles.labelCell}>Net Impact</div>
-        {totals.net.map((val, i) => (
-          <div key={i} className={`${styles.valueCell} ${val >= 0 ? styles.positive : styles.negative}`}>
-            {formatCurrency(val)}
+              return (
+                <div
+                  key={i}
+                  className={`${styles.valueCell} ${styles.benefitCell} ${comment ? styles.hasComment : ''} ${isSelected ? styles.selected : ''} ${!isInteractive ? styles.readOnlyCell : ''}`}
+                  onClick={() => handleCellClick(mode, 'benefit', line.id, i)}
+                >
+                  {isEditing ? (
+                    <input
+                      type="number"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={handleCellBlur}
+                      onKeyDown={(e) => e.key === 'Enter' && handleCellBlur()}
+                      autoFocus
+                      className={styles.cellInput}
+                    />
+                  ) : (
+                    <>
+                      {formatCurrency(value)}
+                      {comment && <span className={styles.commentBadge}>{comments.indexOf(comment) + 1}</span>}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            <div className={styles.totalCell}>
+              {formatCurrency(line.values.reduce((a, b) => a + b, 0))}
+            </div>
           </div>
         ))}
-        <div className={`${styles.totalCell} ${totalNet >= 0 ? styles.positive : styles.negative}`}>
-          {formatCurrency(totalNet)}
+        <div className={styles.subtotalRow}>
+          <div className={styles.labelCell}>Total Benefits</div>
+          {totals.benefits.map((val, i) => (
+            <div key={i} className={`${styles.valueCell} ${styles.benefitCell}`}>{formatCurrency(val)}</div>
+          ))}
+          <div className={styles.totalCell}>{formatCurrency(totalBenefits)}</div>
+        </div>
+
+        {/* Costs section */}
+        <div className={styles.sectionLabel}>
+          <span className={styles.costDot} />
+          Costs
+        </div>
+        {financials.costs.map(line => (
+          <div key={line.id} className={styles.tableRow}>
+            <div className={styles.labelCell}>{line.label}</div>
+            {line.values.map((value, i) => {
+              const cellId = `cost-${line.id}-${i}`;
+              const isEditing = mode === 'owner' && isOwnerPhase && editingCell === cellId;
+              const comment = getCommentForCell(cellId);
+              const isSelected = mode === 'approver' && isApproverPhase && selectedCell === cellId;
+
+              return (
+                <div
+                  key={i}
+                  className={`${styles.valueCell} ${styles.costCell} ${comment ? styles.hasComment : ''} ${isSelected ? styles.selected : ''} ${!isInteractive ? styles.readOnlyCell : ''}`}
+                  onClick={() => handleCellClick(mode, 'cost', line.id, i)}
+                >
+                  {isEditing ? (
+                    <input
+                      type="number"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onBlur={handleCellBlur}
+                      onKeyDown={(e) => e.key === 'Enter' && handleCellBlur()}
+                      autoFocus
+                      className={styles.cellInput}
+                    />
+                  ) : (
+                    <>
+                      {formatCurrency(value)}
+                      {comment && <span className={styles.commentBadge}>{comments.indexOf(comment) + 1}</span>}
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            <div className={styles.totalCell}>
+              {formatCurrency(line.values.reduce((a, b) => a + b, 0))}
+            </div>
+          </div>
+        ))}
+        <div className={styles.subtotalRow}>
+          <div className={styles.labelCell}>Total Costs</div>
+          {totals.costs.map((val, i) => (
+            <div key={i} className={`${styles.valueCell} ${styles.costCell}`}>{formatCurrency(val)}</div>
+          ))}
+          <div className={styles.totalCell}>{formatCurrency(totalCosts)}</div>
+        </div>
+
+        {/* Net impact */}
+        <div className={`${styles.subtotalRow} ${styles.netRow}`}>
+          <div className={styles.labelCell}>Net Impact</div>
+          {totals.net.map((val, i) => (
+            <div key={i} className={`${styles.valueCell} ${val >= 0 ? styles.positive : styles.negative}`}>
+              {formatCurrency(val)}
+            </div>
+          ))}
+          <div className={`${styles.totalCell} ${totalNet >= 0 ? styles.positive : styles.negative}`}>
+            {formatCurrency(totalNet)}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Render comment popup
   const renderCommentPopup = () => {
@@ -424,7 +473,49 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
       </div>
     );
   };
+  const renderInitiativeHeader = (status: { label: string; tone: StatusTone }) => (
+    <div className={styles.initiativeHeader}>
+      <div className={styles.initiativeInfo}>
+        <h3>Customer Analytics Platform</h3>
+        <span className={`${styles.initiativeStatus} ${statusClassMap[status.tone]}`}>
+          {status.label}
+        </span>
+      </div>
+      <div className={styles.kpis}>
+        <div className={styles.kpi}>
+          <span className={styles.kpiLabel}>Total Benefits</span>
+          <span className={`${styles.kpiValue} ${styles.benefit}`}>{formatCurrency(totalBenefits)}</span>
+        </div>
+        <div className={styles.kpi}>
+          <span className={styles.kpiLabel}>Total Costs</span>
+          <span className={`${styles.kpiValue} ${styles.cost}`}>{formatCurrency(totalCosts)}</span>
+        </div>
+        <div className={styles.kpi}>
+          <span className={styles.kpiLabel}>Net Impact</span>
+          <span className={`${styles.kpiValue} ${totalNet >= 0 ? styles.benefit : styles.cost}`}>
+            {formatCurrency(totalNet)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 
+  const renderFinancialSection = (mode: InteractionMode) => (
+    <div className={styles.financialSection}>
+      <div className={styles.sectionHeader}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="12" y1="1" x2="12" y2="23" />
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+        <h4>Financial Outlook</h4>
+        {mode === 'owner' && isOwnerPhase && <span className={styles.editableTag}>Editable</span>}
+        {mode === 'approver' && isApproverPhase && <span className={styles.reviewTag}>Click cells to comment</span>}
+        {mode === 'approver' && isApproverLocked && <span className={styles.lockedTag}>Awaiting submission</span>}
+      </div>
+      {renderFinancialTable(mode)}
+      {mode === 'approver' && renderCommentPopup()}
+    </div>
+  );
   return (
     <div className={`${styles.demoContainer} ${className || ''}`}>
       {/* Hint overlay */}
@@ -457,136 +548,123 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
         </div>
       )}
 
-      {/* Window chrome */}
-      <div className={styles.windowChrome}>
-        <div className={styles.windowControls}>
-          <span className={styles.windowDot} data-color="red" />
-          <span className={styles.windowDot} data-color="yellow" />
-          <span className={styles.windowDot} data-color="green" />
-        </div>
-        <div className={styles.windowTitle}>Laiten</div>
-        <div className={styles.windowTabs}>
-          <span className={`${styles.windowTab} ${isOwnerPhase ? styles.active : ''}`}>
-            Initiative Owner View
-          </span>
-          <span className={`${styles.windowTab} ${isApproverPhase || currentStep === 'complete' ? styles.active : ''}`}>
-            Approver View
-          </span>
-        </div>
-        <button className={styles.resetBtn} onClick={handleReset} title="Reset Demo">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-            <path d="M21 3v5h-5" />
-            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-            <path d="M8 16H3v5" />
-          </svg>
-          Reset
-        </button>
-      </div>
-
-      {/* App content */}
-      <div className={styles.appContent}>
-        {/* Initiative header */}
-        <div className={styles.initiativeHeader}>
-          <div className={styles.initiativeInfo}>
-            <h3>Customer Analytics Platform</h3>
-            <span className={styles.initiativeStatus}>
-              {currentStep === 'complete'
-                ? approvalAction === 'approved' ? 'Approved' : approvalAction === 'returned' ? 'Returned' : 'Rejected'
-                : isOwnerPhase ? 'Draft' : 'Pending Review'}
+      <div className={styles.demoStack}>
+        <div className={styles.demoWindow}>
+          <div className={styles.windowChrome}>
+            <div className={styles.windowControls}>
+              <span className={styles.windowDot} data-color="red" />
+              <span className={styles.windowDot} data-color="yellow" />
+              <span className={styles.windowDot} data-color="green" />
+            </div>
+            <div className={styles.windowTitle}>Laiten</div>
+            <span className={styles.windowViewPill}>Initiative Owner View</span>
+            <span className={`${styles.windowStatusPill} ${statusClassMap[ownerStatus.tone]}`}>
+              {ownerStatus.label}
             </span>
-          </div>
-          <div className={styles.kpis}>
-            <div className={styles.kpi}>
-              <span className={styles.kpiLabel}>Total Benefits</span>
-              <span className={`${styles.kpiValue} ${styles.benefit}`}>{formatCurrency(totalBenefits)}</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiLabel}>Total Costs</span>
-              <span className={`${styles.kpiValue} ${styles.cost}`}>{formatCurrency(totalCosts)}</span>
-            </div>
-            <div className={styles.kpi}>
-              <span className={styles.kpiLabel}>Net Impact</span>
-              <span className={`${styles.kpiValue} ${totalNet >= 0 ? styles.benefit : styles.cost}`}>
-                {formatCurrency(totalNet)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Stage gate progress */}
-        {renderStageGate()}
-
-        {/* Financial table */}
-        <div className={styles.financialSection}>
-          <div className={styles.sectionHeader}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="1" x2="12" y2="23" />
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
-            <h4>Financial Outlook</h4>
-            {isOwnerPhase && <span className={styles.editableTag}>Editable</span>}
-            {isApproverPhase && <span className={styles.reviewTag}>Click cells to comment</span>}
-          </div>
-          {renderFinancialTable()}
-          {renderCommentPopup()}
-        </div>
-
-        {/* Comments list */}
-        {renderCommentsList()}
-
-        {/* Action buttons */}
-        <div className={styles.actionBar}>
-          {isOwnerPhase && (
-            <button
-              className={styles.submitBtn}
-              onClick={handleSubmit}
-              disabled={!hasEdited && currentStep === 'owner-edit'}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            <div className={styles.chromeSpacer} />
+            <button className={styles.resetBtn} onClick={handleReset} title="Reset Demo">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                <path d="M8 16H3v5" />
               </svg>
-              Submit for Review
+              Reset
             </button>
-          )}
+          </div>
 
-          {isApproverPhase && (
-            <div className={styles.approverActions}>
-              <button className={`${styles.actionBtn} ${styles.approveBtn}`} onClick={() => handleApprovalAction('approved')}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Approve
-              </button>
-              <button className={`${styles.actionBtn} ${styles.returnBtn}`} onClick={() => handleApprovalAction('returned')}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="1 4 1 10 7 10" />
-                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                </svg>
-                Return
-              </button>
-              <button className={`${styles.actionBtn} ${styles.rejectBtn}`} onClick={() => handleApprovalAction('rejected')}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-                Reject
-              </button>
-            </div>
-          )}
+          <div className={styles.appContent}>
+            {renderInitiativeHeader(ownerStatus)}
+            {renderStageGate()}
+            {renderFinancialSection('owner')}
+            {isOwnerPhase && (
+              <div className={styles.actionBar}>
+                <button
+                  className={styles.submitBtn}
+                  onClick={handleSubmit}
+                  disabled={!hasEdited && currentStep === 'owner-edit'}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                  </svg>
+                  Submit for Review
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
-          {currentStep === 'complete' && (
-            <div className={styles.completeMessage}>
-              <span className={`${styles.completeBadge} ${styles[approvalAction || 'approved']}`}>
-                {approvalAction === 'approved' && 'âœ“ Approved - Ready for next stage'}
-                {approvalAction === 'returned' && 'â†© Returned - Owner will revise'}
-                {approvalAction === 'rejected' && 'âœ— Rejected - Initiative closed'}
-              </span>
+        <div className={`${styles.demoWindow} ${isApproverLocked ? styles.windowLocked : ''}`}>
+          <div className={styles.windowChrome}>
+            <div className={styles.windowControls}>
+              <span className={styles.windowDot} data-color="red" />
+              <span className={styles.windowDot} data-color="yellow" />
+              <span className={styles.windowDot} data-color="green" />
             </div>
-          )}
+            <div className={styles.windowTitle}>Laiten</div>
+            <span className={styles.windowViewPill}>Approver View</span>
+            <span className={`${styles.windowStatusPill} ${statusClassMap[approverStatus.tone]}`}>
+              {approverStatus.label}
+            </span>
+            <div className={styles.chromeSpacer} />
+          </div>
+
+          <div className={styles.appContent}>
+            {isApproverLocked && (
+              <div className={styles.lockBanner}>
+                <span className={styles.lockTitle}>Awaiting owner submission</span>
+                <span className={styles.lockDesc}>Submit the initiative above to start the approval workflow.</span>
+              </div>
+            )}
+            {renderInitiativeHeader(approverStatus)}
+            {renderStageGate()}
+            {renderFinancialSection('approver')}
+            {renderCommentsList()}
+            {(isApproverPhase || currentStep === 'complete') && (
+              <div className={styles.actionBar}>
+                {isApproverPhase && (
+                  <div className={styles.approverActions}>
+                    <button className={`${styles.actionBtn} ${styles.approveBtn}`} onClick={() => handleApprovalAction('approved')}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Approve
+                    </button>
+                    <button className={`${styles.actionBtn} ${styles.returnBtn}`} onClick={() => handleApprovalAction('returned')}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="1 4 1 10 7 10" />
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                      </svg>
+                      Return
+                    </button>
+                    <button className={`${styles.actionBtn} ${styles.rejectBtn}`} onClick={() => handleApprovalAction('rejected')}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                      Reject
+                    </button>
+                  </div>
+                )}
+
+                {currentStep === 'complete' && (
+                  <div className={styles.completeMessage}>
+                    <span className={`${styles.completeBadge} ${styles[approvalAction || 'approved']}`}>
+                      {approvalAction === 'approved' && 'Approved - Ready for next stage'}
+                      {approvalAction === 'returned' && 'Returned - Owner will revise'}
+                      {approvalAction === 'rejected' && 'Rejected - Initiative closed'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
+
+

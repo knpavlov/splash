@@ -412,7 +412,8 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
         </div>
       )}
 
-      {/* Window chrome */}
+      <div className={styles.demoWindow}>
+        {/* Window chrome */}
       <div className={styles.windowChrome}>
         <div className={styles.windowControls}>
           <span className={styles.windowDot} data-color="red" />
@@ -425,7 +426,7 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
         </div>
       </div>
 
-      {/* Main content */}
+        {/* Main content */}
       <div className={styles.appContent}>
         {/* Implementation Plan section */}
         <div className={styles.planSection}>
@@ -615,6 +616,7 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
           )}
         </div>
       </div>
+      </div>
     </div>
   );
 };
@@ -622,3 +624,7 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
 // Export tasks type for heatmap
 export type { DemoTask };
 export { INITIAL_TASKS, TEAM_MEMBERS, TIMELINE_START, TIMELINE_END, BASELINE_LOADS };
+
+
+
+

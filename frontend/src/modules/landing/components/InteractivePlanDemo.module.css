@@ -1,22 +1,27 @@
 /* Demo Container - Browser-like window */
 .demoContainer {
   position: relative;
+  width: 100%;
+  max-width: 1000px;
+  overflow: visible;
+}
+
+.demoWindow {
   background: #0d1117;
   border-radius: 16px;
   overflow: hidden;
+  width: 100%;
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.1),
-    0 25px 50px -12px rgba(0, 0, 0, 0.5),
-    0 0 80px rgba(139, 92, 246, 0.15);
-  width: 100%;
-  max-width: 1000px;
+    0 24px 50px -20px rgba(0, 0, 0, 0.5),
+    0 0 70px rgba(139, 92, 246, 0.12);
 }
 
 /* Hint Overlay */
 .hintOverlay {
   position: absolute;
-  top: 56px;
-  right: 14px;
+  top: -18px;
+  right: -18px;
   left: auto;
   bottom: auto;
   z-index: 100;
@@ -40,12 +45,13 @@
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.16) 0%, rgba(59, 130, 246, 0.12) 100%);
-  border: 1px solid rgba(139, 92, 246, 0.32);
+  background: rgba(10, 14, 22, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
   max-width: 360px;
   pointer-events: auto;
+  backdrop-filter: blur(6px);
 }
 
 .hintDismiss {
@@ -72,9 +78,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
+  background: rgba(139, 92, 246, 0.18);
   border-radius: 12px;
-  color: #fff;
+  color: #c7d2fe;
+  border: 1px solid rgba(139, 92, 246, 0.3);
 }
 
 .hintText {
@@ -741,6 +748,11 @@
 
 /* Responsive */
 @media (max-width: 900px) {
+  .hintOverlay {
+    top: 12px;
+    right: 12px;
+  }
+
   .planGrid,
   .resourceBody {
     grid-template-columns: 200px 1fr !important;
