@@ -21,14 +21,15 @@ interface Comment {
 }
 
 // Stage gate stages
-const STAGES = ['poc', 'mvp', 'pilot', 'scale'] as const;
+const STAGES = ['stage-1', 'stage-2', 'stage-3', 'stage-4', 'stage-5'] as const;
 type Stage = typeof STAGES[number];
 
 const STAGE_LABELS: Record<Stage, string> = {
-  poc: 'POC',
-  mvp: 'MVP',
-  pilot: 'Pilot',
-  scale: 'Scale'
+  'stage-1': 'Stage 1',
+  'stage-2': 'Stage 2',
+  'stage-3': 'Stage 3',
+  'stage-4': 'Stage 4',
+  'stage-5': 'Stage 5'
 };
 
 // Demo months
@@ -90,11 +91,10 @@ interface StageGateDemoProps {
 export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   // State
   const [currentStep, setCurrentStep] = useState<DemoStep>('owner-edit');
-  const [activeStage] = useState<Stage>('mvp');
+  const [activeStage] = useState<Stage>('stage-2');
   const [financials, setFinancials] = useState(INITIAL_FINANCIALS);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [hasEdited, setHasEdited] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [selectedCell, setSelectedCell] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
@@ -121,6 +121,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   const totalBenefits = totals.benefits.reduce((a, b) => a + b, 0);
   const totalCosts = totals.costs.reduce((a, b) => a + b, 0);
   const totalNet = totalBenefits - totalCosts;
+  const chartMax = useMemo(() => Math.max(...totals.benefits, ...totals.costs, 1), [totals]);
 
   // Handlers
   const handleCellClick = useCallback((mode: InteractionMode, type: 'benefit' | 'cost', lineId: string, monthIndex: number) => {
@@ -166,7 +167,6 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
         };
       });
 
-      setHasEdited(true);
       if (currentStep === 'owner-edit') {
         setCurrentStep('owner-submit');
       }
@@ -176,11 +176,11 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   }, [editingCell, editValue, currentStep]);
 
   const handleSubmit = useCallback(() => {
-    if (currentStep === 'owner-submit' || hasEdited) {
+    if (currentStep === 'owner-edit' || currentStep === 'owner-submit') {
       setCurrentStep('approver-review');
       setShowHint(true);
     }
-  }, [currentStep, hasEdited]);
+  }, [currentStep]);
 
   const handleAddComment = useCallback(() => {
     if (selectedCell && commentText.trim()) {
@@ -210,7 +210,6 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
     setFinancials(INITIAL_FINANCIALS);
     setEditingCell(null);
     setEditValue('');
-    setHasEdited(false);
     setComments([]);
     setSelectedCell(null);
     setCommentText('');
@@ -274,7 +273,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
               {isActive && (
                 <span className={styles.stageStatus}>
                   {currentStep === 'complete'
-                    ? approvalAction === 'approved' ? 'Ú‹”' : approvalAction === 'returned' ? 'Ú∆È' : 'Ú‹◊'
+                    ? approvalAction === 'approved' ? 'Approved' : approvalAction === 'returned' ? 'Returned' : 'Rejected'
                     : 'In Review'}
                 </span>
               )}
@@ -282,7 +281,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
             {index < STAGES.length - 1 && (
               <div className={`${styles.gateConnector} ${isPast ? styles.passed : ''}`}>
                 <div className={styles.gateDiamond}>
-                  {isPast && <span>Ú‹”</span>}
+                  {isPast && <span>{'\u2713'}</span>}
                 </div>
               </div>
             )}
@@ -476,7 +475,10 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   const renderInitiativeHeader = (status: { label: string; tone: StatusTone }) => (
     <div className={styles.initiativeHeader}>
       <div className={styles.initiativeInfo}>
-        <h3>Customer Analytics Platform</h3>
+        <div className={styles.initiativeTitle}>
+          <span className={styles.initiativeLabel}>Initiative name</span>
+          <h3>Customer Analytics Platform</h3>
+        </div>
         <span className={`${styles.initiativeStatus} ${statusClassMap[status.tone]}`}>
           {status.label}
         </span>
@@ -502,6 +504,13 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
 
   const renderFinancialSection = (mode: InteractionMode) => (
     <div className={styles.financialSection}>
+      <div className={styles.sectionTabs}>
+        <button type="button" className={`${styles.sectionTab} ${styles.sectionTabActive}`}>Financial outlook</button>
+        <button type="button" className={styles.sectionTab} disabled>Implementation plan</button>
+        <button type="button" className={styles.sectionTab} disabled>KPIs</button>
+        <button type="button" className={styles.sectionTab} disabled>Risks matrix</button>
+        <button type="button" className={styles.sectionTab} disabled>Attachments</button>
+      </div>
       <div className={styles.sectionHeader}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <line x1="12" y1="1" x2="12" y2="23" />
@@ -511,6 +520,34 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
         {mode === 'owner' && isOwnerPhase && <span className={styles.editableTag}>Editable</span>}
         {mode === 'approver' && isApproverPhase && <span className={styles.reviewTag}>Click cells to comment</span>}
         {mode === 'approver' && isApproverLocked && <span className={styles.lockedTag}>Awaiting submission</span>}
+      </div>
+      <div className={styles.financialChart}>
+        <div className={styles.chartLegend}>
+          <span className={styles.legendItem}>
+            <span className={styles.legendSwatchBenefit} />
+            Benefits
+          </span>
+          <span className={styles.legendItem}>
+            <span className={styles.legendSwatchCost} />
+            Costs
+          </span>
+        </div>
+        <div className={styles.chartArea}>
+          <div className={styles.chartAxis} />
+          <div className={styles.chartBars}>
+            {DEMO_MONTHS.map((month, i) => {
+              const benefitHeight = (totals.benefits[i] / chartMax) * 100;
+              const costHeight = (totals.costs[i] / chartMax) * 100;
+              return (
+                <div key={month} className={styles.chartColumn}>
+                  <div className={styles.chartBarUp} style={{ height: `${benefitHeight}%` }} />
+                  <div className={styles.chartBarDown} style={{ height: `${costHeight}%` }} />
+                  <span className={styles.chartLabel}>{month}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
       {renderFinancialTable(mode)}
       {mode === 'approver' && renderCommentPopup()}
@@ -522,23 +559,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
       {showHint && currentStep !== 'complete' && (
         <div className={`${styles.hintOverlay} ${currentStep === 'owner-edit' ? styles.pulse : ''}`}>
           <div className={styles.hintContent}>
-            <div className={styles.hintIcon}>
-              {isOwnerPhase ? (
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              ) : (
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M9 11l3 3L22 4" />
-                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                </svg>
-              )}
-            </div>
             <div className={styles.hintText}>
-              <span className={styles.hintRole}>{isOwnerPhase ? 'Initiative Owner' : 'Gate Approver'}</span>
               <span className={styles.hintTitle}>{hint.title}</span>
               <span className={styles.hintDesc}>{hint.description}</span>
               {hint.action && <span className={styles.hintAction}>{hint.action}</span>}
@@ -551,17 +572,11 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
       <div className={styles.demoStack}>
         <div className={styles.demoWindow}>
           <div className={styles.windowChrome}>
-            <div className={styles.windowControls}>
-              <span className={styles.windowDot} data-color="red" />
-              <span className={styles.windowDot} data-color="yellow" />
-              <span className={styles.windowDot} data-color="green" />
+            <div className={styles.browserTab}>
+              <span className={styles.browserFavicon} />
+              Initiative - Laiten
             </div>
-            <div className={styles.windowTitle}>Laiten</div>
-            <span className={styles.windowViewPill}>Initiative Owner View</span>
-            <span className={`${styles.windowStatusPill} ${statusClassMap[ownerStatus.tone]}`}>
-              {ownerStatus.label}
-            </span>
-            <div className={styles.chromeSpacer} />
+            <div className={styles.browserAddress}>app.laiten.com/initiatives/CA-120</div>
             <button className={styles.resetBtn} onClick={handleReset} title="Reset Demo">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
@@ -574,6 +589,12 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
           </div>
 
           <div className={styles.appContent}>
+            <div className={styles.viewRow}>
+              <span className={styles.viewLabel}>Initiative Owner View</span>
+              <span className={`${styles.viewStatus} ${statusClassMap[ownerStatus.tone]}`}>
+                {ownerStatus.label}
+              </span>
+            </div>
             {renderInitiativeHeader(ownerStatus)}
             {renderStageGate()}
             {renderFinancialSection('owner')}
@@ -582,7 +603,6 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
                 <button
                   className={styles.submitBtn}
                   onClick={handleSubmit}
-                  disabled={!hasEdited && currentStep === 'owner-edit'}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="22" y1="2" x2="11" y2="13" />
@@ -597,17 +617,11 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
 
         <div className={`${styles.demoWindow} ${isApproverLocked ? styles.windowLocked : ''}`}>
           <div className={styles.windowChrome}>
-            <div className={styles.windowControls}>
-              <span className={styles.windowDot} data-color="red" />
-              <span className={styles.windowDot} data-color="yellow" />
-              <span className={styles.windowDot} data-color="green" />
+            <div className={styles.browserTab}>
+              <span className={styles.browserFavicon} />
+              Initiative - Laiten
             </div>
-            <div className={styles.windowTitle}>Laiten</div>
-            <span className={styles.windowViewPill}>Approver View</span>
-            <span className={`${styles.windowStatusPill} ${statusClassMap[approverStatus.tone]}`}>
-              {approverStatus.label}
-            </span>
-            <div className={styles.chromeSpacer} />
+            <div className={styles.browserAddress}>app.laiten.com/initiatives/CA-120</div>
           </div>
 
           {isApproverLocked && (
@@ -620,6 +634,12 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
           )}
 
           <div className={styles.appContent}>
+            <div className={styles.viewRow}>
+              <span className={styles.viewLabel}>Approver View</span>
+              <span className={`${styles.viewStatus} ${statusClassMap[approverStatus.tone]}`}>
+                {approverStatus.label}
+              </span>
+            </div>
             {renderInitiativeHeader(approverStatus)}
             {renderStageGate()}
             {renderFinancialSection('approver')}

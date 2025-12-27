@@ -51,71 +51,51 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 6px;
+  padding: 10px 12px;
   background: rgba(10, 14, 22, 0.95);
   border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
   text-align: left;
-  max-width: 320px;
+  max-width: 280px;
   pointer-events: auto;
   backdrop-filter: blur(6px);
-}
-
-.hintIcon {
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(59, 130, 246, 0.18);
-  border-radius: 8px;
-  color: #bfdbfe;
-  border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
 .hintText {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-}
-
-.hintRole {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #7aa2f7;
+  gap: 4px;
 }
 
 .hintTitle {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: #fff;
 }
 
 .hintDesc {
-  font-size: 12px;
+  font-size: 11px;
   color: #94a3b8;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .hintAction {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: #60a5fa;
   margin-top: 2px;
 }
 
 .hintDismiss {
-  margin-top: 4px;
-  padding: 6px 12px;
+  margin-top: 2px;
+  padding: 5px 10px;
   background: rgba(59, 130, 246, 0.14);
   border: 1px solid rgba(59, 130, 246, 0.25);
   border-radius: 8px;
   color: #60a5fa;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -139,76 +119,45 @@
 .windowChrome {
   display: flex;
   align-items: center;
-  padding: 10px 14px;
-  background: linear-gradient(180deg, #1c1f26 0%, #161920 100%);
+  padding: 8px 12px;
+  background: linear-gradient(180deg, #1a1f2a 0%, #141821 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  gap: 12px;
+  gap: 10px;
 }
 
-.windowControls {
+.browserTab {
   display: flex;
-  gap: 7px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px 10px 6px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e6edf3;
+  white-space: nowrap;
 }
 
-.windowDot {
-  width: 11px;
-  height: 11px;
+.browserFavicon {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #3c3c3c;
+  background: #60a5fa;
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
 }
 
-.windowDot[data-color="red"] { background: #ff5f57; }
-.windowDot[data-color="yellow"] { background: #febc2e; }
-.windowDot[data-color="green"] { background: #28c840; }
-
-.windowTitle {
-  font-size: 12px;
-  font-weight: 600;
-  color: #e6edf3;
-}
-
-.windowViewPill {
-  font-size: 10px;
-  font-weight: 600;
-  color: #cbd5f5;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.windowStatusPill {
-  font-size: 10px;
-  font-weight: 600;
-  color: #cbd5f5;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.chromeSpacer {
+.browserAddress {
   flex: 1;
-}
-
-.windowTabs {
   display: flex;
-  gap: 4px;
-  margin-left: 16px;
-}
-
-.windowTab {
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 10px;
-  color: #6e7681;
-  background: transparent;
-  padding: 4px 10px;
-  border-radius: 4px;
-  transition: all 0.15s ease;
-}
-
-.windowTab.active {
-  color: #e6edf3;
-  background: rgba(59, 130, 246, 0.2);
+  color: #94a3b8;
 }
 
 .resetBtn {
@@ -238,6 +187,32 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.viewRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.viewLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8b949e;
+}
+
+.viewStatus {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .windowLocked {
@@ -305,6 +280,20 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.initiativeTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.initiativeLabel {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6e7681;
 }
 
 .initiativeInfo h3 {
@@ -480,6 +469,38 @@
   position: relative;
 }
 
+.sectionTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sectionTab {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8b949e;
+}
+
+.sectionTabActive {
+  background: rgba(59, 130, 246, 0.2);
+  color: #e6edf3;
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.sectionTab:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .sectionHeader {
   display: flex;
   align-items: center;
@@ -528,6 +549,102 @@
   border-radius: 4px;
   background: rgba(148, 163, 184, 0.18);
   color: #cbd5f5;
+}
+
+/* Financial Chart */
+.financialChart {
+  padding: 10px 12px 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.chartLegend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendSwatchBenefit,
+.legendSwatchCost {
+  width: 12px;
+  height: 4px;
+  border-radius: 999px;
+}
+
+.legendSwatchBenefit {
+  background: #22c55e;
+}
+
+.legendSwatchCost {
+  background: #ef4444;
+}
+
+.chartArea {
+  position: relative;
+  height: 120px;
+  padding: 4px 2px 16px;
+}
+
+.chartAxis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.chartBars {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.chartColumn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chartBarUp {
+  position: absolute;
+  bottom: 50%;
+  width: 14px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.95), rgba(34, 197, 94, 0.45));
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.35);
+}
+
+.chartBarDown {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.45), rgba(239, 68, 68, 0.95));
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
+}
+
+.chartLabel {
+  position: absolute;
+  bottom: -12px;
+  font-size: 9px;
+  color: #6e7681;
 }
 
 /* Financial Table */
@@ -995,7 +1112,15 @@
     padding: 6px 16px;
   }
 
-  .windowTabs {
+  .browserAddress {
+    display: none;
+  }
+
+  .chartArea {
+    height: 100px;
+  }
+
+  .chartLabel {
     display: none;
   }
 

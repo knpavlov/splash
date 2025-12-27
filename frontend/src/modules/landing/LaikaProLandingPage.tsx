@@ -1094,11 +1094,14 @@ export const LaikaProLandingPage = () => {
             </h2>
             <p className={styles.featureDescription}>
               Comprehensive governance from ideation to delivery. Navigate complex approval
-              workflows with ease while maintaining full audit trails and compliance.
+              workflows with ease while maintaining full audit trails and compliance. Capture every
+              initiative detail in a single, intuitive workspace so financial projections,
+              implementation plans, KPIs, risk matrices, and attachments stay visible for stage gate approvals.
             </p>
 
             <ul className={styles.featureList}>
               <li><Check size={18} /> Customizable stage gate workflows</li>
+              <li><Check size={18} /> Unified data entry for projections, plans, KPIs, risk matrices, and attachments</li>
               <li><Check size={18} /> Built-in approval routing</li>
               <li><Check size={18} /> Context-aware comments & collaboration</li>
               <li><Check size={18} /> Complete audit trail</li>
