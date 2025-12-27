@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import styles from './StageGateDemo.module.css';
 
 // Types
@@ -98,14 +98,20 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [selectedCell, setSelectedCell] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
+  const [viewingComment, setViewingComment] = useState<Comment | null>(null);
   const [approvalAction, setApprovalAction] = useState<ApprovalAction>(null);
   const [showHint, setShowHint] = useState(true);
+  const ownerWindowRef = useRef<HTMLDivElement>(null);
+  const approverWindowRef = useRef<HTMLDivElement>(null);
+  const prevStepRef = useRef<DemoStep>(currentStep);
 
   // Computed values
   const isOwnerPhase = currentStep === 'owner-edit' || currentStep === 'owner-submit';
   const isApproverPhase = currentStep === 'approver-review' || currentStep === 'approver-action';
   const hasSubmission = currentStep === 'approver-review' || currentStep === 'approver-action' || currentStep === 'complete';
   const isApproverLocked = !hasSubmission;
+  const activeView: InteractionMode = isApproverPhase ? 'approver' : 'owner';
+  const dimOwner = isApproverPhase;
 
   const totals = useMemo(() => {
     const benefitTotals = DEMO_MONTHS.map((_, i) =>
@@ -122,15 +128,27 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   const totalCosts = totals.costs.reduce((a, b) => a + b, 0);
   const totalNet = totalBenefits - totalCosts;
   const chartMax = useMemo(() => Math.max(...totals.benefits, ...totals.costs, 1), [totals]);
+  const displayStage = useMemo(() => {
+    if (currentStep === 'complete' && approvalAction === 'approved') {
+      const nextIndex = Math.min(STAGES.indexOf(activeStage) + 1, STAGES.length - 1);
+      return STAGES[nextIndex];
+    }
+    return activeStage;
+  }, [activeStage, approvalAction, currentStep]);
+  const showOwnerHint = showHint && currentStep !== 'complete' && activeView === 'owner';
+  const showApproverHint = showHint && currentStep !== 'complete' && activeView === 'approver';
 
   // Handlers
   const handleCellClick = useCallback((mode: InteractionMode, type: 'benefit' | 'cost', lineId: string, monthIndex: number) => {
     const cellId = `${type}-${lineId}-${monthIndex}`;
 
     if (mode === 'owner') {
+      const comment = comments.find((item) => item.cellId === cellId) || null;
       if (!isOwnerPhase) {
+        setViewingComment(comment);
         return;
       }
+      setViewingComment(null);
       const lines = type === 'benefit' ? financials.benefits : financials.costs;
       const line = lines.find(l => l.id === lineId);
       if (line) {
@@ -144,7 +162,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
       setSelectedCell(cellId);
       setCommentText('');
     }
-  }, [isOwnerPhase, isApproverPhase, financials]);
+  }, [isOwnerPhase, isApproverPhase, financials, comments]);
 
   const handleCellBlur = useCallback(() => {
     if (editingCell && editValue !== '') {
@@ -213,9 +231,31 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
     setComments([]);
     setSelectedCell(null);
     setCommentText('');
+    setViewingComment(null);
     setApprovalAction(null);
     setShowHint(true);
+    ownerWindowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, []);
+
+  useEffect(() => {
+    if (isApproverPhase && viewingComment) {
+      setViewingComment(null);
+    }
+  }, [isApproverPhase, viewingComment]);
+
+  useEffect(() => {
+    if (prevStepRef.current === currentStep) return;
+
+    if (currentStep === 'approver-review' || currentStep === 'approver-action') {
+      approverWindowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    if (currentStep === 'complete') {
+      ownerWindowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    prevStepRef.current = currentStep;
+  }, [currentStep]);
 
   const getCommentForCell = (cellId: string) => comments.find(c => c.cellId === cellId);
 
@@ -260,20 +300,22 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   const renderStageGate = () => (
     <div className={styles.stageGate}>
       {STAGES.map((stage, index) => {
-        const isActive = stage === activeStage;
-        const isPast = STAGES.indexOf(stage) < STAGES.indexOf(activeStage);
-        const isApproved = isPast || (isActive && currentStep === 'complete' && approvalAction === 'approved');
+        const activeIndex = STAGES.indexOf(displayStage);
+        const stageIndex = STAGES.indexOf(stage);
+        const isActive = stageIndex === activeIndex;
+        const isPast = stageIndex < activeIndex;
+        const isComplete = isPast || (isActive && currentStep === 'complete' && approvalAction === 'approved' && activeIndex === STAGES.length - 1);
 
         return (
           <div key={stage} className={styles.stageItem}>
             <div
-              className={`${styles.stageChevron} ${isActive ? styles.active : ''} ${isPast || isApproved ? styles.complete : ''}`}
+              className={`${styles.stageChevron} ${isActive ? styles.active : ''} ${isComplete ? styles.complete : ''}`}
             >
               <span className={styles.stageLabel}>{STAGE_LABELS[stage]}</span>
               {isActive && (
                 <span className={styles.stageStatus}>
                   {currentStep === 'complete'
-                    ? approvalAction === 'approved' ? 'Approved' : approvalAction === 'returned' ? 'Returned' : 'Rejected'
+                    ? approvalAction === 'approved' ? (activeIndex === STAGES.length - 1 ? 'Approved' : 'Ready') : approvalAction === 'returned' ? 'Returned' : 'Rejected'
                     : 'In Review'}
                 </span>
               )}
@@ -453,6 +495,23 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
     );
   };
 
+  const renderCommentViewer = (mode: InteractionMode) => {
+    if (mode !== 'owner' || !viewingComment) return null;
+
+    return (
+      <div className={styles.commentPopup}>
+        <div className={styles.commentHeader}>
+          <span>Review Comment</span>
+          <button onClick={() => setViewingComment(null)} className={styles.closeBtn}>{'\u00D7'}</button>
+        </div>
+        <div className={styles.commentView}>
+          <span className={styles.commentViewAuthor}>{viewingComment.author}</span>
+          <p>{viewingComment.text}</p>
+        </div>
+      </div>
+    );
+  };
+
   // Render comments list
   const renderCommentsList = () => {
     if (comments.length === 0) return null;
@@ -550,138 +609,150 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
         </div>
       </div>
       {renderFinancialTable(mode)}
+      {renderCommentViewer(mode)}
       {mode === 'approver' && renderCommentPopup()}
     </div>
   );
   return (
     <div className={`${styles.demoContainer} ${className || ''}`}>
-      {/* Hint overlay */}
-      {showHint && currentStep !== 'complete' && (
-        <div className={`${styles.hintOverlay} ${currentStep === 'owner-edit' ? styles.pulse : ''}`}>
-          <div className={styles.hintContent}>
-            <div className={styles.hintText}>
-              <span className={styles.hintTitle}>{hint.title}</span>
-              <span className={styles.hintDesc}>{hint.description}</span>
-              {hint.action && <span className={styles.hintAction}>{hint.action}</span>}
-            </div>
-            <button className={styles.hintDismiss} onClick={() => setShowHint(false)}>Got it</button>
-          </div>
-        </div>
-      )}
+      <div className={styles.demoControls}>
+        <button className={styles.resetBtn} onClick={handleReset} type="button">
+          Reset Demo
+        </button>
+      </div>
 
       <div className={styles.demoStack}>
-        <div className={styles.demoWindow}>
-          <div className={styles.windowChrome}>
-            <div className={styles.browserTab}>
-              <span className={styles.browserFavicon} />
-              Initiative - Laiten
-            </div>
-            <div className={styles.browserAddress}>app.laiten.com/initiatives/CA-120</div>
-            <button className={styles.resetBtn} onClick={handleReset} title="Reset Demo">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-                <path d="M8 16H3v5" />
-              </svg>
-              Reset
-            </button>
-          </div>
-
-          <div className={styles.appContent}>
-            <div className={styles.viewRow}>
-              <span className={styles.viewLabel}>Initiative Owner View</span>
-              <span className={`${styles.viewStatus} ${statusClassMap[ownerStatus.tone]}`}>
-                {ownerStatus.label}
-              </span>
-            </div>
-            {renderInitiativeHeader(ownerStatus)}
-            {renderStageGate()}
-            {renderFinancialSection('owner')}
-            {isOwnerPhase && (
-              <div className={styles.actionBar}>
-                <button
-                  className={styles.submitBtn}
-                  onClick={handleSubmit}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="22" y1="2" x2="11" y2="13" />
-                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                  </svg>
-                  Submit for Review
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className={`${styles.demoWindow} ${isApproverLocked ? styles.windowLocked : ''}`}>
-          <div className={styles.windowChrome}>
-            <div className={styles.browserTab}>
-              <span className={styles.browserFavicon} />
-              Initiative - Laiten
-            </div>
-            <div className={styles.browserAddress}>app.laiten.com/initiatives/CA-120</div>
-          </div>
-
-          {isApproverLocked && (
-            <div className={styles.windowLockOverlay}>
-              <div className={styles.windowLockContent}>
-                <span className={styles.windowLockTitle}>Awaiting owner submission</span>
-                <span className={styles.windowLockDesc}>Submit the initiative above to start the approval workflow.</span>
+        <div ref={ownerWindowRef} className={styles.demoWindowWrap}>
+          {showOwnerHint && (
+            <div className={`${styles.hintOverlay} ${currentStep === 'owner-edit' ? styles.pulse : ''}`}>
+              <div className={styles.hintContent}>
+                <div className={styles.hintText}>
+                  <span className={styles.hintTitle}>{hint.title}</span>
+                  <span className={styles.hintDesc}>{hint.description}</span>
+                  {hint.action && <span className={styles.hintAction}>{hint.action}</span>}
+                </div>
+                <button className={styles.hintDismiss} onClick={() => setShowHint(false)}>Got it</button>
               </div>
             </div>
           )}
-
-          <div className={styles.appContent}>
-            <div className={styles.viewRow}>
-              <span className={styles.viewLabel}>Approver View</span>
-              <span className={`${styles.viewStatus} ${statusClassMap[approverStatus.tone]}`}>
-                {approverStatus.label}
-              </span>
+          <div className={`${styles.demoWindow} ${dimOwner ? styles.windowInactive : ''}`}>
+            <div className={styles.windowChrome}>
+              <div className={styles.browserTab}>
+                <span className={styles.browserFavicon} />
+                Initiative - Laiten
+              </div>
+              <div className={styles.browserAddress}>app.laiten.com/initiatives/CA-120</div>
             </div>
-            {renderInitiativeHeader(approverStatus)}
-            {renderStageGate()}
-            {renderFinancialSection('approver')}
-            {renderCommentsList()}
-            {(isApproverPhase || currentStep === 'complete') && (
-              <div className={styles.actionBar}>
-                {isApproverPhase && (
-                  <div className={styles.approverActions}>
-                    <button className={`${styles.actionBtn} ${styles.approveBtn}`} onClick={() => handleApprovalAction('approved')}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      Approve
-                    </button>
-                    <button className={`${styles.actionBtn} ${styles.returnBtn}`} onClick={() => handleApprovalAction('returned')}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="1 4 1 10 7 10" />
-                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                      </svg>
-                      Return
-                    </button>
-                    <button className={`${styles.actionBtn} ${styles.rejectBtn}`} onClick={() => handleApprovalAction('rejected')}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                      Reject
-                    </button>
-                  </div>
-                )}
 
-                {currentStep === 'complete' && (
-                  <div className={styles.completeMessage}>
-                    <span className={`${styles.completeBadge} ${styles[approvalAction || 'approved']}`}>
-                      {approvalAction === 'approved' && 'Approved - Ready for next stage'}
-                      {approvalAction === 'returned' && 'Returned - Owner will revise'}
-                      {approvalAction === 'rejected' && 'Rejected - Initiative closed'}
-                    </span>
-                  </div>
+            <div className={styles.appContent}>
+              <div className={styles.viewRow}>
+                <span className={styles.viewLabel}>Initiative Owner View</span>
+                <span className={`${styles.viewStatus} ${statusClassMap[ownerStatus.tone]}`}>
+                  {ownerStatus.label}
+                </span>
+              </div>
+              {renderInitiativeHeader(ownerStatus)}
+              {renderStageGate()}
+              {renderFinancialSection('owner')}
+              <div className={styles.actionBar}>
+                {isOwnerPhase && (
+                  <button
+                    className={styles.submitBtn}
+                    onClick={handleSubmit}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="22" y1="2" x2="11" y2="13" />
+                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    </svg>
+                    Submit for Review
+                  </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div ref={approverWindowRef} className={styles.demoWindowWrap}>
+          {showApproverHint && (
+            <div className={styles.hintOverlay}>
+              <div className={styles.hintContent}>
+                <div className={styles.hintText}>
+                  <span className={styles.hintTitle}>{hint.title}</span>
+                  <span className={styles.hintDesc}>{hint.description}</span>
+                  {hint.action && <span className={styles.hintAction}>{hint.action}</span>}
+                </div>
+                <button className={styles.hintDismiss} onClick={() => setShowHint(false)}>Got it</button>
+              </div>
+            </div>
+          )}
+          <div className={`${styles.demoWindow} ${isApproverLocked ? styles.windowLocked : ''}`}>
+            <div className={styles.windowChrome}>
+              <div className={styles.browserTab}>
+                <span className={styles.browserFavicon} />
+                Initiative - Laiten
+              </div>
+              <div className={styles.browserAddress}>app.laiten.com/initiatives/CA-120</div>
+            </div>
+
+            {isApproverLocked && (
+              <div className={styles.windowLockOverlay}>
+                <div className={styles.windowLockContent}>
+                  <span className={styles.windowLockTitle}>Awaiting owner submission</span>
+                  <span className={styles.windowLockDesc}>Submit the initiative above to start the approval workflow.</span>
+                </div>
+              </div>
             )}
+
+            <div className={styles.appContent}>
+              <div className={styles.viewRow}>
+                <span className={styles.viewLabel}>Approver View</span>
+                <span className={`${styles.viewStatus} ${statusClassMap[approverStatus.tone]}`}>
+                  {approverStatus.label}
+                </span>
+              </div>
+              {renderInitiativeHeader(approverStatus)}
+              {renderStageGate()}
+              {renderFinancialSection('approver')}
+              {renderCommentsList()}
+              {(isApproverPhase || currentStep === 'complete') && (
+                <div className={styles.actionBar}>
+                  {isApproverPhase && (
+                    <div className={styles.approverActions}>
+                      <button className={`${styles.actionBtn} ${styles.approveBtn}`} onClick={() => handleApprovalAction('approved')}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        Approve
+                      </button>
+                      <button className={`${styles.actionBtn} ${styles.returnBtn}`} onClick={() => handleApprovalAction('returned')}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="1 4 1 10 7 10" />
+                          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                        </svg>
+                        Return
+                      </button>
+                      <button className={`${styles.actionBtn} ${styles.rejectBtn}`} onClick={() => handleApprovalAction('rejected')}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                        Reject
+                      </button>
+                    </div>
+                  )}
+
+                  {currentStep === 'complete' && (
+                    <div className={styles.completeMessage}>
+                      <span className={`${styles.completeBadge} ${styles[approvalAction || 'approved']}`}>
+                        {approvalAction === 'approved' && 'Approved - Ready for next stage'}
+                        {approvalAction === 'returned' && 'Returned - Owner will revise'}
+                        {approvalAction === 'rejected' && 'Rejected - Initiative closed'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

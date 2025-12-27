@@ -6,10 +6,20 @@
   overflow: visible;
 }
 
+.demoControls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
 .demoStack {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.demoWindowWrap {
+  position: relative;
 }
 
 .demoWindow {
@@ -22,6 +32,13 @@
     0 0 0 1px rgba(255, 255, 255, 0.1),
     0 24px 50px -20px rgba(0, 0, 0, 0.55),
     0 0 70px rgba(59, 130, 246, 0.1);
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.windowInactive {
+  filter: blur(1.4px) saturate(0.7);
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 /* Hint Overlay */
@@ -161,16 +178,16 @@
 }
 
 .resetBtn {
-  margin-left: auto;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #8b949e;
-  font-size: 11px;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  color: #cbd5f5;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -745,6 +762,14 @@
   background: transparent;
 }
 
+.readOnlyCell.hasComment {
+  cursor: pointer;
+}
+
+.readOnlyCell.hasComment:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
 .valueCell.benefitCell {
   color: #86efac;
 }
@@ -878,6 +903,26 @@
   color: #6e7681;
 }
 
+.commentView {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.commentViewAuthor {
+  font-size: 10px;
+  font-weight: 600;
+  color: #8b949e;
+}
+
+.commentView p {
+  margin: 0;
+  font-size: 12px;
+  color: #c9d1d9;
+  line-height: 1.4;
+}
+
 .commentActions {
   display: flex;
   justify-content: flex-end;
@@ -985,6 +1030,8 @@
   justify-content: flex-end;
   gap: 10px;
   padding-top: 4px;
+  min-height: 44px;
+  align-items: center;
 }
 
 .submitBtn {
