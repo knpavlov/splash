@@ -32,8 +32,8 @@ const STAGE_LABELS: Record<Stage, string> = {
   'stage-5': 'Stage 5'
 };
 
-// Demo months
-const DEMO_MONTHS = ['Jan 25', 'Feb 25', 'Mar 25', 'Q2 25', 'Q3 25', 'Q4 25'];
+// Demo periods
+const DEMO_MONTHS = ['Q1 2026', 'Q2 2026', 'Q3 2026', 'Q4 2026', 'Q1 2027', 'Q2 2027'];
 
 // Initial financial data
 const INITIAL_FINANCIALS: { benefits: FinancialLine[]; costs: FinancialLine[] } = {
@@ -128,6 +128,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
   const totalCosts = totals.costs.reduce((a, b) => a + b, 0);
   const totalNet = totalBenefits - totalCosts;
   const chartMax = useMemo(() => Math.max(...totals.benefits, ...totals.costs, 1), [totals]);
+  const chartScale = 46;
   const displayStage = useMemo(() => {
     if (currentStep === 'complete' && approvalAction === 'approved') {
       const nextIndex = Math.min(STAGES.indexOf(activeStage) + 1, STAGES.length - 1);
@@ -593,10 +594,11 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
         </div>
         <div className={styles.chartArea}>
           <div className={styles.chartAxis} />
-          <div className={styles.chartBars}>
+          <div className={styles.chartGrid}>
+            <div className={styles.chartSpacer} />
             {DEMO_MONTHS.map((month, i) => {
-              const benefitHeight = (totals.benefits[i] / chartMax) * 100;
-              const costHeight = (totals.costs[i] / chartMax) * 100;
+              const benefitHeight = Math.min((totals.benefits[i] / chartMax) * chartScale, chartScale);
+              const costHeight = Math.min((totals.costs[i] / chartMax) * chartScale, chartScale);
               return (
                 <div key={month} className={styles.chartColumn}>
                   <div className={styles.chartBarUp} style={{ height: `${benefitHeight}%` }} />
@@ -605,6 +607,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
                 </div>
               );
             })}
+            <div className={styles.chartSpacer} />
           </div>
         </div>
       </div>
@@ -645,11 +648,24 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
             </div>
 
             <div className={styles.appContent}>
-              <div className={styles.viewRow}>
-                <span className={styles.viewLabel}>Initiative Owner View</span>
-                <span className={`${styles.viewStatus} ${statusClassMap[ownerStatus.tone]}`}>
-                  {ownerStatus.label}
-                </span>
+              <div className={styles.profileRow}>
+                <div className={styles.profileLeft}>
+                  <div className={`${styles.profileAvatar} ${styles.profileAvatarOwner}`}>
+                    <span>MC</span>
+                  </div>
+                  <div className={styles.profileMeta}>
+                    <span className={styles.profileName}>Maya Chen</span>
+                    <span className={styles.profileTitle}>Transformation Lead</span>
+                    <span className={styles.profileRole}>Initiative Owner</span>
+                  </div>
+                </div>
+                <div className={styles.profileActions}>
+                  <span className={`${styles.profileStatus} ${statusClassMap[ownerStatus.tone]}`}>
+                    {ownerStatus.label}
+                  </span>
+                  <button type="button" className={styles.profileActionPrimary}>Log out</button>
+                  <button type="button" className={styles.profileAction}>Account</button>
+                </div>
               </div>
               {renderInitiativeHeader(ownerStatus)}
               {renderStageGate()}
@@ -704,11 +720,24 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
             )}
 
             <div className={styles.appContent}>
-              <div className={styles.viewRow}>
-                <span className={styles.viewLabel}>Approver View</span>
-                <span className={`${styles.viewStatus} ${statusClassMap[approverStatus.tone]}`}>
-                  {approverStatus.label}
-                </span>
+              <div className={styles.profileRow}>
+                <div className={styles.profileLeft}>
+                  <div className={`${styles.profileAvatar} ${styles.profileAvatarApprover}`}>
+                    <span>DR</span>
+                  </div>
+                  <div className={styles.profileMeta}>
+                    <span className={styles.profileName}>Daniel Ruiz</span>
+                    <span className={styles.profileTitle}>Finance Director</span>
+                    <span className={styles.profileRole}>Approver</span>
+                  </div>
+                </div>
+                <div className={styles.profileActions}>
+                  <span className={`${styles.profileStatus} ${statusClassMap[approverStatus.tone]}`}>
+                    {approverStatus.label}
+                  </span>
+                  <button type="button" className={styles.profileActionPrimary}>Log out</button>
+                  <button type="button" className={styles.profileAction}>Account</button>
+                </div>
               </div>
               {renderInitiativeHeader(approverStatus)}
               {renderStageGate()}

@@ -206,30 +206,102 @@
   gap: 14px;
 }
 
-.viewRow {
+.profileRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(255, 255, 255, 0.02);
+  gap: 12px;
 }
 
-.viewLabel {
+.profileLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profileAvatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0b1220;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.profileAvatarOwner {
+  background: linear-gradient(135deg, #93c5fd, #60a5fa);
+}
+
+.profileAvatarApprover {
+  background: linear-gradient(135deg, #a7f3d0, #34d399);
+}
+
+.profileMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profileName {
+  font-size: 12px;
+  font-weight: 700;
+  color: #e6edf3;
+}
+
+.profileTitle {
   font-size: 10px;
+  color: #94a3b8;
+}
+
+.profileRole {
+  font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #8b949e;
+  color: #93c5fd;
 }
 
-.viewStatus {
+.profileActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.profileStatus {
   font-size: 10px;
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.profileActionPrimary,
+.profileAction {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: #cbd5f5;
+}
+
+.profileActionPrimary {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
 }
 
 .windowLocked {
@@ -610,8 +682,8 @@
 
 .chartArea {
   position: relative;
-  height: 120px;
-  padding: 4px 2px 16px;
+  height: 130px;
+  padding: 6px 0 16px;
 }
 
 .chartAxis {
@@ -623,13 +695,18 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
-.chartBars {
+.chartGrid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 10px;
+  grid-template-columns: 120px repeat(6, 1fr) 80px;
+  gap: 0;
   height: 100%;
   position: relative;
   z-index: 1;
+  align-items: center;
+}
+
+.chartSpacer {
+  height: 100%;
 }
 
 .chartColumn {
@@ -637,6 +714,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 100%;
 }
 
 .chartBarUp {
@@ -1163,8 +1241,18 @@
     display: none;
   }
 
+  .profileRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .profileActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .chartArea {
-    height: 100px;
+    height: 110px;
   }
 
   .chartLabel {
