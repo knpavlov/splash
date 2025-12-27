@@ -1823,29 +1823,27 @@ export const LaikaProLandingPage = () => {
           <div className={styles.footerLinks}>
             <div className={styles.footerLinkGroup}>
               <h4>Product</h4>
-              <span onClick={() => scrollToSection('feature-1')}>Stage Gates</span>
-              <span onClick={() => scrollToSection('feature-2')}>Reporting</span>
-              <span onClick={() => scrollToSection('feature-3')}>Capacity Planning</span>
-              <span onClick={() => scrollToSection('feature-4')}>Execution Monitoring</span>
-              <a href="#/laiten/whats-new">Release notes</a>
+              <a href="#/laiten#hero">Intro</a>
+              <a href="#/laiten#features">Features</a>
+              <a href="#/laiten#pricing">Pricing</a>
+              <a href="#/laiten/contact">Contact</a>
             </div>
             <div className={styles.footerLinkGroup}>
               <h4>Company</h4>
               <a href="#/laiten/about">About Us</a>
               <a href="#/laiten/careers">Careers</a>
-              <span onClick={() => scrollToSection('contact')}>Contact</span>
+              <a href="#/laiten/whats-new">Release notes</a>
             </div>
             <div className={styles.footerLinkGroup}>
               <h4>Legal</h4>
-              <span>Privacy Policy</span>
-              <span>Terms of Service</span>
-              <span>Security</span>
+              <a href="#/laiten/privacy">Privacy Policy</a>
+              <a href="#/laiten/terms">Terms of Service</a>
             </div>
           </div>
         </div>
 
         <div className={styles.footerBottom}>
-          <p>&copy; {new Date().getFullYear()} Laiten. All rights reserved.</p>
+          <p>&copy; 2026 Laiten. All rights reserved.</p>
         </div>
       </footer>
     </div>

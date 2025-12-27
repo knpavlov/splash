@@ -61,6 +61,12 @@ const parseHash = (hash: string): AppRoute => {
           ? 'careers'
           : action === 'whats-new' || action === 'whatsnew' || action === 'updates'
             ? 'whats-new'
+            : action === 'privacy'
+              ? 'privacy'
+              : action === 'terms'
+                ? 'terms'
+                : action === 'contact'
+                  ? 'contact'
             : 'home';
     return { page: 'laiten', laiten: { view } };
   }
