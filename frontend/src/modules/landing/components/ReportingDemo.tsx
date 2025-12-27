@@ -38,13 +38,13 @@ const PNL_TREE: TreeNodeData = {
   id: 'ebitda',
   name: 'EBITDA',
   baseValue: 2400,
-  withInitiatives: 3150,
+  withInitiatives: 4450,
   children: [
     {
       id: 'gross-profit',
       name: 'Gross Profit',
       baseValue: 5800,
-      withInitiatives: 6400,
+      withInitiatives: 7700,
       children: [
         {
           id: 'revenue',
@@ -61,11 +61,11 @@ const PNL_TREE: TreeNodeData = {
           id: 'cogs',
           name: 'COGS',
           baseValue: -6700,
-          withInitiatives: -7400,
+          withInitiatives: -6100,
           children: [
-            { id: 'materials', name: 'Materials', baseValue: -3800, withInitiatives: -4200, children: [] },
-            { id: 'labor', name: 'Labor', baseValue: -2100, withInitiatives: -2300, children: [] },
-            { id: 'overhead', name: 'Overhead', baseValue: -800, withInitiatives: -900, children: [] }
+            { id: 'materials', name: 'Materials', baseValue: -3800, withInitiatives: -3500, children: [] },
+            { id: 'labor', name: 'Labor', baseValue: -2100, withInitiatives: -1900, children: [] },
+            { id: 'overhead', name: 'Overhead', baseValue: -800, withInitiatives: -700, children: [] }
           ]
         }
       ]
@@ -81,6 +81,70 @@ const PNL_TREE: TreeNodeData = {
         { id: 'ga', name: 'G&A', baseValue: -800, withInitiatives: -800, children: [] }
       ]
     }
+  ]
+};
+
+const PNL_NODE_INITIATIVES: Record<string, InitiativeContribution[]> = {
+  ebitda: [
+    { id: 'e1', name: 'Pricing Optimization', impact: 320 },
+    { id: 'e2', name: 'Supply Chain Savings', impact: 210 },
+    { id: 'e3', name: 'Automation Rollout', impact: 180 }
+  ],
+  'gross-profit': [
+    { id: 'gp1', name: 'Margin Mix Shift', impact: 260 },
+    { id: 'gp2', name: 'Supplier Rebates', impact: 180 },
+    { id: 'gp3', name: 'Yield Improvement', impact: 140 }
+  ],
+  revenue: [
+    { id: 'r1', name: 'Enterprise Tier', impact: 420 },
+    { id: 'r2', name: 'Cross-Sell Bundles', impact: 260 },
+    { id: 'r3', name: 'Usage Expansion', impact: 120 }
+  ],
+  'product-sales': [
+    { id: 'ps1', name: 'Channel Expansion', impact: 380 },
+    { id: 'ps2', name: 'Upsell Motion', impact: 220 }
+  ],
+  services: [
+    { id: 'sv1', name: 'Managed Services', impact: 160 },
+    { id: 'sv2', name: 'Advisory Pack', impact: 90 }
+  ],
+  licensing: [
+    { id: 'l1', name: 'Renewal Uplift', impact: 70 },
+    { id: 'l2', name: 'Add-on Licenses', impact: 45 }
+  ],
+  cogs: [
+    { id: 'cg1', name: 'Supplier Consolidation', impact: 280 },
+    { id: 'cg2', name: 'Manufacturing Efficiency', impact: 220 },
+    { id: 'cg3', name: 'Freight Optimization', impact: 120 }
+  ],
+  materials: [
+    { id: 'm1', name: 'Vendor Renegotiation', impact: 180 },
+    { id: 'm2', name: 'Scrap Reduction', impact: 120 }
+  ],
+  labor: [
+    { id: 'lb1', name: 'Scheduling Optimization', impact: 140 },
+    { id: 'lb2', name: 'Overtime Reduction', impact: 80 }
+  ],
+  overhead: [
+    { id: 'oh1', name: 'Energy Efficiency', impact: 60 },
+    { id: 'oh2', name: 'Facility Consolidation', impact: 40 }
+  ],
+  opex: [
+    { id: 'ox1', name: 'Shared Services', impact: 160 },
+    { id: 'ox2', name: 'Cloud FinOps', impact: 120 },
+    { id: 'ox3', name: 'Process Automation', impact: 90 }
+  ],
+  'sales-marketing': [
+    { id: 'sm1', name: 'CAC Reduction', impact: 120 },
+    { id: 'sm2', name: 'Media Mix Shift', impact: 70 }
+  ],
+  rd: [
+    { id: 'rd1', name: 'Platform Reuse', impact: 90 },
+    { id: 'rd2', name: 'Tooling Modernization', impact: 60 }
+  ],
+  ga: [
+    { id: 'ga1', name: 'Contract Rationalization', impact: 50 },
+    { id: 'ga2', name: 'Back Office Automation', impact: 40 }
   ]
 };
 
@@ -225,12 +289,12 @@ const WORKSTREAM_OUTLOOKS: WorkstreamOutlook[] = [
 // STAGE-GATE PIPELINE DATA
 // =============================================
 const PIPELINE_COLUMNS: { label: string; key: string }[] = [
-  { label: 'L0', key: 'L0' },
-  { label: 'L1', key: 'L1 Gate' },
-  { label: 'L2', key: 'L1' },
-  { label: 'L3', key: 'L2 Gate' },
-  { label: 'L4', key: 'L2' },
-  { label: 'L5', key: 'L3' }
+  { label: 'Stage 1', key: 'Stage 1' },
+  { label: 'Stage 2', key: 'Stage 2' },
+  { label: 'Stage 3', key: 'Stage 3' },
+  { label: 'Stage 4', key: 'Stage 4' },
+  { label: 'Stage 5', key: 'Stage 5' },
+  { label: 'Stage 6', key: 'Stage 6' }
 ];
 
 interface WorkstreamData {
@@ -246,26 +310,26 @@ const WORKSTREAMS: WorkstreamData[] = [
     name: 'Digital Transformation',
     color: '#8b5cf6',
     stages: {
-      'L0': { count: 3, impact: 890, initiatives: [
+      'Stage 1': { count: 3, impact: 890, initiatives: [
         { id: 'd1', name: 'AI-Powered Analytics', impact: 420 },
         { id: 'd2', name: 'Cloud Migration Phase 2', impact: 280 },
         { id: 'd3', name: 'API Modernization', impact: 190 }
       ]},
-      'L1 Gate': { count: 2, impact: 650, initiatives: [
+      'Stage 2': { count: 2, impact: 650, initiatives: [
         { id: 'd4', name: 'Customer Data Platform', impact: 380 },
         { id: 'd5', name: 'ML Recommendation Engine', impact: 270 }
       ]},
-      'L1': { count: 1, impact: 520, initiatives: [
+      'Stage 3': { count: 1, impact: 520, initiatives: [
         { id: 'd6', name: 'Real-time Inventory System', impact: 520 }
       ]},
-      'L2 Gate': { count: 1, impact: 340, initiatives: [
+      'Stage 4': { count: 1, impact: 340, initiatives: [
         { id: 'd7', name: 'Mobile App Redesign', impact: 340 }
       ]},
-      'L2': { count: 2, impact: 780, initiatives: [
+      'Stage 5': { count: 2, impact: 780, initiatives: [
         { id: 'd8', name: 'E-commerce Platform', impact: 450 },
         { id: 'd9', name: 'Omnichannel Integration', impact: 330 }
       ]},
-      'L3': { count: 1, impact: 620, initiatives: [
+      'Stage 6': { count: 1, impact: 620, initiatives: [
         { id: 'd10', name: 'Predictive Maintenance', impact: 620 }
       ]}
     }
@@ -275,22 +339,22 @@ const WORKSTREAMS: WorkstreamData[] = [
     name: 'Operational Excellence',
     color: '#3b82f6',
     stages: {
-      'L0': { count: 2, impact: 450, initiatives: [
+      'Stage 1': { count: 2, impact: 450, initiatives: [
         { id: 'o1', name: 'Supply Chain Optimization', impact: 280 },
         { id: 'o2', name: 'Warehouse Automation', impact: 170 }
       ]},
-      'L1 Gate': { count: 1, impact: 320, initiatives: [
+      'Stage 2': { count: 1, impact: 320, initiatives: [
         { id: 'o3', name: 'Quality Control AI', impact: 320 }
       ]},
-      'L1': { count: 2, impact: 590, initiatives: [
+      'Stage 3': { count: 2, impact: 590, initiatives: [
         { id: 'o4', name: 'Lean Manufacturing', impact: 340 },
         { id: 'o5', name: 'Vendor Management System', impact: 250 }
       ]},
-      'L2 Gate': { count: 0, impact: 0, initiatives: [] },
-      'L2': { count: 1, impact: 410, initiatives: [
+      'Stage 4': { count: 0, impact: 0, initiatives: [] },
+      'Stage 5': { count: 1, impact: 410, initiatives: [
         { id: 'o6', name: 'Process Automation', impact: 410 }
       ]},
-      'L3': { count: 1, impact: 380, initiatives: [
+      'Stage 6': { count: 1, impact: 380, initiatives: [
         { id: 'o7', name: 'Carbon Footprint Reduction', impact: 380 }
       ]}
     }
@@ -300,23 +364,23 @@ const WORKSTREAMS: WorkstreamData[] = [
     name: 'Customer Experience',
     color: '#22d3ee',
     stages: {
-      'L0': { count: 1, impact: 290, initiatives: [
+      'Stage 1': { count: 1, impact: 290, initiatives: [
         { id: 'c1', name: 'Voice of Customer Platform', impact: 290 }
       ]},
-      'L1 Gate': { count: 2, impact: 480, initiatives: [
+      'Stage 2': { count: 2, impact: 480, initiatives: [
         { id: 'c2', name: 'Personalization Engine', impact: 310 },
         { id: 'c3', name: 'Loyalty Program 2.0', impact: 170 }
       ]},
-      'L1': { count: 1, impact: 360, initiatives: [
+      'Stage 3': { count: 1, impact: 360, initiatives: [
         { id: 'c4', name: 'Self-Service Portal', impact: 360 }
       ]},
-      'L2 Gate': { count: 1, impact: 240, initiatives: [
+      'Stage 4': { count: 1, impact: 240, initiatives: [
         { id: 'c5', name: 'Chatbot Enhancement', impact: 240 }
       ]},
-      'L2': { count: 1, impact: 420, initiatives: [
+      'Stage 5': { count: 1, impact: 420, initiatives: [
         { id: 'c6', name: 'CRM Integration', impact: 420 }
       ]},
-      'L3': { count: 0, impact: 0, initiatives: [] }
+      'Stage 6': { count: 0, impact: 0, initiatives: [] }
     }
   }
 ];
@@ -333,9 +397,10 @@ const formatCurrency = (value: number, compact = true) => {
 };
 
 const formatDelta = (base: number, withInit: number) => {
-  if (base === 0) return '+∞';
+  if (base === 0) return '+0%';
   const delta = ((withInit - base) / Math.abs(base)) * 100;
-  return `${delta >= 0 ? '+' : ''}${delta.toFixed(0)}%`;
+  const displayDelta = base < 0 ? -delta : delta;
+  return `${displayDelta >= 0 ? '+' : ''}${displayDelta.toFixed(0)}%`;
 };
 
 // View descriptions
@@ -344,6 +409,12 @@ export const VIEW_OPTIONS: { id: DemoView; title: string; shortTitle: string }[]
   { id: 'financial-outlook', title: 'Plan vs Actuals', shortTitle: 'Financial outlook actuals' },
   { id: 'stage-gate', title: 'Stage-Gate Pipeline', shortTitle: 'Stage-gate pipeline' }
 ];
+
+const VIEW_PATHS: Record<DemoView, string> = {
+  'pnl-tree': 'insights.laiten.com/dashboards/pnl-tree',
+  'financial-outlook': 'insights.laiten.com/dashboards/plan-vs-actuals',
+  'stage-gate': 'insights.laiten.com/dashboards/stage-gate'
+};
 
 interface ReportingDemoProps {
   className?: string;
@@ -355,6 +426,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
   const [expandedWorkstreams, setExpandedWorkstreams] = useState<Set<string>>(new Set());
   const [selectedOutlookWorkstream, setSelectedOutlookWorkstream] = useState('all');
   const [clickedBar, setClickedBar] = useState<{ month: string; initiatives: InitiativeContribution[]; total: number } | null>(null);
+  const [treePopup, setTreePopup] = useState<{ node: TreeNodeData; initiatives: InitiativeContribution[] } | null>(null);
 
   const toggleWorkstream = (id: string) => {
     setExpandedWorkstreams(prev => {
@@ -366,6 +438,15 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
       }
       return next;
     });
+  };
+
+  const handleTreeNodeClick = (node: TreeNodeData) => {
+    if (treePopup?.node.id === node.id) {
+      setTreePopup(null);
+      return;
+    }
+    const initiatives = PNL_NODE_INITIATIVES[node.id] ?? [];
+    setTreePopup({ node, initiatives });
   };
 
   // Get current outlook data based on selected workstream
@@ -475,12 +556,19 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     sum + PIPELINE_COLUMNS.reduce((s, { key }) => s + (ws.stages[key]?.count || 0), 0), 0
   );
   const totalImpact = Object.values(portfolioTotals).reduce((sum, t) => sum + t.impact, 0);
+  const treePopupTotal = treePopup ? treePopup.initiatives.reduce((sum, item) => sum + item.impact, 0) : 0;
 
   // Flatten tree for rendering
   const flattenTree = (node: TreeNodeData): TreeNodeData[] => {
     return [node, ...node.children.flatMap(flattenTree)];
   };
-  const allNodes = flattenTree(PNL_TREE);
+  const allNodes = useMemo(() => flattenTree(PNL_TREE), []);
+  const treeMax = useMemo(() => {
+    return Math.max(
+      ...allNodes.map(node => Math.max(Math.abs(node.baseValue), Math.abs(node.withInitiatives))),
+      1
+    );
+  }, [allNodes]);
 
   // Render P&L Tree Node
   const renderTreeNode = (node: TreeNodeData) => {
@@ -491,19 +579,28 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     const delta = node.withInitiatives - node.baseValue;
     const deltaPercent = formatDelta(node.baseValue, node.withInitiatives);
     const isPositiveDelta = delta > 0;
-    const maxVal = Math.max(Math.abs(node.baseValue), Math.abs(node.withInitiatives));
-    const baseWidth = maxVal > 0 ? (Math.abs(node.baseValue) / maxVal) * 100 : 0;
-    const initWidth = maxVal > 0 ? (Math.abs(node.withInitiatives) / maxVal) * 100 : 0;
+    const baseWidth = treeMax > 0 ? (Math.abs(node.baseValue) / treeMax) * 100 : 0;
+    const initWidth = treeMax > 0 ? (Math.abs(node.withInitiatives) / treeMax) * 100 : 0;
+    const isSelected = treePopup?.node.id === node.id;
 
     return (
       <div
         key={node.id}
-        className={styles.treeCard}
+        className={`${styles.treeCard} ${isSelected ? styles.treeCardActive : ''}`}
         style={{
           width: treeLayout.cardWidth,
           height: treeLayout.cardHeight,
           left: pos.x,
           top: pos.y
+        }}
+        onClick={() => handleTreeNodeClick(node)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleTreeNodeClick(node);
+          }
         }}
       >
         <div className={styles.treeCardHeader}>
@@ -540,13 +637,12 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
     <div className={`${styles.demoContainer} ${className || ''}`}>
       {/* Window chrome */}
       <div className={styles.windowChrome}>
-        <div className={styles.windowControls}>
-          <span className={styles.windowDot} data-color="red" />
-          <span className={styles.windowDot} data-color="yellow" />
-          <span className={styles.windowDot} data-color="green" />
-        </div>
-        <div className={styles.windowTitle}>
+        <div className={styles.browserTab}>
+          <span className={styles.browserFavicon} />
           {VIEW_OPTIONS.find(v => v.id === activeView)?.shortTitle || 'Laiten'}
+        </div>
+        <div className={styles.browserAddress}>
+          {VIEW_PATHS[activeView]}
         </div>
       </div>
 
@@ -575,6 +671,37 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
               </svg>
               {allNodes.map(renderTreeNode)}
             </div>
+            {treePopup && (
+              <div className={styles.treePopup}>
+                <div className={styles.popupHeader}>
+                  <strong>{treePopup.node.name} initiatives</strong>
+                  <button className={styles.popupClose} onClick={() => setTreePopup(null)}>{'\u00D7'}</button>
+                </div>
+                <div className={styles.popupContent}>
+                  {treePopup.initiatives.length === 0 ? (
+                    <div className={styles.popupEmpty}>No initiatives assigned yet.</div>
+                  ) : (
+                    <>
+                      {treePopup.initiatives.map(init => (
+                        <div key={init.id} className={styles.popupItem}>
+                          <span className={styles.popupInitName}>{init.name}</span>
+                          <span className={styles.popupInitValue}>
+                            {formatCurrency(init.impact)}
+                            <span className={styles.popupInitPercent}>
+                              ({treePopupTotal > 0 ? Math.round((init.impact / treePopupTotal) * 100) : 0}%)
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                      <div className={styles.popupTotal}>
+                        <span>Total Impact</span>
+                        <span>{formatCurrency(treePopupTotal)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -744,7 +871,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
               <h3>Pipeline Overview</h3>
               <div className={styles.pipelineStats}>
                 <span>{totalInitiatives} initiatives</span>
-                <span className={styles.statDivider}>•</span>
+                <span className={styles.statDivider}>|</span>
                 <span className={styles.statHighlight}>{formatCurrency(totalImpact * 1000)} impact</span>
               </div>
             </div>
@@ -771,13 +898,13 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                         className={styles.expandBtn}
                         onClick={() => toggleWorkstream(ws.id)}
                       >
-                        {isExpanded ? '−' : '+'}
+                        {isExpanded ? '-' : '+'}
                       </button>
                       <div className={styles.wsInfo}>
                         <span className={styles.wsColorDot} style={{ background: ws.color }} />
                         <div>
                           <div className={styles.wsName}>{ws.name}</div>
-                          <div className={styles.wsImpact}>{wsCount} initiatives • {formatCurrency(wsTotal * 1000)}</div>
+                          <div className={styles.wsImpact}>{wsCount} initiatives | {formatCurrency(wsTotal * 1000)}</div>
                         </div>
                       </div>
                     </div>
@@ -798,7 +925,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                               <span className={styles.stageCount}>{data.count} init.</span>
                             </div>
                           ) : (
-                            <span className={styles.stageEmpty}>—</span>
+                            <span className={styles.stageEmpty}>-</span>
                           )}
                         </div>
                       );
@@ -857,7 +984,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                           <span className={styles.stageCount}>{data.count} init.</span>
                         </div>
                       ) : (
-                        <span className={styles.stageEmpty}>—</span>
+                        <span className={styles.stageEmpty}>-</span>
                       )}
                     </div>
                   );

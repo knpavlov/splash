@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import styles from './LaikaProLandingPage.module.css';
-import { Check, ArrowRight, ChevronDown, Mail, Shield, Clock, Users, BarChart3, Calendar, X } from 'lucide-react';
+import { Check, ArrowRight, ArrowLeft, ChevronDown, Mail, Shield, Clock, Users, BarChart3, Calendar, X } from 'lucide-react';
 import { InteractivePlanDemo, DemoTask, INITIAL_TASKS } from './components/InteractivePlanDemo';
 import { CapacityHeatmapDemo } from './components/CapacityHeatmapDemo';
 import { StageGateDemo } from './components/StageGateDemo';
@@ -1117,7 +1117,7 @@ export const LaikaProLandingPage = () => {
 
       {/* Feature 2: Reporting - Interactive Demo Style */}
       <section id="feature-2" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo}`}>
-        <div className={`${styles.interactiveDemoLayout} ${styles.interactiveDemoLayoutReverse}`}>
+        <div className={`${styles.interactiveDemoLayout} ${styles.interactiveDemoLayoutReverse} ${styles.interactiveDemoLayoutTop}`}>
           {/* Left - Content with Dashboard Selector */}
           <div className={`${styles.demoContent} ${visibleSections['feature-2'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>02</div>
@@ -1139,8 +1139,8 @@ export const LaikaProLandingPage = () => {
                   className={`${styles.dashboardOption} ${activeReportingView === option.id ? styles.active : ''}`}
                   onClick={() => setActiveReportingView(option.id)}
                 >
+                  <ArrowLeft size={16} className={styles.dashboardOptionArrow} />
                   <span className={styles.dashboardOptionTitle}>{option.title}</span>
-                  <ArrowRight size={16} className={styles.dashboardOptionArrow} />
                 </button>
               ))}
               <p className={styles.dashboardSelectorHint}>...and nearly 10 other dynamic dashboards</p>

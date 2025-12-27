@@ -12,44 +12,58 @@
     0 0 80px rgba(139, 92, 246, 0.1);
   width: 100%;
   max-width: 900px;
+  min-height: 560px;
 }
 
 /* Window Chrome */
 .windowChrome {
   display: flex;
   align-items: center;
-  padding: 10px 14px;
-  background: linear-gradient(180deg, #1c1f26 0%, #161920 100%);
+  padding: 8px 12px;
+  background: linear-gradient(180deg, #1a1f2a 0%, #141821 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  gap: 12px;
+  gap: 10px;
 }
 
-.windowControls {
+.browserTab {
   display: flex;
-  gap: 7px;
-}
-
-.windowDot {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: #3c3c3c;
-}
-
-.windowDot[data-color="red"] { background: #ff5f57; }
-.windowDot[data-color="yellow"] { background: #febc2e; }
-.windowDot[data-color="green"] { background: #28c840; }
-
-.windowTitle {
-  font-size: 12px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px 10px 6px 6px;
+  font-size: 11px;
   font-weight: 600;
   color: #e6edf3;
+  white-space: nowrap;
+}
+
+.browserFavicon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
+}
+
+.browserAddress {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 10px;
+  color: #94a3b8;
 }
 
 /* Dashboard Content - Fixed height for all views */
 .dashboardContent {
   background: linear-gradient(180deg, #161920 0%, #0d1117 100%);
-  height: 420px;
+  height: 520px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -64,6 +78,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 
 .treeHeader {
@@ -142,6 +157,12 @@
   flex-direction: column;
   justify-content: center;
   transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.treeCardActive {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.4);
 }
 
 .treeCard:hover {
@@ -235,6 +256,25 @@
   color: #8b949e;
   min-width: 28px;
   text-align: right;
+}
+
+.treePopup {
+  position: absolute;
+  right: 16px;
+  top: 50px;
+  background: #1c1f26;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 12px;
+  padding: 0;
+  min-width: 260px;
+  z-index: 200;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 50px rgba(59, 130, 246, 0.2);
+}
+
+.popupEmpty {
+  padding: 10px 0;
+  font-size: 11px;
+  color: #8b949e;
 }
 
 /* =============================================
@@ -411,15 +451,9 @@
   flex-direction: column;
   border-radius: 4px 4px 0 0;
   overflow: hidden;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  cursor: default;
+  transition: box-shadow 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.stackedBar:hover,
-.stackedBar.hovered {
-  transform: scaleX(1.15);
-  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
 }
 
 .barSegmentBase {
@@ -430,6 +464,13 @@
 .barSegmentInit {
   background: linear-gradient(180deg, #8b5cf6 0%, #7c3aed 100%);
   transition: height 0.3s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.barSegmentInit:hover {
+  filter: brightness(1.15);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
 }
 
 .monthLabel {
@@ -1024,6 +1065,10 @@
   .dashboardContent {
     height: auto;
     min-height: 420px;
+  }
+
+  .browserAddress {
+    display: none;
   }
 
   .outlookKpis {
