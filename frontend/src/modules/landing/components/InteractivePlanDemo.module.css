@@ -20,19 +20,20 @@
 /* Hint Overlay */
 .hintOverlay {
   position: absolute;
-  top: -18px;
-  right: -18px;
-  left: auto;
+  top: -48px;
+  left: 50%;
+  right: auto;
   bottom: auto;
   z-index: 100;
   display: flex;
   align-items: flex-start;
-  justify-content: flex-end;
+  justify-content: center;
   padding: 0;
   background: none;
   backdrop-filter: none;
   pointer-events: none;
   animation: fadeIn 0.5s ease;
+  transform: translateX(-50%);
 }
 
 .hintOverlay.pulse .hintContent {
@@ -40,70 +41,54 @@
 }
 
 .hintContent {
-  position: relative;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
   background: rgba(10, 14, 22, 0.95);
   border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 14px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
-  max-width: 360px;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  max-width: 280px;
   pointer-events: auto;
   backdrop-filter: blur(6px);
 }
 
 .hintDismiss {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.2);
-  color: rgba(226, 232, 240, 0.9);
+  margin-top: 2px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(59, 130, 246, 0.14);
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 600;
   cursor: pointer;
   line-height: 1;
+  transition: all 0.15s ease;
 }
 
 .hintDismiss:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.hintIcon {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(139, 92, 246, 0.18);
-  border-radius: 12px;
-  color: #c7d2fe;
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: rgba(59, 130, 246, 0.3);
 }
 
 .hintText {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .hintTitle {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #fff;
 }
 
 .hintDesc {
-  font-size: 12px;
+  font-size: 11px;
   color: #94a3b8;
-}
-
-.hintArrow {
-  color: #8b5cf6;
-  opacity: 0.7;
+  line-height: 1.4;
 }
 
 @keyframes fadeIn {
@@ -116,55 +101,49 @@
   50% { transform: scale(1.02); box-shadow: 0 12px 48px rgba(139, 92, 246, 0.5); }
 }
 
-@keyframes bounceRight {
-  0%, 100% { transform: translateX(0); }
-  50% { transform: translateX(6px); }
-}
-
 /* Window Chrome */
 .windowChrome {
   display: flex;
   align-items: center;
-  padding: 10px 14px;
-  background: linear-gradient(180deg, #1c1f26 0%, #161920 100%);
+  padding: 8px 12px;
+  background: linear-gradient(180deg, #1a1f2a 0%, #141821 100%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  gap: 14px;
+  gap: 10px;
 }
 
-.windowControls {
+.browserTab {
   display: flex;
-  gap: 7px;
-}
-
-.windowDot {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: #3c3c3c;
-}
-
-.windowDot[data-color="red"] { background: #ff5f57; }
-.windowDot[data-color="yellow"] { background: #febc2e; }
-.windowDot[data-color="green"] { background: #28c840; }
-
-.windowTitle {
-  font-size: 12px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px 10px 6px 6px;
+  font-size: 11px;
   font-weight: 600;
   color: #e6edf3;
-  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
-.windowActions {
-  margin-left: auto;
+.browserFavicon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #60a5fa;
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
 }
 
-.windowTab {
-  font-size: 11px;
-  color: #8b949e;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 4px 10px;
-  border-radius: 5px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.browserAddress {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 10px;
+  color: #94a3b8;
 }
 
 /* App Content */
@@ -749,8 +728,10 @@
 /* Responsive */
 @media (max-width: 900px) {
   .hintOverlay {
-    top: 12px;
-    right: 12px;
+    top: 8px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
   }
 
   .planGrid,
@@ -773,8 +754,8 @@
     padding: 16px 20px;
   }
 
-  .hintArrow {
-    transform: rotate(90deg);
+  .browserAddress {
+    display: none;
   }
 
   .legend {

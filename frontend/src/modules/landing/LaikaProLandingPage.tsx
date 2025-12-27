@@ -1157,7 +1157,7 @@ export const LaikaProLandingPage = () => {
       {/* Feature 3: Capacity Planning - Interactive Demo Style */}
       <section id="feature-3" data-animate className={`${styles.featureSection} ${styles.featureSectionDemo}`}>
         {/* 3a: Implementation Plan Demo */}
-        <div className={styles.interactiveDemoLayout}>
+        <div className={`${styles.interactiveDemoLayout} ${styles.interactiveDemoLayoutTop}`}>
           {/* Left - Content */}
           <div className={`${styles.demoContent} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
             <div className={styles.featureNumber}>03</div>

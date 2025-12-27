@@ -683,7 +683,7 @@
 .chartArea {
   position: relative;
   height: 130px;
-  padding: 6px 0 16px;
+  padding: 6px 0;
 }
 
 .chartAxis {
@@ -735,12 +735,6 @@
   box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
 }
 
-.chartLabel {
-  position: absolute;
-  bottom: -12px;
-  font-size: 9px;
-  color: #6e7681;
-}
 
 /* Financial Table */
 .financialTable {
@@ -1253,10 +1247,6 @@
 
   .chartArea {
     height: 110px;
-  }
-
-  .chartLabel {
-    display: none;
   }
 
   .approverActions {

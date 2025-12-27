@@ -38,7 +38,7 @@ const PNL_TREE: TreeNodeData = {
   id: 'ebitda',
   name: 'EBITDA',
   baseValue: 2400,
-  withInitiatives: 4450,
+  withInitiatives: 4730,
   children: [
     {
       id: 'gross-profit',
@@ -74,11 +74,11 @@ const PNL_TREE: TreeNodeData = {
       id: 'opex',
       name: 'OpEx',
       baseValue: -3400,
-      withInitiatives: -3250,
+      withInitiatives: -2970,
       children: [
-        { id: 'sales-marketing', name: 'S&M', baseValue: -1400, withInitiatives: -1350, children: [] },
-        { id: 'rd', name: 'R&D', baseValue: -1200, withInitiatives: -1100, children: [] },
-        { id: 'ga', name: 'G&A', baseValue: -800, withInitiatives: -800, children: [] }
+        { id: 'sales-marketing', name: 'S&M', baseValue: -1400, withInitiatives: -1210, children: [] },
+        { id: 'rd', name: 'R&D', baseValue: -1200, withInitiatives: -1050, children: [] },
+        { id: 'ga', name: 'G&A', baseValue: -800, withInitiatives: -710, children: [] }
       ]
     }
   ]
@@ -86,43 +86,43 @@ const PNL_TREE: TreeNodeData = {
 
 const PNL_NODE_INITIATIVES: Record<string, InitiativeContribution[]> = {
   ebitda: [
-    { id: 'e1', name: 'Pricing Optimization', impact: 320 },
-    { id: 'e2', name: 'Supply Chain Savings', impact: 210 },
-    { id: 'e3', name: 'Automation Rollout', impact: 180 }
+    { id: 'e1', name: 'Pricing Optimization', impact: 900 },
+    { id: 'e2', name: 'Supply Chain Savings', impact: 760 },
+    { id: 'e3', name: 'Automation Rollout', impact: 670 }
   ],
   'gross-profit': [
-    { id: 'gp1', name: 'Margin Mix Shift', impact: 260 },
-    { id: 'gp2', name: 'Supplier Rebates', impact: 180 },
-    { id: 'gp3', name: 'Yield Improvement', impact: 140 }
+    { id: 'gp1', name: 'Margin Mix Shift', impact: 700 },
+    { id: 'gp2', name: 'Supplier Rebates', impact: 650 },
+    { id: 'gp3', name: 'Yield Improvement', impact: 550 }
   ],
   revenue: [
-    { id: 'r1', name: 'Enterprise Tier', impact: 420 },
-    { id: 'r2', name: 'Cross-Sell Bundles', impact: 260 },
-    { id: 'r3', name: 'Usage Expansion', impact: 120 }
+    { id: 'r1', name: 'Enterprise Tier', impact: 520 },
+    { id: 'r2', name: 'Cross-Sell Bundles', impact: 430 },
+    { id: 'r3', name: 'Usage Expansion', impact: 350 }
   ],
   'product-sales': [
-    { id: 'ps1', name: 'Channel Expansion', impact: 380 },
-    { id: 'ps2', name: 'Upsell Motion', impact: 220 }
+    { id: 'ps1', name: 'Channel Expansion', impact: 520 },
+    { id: 'ps2', name: 'Upsell Motion', impact: 380 }
   ],
   services: [
-    { id: 'sv1', name: 'Managed Services', impact: 160 },
-    { id: 'sv2', name: 'Advisory Pack', impact: 90 }
+    { id: 'sv1', name: 'Managed Services', impact: 180 },
+    { id: 'sv2', name: 'Advisory Pack', impact: 120 }
   ],
   licensing: [
-    { id: 'l1', name: 'Renewal Uplift', impact: 70 },
-    { id: 'l2', name: 'Add-on Licenses', impact: 45 }
+    { id: 'l1', name: 'Renewal Uplift', impact: 60 },
+    { id: 'l2', name: 'Add-on Licenses', impact: 40 }
   ],
   cogs: [
-    { id: 'cg1', name: 'Supplier Consolidation', impact: 280 },
-    { id: 'cg2', name: 'Manufacturing Efficiency', impact: 220 },
-    { id: 'cg3', name: 'Freight Optimization', impact: 120 }
+    { id: 'cg1', name: 'Supplier Consolidation', impact: 260 },
+    { id: 'cg2', name: 'Manufacturing Efficiency', impact: 210 },
+    { id: 'cg3', name: 'Freight Optimization', impact: 130 }
   ],
   materials: [
     { id: 'm1', name: 'Vendor Renegotiation', impact: 180 },
     { id: 'm2', name: 'Scrap Reduction', impact: 120 }
   ],
   labor: [
-    { id: 'lb1', name: 'Scheduling Optimization', impact: 140 },
+    { id: 'lb1', name: 'Scheduling Optimization', impact: 120 },
     { id: 'lb2', name: 'Overtime Reduction', impact: 80 }
   ],
   overhead: [
@@ -130,13 +130,13 @@ const PNL_NODE_INITIATIVES: Record<string, InitiativeContribution[]> = {
     { id: 'oh2', name: 'Facility Consolidation', impact: 40 }
   ],
   opex: [
-    { id: 'ox1', name: 'Shared Services', impact: 160 },
-    { id: 'ox2', name: 'Cloud FinOps', impact: 120 },
-    { id: 'ox3', name: 'Process Automation', impact: 90 }
+    { id: 'ox1', name: 'Shared Services', impact: 180 },
+    { id: 'ox2', name: 'Cloud FinOps', impact: 150 },
+    { id: 'ox3', name: 'Process Automation', impact: 100 }
   ],
   'sales-marketing': [
-    { id: 'sm1', name: 'CAC Reduction', impact: 120 },
-    { id: 'sm2', name: 'Media Mix Shift', impact: 70 }
+    { id: 'sm1', name: 'CAC Reduction', impact: 110 },
+    { id: 'sm2', name: 'Media Mix Shift', impact: 80 }
   ],
   rd: [
     { id: 'rd1', name: 'Platform Reuse', impact: 90 },
@@ -396,6 +396,16 @@ const formatCurrency = (value: number, compact = true) => {
   return `${prefix}$${absVal}`;
 };
 
+const formatCurrencyRounded = (value: number, compact = true) => {
+  if (value === 0) return '$0';
+  const prefix = value < 0 ? '-' : '';
+  const absVal = Math.abs(value);
+  if (compact && absVal >= 1000) {
+    return `${prefix}$${Math.round(absVal / 1000)}K`;
+  }
+  return `${prefix}$${Math.round(absVal)}`;
+};
+
 const formatDelta = (base: number, withInit: number) => {
   if (base === 0) return '+0%';
   const delta = ((withInit - base) / Math.abs(base)) * 100;
@@ -451,7 +461,14 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
 
   // Get current outlook data based on selected workstream
   const currentOutlookData = useMemo(() => {
-    return WORKSTREAM_OUTLOOKS.find(w => w.id === selectedOutlookWorkstream)?.data || WORKSTREAM_OUTLOOKS[0].data;
+    const data = WORKSTREAM_OUTLOOKS.find(w => w.id === selectedOutlookWorkstream)?.data || WORKSTREAM_OUTLOOKS[0].data;
+    return data.map((entry) => {
+      const initTotal = entry.initiatives.reduce((sum, item) => sum + item.impact, 0);
+      return {
+        ...entry,
+        plan: entry.baseline + initTotal
+      };
+    });
   }, [selectedOutlookWorkstream]);
 
   const currentOutlookColor = useMemo(() => {
@@ -872,7 +889,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
               <div className={styles.pipelineStats}>
                 <span>{totalInitiatives} initiatives</span>
                 <span className={styles.statDivider}>|</span>
-                <span className={styles.statHighlight}>{formatCurrency(totalImpact * 1000)} impact</span>
+                <span className={styles.statHighlight}>{formatCurrencyRounded(totalImpact * 1000)} impact</span>
               </div>
             </div>
 
@@ -904,7 +921,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                         <span className={styles.wsColorDot} style={{ background: ws.color }} />
                         <div>
                           <div className={styles.wsName}>{ws.name}</div>
-                          <div className={styles.wsImpact}>{wsCount} initiatives | {formatCurrency(wsTotal * 1000)}</div>
+                          <div className={styles.wsImpact}>{wsCount} initiatives | {formatCurrencyRounded(wsTotal * 1000)}</div>
                         </div>
                       </div>
                     </div>
@@ -920,7 +937,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                                   className={styles.stageBarFill}
                                   style={{ width: `${width}%`, background: ws.color }}
                                 />
-                                <span className={styles.stageBarValue}>{formatCurrency(data.impact * 1000)}</span>
+                                <span className={styles.stageBarValue}>{formatCurrencyRounded(data.impact * 1000)}</span>
                               </div>
                               <span className={styles.stageCount}>{data.count} init.</span>
                             </div>
@@ -944,7 +961,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                               {PIPELINE_COLUMNS.map(col => (
                                 <div key={col.label} className={styles.initStageCell}>
                                   {col.key === stage.key && (
-                                    <span className={styles.initImpactValue}>{formatCurrency(init.impact * 1000)}</span>
+                                    <span className={styles.initImpactValue}>{formatCurrencyRounded(init.impact * 1000)}</span>
                                   )}
                                 </div>
                               ))}
@@ -979,7 +996,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                               className={styles.stageBarFill}
                               style={{ width: `${width}%` }}
                             />
-                            <span className={styles.stageBarValue}>{formatCurrency(data.impact * 1000)}</span>
+                            <span className={styles.stageBarValue}>{formatCurrencyRounded(data.impact * 1000)}</span>
                           </div>
                           <span className={styles.stageCount}>{data.count} init.</span>
                         </div>

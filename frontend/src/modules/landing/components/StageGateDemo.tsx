@@ -603,7 +603,6 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
                 <div key={month} className={styles.chartColumn}>
                   <div className={styles.chartBarUp} style={{ height: `${benefitHeight}%` }} />
                   <div className={styles.chartBarDown} style={{ height: `${costHeight}%` }} />
-                  <span className={styles.chartLabel}>{month}</span>
                 </div>
               );
             })}

@@ -340,7 +340,7 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
         >
           <div className={styles.milestoneDiamond} style={{ background: task.color }} />
           {task.milestoneType === 'Value Step' && (
-            <div className={styles.valueStepLabel}>💰</div>
+            <div className={styles.valueStepLabel}>Value Step</div>
           )}
         </div>
       );
@@ -383,51 +383,33 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
       {!hasInteracted && !hintDismissed && (
         <div className={`${styles.hintOverlay} ${showHintPulse ? styles.pulse : ''}`}>
           <div className={styles.hintContent}>
+            <div className={styles.hintText}>
+              <span className={styles.hintTitle}>Interactive Demo</span>
+              <span className={styles.hintDesc}>Drag the task bars to see resource load update in real-time.</span>
+            </div>
             <button
               type="button"
               className={styles.hintDismiss}
               onClick={() => setHintDismissed(true)}
-              aria-label="Dismiss hint"
             >
-              {'\u00D7'}
+              Got it
             </button>
-            <div className={styles.hintIcon}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M18 11V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v12c0 1.1.9 2 2 2h4" />
-                <path d="m15 19 3 3 4-4" />
-                <path d="M9 9h6" />
-                <path d="M9 13h3" />
-              </svg>
-            </div>
-            <div className={styles.hintText}>
-              <span className={styles.hintTitle}>Interactive Demo</span>
-              <span className={styles.hintDesc}>Drag the task bars to see resource load update in real-time</span>
-            </div>
-            <div className={styles.hintArrow}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
-            </div>
           </div>
         </div>
       )}
 
       <div className={styles.demoWindow}>
         {/* Window chrome */}
-      <div className={styles.windowChrome}>
-        <div className={styles.windowControls}>
-          <span className={styles.windowDot} data-color="red" />
-          <span className={styles.windowDot} data-color="yellow" />
-          <span className={styles.windowDot} data-color="green" />
+        <div className={styles.windowChrome}>
+          <div className={styles.browserTab}>
+            <span className={styles.browserFavicon} />
+            Initiative - Laiten
+          </div>
+          <div className={styles.browserAddress}>app.laiten.com/initiatives/plan-203</div>
         </div>
-        <div className={styles.windowTitle}>Laiten</div>
-        <div className={styles.windowActions}>
-          <span className={styles.windowTab}>Initiative Profile</span>
-        </div>
-      </div>
 
         {/* Main content */}
-      <div className={styles.appContent}>
+        <div className={styles.appContent}>
         {/* Implementation Plan section */}
         <div className={styles.planSection}>
           <div className={styles.sectionHeader}>
@@ -541,7 +523,7 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
             </button>
             <div className={styles.resourceHeaderText}>
               <h4>Resource load</h4>
-              <p>Weekly capacity • updates when you drag tasks</p>
+              <p>Weekly capacity updates when you drag tasks</p>
             </div>
             <div className={styles.legend}>
               <span className={styles.legendItem}>
@@ -624,6 +606,8 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
 // Export tasks type for heatmap
 export type { DemoTask };
 export { INITIAL_TASKS, TEAM_MEMBERS, TIMELINE_START, TIMELINE_END, BASELINE_LOADS };
+
+
 
 
 
