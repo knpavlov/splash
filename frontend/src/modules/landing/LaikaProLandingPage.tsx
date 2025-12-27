@@ -1182,7 +1182,18 @@ export const LaikaProLandingPage = () => {
 
           {/* Right - Interactive Demo */}
           <div className={`${styles.interactiveDemoWrapper} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
-            <InteractivePlanDemo onTasksChange={setDemoTasks} />
+            <div className={styles.planDemoStack}>
+              <div className={styles.planDemoControls}>
+                <button
+                  className={styles.planResetBtn}
+                  type="button"
+                  onClick={() => setDemoTasks(INITIAL_TASKS)}
+                >
+                  Reset Plan
+                </button>
+              </div>
+              <InteractivePlanDemo onTasksChange={setDemoTasks} />
+            </div>
           </div>
         </div>
 
@@ -1193,13 +1204,6 @@ export const LaikaProLandingPage = () => {
             </svg>
             <span>Synced with Implementation Plan above</span>
           </div>
-          <button
-            className={styles.planResetBtn}
-            type="button"
-            onClick={() => setDemoTasks(INITIAL_TASKS)}
-          >
-            Reset Plan
-          </button>
         </div>
 
         {/* 3b: Capacity Heatmap Demo */}

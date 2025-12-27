@@ -142,6 +142,7 @@
   overflow-x: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(139, 148, 158, 0.3) transparent;
+  width: max-content;
 }
 
 .heatmapGrid::-webkit-scrollbar {
@@ -161,6 +162,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
+  width: max-content;
 }
 
 .headerRow .nameCell {
@@ -182,6 +184,7 @@
 .dataRow {
   display: flex;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  width: max-content;
 }
 
 .dataRow:last-child {

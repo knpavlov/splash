@@ -1166,8 +1166,20 @@
   padding: 0 1rem;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 1rem;
+}
+
+.planDemoStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.planDemoControls {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .planSyncIndicator {

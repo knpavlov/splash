@@ -569,7 +569,7 @@ export const InteractivePlanDemo = ({ className, onTasksChange }: InteractivePla
                       <span className={styles.taskNameText}>{task.name}</span>
                       {task.isMilestone && <span className={styles.milestoneTag}>M</span>}
                     </div>
-                    <div className={styles.colOwner}>{task.responsible.split(' ')[0]}</div>
+                    <div className={styles.colOwner}>{task.isParent ? '' : task.responsible.split(' ')[0]}</div>
                     <div className={styles.colProgress}>
                       <div className={styles.progressBar}>
                         <div className={styles.progressValue} style={{ width: `${task.progress}%` }} />
