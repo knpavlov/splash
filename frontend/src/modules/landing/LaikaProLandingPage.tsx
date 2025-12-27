@@ -1172,10 +1172,11 @@ export const LaikaProLandingPage = () => {
             </p>
 
             <ul className={styles.featureList}>
+              <li><Check size={18} /> Build implementation plans fast and assign accountable owners</li>
+              <li><Check size={18} /> Drag-and-drop cross-initiative sequencing</li>
               <li><Check size={18} /> Visual capacity heatmaps</li>
-              <li><Check size={18} /> Drag-and-drop sequencing</li>
               <li><Check size={18} /> Resource conflict detection</li>
-              <li><Check size={18} /> What-if scenario planning</li>
+              <li><Check size={18} /> Compare actual vs original plans to track schedule drift</li>
             </ul>
           </div>
 
@@ -1183,6 +1184,22 @@ export const LaikaProLandingPage = () => {
           <div className={`${styles.interactiveDemoWrapper} ${visibleSections['feature-3'] ? styles.visible : ''}`}>
             <InteractivePlanDemo onTasksChange={setDemoTasks} />
           </div>
+        </div>
+
+        <div className={styles.planSyncRow}>
+          <div className={styles.planSyncIndicator}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 12a9 9 0 0 1-9 9m0 0a9 9 0 0 1-9-9m9 9V3m0 0L8 8m4-5 4 5" />
+            </svg>
+            <span>Synced with Implementation Plan above</span>
+          </div>
+          <button
+            className={styles.planResetBtn}
+            type="button"
+            onClick={() => setDemoTasks(INITIAL_TASKS)}
+          >
+            Reset Plan
+          </button>
         </div>
 
         {/* 3b: Capacity Heatmap Demo */}

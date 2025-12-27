@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import styles from './CapacityHeatmapDemo.module.css';
 import { DemoTask, TEAM_MEMBERS, TIMELINE_START, TIMELINE_END, BASELINE_LOADS } from './InteractivePlanDemo';
 
@@ -41,25 +41,26 @@ const getLoadTextColor = (load: number): string => {
 
 export const CapacityHeatmapDemo = ({ tasks, className }: CapacityHeatmapDemoProps) => {
   const weekLabels = useMemo(() => generateWeekLabels(), []);
+  const [selectedCell, setSelectedCell] = useState<{ name: string; weekIndex: number } | null>(null);
 
   // Calculate heatmap data from tasks
-  const heatmapData = useMemo(() => {
+  const { heatmapData, cellDetails } = useMemo(() => {
     const data: { name: string; loads: number[] }[] = [];
+    const details: Record<string, { baseline: number; contributions: { name: string; load: number }[]; total: number }[]> = {};
 
     TEAM_MEMBERS.forEach(name => {
       const loads: number[] = [];
+      details[name] = [];
 
       weekLabels.forEach((_, weekIndex) => {
         const bucketStart = new Date(TIMELINE_START.getTime() + weekIndex * WEEK_DAYS * 24 * 60 * 60 * 1000);
         const bucketEnd = new Date(bucketStart.getTime() + (WEEK_DAYS - 1) * 24 * 60 * 60 * 1000);
 
-        // Baseline load
         const baseline = BASELINE_LOADS[name]?.[weekIndex] ?? 25;
+        const contributions: { name: string; load: number }[] = [];
 
-        // Calculate initiative load from tasks
-        let initiative = 0;
         tasks.forEach(task => {
-          if (task.responsible !== name) return;
+          if (task.isParent || task.responsible !== name) return;
 
           const taskStart = task.startDate.getTime();
           const taskEnd = task.endDate.getTime();
@@ -70,17 +71,22 @@ export const CapacityHeatmapDemo = ({ tasks, className }: CapacityHeatmapDemoPro
             const overlapStart = Math.max(taskStart, bucketStartTime);
             const overlapEnd = Math.min(taskEnd, bucketEndTime);
             const overlapDays = Math.max(1, Math.ceil((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1);
-            initiative += (task.capacity * overlapDays) / WEEK_DAYS;
+            const load = Math.round((task.capacity * overlapDays) / WEEK_DAYS);
+            contributions.push({ name: task.name, load });
           }
         });
 
-        loads.push(Math.round(baseline + initiative));
+        const initiativeTotal = contributions.reduce((sum, item) => sum + item.load, 0);
+        const total = Math.round(baseline + initiativeTotal);
+
+        loads.push(total);
+        details[name].push({ baseline, contributions, total });
       });
 
       data.push({ name, loads });
     });
 
-    return data;
+    return { heatmapData: data, cellDetails: details };
   }, [tasks, weekLabels]);
 
   // Calculate team average for each week
@@ -100,15 +106,11 @@ export const CapacityHeatmapDemo = ({ tasks, className }: CapacityHeatmapDemoPro
     <div className={`${styles.demoContainer} ${className || ''}`}>
       {/* Window chrome */}
       <div className={styles.windowChrome}>
-        <div className={styles.windowControls}>
-          <span className={styles.windowDot} data-color="red" />
-          <span className={styles.windowDot} data-color="yellow" />
-          <span className={styles.windowDot} data-color="green" />
+        <div className={styles.browserTab}>
+          <span className={styles.browserFavicon} />
+          Capacity Heatmap
         </div>
-        <div className={styles.windowTitle}>Laiten</div>
-        <div className={styles.windowActions}>
-          <span className={styles.windowTab}>Capacity Heatmap</span>
-        </div>
+        <div className={styles.browserAddress}>app.laiten.com/capacity/heatmap</div>
       </div>
 
       {/* Main content */}
@@ -152,12 +154,10 @@ export const CapacityHeatmapDemo = ({ tasks, className }: CapacityHeatmapDemoPro
               {weekLabels.map((label, i) => (
                 <div key={i} className={styles.weekLabel}>{label}</div>
               ))}
-              <div className={styles.avgLabel}>Avg</div>
             </div>
 
             {/* Data rows */}
-            {heatmapData.map((row, rowIndex) => {
-              const avgLoad = Math.round(row.loads.reduce((a, b) => a + b, 0) / row.loads.length);
+            {heatmapData.map((row) => {
               return (
                 <div key={row.name} className={styles.dataRow}>
                   <div className={styles.nameCell}>{row.name}</div>
@@ -170,15 +170,19 @@ export const CapacityHeatmapDemo = ({ tasks, className }: CapacityHeatmapDemoPro
                         color: getLoadTextColor(load)
                       }}
                       title={`${row.name}: ${load}% capacity for week of ${weekLabels[colIndex]}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedCell({ name: row.name, weekIndex: colIndex })}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedCell({ name: row.name, weekIndex: colIndex });
+                        }
+                      }}
                     >
                       {load}%
                     </div>
                   ))}
-                  <div
-                    className={`${styles.avgCell} ${avgLoad > 100 ? styles.overloaded : avgLoad > 80 ? styles.high : ''}`}
-                  >
-                    {avgLoad}%
-                  </div>
                 </div>
               );
             })}
@@ -198,11 +202,47 @@ export const CapacityHeatmapDemo = ({ tasks, className }: CapacityHeatmapDemoPro
                   {avg}%
                 </div>
               ))}
-              <div className={styles.avgCell}>
-                {Math.round(teamAverages.reduce((a, b) => a + b, 0) / teamAverages.length)}%
-              </div>
             </div>
           </div>
+
+          {selectedCell && (
+            <div className={styles.detailPopup}>
+              <div className={styles.popupHeader}>
+                <div>
+                  <div className={styles.popupTitle}>{selectedCell.name}</div>
+                  <div className={styles.popupSubtitle}>Week of {weekLabels[selectedCell.weekIndex]}</div>
+                </div>
+                <button
+                  type="button"
+                  className={styles.popupClose}
+                  onClick={() => setSelectedCell(null)}
+                >
+                  {'\u00D7'}
+                </button>
+              </div>
+              <div className={styles.popupBody}>
+                <div className={styles.popupRow}>
+                  <span>Baseline load</span>
+                  <span>{cellDetails[selectedCell.name][selectedCell.weekIndex].baseline}%</span>
+                </div>
+                <div className={styles.popupSectionTitle}>Initiative tasks</div>
+                {cellDetails[selectedCell.name][selectedCell.weekIndex].contributions.length === 0 ? (
+                  <div className={styles.popupEmpty}>No tasks scheduled.</div>
+                ) : (
+                  cellDetails[selectedCell.name][selectedCell.weekIndex].contributions.map((task) => (
+                    <div key={task.name} className={styles.popupRow}>
+                      <span>{task.name}</span>
+                      <span>{task.load}%</span>
+                    </div>
+                  ))
+                )}
+                <div className={styles.popupTotal}>
+                  <span>Total load</span>
+                  <span>{cellDetails[selectedCell.name][selectedCell.weekIndex].total}%</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Legend */}
@@ -228,13 +268,6 @@ export const CapacityHeatmapDemo = ({ tasks, className }: CapacityHeatmapDemoPro
           </div>
         </div>
 
-        {/* Sync indicator */}
-        <div className={styles.syncIndicator}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 12a9 9 0 0 1-9 9m0 0a9 9 0 0 1-9-9m9 9V3m0 0L8 8m4-5 4 5"/>
-          </svg>
-          <span>Synced with Implementation Plan above</span>
-        </div>
       </div>
     </div>
   );

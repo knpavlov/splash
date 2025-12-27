@@ -37,35 +37,35 @@ interface Initiative {
 const PNL_TREE: TreeNodeData = {
   id: 'ebitda',
   name: 'EBITDA',
-  baseValue: 2400,
-  withInitiatives: 4730,
+  baseValue: 2400000,
+  withInitiatives: 4730000,
   children: [
     {
       id: 'gross-profit',
       name: 'Gross Profit',
-      baseValue: 5800,
-      withInitiatives: 7700,
+      baseValue: 5800000,
+      withInitiatives: 7700000,
       children: [
         {
           id: 'revenue',
           name: 'Revenue',
-          baseValue: 12500,
-          withInitiatives: 13800,
+          baseValue: 12500000,
+          withInitiatives: 13800000,
           children: [
-            { id: 'product-sales', name: 'Product Sales', baseValue: 8200, withInitiatives: 9100, children: [] },
-            { id: 'services', name: 'Services', baseValue: 3500, withInitiatives: 3800, children: [] },
-            { id: 'licensing', name: 'Licensing', baseValue: 800, withInitiatives: 900, children: [] }
+            { id: 'product-sales', name: 'Product Sales', baseValue: 8200000, withInitiatives: 9100000, children: [] },
+            { id: 'services', name: 'Services', baseValue: 3500000, withInitiatives: 3800000, children: [] },
+            { id: 'licensing', name: 'Licensing', baseValue: 800000, withInitiatives: 900000, children: [] }
           ]
         },
         {
           id: 'cogs',
           name: 'COGS',
-          baseValue: -6700,
-          withInitiatives: -6100,
+          baseValue: -6700000,
+          withInitiatives: -6100000,
           children: [
-            { id: 'materials', name: 'Materials', baseValue: -3800, withInitiatives: -3500, children: [] },
-            { id: 'labor', name: 'Labor', baseValue: -2100, withInitiatives: -1900, children: [] },
-            { id: 'overhead', name: 'Overhead', baseValue: -800, withInitiatives: -700, children: [] }
+            { id: 'materials', name: 'Materials', baseValue: -3800000, withInitiatives: -3500000, children: [] },
+            { id: 'labor', name: 'Labor', baseValue: -2100000, withInitiatives: -1900000, children: [] },
+            { id: 'overhead', name: 'Overhead', baseValue: -800000, withInitiatives: -700000, children: [] }
           ]
         }
       ]
@@ -73,12 +73,12 @@ const PNL_TREE: TreeNodeData = {
     {
       id: 'opex',
       name: 'OpEx',
-      baseValue: -3400,
-      withInitiatives: -2970,
+      baseValue: -3400000,
+      withInitiatives: -2970000,
       children: [
-        { id: 'sales-marketing', name: 'S&M', baseValue: -1400, withInitiatives: -1210, children: [] },
-        { id: 'rd', name: 'R&D', baseValue: -1200, withInitiatives: -1050, children: [] },
-        { id: 'ga', name: 'G&A', baseValue: -800, withInitiatives: -710, children: [] }
+        { id: 'sales-marketing', name: 'S&M', baseValue: -1400000, withInitiatives: -1210000, children: [] },
+        { id: 'rd', name: 'R&D', baseValue: -1200000, withInitiatives: -1050000, children: [] },
+        { id: 'ga', name: 'G&A', baseValue: -800000, withInitiatives: -710000, children: [] }
       ]
     }
   ]
@@ -86,65 +86,65 @@ const PNL_TREE: TreeNodeData = {
 
 const PNL_NODE_INITIATIVES: Record<string, InitiativeContribution[]> = {
   ebitda: [
-    { id: 'e1', name: 'Pricing Optimization', impact: 900 },
-    { id: 'e2', name: 'Supply Chain Savings', impact: 760 },
-    { id: 'e3', name: 'Automation Rollout', impact: 670 }
+    { id: 'e1', name: 'Pricing Optimization', impact: 900000 },
+    { id: 'e2', name: 'Supply Chain Savings', impact: 760000 },
+    { id: 'e3', name: 'Automation Rollout', impact: 670000 }
   ],
   'gross-profit': [
-    { id: 'gp1', name: 'Margin Mix Shift', impact: 700 },
-    { id: 'gp2', name: 'Supplier Rebates', impact: 650 },
-    { id: 'gp3', name: 'Yield Improvement', impact: 550 }
+    { id: 'gp1', name: 'Margin Mix Shift', impact: 700000 },
+    { id: 'gp2', name: 'Supplier Rebates', impact: 650000 },
+    { id: 'gp3', name: 'Yield Improvement', impact: 550000 }
   ],
   revenue: [
-    { id: 'r1', name: 'Enterprise Tier', impact: 520 },
-    { id: 'r2', name: 'Cross-Sell Bundles', impact: 430 },
-    { id: 'r3', name: 'Usage Expansion', impact: 350 }
+    { id: 'r1', name: 'Enterprise Tier', impact: 520000 },
+    { id: 'r2', name: 'Cross-Sell Bundles', impact: 430000 },
+    { id: 'r3', name: 'Usage Expansion', impact: 350000 }
   ],
   'product-sales': [
-    { id: 'ps1', name: 'Channel Expansion', impact: 520 },
-    { id: 'ps2', name: 'Upsell Motion', impact: 380 }
+    { id: 'ps1', name: 'Channel Expansion', impact: 520000 },
+    { id: 'ps2', name: 'Upsell Motion', impact: 380000 }
   ],
   services: [
-    { id: 'sv1', name: 'Managed Services', impact: 180 },
-    { id: 'sv2', name: 'Advisory Pack', impact: 120 }
+    { id: 'sv1', name: 'Managed Services', impact: 180000 },
+    { id: 'sv2', name: 'Advisory Pack', impact: 120000 }
   ],
   licensing: [
-    { id: 'l1', name: 'Renewal Uplift', impact: 60 },
-    { id: 'l2', name: 'Add-on Licenses', impact: 40 }
+    { id: 'l1', name: 'Renewal Uplift', impact: 60000 },
+    { id: 'l2', name: 'Add-on Licenses', impact: 40000 }
   ],
   cogs: [
-    { id: 'cg1', name: 'Supplier Consolidation', impact: 260 },
-    { id: 'cg2', name: 'Manufacturing Efficiency', impact: 210 },
-    { id: 'cg3', name: 'Freight Optimization', impact: 130 }
+    { id: 'cg1', name: 'Supplier Consolidation', impact: 260000 },
+    { id: 'cg2', name: 'Manufacturing Efficiency', impact: 210000 },
+    { id: 'cg3', name: 'Freight Optimization', impact: 130000 }
   ],
   materials: [
-    { id: 'm1', name: 'Vendor Renegotiation', impact: 180 },
-    { id: 'm2', name: 'Scrap Reduction', impact: 120 }
+    { id: 'm1', name: 'Vendor Renegotiation', impact: 180000 },
+    { id: 'm2', name: 'Scrap Reduction', impact: 120000 }
   ],
   labor: [
-    { id: 'lb1', name: 'Scheduling Optimization', impact: 120 },
-    { id: 'lb2', name: 'Overtime Reduction', impact: 80 }
+    { id: 'lb1', name: 'Scheduling Optimization', impact: 120000 },
+    { id: 'lb2', name: 'Overtime Reduction', impact: 80000 }
   ],
   overhead: [
-    { id: 'oh1', name: 'Energy Efficiency', impact: 60 },
-    { id: 'oh2', name: 'Facility Consolidation', impact: 40 }
+    { id: 'oh1', name: 'Energy Efficiency', impact: 60000 },
+    { id: 'oh2', name: 'Facility Consolidation', impact: 40000 }
   ],
   opex: [
-    { id: 'ox1', name: 'Shared Services', impact: 180 },
-    { id: 'ox2', name: 'Cloud FinOps', impact: 150 },
-    { id: 'ox3', name: 'Process Automation', impact: 100 }
+    { id: 'ox1', name: 'Shared Services', impact: 180000 },
+    { id: 'ox2', name: 'Cloud FinOps', impact: 150000 },
+    { id: 'ox3', name: 'Process Automation', impact: 100000 }
   ],
   'sales-marketing': [
-    { id: 'sm1', name: 'CAC Reduction', impact: 110 },
-    { id: 'sm2', name: 'Media Mix Shift', impact: 80 }
+    { id: 'sm1', name: 'CAC Reduction', impact: 110000 },
+    { id: 'sm2', name: 'Media Mix Shift', impact: 80000 }
   ],
   rd: [
-    { id: 'rd1', name: 'Platform Reuse', impact: 90 },
-    { id: 'rd2', name: 'Tooling Modernization', impact: 60 }
+    { id: 'rd1', name: 'Platform Reuse', impact: 90000 },
+    { id: 'rd2', name: 'Tooling Modernization', impact: 60000 }
   ],
   ga: [
-    { id: 'ga1', name: 'Contract Rationalization', impact: 50 },
-    { id: 'ga2', name: 'Back Office Automation', impact: 40 }
+    { id: 'ga1', name: 'Contract Rationalization', impact: 50000 },
+    { id: 'ga2', name: 'Back Office Automation', impact: 40000 }
   ]
 };
 
@@ -164,66 +164,18 @@ const WORKSTREAM_OUTLOOKS: WorkstreamOutlook[] = [
     name: 'All Workstreams',
     color: '#8b5cf6',
     data: [
-      { month: 'Jan', baseline: 180, initiatives: [], plan: 200 },
-      { month: 'Feb', baseline: 195, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 15 }
-      ], plan: 220 },
-      { month: 'Mar', baseline: 210, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 25 },
-        { id: 'i2', name: 'Process Automation', impact: 20 }
-      ], plan: 250 },
-      { month: 'Apr', baseline: 200, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 30 },
-        { id: 'i2', name: 'Process Automation', impact: 30 },
-        { id: 'i3', name: 'Customer Portal', impact: 20 }
-      ], plan: 270 },
-      { month: 'May', baseline: 225, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 35 },
-        { id: 'i2', name: 'Process Automation', impact: 35 },
-        { id: 'i3', name: 'Customer Portal', impact: 25 }
-      ], plan: 300 },
-      { month: 'Jun', baseline: 240, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 40 },
-        { id: 'i2', name: 'Process Automation', impact: 45 },
-        { id: 'i3', name: 'Customer Portal', impact: 30 },
-        { id: 'i4', name: 'AI Analytics', impact: 15 }
-      ], plan: 340 },
-      { month: 'Jul', baseline: 235, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 45 },
-        { id: 'i2', name: 'Process Automation', impact: 50 },
-        { id: 'i3', name: 'Customer Portal', impact: 40 },
-        { id: 'i4', name: 'AI Analytics', impact: 30 }
-      ], plan: 380 },
-      { month: 'Aug', baseline: 250, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 50 },
-        { id: 'i2', name: 'Process Automation', impact: 55 },
-        { id: 'i3', name: 'Customer Portal', impact: 45 },
-        { id: 'i4', name: 'AI Analytics', impact: 40 }
-      ], plan: 410 },
-      { month: 'Sep', baseline: 260, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 55 },
-        { id: 'i2', name: 'Process Automation', impact: 60 },
-        { id: 'i3', name: 'Customer Portal', impact: 55 },
-        { id: 'i4', name: 'AI Analytics', impact: 50 }
-      ], plan: 450 },
-      { month: 'Oct', baseline: 275, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 60 },
-        { id: 'i2', name: 'Process Automation', impact: 70 },
-        { id: 'i3', name: 'Customer Portal', impact: 65 },
-        { id: 'i4', name: 'AI Analytics', impact: 65 }
-      ], plan: 500 },
-      { month: 'Nov', baseline: 280, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 70 },
-        { id: 'i2', name: 'Process Automation', impact: 80 },
-        { id: 'i3', name: 'Customer Portal', impact: 75 },
-        { id: 'i4', name: 'AI Analytics', impact: 75 }
-      ], plan: 550 },
-      { month: 'Dec', baseline: 290, initiatives: [
-        { id: 'i1', name: 'Cloud Migration', impact: 80 },
-        { id: 'i2', name: 'Process Automation', impact: 90 },
-        { id: 'i3', name: 'Customer Portal', impact: 90 },
-        { id: 'i4', name: 'AI Analytics', impact: 90 }
-      ], plan: 600 }
+      { month: 'Jan', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'Feb', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'Mar', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'Apr', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'May', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'Jun', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'Jul', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'Aug', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'Sep', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'Oct', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'Nov', baseline: 0, initiatives: [], plan: 0 },
+      { month: 'Dec', baseline: 0, initiatives: [], plan: 0 }
     ]
   },
   {
@@ -231,18 +183,18 @@ const WORKSTREAM_OUTLOOKS: WorkstreamOutlook[] = [
     name: 'Digital Transformation',
     color: '#8b5cf6',
     data: [
-      { month: 'Jan', baseline: 80, initiatives: [], plan: 90 },
-      { month: 'Feb', baseline: 85, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 10 }], plan: 100 },
-      { month: 'Mar', baseline: 90, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 20 }], plan: 115 },
-      { month: 'Apr', baseline: 85, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 30 }, { id: 'd2', name: 'API Platform', impact: 15 }], plan: 130 },
-      { month: 'May', baseline: 95, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 35 }, { id: 'd2', name: 'API Platform', impact: 25 }], plan: 145 },
-      { month: 'Jun', baseline: 100, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 40 }, { id: 'd2', name: 'API Platform', impact: 35 }], plan: 165 },
-      { month: 'Jul', baseline: 95, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 45 }, { id: 'd2', name: 'API Platform', impact: 45 }], plan: 185 },
-      { month: 'Aug', baseline: 105, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 50 }, { id: 'd2', name: 'API Platform', impact: 50 }], plan: 200 },
-      { month: 'Sep', baseline: 110, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 55 }, { id: 'd2', name: 'API Platform', impact: 60 }], plan: 220 },
-      { month: 'Oct', baseline: 115, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 60 }, { id: 'd2', name: 'API Platform', impact: 70 }], plan: 245 },
-      { month: 'Nov', baseline: 120, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 70 }, { id: 'd2', name: 'API Platform', impact: 80 }], plan: 270 },
-      { month: 'Dec', baseline: 125, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 80 }, { id: 'd2', name: 'API Platform', impact: 90 }], plan: 295 }
+      { month: 'Jan', baseline: 80, initiatives: [], plan: 0 },
+      { month: 'Feb', baseline: 85, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 10 }], plan: 0 },
+      { month: 'Mar', baseline: 90, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 20 }], plan: 0 },
+      { month: 'Apr', baseline: 85, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 30 }, { id: 'd2', name: 'API Platform', impact: 15 }], plan: 0 },
+      { month: 'May', baseline: 95, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 35 }, { id: 'd2', name: 'API Platform', impact: 25 }], plan: 0 },
+      { month: 'Jun', baseline: 100, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 40 }, { id: 'd2', name: 'API Platform', impact: 35 }], plan: 0 },
+      { month: 'Jul', baseline: 95, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 45 }, { id: 'd2', name: 'API Platform', impact: 45 }], plan: 0 },
+      { month: 'Aug', baseline: 105, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 50 }, { id: 'd2', name: 'API Platform', impact: 50 }], plan: 0 },
+      { month: 'Sep', baseline: 110, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 55 }, { id: 'd2', name: 'API Platform', impact: 60 }], plan: 0 },
+      { month: 'Oct', baseline: 115, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 60 }, { id: 'd2', name: 'API Platform', impact: 70 }], plan: 0 },
+      { month: 'Nov', baseline: 120, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 70 }, { id: 'd2', name: 'API Platform', impact: 80 }], plan: 0 },
+      { month: 'Dec', baseline: 125, initiatives: [{ id: 'd1', name: 'Cloud Migration', impact: 80 }, { id: 'd2', name: 'API Platform', impact: 90 }], plan: 0 }
     ]
   },
   {
@@ -250,18 +202,18 @@ const WORKSTREAM_OUTLOOKS: WorkstreamOutlook[] = [
     name: 'Operational Excellence',
     color: '#3b82f6',
     data: [
-      { month: 'Jan', baseline: 60, initiatives: [], plan: 65 },
-      { month: 'Feb', baseline: 65, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 5 }], plan: 72 },
-      { month: 'Mar', baseline: 70, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 15 }], plan: 80 },
-      { month: 'Apr', baseline: 68, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 25 }, { id: 'o2', name: 'Supply Chain', impact: 10 }], plan: 88 },
-      { month: 'May', baseline: 75, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 30 }, { id: 'o2', name: 'Supply Chain', impact: 20 }], plan: 96 },
-      { month: 'Jun', baseline: 80, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 35 }, { id: 'o2', name: 'Supply Chain', impact: 30 }], plan: 108 },
-      { month: 'Jul', baseline: 78, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 40 }, { id: 'o2', name: 'Supply Chain', impact: 40 }], plan: 120 },
-      { month: 'Aug', baseline: 85, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 45 }, { id: 'o2', name: 'Supply Chain', impact: 50 }], plan: 130 },
-      { month: 'Sep', baseline: 88, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 50 }, { id: 'o2', name: 'Supply Chain', impact: 55 }], plan: 142 },
-      { month: 'Oct', baseline: 92, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 55 }, { id: 'o2', name: 'Supply Chain', impact: 60 }], plan: 155 },
-      { month: 'Nov', baseline: 95, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 60 }, { id: 'o2', name: 'Supply Chain', impact: 70 }], plan: 170 },
-      { month: 'Dec', baseline: 100, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 70 }, { id: 'o2', name: 'Supply Chain', impact: 80 }], plan: 185 }
+      { month: 'Jan', baseline: 60, initiatives: [], plan: 0 },
+      { month: 'Feb', baseline: 65, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 5 }], plan: 0 },
+      { month: 'Mar', baseline: 70, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 15 }], plan: 0 },
+      { month: 'Apr', baseline: 68, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 25 }, { id: 'o2', name: 'Supply Chain', impact: 10 }], plan: 0 },
+      { month: 'May', baseline: 75, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 30 }, { id: 'o2', name: 'Supply Chain', impact: 20 }], plan: 0 },
+      { month: 'Jun', baseline: 80, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 35 }, { id: 'o2', name: 'Supply Chain', impact: 30 }], plan: 0 },
+      { month: 'Jul', baseline: 78, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 40 }, { id: 'o2', name: 'Supply Chain', impact: 40 }], plan: 0 },
+      { month: 'Aug', baseline: 85, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 45 }, { id: 'o2', name: 'Supply Chain', impact: 50 }], plan: 0 },
+      { month: 'Sep', baseline: 88, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 50 }, { id: 'o2', name: 'Supply Chain', impact: 55 }], plan: 0 },
+      { month: 'Oct', baseline: 92, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 55 }, { id: 'o2', name: 'Supply Chain', impact: 60 }], plan: 0 },
+      { month: 'Nov', baseline: 95, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 60 }, { id: 'o2', name: 'Supply Chain', impact: 70 }], plan: 0 },
+      { month: 'Dec', baseline: 100, initiatives: [{ id: 'o1', name: 'Lean Manufacturing', impact: 70 }, { id: 'o2', name: 'Supply Chain', impact: 80 }], plan: 0 }
     ]
   },
   {
@@ -269,21 +221,39 @@ const WORKSTREAM_OUTLOOKS: WorkstreamOutlook[] = [
     name: 'Customer Experience',
     color: '#22d3ee',
     data: [
-      { month: 'Jan', baseline: 40, initiatives: [], plan: 45 },
-      { month: 'Feb', baseline: 45, initiatives: [], plan: 48 },
-      { month: 'Mar', baseline: 50, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 10 }], plan: 55 },
-      { month: 'Apr', baseline: 47, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 20 }, { id: 'c2', name: 'Loyalty Program', impact: 5 }], plan: 62 },
-      { month: 'May', baseline: 55, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 25 }, { id: 'c2', name: 'Loyalty Program', impact: 15 }], plan: 69 },
-      { month: 'Jun', baseline: 60, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 30 }, { id: 'c2', name: 'Loyalty Program', impact: 25 }], plan: 77 },
-      { month: 'Jul', baseline: 62, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 35 }, { id: 'c2', name: 'Loyalty Program', impact: 30 }], plan: 85 },
-      { month: 'Aug', baseline: 60, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 40 }, { id: 'c2', name: 'Loyalty Program', impact: 40 }], plan: 90 },
-      { month: 'Sep', baseline: 62, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 50 }, { id: 'c2', name: 'Loyalty Program', impact: 45 }], plan: 98 },
-      { month: 'Oct', baseline: 68, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 55 }, { id: 'c2', name: 'Loyalty Program', impact: 50 }], plan: 110 },
-      { month: 'Nov', baseline: 65, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 60 }, { id: 'c2', name: 'Loyalty Program', impact: 55 }], plan: 120 },
-      { month: 'Dec', baseline: 65, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 70 }, { id: 'c2', name: 'Loyalty Program', impact: 65 }], plan: 130 }
+      { month: 'Jan', baseline: 40, initiatives: [], plan: 0 },
+      { month: 'Feb', baseline: 45, initiatives: [], plan: 0 },
+      { month: 'Mar', baseline: 50, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 10 }], plan: 0 },
+      { month: 'Apr', baseline: 47, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 20 }, { id: 'c2', name: 'Loyalty Program', impact: 5 }], plan: 0 },
+      { month: 'May', baseline: 55, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 25 }, { id: 'c2', name: 'Loyalty Program', impact: 15 }], plan: 0 },
+      { month: 'Jun', baseline: 60, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 30 }, { id: 'c2', name: 'Loyalty Program', impact: 25 }], plan: 0 },
+      { month: 'Jul', baseline: 62, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 35 }, { id: 'c2', name: 'Loyalty Program', impact: 30 }], plan: 0 },
+      { month: 'Aug', baseline: 60, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 40 }, { id: 'c2', name: 'Loyalty Program', impact: 40 }], plan: 0 },
+      { month: 'Sep', baseline: 62, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 50 }, { id: 'c2', name: 'Loyalty Program', impact: 45 }], plan: 0 },
+      { month: 'Oct', baseline: 68, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 55 }, { id: 'c2', name: 'Loyalty Program', impact: 50 }], plan: 0 },
+      { month: 'Nov', baseline: 65, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 60 }, { id: 'c2', name: 'Loyalty Program', impact: 55 }], plan: 0 },
+      { month: 'Dec', baseline: 65, initiatives: [{ id: 'c1', name: 'Customer Portal', impact: 70 }, { id: 'c2', name: 'Loyalty Program', impact: 65 }], plan: 0 }
     ]
   }
 ];
+
+const PLAN_DELTAS: Record<string, number[]> = {
+  digital: [6, -4, 5, -6, 4, -5, 6, -4, 7, -6, 5, -4],
+  ops: [3, -3, 4, -5, 3, -4, 5, -3, 4, -4, 5, -3],
+  cx: [-2, 3, -3, 4, -2, 3, -3, 4, -2, 3, -3, 4]
+};
+
+const buildOutlookData = (workstreamId: string, data: MonthData[]) => {
+  const deltas = PLAN_DELTAS[workstreamId] ?? [];
+  return data.map((entry, index) => {
+    const initTotal = entry.initiatives.reduce((sum, item) => sum + item.impact, 0);
+    const delta = deltas[index] ?? 0;
+    return {
+      ...entry,
+      plan: entry.baseline + initTotal + delta
+    };
+  });
+};
 
 // =============================================
 // STAGE-GATE PIPELINE DATA
@@ -386,16 +356,6 @@ const WORKSTREAMS: WorkstreamData[] = [
 ];
 
 // Formatters
-const formatCurrency = (value: number, compact = true) => {
-  if (value === 0) return '$0';
-  const prefix = value < 0 ? '-' : '';
-  const absVal = Math.abs(value);
-  if (compact && absVal >= 1000) {
-    return `${prefix}$${(absVal / 1000).toFixed(1)}K`;
-  }
-  return `${prefix}$${absVal}`;
-};
-
 const formatCurrencyRounded = (value: number, compact = true) => {
   if (value === 0) return '$0';
   const prefix = value < 0 ? '-' : '';
@@ -404,6 +364,15 @@ const formatCurrencyRounded = (value: number, compact = true) => {
     return `${prefix}$${Math.round(absVal / 1000)}K`;
   }
   return `${prefix}$${Math.round(absVal)}`;
+};
+
+const formatCurrencyMillions = (value: number) => {
+  if (value === 0) return '$0';
+  const prefix = value < 0 ? '-' : '';
+  const absVal = Math.abs(value);
+  const millions = absVal / 1000000;
+  const decimals = millions >= 10 ? 0 : millions >= 1 ? 1 : 2;
+  return `${prefix}$${millions.toFixed(decimals)}M`;
 };
 
 const formatDelta = (base: number, withInit: number) => {
@@ -461,14 +430,35 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
 
   // Get current outlook data based on selected workstream
   const currentOutlookData = useMemo(() => {
-    const data = WORKSTREAM_OUTLOOKS.find(w => w.id === selectedOutlookWorkstream)?.data || WORKSTREAM_OUTLOOKS[0].data;
-    return data.map((entry) => {
-      const initTotal = entry.initiatives.reduce((sum, item) => sum + item.impact, 0);
-      return {
-        ...entry,
-        plan: entry.baseline + initTotal
-      };
-    });
+    if (selectedOutlookWorkstream === 'all') {
+      const workstreams = WORKSTREAM_OUTLOOKS.filter(ws => ws.id !== 'all');
+      const computed = workstreams.map(ws => ({
+        id: ws.id,
+        data: buildOutlookData(ws.id, ws.data)
+      }));
+
+      if (computed.length === 0) return [];
+
+      return computed[0].data.map((entry, index) => {
+        const baseline = computed.reduce((sum, ws) => sum + (ws.data[index]?.baseline || 0), 0);
+        const initiatives = computed.flatMap(ws =>
+          (ws.data[index]?.initiatives || []).map((init) => ({
+            ...init,
+            id: `${ws.id}-${init.id}`
+          }))
+        );
+        const plan = computed.reduce((sum, ws) => sum + (ws.data[index]?.plan || 0), 0);
+        return {
+          month: entry.month,
+          baseline,
+          initiatives,
+          plan
+        };
+      });
+    }
+
+    const source = WORKSTREAM_OUTLOOKS.find(w => w.id === selectedOutlookWorkstream) ?? WORKSTREAM_OUTLOOKS[0];
+    return buildOutlookData(source.id, source.data);
   }, [selectedOutlookWorkstream]);
 
   const currentOutlookColor = useMemo(() => {
@@ -634,7 +624,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                 style={{ width: `${baseWidth}%` }}
               />
             </div>
-            <span className={styles.treeBarValue}>{formatCurrency(node.baseValue)}</span>
+            <span className={styles.treeBarValue}>{formatCurrencyMillions(node.baseValue)}</span>
           </div>
           <div className={styles.treeBarRow}>
             <div className={styles.treeBarTrack}>
@@ -643,7 +633,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                 style={{ width: `${initWidth}%` }}
               />
             </div>
-            <span className={styles.treeBarValue}>{formatCurrency(node.withInitiatives)}</span>
+            <span className={styles.treeBarValue}>{formatCurrencyMillions(node.withInitiatives)}</span>
           </div>
         </div>
       </div>
@@ -703,7 +693,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                         <div key={init.id} className={styles.popupItem}>
                           <span className={styles.popupInitName}>{init.name}</span>
                           <span className={styles.popupInitValue}>
-                            {formatCurrency(init.impact)}
+                            {formatCurrencyMillions(init.impact)}
                             <span className={styles.popupInitPercent}>
                               ({treePopupTotal > 0 ? Math.round((init.impact / treePopupTotal) * 100) : 0}%)
                             </span>
@@ -712,7 +702,7 @@ export const ReportingDemo = ({ className, activeView }: ReportingDemoProps) => 
                       ))}
                       <div className={styles.popupTotal}>
                         <span>Total Impact</span>
-                        <span>{formatCurrency(treePopupTotal)}</span>
+                        <span>{formatCurrencyMillions(treePopupTotal)}</span>
                       </div>
                     </>
                   )}

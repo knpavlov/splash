@@ -626,7 +626,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
       <div className={styles.demoStack}>
         <div ref={ownerWindowRef} className={styles.demoWindowWrap}>
           {showOwnerHint && (
-            <div className={`${styles.hintOverlay} ${currentStep === 'owner-edit' ? styles.pulse : ''}`}>
+            <div className={`${styles.hintOverlay} ${styles.pulse}`}>
               <div className={styles.hintContent}>
                 <div className={styles.hintText}>
                   <span className={styles.hintTitle}>{hint.title}</span>
@@ -689,7 +689,7 @@ export const StageGateDemo = ({ className }: StageGateDemoProps) => {
 
         <div ref={approverWindowRef} className={styles.demoWindowWrap}>
           {showApproverHint && (
-            <div className={styles.hintOverlay}>
+            <div className={`${styles.hintOverlay} ${styles.pulse}`}>
               <div className={styles.hintContent}>
                 <div className={styles.hintText}>
                   <span className={styles.hintTitle}>{hint.title}</span>
